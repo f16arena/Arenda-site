@@ -32,3 +32,8 @@ export const IMPORT_TABS = [
   { href: "/admin/import/charges", label: "Начисления" },
   { href: "/admin/finances/import", label: "Банковская выписка" },
 ]
+
+export const SERVICE_TABS = [
+  { href: "/admin/requests", label: "Заявки" },
+  { href: "/admin/complaints", label: "Жалобы и предложения" },
+]

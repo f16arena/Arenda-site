@@ -7,11 +7,12 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import {
   Building2, AlertTriangle,
   ClipboardList, CheckSquare, ArrowUpRight, ArrowRight,
-  Mail, Wallet,
+  Wallet, Users, LayoutDashboard,
   ClipboardCheck, ShieldCheck,
   FileSignature, ShieldAlert, CalendarClock, PiggyBank,
-  CircleCheck, Circle, Download, Activity,
+  CircleCheck, Download,
 } from "lucide-react"
+import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 import Link from "next/link"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -60,25 +61,23 @@ async function loadFloorScope(orgId: string, visibleBuildingIds: string[]) {
 function DashboardSkeleton() {
   return (
     <div className="space-y-5">
-      <div className="h-44 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+      <div className="h-12 w-64 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-800" />
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+        ))}
+      </div>
       <OperationalSkeleton />
     </div>
   )
 }
 
-// Скелет центра действий (стримится отдельно).
+// Скелет «Этот месяц» + «Требует внимания» (стримятся отдельно).
 function OperationalSkeleton() {
   return (
-    <div className="grid gap-4 xl:grid-cols-3">
-      <div className="space-y-2 xl:col-span-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-        ))}
-      </div>
-      <div className="space-y-4">
-        <div className="h-32 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-        <div className="h-56 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" />
-      </div>
+    <div className="space-y-5">
+      <div className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
+      <div className="h-40 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" />
     </div>
   )
 }
@@ -119,14 +118,12 @@ async function DashboardBody() {
   const { floorIds, tenantWhereInBuilding } = await loadFloorScope(orgId, visibleBuildingIds)
 
   const [
-    tenantsCount,
     activeTenants,
     spacesGroup,
     chargesAgg,
     onboarding,
     currentUser2fa,
   ] = await measureServerStep("/admin", "base-metrics", Promise.all([
-    safe("admin.dashboard.tenantsCount", db.tenant.count({ where: tenantWhereInBuilding }), 0),
     safe(
       "admin.dashboard.activeTenants",
       db.tenant.findMany({
@@ -207,86 +204,60 @@ async function DashboardBody() {
     return sum + calculateTenantMonthlyRent(t)
   }, 0)
 
-  // Приветствие по времени Алматы (сервер в UTC)
   const now = new Date()
-  const almatyHour = Number(new Intl.DateTimeFormat("ru-RU", { hour: "numeric", hour12: false, timeZone: "Asia/Almaty" }).format(now))
-  const greeting = almatyHour < 5 ? "Доброй ночи" : almatyHour < 12 ? "Доброе утро" : almatyHour < 18 ? "Добрый день" : "Добрый вечер"
   const todayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Almaty" }).format(now)
+  const need2fa = !!currentUser2fa && currentUser2fa.role === "OWNER" && !currentUser2fa.totpEnabledAt
+  const needSetup = !onboarding.allDone && !!onboarding.nextStep
 
   return (
     <div className="space-y-5">
-      {/* ── Hero: контекст + ключевые цифры одной тёмной панелью ── */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 p-6 text-white shadow-lg">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-blue-500/15 blur-2xl" />
-        <div className="pointer-events-none absolute -bottom-32 right-32 h-64 w-64 rounded-full bg-indigo-500/10 blur-2xl" />
-        <div className="relative flex flex-col gap-6">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <div>
-              <p className="text-sm text-slate-400 capitalize">{todayLabel}</p>
-              <h1 className="mt-0.5 text-2xl font-semibold">{greeting}!</h1>
-            </div>
-            <p className="text-xs text-slate-400">
-              {buildingId ? "Выбранное здание" : `Все здания · ${visibleBuildingIds.length}`}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <HeroMetric
-              label="Доход в месяц"
-              value={formatMoney(monthlyRevenue)}
-              sub="расчётный по договорам"
-            />
-            <HeroMetric
-              label="Долг арендаторов"
-              value={formatMoney(totalDebt)}
-              sub={debtCount > 0 ? `${debtCount} неоплаченных` : "долгов нет"}
-              tone={totalDebt > 0 ? "red" : "emerald"}
-            />
-            <div>
-              <p className="text-xs text-slate-400">Заполняемость</p>
-              <p className="mt-1 text-xl font-bold tabular-nums sm:text-2xl">{occupancyPct}%</p>
-              <div className="mt-1.5 h-1.5 w-full max-w-[140px] overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-blue-400" style={{ width: `${occupancyPct}%` }} />
-              </div>
-              <p className="mt-1 text-[11px] text-slate-400">{occupiedSpaces} занято · {vacantSpaces} свободно</p>
-            </div>
-            <HeroMetric
-              label="Арендаторы"
-              value={String(activeTenants.length)}
-              sub={`из ${tenantsCount} зарегистрированных`}
-            />
-          </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Обзор"
+        subtitle={<span className="capitalize">{todayLabel} · {buildingId ? "выбранное здание" : `все здания (${visibleBuildingIds.length})`}</span>}
+      />
+
+      {/* Главные цифры: сколько денег и насколько занято здание */}
+      <StatGrid>
+        <StatCard icon={Wallet} tone="blue" label="Доход в месяц" value={formatMoney(monthlyRevenue)} sub="по действующим условиям аренды" href="/admin/analytics" />
+        <StatCard
+          icon={AlertTriangle}
+          tone={totalDebt > 0 ? "red" : "emerald"}
+          label="Долг арендаторов"
+          value={formatMoney(totalDebt)}
+          sub={debtCount > 0 ? `${debtCount} неоплаченных начислений` : "долгов нет"}
+          href="/admin/finances?chargeStatus=unpaid"
+        />
+        <StatCard icon={Building2} tone="teal" label="Заполняемость" value={`${occupancyPct}%`} sub={`${occupiedSpaces} занято · ${vacantSpaces} свободно`} href="/admin/spaces" />
+        <StatCard icon={Users} tone="violet" label="Арендаторы" value={String(activeTenants.length)} sub={buildingId ? "в выбранном здании" : "во всех зданиях"} href="/admin/tenants" />
+      </StatGrid>
+
+      {/* Незавершённая настройка — одной тонкой строкой, а не двумя плашками */}
+      {(need2fa || needSetup) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+          <span className="flex items-center gap-2 font-semibold">
+            <ClipboardCheck className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+            Настройка не закончена
+          </span>
+          {needSetup && onboarding.nextStep && (
+            <Link href="/admin/onboarding" className="inline-flex items-center gap-1 hover:underline">
+              готово {onboarding.percent}%, дальше: {onboarding.nextStep.title.toLowerCase()} <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+          {need2fa && (
+            <Link href="/admin/profile?tab=notifications" className="inline-flex items-center gap-1 hover:underline">
+              <ShieldAlert className="h-3.5 w-3.5" /> включите вход по коду (2FA) <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
-      </section>
-
-      {/* Компактные предупреждения (2FA / запуск платформы) */}
-      {currentUser2fa && currentUser2fa.role === "OWNER" && !currentUser2fa.totpEnabledAt && (
-        <SlimBanner
-          href="/admin/profile?tab=notifications"
-          icon={ShieldAlert}
-          tone="amber"
-          title="Включите двухфакторную аутентификацию"
-          sub="Защитит аккаунт владельца даже при утечке пароля"
-          cta="Настроить"
-        />
-      )}
-      {!onboarding.allDone && onboarding.nextStep && (
-        <SlimBanner
-          href="/admin/onboarding"
-          icon={ClipboardCheck}
-          tone="blue"
-          title={`Запуск платформы: ${onboarding.percent}%`}
-          sub={`Следующий шаг: ${onboarding.nextStep.title.toLowerCase()}`}
-          cta="Чеклист"
-          progress={onboarding.percent}
-        />
       )}
 
-      {/* Центр действий + пульс дня стримятся отдельно от hero */}
       <Suspense fallback={<OperationalSkeleton />}>
         <DashboardOperational orgId={orgId} visibleBuildingIds={visibleBuildingIds} />
       </Suspense>
 
-      <DashboardLazySections forecastMonthlyRevenue={monthlyRevenue} showPortfolio={!buildingId} />
+      {/* По зданиям — только когда смотрим все здания сразу */}
+      {!buildingId && visibleBuildingIds.length > 1 && <DashboardLazySections />}
     </div>
   )
   })
@@ -305,8 +276,6 @@ async function DashboardOperational({
 
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  const tomorrow = new Date(todayStart.getTime() + 24 * 3600 * 1000)
-  const yesterdayStart = new Date(todayStart.getTime() - 24 * 3600 * 1000)
   const in30Days = new Date(todayStart.getTime() + 30 * 24 * 3600 * 1000)
 
   const [
@@ -314,8 +283,6 @@ async function DashboardOperational({
     pendingPaymentReports,
     dataQualityIssues,
     expiringContracts,
-    todayRequests,
-    yesterdayPayments,
     openRequestsCount,
     openTasksCount,
     documentsOnSignature,
@@ -425,28 +392,6 @@ async function DashboardOperational({
       0,
     ),
     safe(
-      "admin.dashboard.todayRequests",
-      db.request.count({
-        where: {
-          createdAt: { gte: todayStart, lt: tomorrow },
-          tenant: tenantWhereInBuilding,
-        },
-      }),
-      0,
-    ),
-    safe(
-      "admin.dashboard.yesterdayPayments",
-      db.payment.aggregate({
-        where: {
-          paymentDate: { gte: yesterdayStart, lt: todayStart },
-          tenant: tenantWhereInBuilding,
-        },
-        _sum: { amount: true },
-        _count: { _all: true },
-      }),
-      { _sum: { amount: 0 }, _count: { _all: 0 } },
-    ),
-    safe(
       "admin.dashboard.openRequestsCount",
       db.request.count({
         where: {
@@ -515,30 +460,37 @@ async function DashboardOperational({
   const cycleSteps = [
     {
       label: "Начисления",
+      hint: "Сколько каждый арендатор должен за месяц: аренда, эксплуатационные, свет.",
+      cta: "Создать начисления",
       done: cycleCharges > 0,
       value: cycleCharges > 0 ? `${cycleCharges} шт` : "не созданы",
       href: "/admin/finances",
     },
     {
       label: "Счета",
+      hint: "Счёт на оплату каждому арендатору по его начислениям.",
+      cta: "Выставить счета",
       done: cycleActiveTenants > 0 && cycleInvoices >= cycleActiveTenants,
       value: `${cycleInvoices} из ${cycleActiveTenants}`,
       href: "/admin/documents/new/invoice",
     },
     {
       label: "АВР",
+      hint: "Акт выполненных работ — закрывает месяц в бухгалтерии.",
+      cta: "Сформировать АВР",
       done: cycleActiveTenants > 0 && cycleActs >= cycleActiveTenants,
       value: `${cycleActs} из ${cycleActiveTenants}`,
       href: "/admin/documents/new/act",
     },
     {
       label: "Оплаты",
+      hint: "Отметьте поступившие деньги — долг пересчитается сам.",
+      cta: "Отметить оплаты",
       done: cycleCharges > 0 && cyclePaidCharges >= cycleCharges,
       value: cycleCharges > 0 ? `${cyclePaidCharges} из ${cycleCharges}` : "—",
       href: "/admin/finances?chargeStatus=unpaid",
     },
   ]
-  const cycleDone = cycleSteps.filter((s) => s.done).length
 
   // ── Центр действий: каждый факт ровно один раз, отсортирован по срочности ──
   const actionsRaw: ActionItem[] = [
@@ -623,123 +575,70 @@ async function DashboardOperational({
       rank: 8,
     },
   ]
-  const actions = [...actionsRaw].sort((a, b) => Number(b.active) - Number(a.active) || a.rank - b.rank)
-  const activeActions = actions.filter((a) => a.active)
+  const activeActions = [...actionsRaw].filter((a) => a.active).sort((a, b) => a.rank - b.rank)
+  const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(now)
 
   return (
-    <div className="grid items-start gap-4 xl:grid-cols-3">
-      {/* ── Левая колонка: центр действий ── */}
-      <section className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Сейчас важно</h2>
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-            activeActions.length > 0
-              ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
-              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-          }`}>
-            {activeActions.length > 0 ? `${activeActions.length} действий` : "всё спокойно"}
-          </span>
-        </div>
+    <>
+      {/* ── Этот месяц: четыре шага, которые закрывают любой месяц аренды ── */}
+      <Card
+        title={<span>Этот месяц · <span className="capitalize">{monthLabel}</span></span>}
+        icon={CalendarClock}
+        padded={false}
+        actions={
+          <a
+            href={`/api/export/documents-zip?period=${currentPeriod}`}
+            download
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            <Download className="h-3.5 w-3.5" /> Документы месяца (ZIP)
+          </a>
+        }
+      >
+        <ol className="grid divide-y divide-slate-100 dark:divide-slate-800 sm:grid-cols-2 sm:divide-y-0 lg:grid-cols-4 lg:divide-x">
+          {cycleSteps.map((step, i) => (
+            <li key={step.label} className="flex flex-col gap-2 p-5">
+              <div className="flex items-center gap-2">
+                {step.done
+                  ? <CircleCheck className="h-5 w-5 shrink-0 text-emerald-500" />
+                  : <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 text-[11px] font-semibold text-slate-500 dark:border-slate-600 dark:text-slate-400">{i + 1}</span>}
+                <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{step.label}</span>
+                <span className={`ml-auto text-xs tabular-nums ${step.done ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>{step.value}</span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{step.hint}</p>
+              <Link
+                href={step.href}
+                className={`mt-auto inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  step.done
+                    ? "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                    : "bg-blue-600 text-white hover:bg-blue-700"
+                }`}
+              >
+                {step.done ? "Открыть" : step.cta}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </li>
+          ))}
+        </ol>
+      </Card>
+
+      {/* ── Требует внимания: только то, что реально ждёт действия ── */}
+      <Card title="Требует внимания" icon={AlertTriangle} padded={false}>
         {activeActions.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 px-5 py-10 text-center">
-            <CircleCheck className="h-10 w-10 text-emerald-500" />
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Критичных действий нет</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Долги, оплаты, документы и данные в порядке по текущему срезу.</p>
+          <div className="flex items-center gap-3 px-5 py-6">
+            <CircleCheck className="h-6 w-6 shrink-0 text-emerald-500" />
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Всё в порядке</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Нет просрочек, неподписанных документов, заявок и ошибок в данных.</p>
+            </div>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {activeActions.map((a) => <ActionRow key={a.href + a.title} item={a} />)}
           </ul>
         )}
-        {/* Неактивные — тонкой строкой, чтобы было видно, что ещё под контролем */}
-        {activeActions.length > 0 && activeActions.length < actions.length && (
-          <p className="border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
-            Под контролем: {actions.filter((a) => !a.active).map((a) => a.title.toLowerCase().replace(/^[а-яё]+ /, "")).join(" · ")}
-          </p>
-        )}
-      </section>
-
-      {/* ── Правая колонка: пульс дня + цикл месяца ── */}
-      <div className="space-y-4">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-            <Activity className="h-4 w-4 text-slate-400" />
-            Пульс
-          </h2>
-          <div className="mt-3 space-y-2.5">
-            <PulseRow
-              href="/admin/requests"
-              icon={Mail}
-              label="Новые заявки сегодня"
-              value={todayRequests > 0 ? `${todayRequests}` : "—"}
-              highlight={todayRequests > 0}
-            />
-            <PulseRow
-              href="/admin/finances"
-              icon={Wallet}
-              label={`Поступления вчера${(yesterdayPayments._count._all ?? 0) > 0 ? ` · ${yesterdayPayments._count._all} пл.` : ""}`}
-              value={(yesterdayPayments._sum.amount ?? 0) > 0 ? formatMoney(yesterdayPayments._sum.amount ?? 0) : "—"}
-              highlight={(yesterdayPayments._sum.amount ?? 0) > 0}
-            />
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Цикл месяца</h2>
-              <span className="text-xs tabular-nums text-slate-400">{cycleDone}/4</span>
-            </div>
-            <div className="mt-2 flex gap-1">
-              {cycleSteps.map((s) => (
-                <div key={s.label} className={`h-1 flex-1 rounded-full ${s.done ? "bg-emerald-500" : "bg-slate-200 dark:bg-slate-700"}`} />
-              ))}
-            </div>
-          </div>
-          <ul className="px-2 py-2">
-            {cycleSteps.map((step, i) => (
-              <li key={step.label}>
-                <Link
-                  href={step.href}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                >
-                  {step.done
-                    ? <CircleCheck className="h-4 w-4 shrink-0 text-emerald-500" />
-                    : <Circle className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />}
-                  <span className={`flex-1 text-sm ${step.done ? "text-slate-400 dark:text-slate-500" : "font-medium text-slate-800 dark:text-slate-200"}`}>
-                    {i + 1}. {step.label}
-                  </span>
-                  <span className={`text-xs tabular-nums ${step.done ? "text-emerald-600 dark:text-emerald-400" : "text-slate-500 dark:text-slate-400"}`}>
-                    {step.value}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <div className="border-t border-slate-100 p-3 dark:border-slate-800">
-            <a
-              href={`/api/export/documents-zip?period=${currentPeriod}`}
-              download
-              className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Все документы {currentPeriod} (ZIP)
-            </a>
-          </div>
-        </section>
-
-        <Link
-          href="/admin/calendar"
-          className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-3.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/60"
-        >
-          <span className="flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-slate-400" />
-            Календарь событий
-          </span>
-          <ArrowRight className="h-4 w-4 text-slate-400" />
-        </Link>
-      </div>
-    </div>
+      </Card>
+    </>
   )
 }
 
@@ -771,88 +670,5 @@ function ActionRow({ item }: { item: ActionItem }) {
         <ArrowUpRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-slate-500" />
       </Link>
     </li>
-  )
-}
-
-function PulseRow({
-  href, icon: Icon, label, value, highlight,
-}: {
-  href: string
-  icon: React.ElementType
-  label: string
-  value: string
-  highlight?: boolean
-}) {
-  return (
-    <Link href={href} className="flex items-center gap-3 rounded-lg px-1 py-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60">
-      <Icon className={`h-4 w-4 shrink-0 ${highlight ? "text-blue-500" : "text-slate-300 dark:text-slate-600"}`} />
-      <span className="min-w-0 flex-1 truncate text-xs text-slate-500 dark:text-slate-400">{label}</span>
-      <span className={`shrink-0 text-sm font-semibold tabular-nums ${highlight ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
-        {value}
-      </span>
-    </Link>
-  )
-}
-
-function HeroMetric({
-  label, value, sub, tone,
-}: {
-  label: string
-  value: string
-  sub: string
-  tone?: "red" | "emerald"
-}) {
-  return (
-    <div>
-      <p className="text-xs text-slate-400">{label}</p>
-      <p className={`mt-1 truncate text-xl font-bold tabular-nums sm:text-2xl ${
-        tone === "red" ? "text-red-300" : tone === "emerald" ? "text-emerald-300" : "text-white"
-      }`}>
-        {value}
-      </p>
-      <p className="mt-1 text-[11px] text-slate-400">{sub}</p>
-    </div>
-  )
-}
-
-function SlimBanner({
-  href, icon: Icon, tone, title, sub, cta, progress,
-}: {
-  href: string
-  icon: React.ElementType
-  tone: "amber" | "blue"
-  title: string
-  sub: string
-  cta: string
-  progress?: number
-}) {
-  const tones = {
-    amber: "border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100",
-    blue: "border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100",
-  }
-  const iconTones = {
-    amber: "text-amber-600 dark:text-amber-300",
-    blue: "text-blue-600 dark:text-blue-300",
-  }
-  return (
-    <Link
-      href={href}
-      className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition hover:shadow-sm ${tones[tone]}`}
-    >
-      <Icon className={`h-5 w-5 shrink-0 ${iconTones[tone]}`} />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-semibold">{title}</span>
-        <span className="block truncate text-xs opacity-75">{sub}</span>
-      </span>
-      {typeof progress === "number" && (
-        <span className="hidden h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-white/70 dark:bg-slate-800 sm:block">
-          <span className="block h-full rounded-full bg-blue-600" style={{ width: `${progress}%` }} />
-        </span>
-      )}
-      <span className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold">
-        {cta}
-        <ArrowUpRight className="h-4 w-4" />
-      </span>
-    </Link>
   )
 }

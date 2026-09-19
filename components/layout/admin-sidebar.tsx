@@ -6,12 +6,12 @@ import { useState, useEffect } from "react"
 import {
   LayoutDashboard, Users, Building2, Wallet, Gauge,
   FileText, ClipboardList, CheckSquare,
-  MessageSquare, AlertCircle, Phone, BarChart3,
+  MessageSquare, Phone, BarChart3,
   Package, Settings as SettingsIcon,
   Mail, History, TrendingUp,
   LogOut, Building,
   CalendarDays, ChevronDown,
-  Menu, X, Rocket, CircleHelp, HardDrive, Sparkles,
+  Menu, X, Rocket, CircleHelp, HardDrive,
   PanelLeftClose, PanelLeftOpen, Megaphone, Box, Upload, KeyRound,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -26,8 +26,10 @@ type NavItem = {
   platformOnly?: boolean
   section?: string
   capability?: string
-  /** Ключ живого счётчика из /api/admin/nav-counters */
-  counter?: CounterKey
+  /** Ключ живого счётчика из /api/admin/nav-counters (несколько — суммируются) */
+  counter?: CounterKey | CounterKey[]
+  /** Другие страницы-вкладки этого же раздела: пункт подсвечивается и на них */
+  alsoActive?: string[]
 }
 type NavSection = {
   title?: string
@@ -66,7 +68,6 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin", label: "Обзор", icon: LayoutDashboard, exact: true, section: "dashboard" },
       { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
-      { href: "/admin/onboarding", label: "Здоровье платформы", icon: Rocket, section: "dashboard" },
     ],
   },
   {
@@ -74,8 +75,7 @@ const nav: NavSection[] = [
     items: [
       { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
       { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
-      { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
-      { href: "/admin/service-fee", label: "Эксплуатационный сбор", icon: Sparkles, section: "buildings" },
+      // Эксплуатационный сбор настраивается в карточке здания (/buildings/[id]/service-fee)
       { href: "/admin/builder/projects", label: "3D-конструктор", icon: Box, section: "buildings" },
     ],
   },
@@ -91,6 +91,8 @@ const nav: NavSection[] = [
     title: "ФИНАНСЫ",
     items: [
       { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
+      // Показания счётчиков превращаются в начисления за свет и воду — это деньги
+      { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
       // Хаб: аналитика + фин.дашборд + отчётность — вкладки внутри (lib/hub-tabs).
       { href: "/admin/analytics", label: "Аналитика и отчёты", icon: BarChart3, section: "analytics" },
     ],
@@ -106,10 +108,10 @@ const nav: NavSection[] = [
   {
     title: "ОБСЛУЖИВАНИЕ",
     items: [
-      { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests", counter: "requests" },
+      // Хаб: заявки + жалобы и предложения — вкладки внутри (lib/hub-tabs).
+      { href: "/admin/requests", label: "Заявки и жалобы", icon: ClipboardList, section: "requests", counter: ["requests", "complaints"], alsoActive: ["/admin/complaints"] },
       { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks", counter: "tasks" },
       { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages", counter: "messages" },
-      { href: "/admin/complaints", label: "Жалобы", icon: AlertCircle, section: "complaints", counter: "complaints" },
       { href: "/admin/faq", label: "FAQ и помощь", icon: CircleHelp },
     ],
   },
@@ -120,6 +122,8 @@ const nav: NavSection[] = [
     collapsible: true,
     items: [
       { href: "/admin/settings", label: "Настройки организации", icon: SettingsIcon, section: "settings" },
+      // Хаб: запуск платформы + качество данных + проверка системы (lib/hub-tabs).
+      { href: "/admin/onboarding", label: "Здоровье платформы", icon: Rocket, section: "dashboard", alsoActive: ["/admin/data-quality", "/admin/system-health"] },
       // Хаб: сотрудники + доступы/здания + роли — вкладки внутри (lib/hub-tabs).
       { href: "/admin/staff", label: "Команда и доступы", icon: Users, section: "staff" },
       { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
@@ -203,9 +207,15 @@ export function AdminSidebar({
     }
   }, [])
 
-  function isActive(href: string, exact?: boolean) {
+  function isActive(href: string, exact?: boolean, alsoActive?: string[]) {
     if (exact) return pathname === href
-    return pathname.startsWith(href)
+    return pathname.startsWith(href) || (alsoActive ?? []).some((p) => pathname.startsWith(p))
+  }
+
+  function countOf(item: NavItem): number {
+    if (!item.counter) return 0
+    const keys = Array.isArray(item.counter) ? item.counter : [item.counter]
+    return keys.reduce((sum, k) => sum + (counters[k] ?? 0), 0)
   }
 
   function toggleSection(title: string) {
@@ -324,14 +334,14 @@ export function AdminSidebar({
         {visibleNav.map((section, si) => {
           // Активный путь внутри секции — раскрываем принудительно,
           // даже если пользователь её свернул.
-          const hasActive = section.items.some((it) => isActive(it.href, it.exact))
+          const hasActive = section.items.some((it) => isActive(it.href, it.exact, it.alsoActive))
           const userCollapsed = section.title ? collapsed[section.title] : false
           const isExplicitState = section.title ? section.title in collapsed : false
           const defaultCollapsed = section.collapsible && !isExplicitState
           const isCollapsed = !hasActive && (userCollapsed ?? defaultCollapsed)
           // Сумма счётчиков внутри свёрнутой секции — чтобы цифры не терялись
           const sectionCount = section.items.reduce(
-            (sum, it) => sum + (it.counter ? counters[it.counter] ?? 0 : 0),
+            (sum, it) => sum + countOf(it),
             0,
           )
 
@@ -373,8 +383,8 @@ export function AdminSidebar({
               )}>
                 <ul className="overflow-hidden space-y-0.5">
                   {section.items.map((item) => {
-                    const active = isActive(item.href, "exact" in item ? item.exact : undefined)
-                    const count = item.counter ? counters[item.counter] ?? 0 : 0
+                    const active = isActive(item.href, "exact" in item ? item.exact : undefined, item.alsoActive)
+                    const count = countOf(item)
                     return (
                       <li key={item.href}>
                         <Link
@@ -400,7 +410,7 @@ export function AdminSidebar({
                               <span className={cn(
                                 "hidden",
                                 rail && "lg:flex absolute -top-1.5 -right-2 h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-[8px] font-bold leading-none",
-                                rail && COUNTER_STYLE[item.counter!],
+                                rail && COUNTER_STYLE[Array.isArray(item.counter) ? item.counter[0] : item.counter!],
                               )}>
                                 {formatBadge(count)}
                               </span>
@@ -411,7 +421,7 @@ export function AdminSidebar({
                           {count > 0 && (
                             <span className={cn(
                               "ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold leading-none",
-                              COUNTER_STYLE[item.counter!],
+                              COUNTER_STYLE[Array.isArray(item.counter) ? item.counter[0] : item.counter!],
                               active && "bg-white/25 text-white",
                               rail && "lg:hidden",
                             )}>
