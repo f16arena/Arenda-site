@@ -18,6 +18,17 @@ import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
 import { ISLAND_PRESETS, islandArea, islandLabel, isParking, isRoofPlace, isWallMounted, mountHeight } from "@/lib/builder/islands"
+import { footprintArea } from "@/lib/builder/drawing/indicators"
+
+/** Названия типов кровли — те же, что в панели уровней. */
+const ROOF_LABEL: Record<string, string> = {
+  flat: "Плоская",
+  gable: "Двускатная",
+  hip: "Вальмовая",
+  fourslope: "Четырёхскатная",
+  mansard: "Мансардная",
+  shed: "Односкатная",
+}
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
@@ -465,6 +476,54 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
           </div>
         )
       }
+    }
+  } else if (selection.type === "roof" && selection.floorId) {
+    // Кровля — полноценный элемент: её площадь, тип и места, которые на ней
+    // сдаются (антенны операторов, базовые станции).
+    const f = findFloor(doc, selection.floorId)
+    title = "Кровля"
+    if (f) {
+      const fid = selection.floorId
+      const roof = f.roof
+      const footM2 = footprintArea(f.wallGraph)
+      // скатная кровля длиннее плана: делим на косинус уклона и добавляем свес
+      const pitch = roof && roof.type !== "flat" ? (roof.pitchDeg || 0) : 0
+      const slopeK = Math.cos((pitch * Math.PI) / 180) || 1
+      const roofM2 = Math.round((footM2 / slopeK) * 10) / 10
+      const places = (f.islands ?? []).filter((i) => isRoofPlace(i))
+      const taken = places.filter((i) => (i.tenant ?? "").trim() || resolvePremise(f.premiseLinks?.[i.id] ?? ""))
+      rows.push(<Row key="fl" label="Этаж" value={f.name} />)
+      rows.push(<Row key="t" label="Тип" value={roof ? ROOF_LABEL[roof.type] : "нет кровли"} />)
+      if (roof && roof.type !== "flat") rows.push(<Row key="p" label="Уклон" value={`${roof.pitchDeg}°`} />)
+      rows.push(<Row key="a" label="Площадь по плану" value={`${Math.round(footM2 * 10) / 10} м²`} />)
+      if (pitch > 0) rows.push(<Row key="ar" label="Площадь кровли" value={`${roofM2} м²`} />)
+      rows.push(<Row key="pl" label="Мест на кровле" value={`${places.length}${places.length ? ` · сдано ${taken.length}` : ""}`} />)
+      controls = (
+        <div className="mt-2 flex flex-col gap-1.5">
+          {places.length > 0 && (
+            <div className="flex flex-col gap-1">
+              {places.map((p) => {
+                const prem = resolvePremise(f.premiseLinks?.[p.id] ?? "")
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => useEditorStore.getState().setSelection({ type: "island", id: p.id, floorId: fid })}
+                    className="flex items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-[11px]"
+                    style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+                  >
+                    <span>{islandLabel(p)}</span>
+                    <span style={{ color: prem?.tenantName || p.tenant ? TOKENS.accent : TOKENS.muted }}>{prem?.tenantName || p.tenant || "свободно"}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          <p className="text-[10px]" style={{ color: TOKENS.muted }}>
+            Место на кровле ставится инструментом «Островок»: выберите «Антенно-мачтовое сооружение» или «Базовая станция» и кликните по крыше. Тип кровли меняется в панели уровней слева.
+          </p>
+        </div>
+      )
     }
   } else if (selection.type === "island" && selection.id) {
     // место живёт на этаже или на участке (парковка) — панель одна и та же

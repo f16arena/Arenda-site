@@ -91,7 +91,7 @@ export function ToolOptions() {
   // клик поставил бы вендинг посреди двора
   useEffect(() => {
     const onSite = activeLevelId === "site"
-    if ((OUTDOOR_KINDS.has(islandKind) || ROOF_KINDS.has(islandKind)) !== onSite) {
+    if (!ROOF_KINDS.has(islandKind) && OUTDOOR_KINDS.has(islandKind) !== onSite) {
       useEditorStore.getState().setIslandKind(onSite ? "parking" : "vending")
     }
   }, [activeLevelId, islandKind])
@@ -261,7 +261,9 @@ export function ToolOptions() {
     const onSite = activeLevelId === "site"
     // на участке: парковка, киоски, контейнеры и места на кровле; на этаже —
     // всё, что внутри помещений
-    const kinds = ISLAND_KINDS.filter((k) => (OUTDOOR_KINDS.has(k) || ROOF_KINDS.has(k)) === onSite)
+    // кровельные места нужны и с этажа (крыша видна сверху), поэтому они
+    // в обоих списках; на участке — территория и кровля, на этаже — внутренние
+    const kinds = ISLAND_KINDS.filter((k) => ROOF_KINDS.has(k) || OUTDOOR_KINDS.has(k) === onSite)
     const kind = kinds.includes(islandKind) ? islandKind : kinds[0]
     return (
       <Shell>

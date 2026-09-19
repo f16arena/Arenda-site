@@ -149,7 +149,7 @@ function savedCameraMode(): CameraMode {
 }
 export type DisplayMode = "all" | "active" | "cutaway" | "ghost"
 
-export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "island" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
+export type SelectionType = "none" | "wall" | "node" | "room" | "object" | "floor" | "opening" | "stair" | "island" | "roof" | "water" | "path" | "pavement" | "mep-run" | "mep-device" | "section" | "annotation"
 export interface Selection {
   type: SelectionType
   id?: string

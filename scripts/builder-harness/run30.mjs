@@ -293,6 +293,58 @@ await page.waitForTimeout(800)
   check("I14 стрелки двигают место", dx === 200 && dy === -10, `выделено ${before.sel}, сдвиг ${dx} / ${dy}`)
 }
 
+// ── I15. кровля выбирается кликом и показывает свои места ──
+{
+  await page.evaluate(() => {
+    const s = window.__stores.useEditorStore.getState()
+    s.setDisplayMode("all")
+    s.setActiveLevel("site")
+    s.setTool("island")
+    s.setIslandKind("antenna")
+  })
+  await page.waitForTimeout(1600)
+  const spot = await page.evaluate(() => {
+    const scene = window.__engine.scene ?? window.__engine.bundle.scene
+    const W = scene.getEngine().getRenderWidth(), H = scene.getEngine().getRenderHeight()
+    for (let y = H * 0.2; y < H * 0.7; y += 8) {
+      for (let x = W * 0.25; x < W * 0.75; x += 8) {
+        if (scene.pick(x, y)?.pickedMesh?.metadata?.kind === "roof") return { x, y }
+      }
+    }
+    return null
+  })
+  if (!spot) {
+    check("I15 кровля найдена на экране", false, "кровли не видно")
+  } else {
+    await page.mouse.click(spot.x, spot.y)
+    await page.waitForTimeout(1000)
+    const placed = await page.evaluate(() => {
+      const doc = window.__doc()
+      const all = doc.buildings.flatMap((b) => b.floors).flatMap((f) => (f.islands ?? []).filter((i) => i.kind === "antenna"))
+      return { n: all.length, mount: all[0]?.mountHeight ?? null, sel: window.__stores.useEditorStore.getState().selection.type }
+    })
+    check("I15 антенна ставится на кровлю и выделяется", placed.n === 1 && placed.sel === "island", `антенн ${placed.n}, крепление ${placed.mount}, выделение ${placed.sel}`)
+    // теперь выбираем саму кровлю
+    await page.evaluate(() => window.__stores.useEditorStore.getState().setTool("select"))
+    await page.waitForTimeout(400)
+    // кликаем по кровле в стороне от поставленной антенны
+    const free = await page.evaluate(({ x, y }) => {
+      const scene = window.__engine.scene ?? window.__engine.bundle.scene
+      for (const d of [70, 100, 140, -70, -100, -140]) {
+        const p = scene.pick(x + d, y)
+        if (p?.pickedMesh?.metadata?.kind === "roof") return { x: x + d, y }
+      }
+      return null
+    }, spot)
+    await page.mouse.click((free ?? spot).x, (free ?? spot).y)
+    await page.waitForTimeout(800)
+    const sel = await page.evaluate(() => window.__stores.useEditorStore.getState().selection)
+    check("I15 кровля выбирается кликом", sel.type === "roof" && !!sel.floorId, JSON.stringify(sel))
+    const panel = await page.evaluate(() => document.body.innerText.includes("Мест на кровле"))
+    check("I15 в панели кровли есть счётчик мест", panel)
+  }
+}
+
 check("ошибок в консоли нет", errors.length === 0, errors.slice(0, 3).join(" | "))
 console.log(results.join("\n"))
 await browser.close()
