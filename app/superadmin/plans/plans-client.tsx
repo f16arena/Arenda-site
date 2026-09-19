@@ -1,4 +1,5 @@
 "use client"
+import { askText } from "@/components/ui/dialog-host"
 
 import { useMemo, useState, useTransition } from "react"
 import type { ReactNode } from "react"
@@ -507,8 +508,8 @@ function DeleteButton({ planId, orgCount }: { planId: string; orgCount: number }
       label={orgCount > 0 ? `Нельзя удалить: используют ${orgCount} организаций` : "Удалить"}
       disabled={disabled}
       danger
-      onClick={() => {
-        const confirmation = window.prompt('Это удалит тариф, если он не используется. Для подтверждения напишите "удалить".')
+      onClick={async () => {
+        const confirmation = await askText({ title: "Удалить тариф?", description: "Удалится, только если его не использует ни одна организация.", requireText: "удалить", confirmLabel: "Удалить" })
         if (confirmation?.trim().toLowerCase() !== "удалить") return
         startTransition(async () => {
           try {

@@ -1,3 +1,4 @@
+import { FIELD_CLS } from "@/lib/ui-fields"
 import { FileSignature } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
 import { CollapsibleCard } from "@/components/settings/collapsible-card"
@@ -15,8 +16,7 @@ export type EsfSectionConfig = {
   gsvsCode: string | null
 }
 
-const inputCls =
-  "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+const inputCls = FIELD_CLS
 
 export function EsfSection({ config }: { config: EsfSectionConfig | null }) {
   const c = config

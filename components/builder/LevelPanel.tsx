@@ -1,4 +1,6 @@
 "use client"
+import { askConfirm, askText } from "@/components/ui/dialog-host"
+import { toast } from "sonner"
 
 // ADR: Левая панель уровней (§5.4). Список этажей (сверху вниз) + «Участок», активный
 // уровень, режимы отображения (всё/активный/срез/призрак), «стены вниз», добавление
@@ -336,13 +338,13 @@ export function LevelPanel({
     setActiveLevel(floor.id)
   }
 
-  const deleteFloor = (f: Floor) => {
+  const deleteFloor = async (f: Floor) => {
     if (!building) return
     if (building.floors.length <= 1) {
-      window.alert("Нельзя удалить единственный этаж — в здании должен остаться хотя бы один уровень.")
+      toast.error("Нельзя удалить единственный этаж — в здании должен остаться хотя бы один уровень.")
       return
     }
-    if (!window.confirm(`Удалить «${f.name}» со всем содержимым (стены, объекты, помещения)? Это можно отменить (Ctrl+Z).`)) return
+    if (!(await askConfirm({ title: `Удалить «${f.name}»?`, description: "Со всем содержимым: стены, объекты, помещения. Можно отменить (Ctrl+Z).", confirmLabel: "Удалить", danger: true }))) return
     execute(new DeleteFloorCommand(building.id, f.id))
     if (activeLevelId === f.id) {
       const rest = building.floors.filter((fl) => fl.id !== f.id).sort((a, b) => b.level - a.level)
@@ -350,8 +352,8 @@ export function LevelPanel({
     }
   }
 
-  const renameFloor = (f: Floor) => {
-    const next = window.prompt("Название уровня (напр. «1 этаж», «Цоколь», «Подвал»):", f.name)
+  const renameFloor = async (f: Floor) => {
+    const next = await askText({ title: "Название уровня", placeholder: "1 этаж, Цоколь, Подвал", defaultValue: f.name, confirmLabel: "Сохранить" })
     const name = next?.trim()
     if (!name || name === f.name) return
     execute(new SetFloorNameCommand(f.id, name))

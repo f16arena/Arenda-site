@@ -1,4 +1,5 @@
 "use client"
+import { askConfirm } from "@/components/ui/dialog-host"
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -121,8 +122,8 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
                         )}
                         {row.held > 0 && (
                           <ActionButton
-                            onClick={() => {
-                              if (confirm(`Вернуть депозит ${formatMoney(row.held)} арендатору «${row.companyName}»?`)) {
+                            onClick={async () => {
+                              if (await askConfirm({ title: `Вернуть депозит ${formatMoney(row.held)} арендатору «${row.companyName}»?`, confirmLabel: "Вернуть" })) {
                                 run(row.tenantId, () => returnDeposit(row.tenantId))
                               }
                             }}

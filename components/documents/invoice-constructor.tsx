@@ -1,5 +1,6 @@
 "use client"
 
+import { FIELD_CLS, LABEL_CLS } from "@/lib/ui-fields"
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Download, FilePlus2, Plus, Trash2, Users, ReceiptText, ListChecks } from "lucide-react"
@@ -14,9 +15,8 @@ import {
 import { prefillInvoiceFromTenant, generateInvoicePdf, createInvoiceFromBuilder, getNextInvoiceNumber } from "@/app/actions/invoice-builder"
 import { listConstructorTenants, type ConstructorTenant } from "@/app/actions/contract-builder"
 
-const inputCls =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
-const labelCls = "mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400"
+const inputCls = FIELD_CLS
+const labelCls = LABEL_CLS
 const secTitleCls = "mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 first:mt-0"
 
 type Mutator = (s: InvoiceState) => void

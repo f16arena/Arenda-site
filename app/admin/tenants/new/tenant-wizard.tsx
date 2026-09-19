@@ -1,5 +1,6 @@
 "use client"
 
+import { FIELD_CLS, LABEL_CLS } from "@/lib/ui-fields"
 import { useRef, useState, useTransition } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -23,9 +24,8 @@ type WizardSpace = {
   buildingName: string
 }
 
-const inputCls =
-  "w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-const labelCls = "block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
+const inputCls = FIELD_CLS
+const labelCls = LABEL_CLS
 
 const STEPS = ["Контакты и компания", "Помещение и условия", "Проверка и создание"] as const
 

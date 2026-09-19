@@ -1,4 +1,5 @@
 "use client"
+import { askConfirm } from "@/components/ui/dialog-host"
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -101,8 +102,8 @@ export function FoundersStateForm({
 
 export function ReleaseSlotButton({ orgId, orgName }: { orgId: string; orgName: string }) {
   const [pending, startTransition] = useTransition()
-  function onClick() {
-    if (!confirm(`Снять статус Founding с «${orgName}»? Слот будет освобождён.`)) return
+  async function onClick() {
+    if (!(await askConfirm({ title: `Снять статус Founding с «${orgName}»?`, description: "Слот будет освобождён.", danger: true }))) return
     startTransition(async () => {
       const r = await releaseFoundersSlot(orgId)
       if (r.ok) toast.success("Статус Founding снят")
@@ -124,8 +125,8 @@ export function ReleaseSlotButton({ orgId, orgName }: { orgId: string; orgName: 
 
 export function GrantSlotButton({ orgId, orgName }: { orgId: string; orgName: string }) {
   const [pending, startTransition] = useTransition()
-  function onClick() {
-    if (!confirm(`Выдать статус Founding Member «${orgName}»? Это пожизненная скидка.`)) return
+  async function onClick() {
+    if (!(await askConfirm({ title: `Выдать статус Founding Member «${orgName}»?`, description: "Это пожизненная скидка." }))) return
     startTransition(async () => {
       const r = await grantFoundersSlot(orgId)
       if (r.ok) toast.success(`Founding Member #${r.slotNumber ?? "?"} выдан`)

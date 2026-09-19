@@ -1,4 +1,5 @@
 "use client"
+import { askText } from "@/components/ui/dialog-host"
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -65,8 +66,8 @@ export function ActivateButton({ addonId }: { addonId: string }) {
 
 export function RejectButton({ addonId }: { addonId: string }) {
   const [pending, startTransition] = useTransition()
-  function onClick() {
-    const reason = prompt("Причина отказа (необязательно):", "")
+  async function onClick() {
+    const reason = await askText({ title: "Отклонить аддон?", label: "Причина (необязательно)", optional: true, confirmLabel: "Отклонить" })
     if (reason === null) return
     startTransition(async () => {
       const r = await deactivateAddon({ addonId, reject: true, reason: reason || undefined })
@@ -89,8 +90,8 @@ export function RejectButton({ addonId }: { addonId: string }) {
 
 export function DeactivateButton({ addonId }: { addonId: string }) {
   const [pending, startTransition] = useTransition()
-  function onClick() {
-    const reason = prompt("Причина деактивации (необязательно):", "")
+  async function onClick() {
+    const reason = await askText({ title: "Деактивировать аддон?", label: "Причина (необязательно)", optional: true, confirmLabel: "Деактивировать" })
     if (reason === null) return
     startTransition(async () => {
       const r = await deactivateAddon({ addonId, reason: reason || undefined })

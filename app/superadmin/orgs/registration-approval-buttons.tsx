@@ -1,4 +1,5 @@
 "use client"
+import { askText } from "@/components/ui/dialog-host"
 
 import { useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -23,8 +24,8 @@ export function RegistrationApprovalButtons({ orgId, orgName }: { orgId: string;
     })
   }
 
-  function reject() {
-    const reason = window.prompt(`Причина отказа для «${orgName}»?`, "Отклонено суперадмином")
+  async function reject() {
+    const reason = await askText({ title: `Отклонить регистрацию «${orgName}»?`, label: "Причина отказа", defaultValue: "Отклонено суперадмином", confirmLabel: "Отклонить" })
     if (reason === null) return
     startTransition(async () => {
       try {

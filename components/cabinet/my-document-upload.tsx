@@ -1,4 +1,5 @@
 "use client"
+import { askConfirm } from "@/components/ui/dialog-host"
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -97,7 +98,7 @@ export function MyDocumentDelete({ documentId }: { documentId: string }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   async function del() {
-    if (!confirm("Удалить этот документ?")) return
+    if (!(await askConfirm({ title: "Удалить этот документ?", confirmLabel: "Удалить", danger: true }))) return
     setBusy(true)
     try {
       const r = await deleteMyDocument(documentId)

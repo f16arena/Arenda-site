@@ -1,4 +1,5 @@
 "use client"
+import { askConfirm } from "@/components/ui/dialog-host"
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -255,8 +256,8 @@ export function CancelPlanButton({ planId }: { planId: string }) {
     <button
       type="button"
       disabled={pending}
-      onClick={() => {
-        if (!confirm("Отменить рассрочку? Начисления вернутся в обычный режим (пеня снова будет начисляться).")) return
+      onClick={async () => {
+        if (!(await askConfirm({ title: "Отменить рассрочку?", description: "Начисления вернутся в обычный режим — пеня снова будет начисляться.", confirmLabel: "Отменить рассрочку", danger: true }))) return
         startTransition(async () => {
           await cancelInstallmentPlan(planId)
           router.refresh()

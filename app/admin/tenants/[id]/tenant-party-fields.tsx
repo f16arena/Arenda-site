@@ -1,5 +1,6 @@
 "use client"
 
+import { FIELD_CLS, LABEL_CLS } from "@/lib/ui-fields"
 // Поля стороны-арендатора, зависящие от правовой формы. Для ФИЗЛИЦА
 // (PHYSICAL) арендатор выступает от своего имени: нет «руководителя»,
 // «должности» и «действует на основании»; «название» → «ФИО», «юр. адрес» →
@@ -12,8 +13,8 @@ import { Input } from "@/components/ui/input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { normalizeTenantLegalType, type TenantLegalType } from "@/lib/tenant-identity"
 
-const inputCls = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-const labelCls = "block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
+const inputCls = FIELD_CLS
+const labelCls = LABEL_CLS
 
 export type PartyTenant = {
   companyName: string

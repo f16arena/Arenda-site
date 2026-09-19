@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { Manrope } from "next/font/google"
 import Script from "next/script"
 import { ThemedToaster } from "@/components/themed-toaster"
+import { DialogHost } from "@/components/ui/dialog-host"
 import { ClientErrorMonitor } from "@/components/errors/client-error-monitor"
 import { WebVitalsReporter } from "@/components/performance/web-vitals-reporter"
 import { themeInitScript } from "@/components/theme-toggle"
@@ -92,6 +93,7 @@ export default function RootLayout({
         <ClientErrorMonitor />
         <WebVitalsReporter />
         <ThemedToaster />
+        <DialogHost />
       </body>
     </html>
   )

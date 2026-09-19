@@ -4,7 +4,8 @@ import { useState, useTransition } from "react"
 import { UserPlus, X, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
-import { assignTenantSpace } from "@/app/actions/tenant"
+import { assignTenantToPlace } from "@/app/actions/builder-premise"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
 type Candidate = {
@@ -36,7 +37,8 @@ export function AssignTenantButton({
   const performAssign = (tenantId: string, companyName: string) => {
     startTransition(async () => {
       try {
-        await assignTenantSpace(tenantId, spaceId)
+        const res = await assignTenantToPlace(tenantId, spaceId)
+        if (!res.ok) throw new Error(res.error)
         toast.success(`«${companyName}» назначен в Каб. ${spaceNumber}`)
         setOpen(false)
         setSearch("")
@@ -47,22 +49,25 @@ export function AssignTenantButton({
   }
 
   return (
-    <div className="relative inline-block">
-      <button
-        onClick={() => setOpen((o) => !o)}
+    // Панель поверх страницы (портал): внутри таблицы с прокруткой старое
+    // absolute-меню обрезалось.
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
         className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium"
         title="Назначить арендатора"
       >
         <UserPlus className="h-3.5 w-3.5" />
         Назначить
         <ChevronDown className="h-3 w-3" />
-      </button>
-
-      {open && (
-        <>
-          {/* Closer overlay */}
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute z-40 right-0 top-6 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-xl overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-80 gap-0 overflow-hidden p-0"
+        onInteractOutside={(e) => {
+          if ((e.target as HTMLElement | null)?.closest?.('[role="dialog"],[role="alertdialog"]')) e.preventDefault()
+        }}
+      >
+          <div>
             <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Каб. {spaceNumber} → арендатор
@@ -141,8 +146,7 @@ export function AssignTenantButton({
               )}
             </div>
           </div>
-        </>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -1,4 +1,5 @@
 "use client"
+import { FIELD_CLS, LABEL_CLS } from "@/lib/ui-fields"
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -35,8 +36,8 @@ export function ExternalContractButton({ tenantId }: { tenantId: string }) {
       .map((s) => ({ from: s.from, amount: Number(s.amount) })),
   )
 
-  const inputCls = "w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-  const labelCls = "block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
+  const inputCls = FIELD_CLS
+  const labelCls = LABEL_CLS
 
   return (
     <>

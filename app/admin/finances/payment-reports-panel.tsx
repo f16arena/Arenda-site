@@ -1,4 +1,5 @@
 "use client"
+import { askText } from "@/components/ui/dialog-host"
 
 import { useState, useTransition } from "react"
 import { AlertTriangle, CheckCircle2, Eye, FileText, ReceiptText, XCircle } from "lucide-react"
@@ -123,8 +124,8 @@ function ReportCard({
     })
   }
 
-  function submitDispute() {
-    const reason = window.prompt("Что нужно уточнить по оплате?")
+  async function submitDispute() {
+    const reason = await askText({ title: "Что нужно уточнить по оплате?", label: "Вопрос арендатору", confirmLabel: "Отправить" })
     if (!reason?.trim()) return
     const formData = new FormData()
     formData.set("reportId", report.id)

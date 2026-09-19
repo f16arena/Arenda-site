@@ -1,5 +1,6 @@
 "use client"
 
+import { FIELD_CLS } from "@/lib/ui-fields"
 import { useState } from "react"
 import { AlertTriangle } from "lucide-react"
 import { ServerForm } from "@/components/ui/server-form"
@@ -11,7 +12,7 @@ interface Props {
   organization: { id: string; defaultPenaltyPercent: number; penaltyGraceDays: number }
 }
 
-const inputCls = "w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+const inputCls = FIELD_CLS
 
 /** Настройки пени за просрочку: ставка %/день + льготный период. */
 export function PenaltySettingsSection({ organization }: Props) {

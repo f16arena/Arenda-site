@@ -1,4 +1,5 @@
 "use client"
+import { askText } from "@/components/ui/dialog-host"
 
 import { useCallback, useMemo, useState, useTransition, type ReactNode } from "react"
 import { AlertTriangle, ClipboardCheck, Copy, Edit2, Eye, EyeOff, Lock, Plus, Search, ShieldCheck, Trash2, Users, Zap } from "lucide-react"
@@ -351,9 +352,9 @@ export function PermissionsMatrix({
     })
   }
 
-  const remove = (role: RoleInfo) => {
+  const remove = async (role: RoleInfo) => {
     if (!editable || role.system) return
-    const confirmation = window.prompt(`Чтобы удалить должность «${role.label}», напишите: удалить`)
+    const confirmation = await askText({ title: `Удалить должность «${role.label}»?`, requireText: "удалить", confirmLabel: "Удалить" })
     if (confirmation?.trim().toLowerCase() !== "удалить") return
     startTransition(async () => {
       try {

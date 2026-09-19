@@ -1,4 +1,5 @@
 "use client"
+import { askConfirm, askText } from "@/components/ui/dialog-host"
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -54,8 +55,8 @@ export function MarkPaidButton({ serviceId }: { serviceId: string }) {
 
 export function MarkDeliveredButton({ serviceId }: { serviceId: string }) {
   const [pending, startTransition] = useTransition()
-  function onClick() {
-    if (!confirm("Подтвердить, что услуга выполнена?")) return
+  async function onClick() {
+    if (!(await askConfirm({ title: "Подтвердить, что услуга выполнена?" }))) return
     startTransition(async () => {
       const r = await markServiceDelivered({ serviceId })
       if (r.ok) toast.success("Услуга помечена как выполненная")
@@ -77,8 +78,8 @@ export function MarkDeliveredButton({ serviceId }: { serviceId: string }) {
 
 export function CancelButton({ serviceId }: { serviceId: string }) {
   const [pending, startTransition] = useTransition()
-  function onClick() {
-    const reason = prompt("Причина отмены (необязательно):", "")
+  async function onClick() {
+    const reason = await askText({ title: "Отменить услугу?", label: "Причина (необязательно)", optional: true, confirmLabel: "Отменить услугу" })
     if (reason === null) return
     startTransition(async () => {
       const r = await cancelService({ serviceId, reason: reason || undefined })

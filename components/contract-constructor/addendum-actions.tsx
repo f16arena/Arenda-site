@@ -1,5 +1,6 @@
 "use client"
 
+import { FIELD_CLS } from "@/lib/ui-fields"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -12,8 +13,7 @@ import {
   getContractServiceFee,
 } from "@/app/actions/contract-addendums"
 
-const inputCls =
-  "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+const inputCls = FIELD_CLS
 
 type Mode = null | "extend" | "terminate" | "rent" | "services"
 

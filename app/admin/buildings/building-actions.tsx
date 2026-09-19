@@ -1,5 +1,6 @@
 "use client"
 
+import { FIELD_CLS } from "@/lib/ui-fields"
 import { useState, useTransition } from "react"
 import type { ReactNode } from "react"
 import { Plus, X, Edit2, Power, Building2, Layers, ArrowRight } from "lucide-react"
@@ -24,7 +25,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { isZoneFloor, type FloorKind } from "@/lib/zone-kinds"
 
-const FIELD_CLASS = "w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+const FIELD_CLASS = FIELD_CLS
 
 export function CreateBuildingButton() {
   const [open, setOpen] = useState(false)

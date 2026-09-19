@@ -1,4 +1,6 @@
 "use client"
+import { askConfirm } from "@/components/ui/dialog-host"
+import { toast } from "sonner"
 
 // ADR: Панель проекта (Фаза 5): имя, сохранение с автосейвом (debounce 4с, оптимистичная
 // блокировка по revision), AI-генерация здания из текста, публичная ссылка-витрина.
@@ -114,7 +116,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       setAiOpen(false)
       setAiText("")
     } catch (e) {
-      alert(e instanceof Error ? e.message : "Ошибка AI")
+      toast.error(e instanceof Error ? e.message : "Ошибка AI")
     } finally {
       setAiBusy(false)
     }
@@ -138,19 +140,19 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
   const openShares = async () => {
     if (!useSyncStore.getState().projectId) await doSave()
     const id = useSyncStore.getState().projectId
-    if (!id) { alert("Сначала сохраните проект"); return }
+    if (!id) { toast.error("Сначала сохраните проект"); return }
     await refreshShares(id)
     setSharesOpen((v) => !v)
   }
   const share = async () => {
     const id = useSyncStore.getState().projectId
-    if (!id) { alert("Сначала сохраните проект"); return }
+    if (!id) { toast.error("Сначала сохраните проект"); return }
     try {
       const { token } = await createBuilderShare(id)
       try { await navigator.clipboard?.writeText(shareUrl(token)) } catch { /* clipboard может быть недоступен */ }
       await refreshShares(id)
     } catch {
-      alert("Не удалось создать ссылку")
+      toast.error("Не удалось создать ссылку")
     }
   }
   const revoke = async (token?: string) => {
@@ -160,15 +162,15 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       await revokeBuilderShare(id, token)
       await refreshShares(id)
     } catch {
-      alert("Не удалось отозвать ссылку")
+      toast.error("Не удалось отозвать ссылку")
     }
   }
 
   // Очистить всё: заменить сцену пустым проектом (одно здание + один пустой этаж),
   // чтобы строить заново с чистого листа. Стек команд сбрасывается, но перед
   // очисткой уходит снимок — вернуться можно через «Историю».
-  const clearAll = () => {
-    if (!window.confirm("Очистить весь проект? Текущая сцена будет заменена пустым зданием с одним этажом. Прежняя модель останется в «Истории» — оттуда её можно вернуть.")) return
+  const clearAll = async () => {
+    if (!(await askConfirm({ title: "Очистить весь проект?", description: "Текущая сцена будет заменена пустым зданием с одним этажом. Прежняя модель останется в «Истории» — оттуда её можно вернуть.", confirmLabel: "Очистить", danger: true }))) return
     // точка возврата: снимок текущей модели до очистки
     if (projectId) void snapshotBuilderProject(projectId, "перед очисткой проекта")
     const doc = buildEmptyProject()
@@ -186,7 +188,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
     if (curRev !== useSyncStore.getState().lastSavedRev) {
       await doSave()
       const st = useSyncStore.getState().status
-      if ((st === "error" || st === "conflict") && !window.confirm("Не удалось сохранить изменения. Выйти без сохранения?")) return
+      if ((st === "error" || st === "conflict") && !(await askConfirm({ title: "Не удалось сохранить изменения", description: "Выйти без сохранения?", confirmLabel: "Выйти", danger: true }))) return
     }
     window.location.href = "/admin"
   }

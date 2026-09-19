@@ -1,4 +1,5 @@
 "use client"
+import { askText } from "@/components/ui/dialog-host"
 
 import { createContext, useContext, useMemo, useState, useTransition, type ReactNode } from "react"
 import { Edit2, Key, Lock, Plus, Power, Search, ShieldCheck, SlidersHorizontal, X } from "lucide-react"
@@ -152,8 +153,8 @@ export function UserApprovalButtons({ userId, userName }: { userId: string; user
       <button
         type="button"
         disabled={pending}
-        onClick={() => {
-          const reason = prompt(`Почему отклоняем заявку ${userName}?`)?.trim()
+        onClick={async () => {
+          const reason = (await askText({ title: `Почему отклоняем заявку ${userName}?`, label: "Причина (необязательно)", optional: true, confirmLabel: "Отклонить" }))?.trim()
           if (reason === undefined) return
           const formData = new FormData()
           formData.set("reason", reason || "Отклонено владельцем")
