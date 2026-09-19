@@ -231,6 +231,7 @@ async function assertEmergencyContactInOrg(id: string, orgId: string) {
 }
 
 export async function updateEmergencyContact(id: string, formData: FormData) {
+  await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertEmergencyContactInOrg(id, orgId)
 
@@ -248,6 +249,7 @@ export async function updateEmergencyContact(id: string, formData: FormData) {
 }
 
 export async function addEmergencyContact(buildingId: string, formData: FormData) {
+  await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -265,6 +267,7 @@ export async function addEmergencyContact(buildingId: string, formData: FormData
 }
 
 export async function deleteEmergencyContact(id: string) {
+  await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertEmergencyContactInOrg(id, orgId)
 

@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { redirect, notFound } from "next/navigation"
@@ -50,6 +51,7 @@ export default async function CashReceiptPrint({
       note: true,
       receiptConfirmedAt: true,
       receiptConfirmedBy: { select: { name: true } },
+      tenantId: true,
       tenant: {
         select: {
           companyName: true,
@@ -62,6 +64,7 @@ export default async function CashReceiptPrint({
     },
   })
   if (!payment) notFound()
+  try { await assertTenantBuildingAccess(payment.tenantId, orgId) } catch { notFound() }
 
   const landlord = orgId ? await getOrganizationRequisites(orgId) : null
   const tenant = payment.tenant

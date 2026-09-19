@@ -275,9 +275,30 @@ export async function getAllowedSectionsForUser({
   return Array.from(sections)
 }
 
+// Публичное демо (/demo) пускает любого посетителя владельцем демо-организации.
+// Действия, которые уходят наружу (письма, ЭСФ, приглашения, рассылки, файлы,
+// подпись ЭЦП), в демо закрыты — иначе демо превращается в бесплатный
+// рассыльщик/хостинг от имени платформы.
+const DEMO_BLOCKED_CAPABILITIES = new Set([
+  "documents.esf", "documents.sign", "messages.send", "users.invite", "users.resetPassword",
+  "storage.upload", "documents.uploadTemplate", "finance.importBank", "settings.updateBankDetails",
+  "roles.create", "roles.editActions", "roles.editSections",
+])
+let demoOrgIdCache: string | null | undefined
+async function isDemoOrg(orgId: string): Promise<boolean> {
+  if (demoOrgIdCache === undefined) {
+    const demo = await db.organization.findUnique({ where: { slug: "demo" }, select: { id: true } }).catch(() => null)
+    demoOrgIdCache = demo?.id ?? null
+  }
+  return demoOrgIdCache === orgId
+}
+
 export async function requireCapabilityAndFeature(capabilityKey: string) {
   const session = await requireCapability(capabilityKey)
   const { orgId } = await requireOrgAccess()
+  if (DEMO_BLOCKED_CAPABILITIES.has(capabilityKey) && (await isDemoOrg(orgId))) {
+    throw new Error("В демо-версии это действие недоступно. Зарегистрируйтесь, чтобы пользоваться полностью.")
+  }
   const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
   if (capability?.requiredFeature) {
     await requireOrgFeature(orgId, capability.requiredFeature)

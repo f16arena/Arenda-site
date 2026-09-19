@@ -22,6 +22,7 @@ export type ParsedRow = {
 // Парсит CSV из Kaspi Business / Halyk Online
 // Ожидает колонки: Дата, Сумма, Описание (или эквиваленты)
 export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; errors: string[] }> {
+  await requireCapabilityAndFeature("finance.importBank")
   const errors: string[] = []
   const lines = csv.replace(/\r/g, "").split("\n").filter((l) => l.trim())
   if (lines.length < 2) return { rows: [], errors: ["CSV пустой или содержит только заголовок"] }

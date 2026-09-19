@@ -2,7 +2,7 @@
 
 // ADR: Данные помещений для Building Studio / витрины (Showcase).
 //
-// listOrgPremises — читает арендопригодные помещения (Space, kind=RENTABLE) текущей
+// listBuildingPremises — читает помещения здания (Space) текущей
 // организации (орг-скоуп через floor.building.organizationId, как и весь app-level
 // scope вместо RLS) и маппит «сырой» статус БД в доменный PremiseStatus движка витрины.
 //
@@ -25,14 +25,6 @@ import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
 import type { BuildingPremise } from "@/store/premise-store"
 import type { PremiseStatus } from "@/lib/builder/materials"
 
-type PremiseRow = {
-  id: string
-  number: string
-  status: PremiseStatus
-  tenantName: string | null
-  areaM2: number | null
-  rate: number | null
-}
 
 const MAX_PREMISES = 500
 
@@ -68,61 +60,6 @@ function mapStatus(raw: string, hasDebt: boolean): PremiseStatus {
     default:
       return "free"
   }
-}
-
-/** Месячная ставка арендатора, если задана явно (custom_rate / fixed_monthly_rent). */
-function tenantRate(t: { customRate: number | null; fixedMonthlyRent: number | null } | null): number | null {
-  if (!t) return null
-  if (t.fixedMonthlyRent != null) return t.fixedMonthlyRent
-  if (t.customRate != null) return t.customRate
-  return null
-}
-
-export async function listOrgPremises(): Promise<PremiseRow[]> {
-  const { orgId } = await requireOrgAccess()
-  const now = new Date()
-
-  const spaces = await db.space.findMany({
-    where: {
-      kind: "RENTABLE",
-      floor: { building: { organizationId: orgId } },
-    },
-    select: {
-      id: true,
-      number: true,
-      area: true,
-      status: true,
-      tenant: {
-        select: {
-          companyName: true,
-          customRate: true,
-          fixedMonthlyRent: true,
-          deletedAt: true,
-          // Просроченные неоплаченные начисления → признак долга.
-          charges: {
-            where: { isPaid: false, deletedAt: null, dueDate: { lt: now } },
-            select: { id: true },
-            take: 1,
-          },
-        },
-      },
-    },
-    orderBy: [{ floorId: "asc" }, { number: "asc" }],
-    take: MAX_PREMISES,
-  })
-
-  return spaces.map((sp): PremiseRow => {
-    const tenant = sp.tenant && !sp.tenant.deletedAt ? sp.tenant : null
-    const hasDebt = !!tenant && tenant.charges.length > 0
-    return {
-      id: sp.id,
-      number: sp.number,
-      status: mapStatus(sp.status, hasDebt),
-      tenantName: tenant?.companyName ?? null,
-      areaM2: typeof sp.area === "number" ? sp.area : null,
-      rate: tenantRate(tenant),
-    }
-  })
 }
 
 /**

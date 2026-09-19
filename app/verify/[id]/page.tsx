@@ -29,7 +29,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
   // Документ может быть договором (Contract) или выставленным актом/счётом (GeneratedDocument).
   const contract = await db.contract.findUnique({
     where: { id },
-    select: { number: true, type: true, status: true, signedAt: true, tenant: { select: { companyName: true, bin: true, iin: true, user: { select: { organizationId: true } } } } },
+    select: { number: true, type: true, status: true, signedAt: true, deletedAt: true, tenant: { select: { companyName: true, bin: true, iin: true, user: { select: { organizationId: true } } } } },
   })
 
   let docNumber = "—"
@@ -40,6 +40,7 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
   let orgId: string | null = null
   let tenantIds: string[] = []
 
+  if (contract?.deletedAt) notFound()
   if (contract) {
     docNumber = contract.number || "—"
     docTitle = contract.type === "ADDENDUM" ? "Дополнительное соглашение" : "Договор аренды"
@@ -51,9 +52,10 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
   } else {
     const gen = await db.generatedDocument.findUnique({
       where: { id },
-      select: { number: true, documentType: true, tenantName: true, tenantId: true, organizationId: true },
+      select: { number: true, documentType: true, tenantName: true, tenantId: true, organizationId: true, deletedAt: true },
     })
-    if (!gen) notFound()
+    // Удалённый документ не подтверждаем.
+    if (!gen || gen.deletedAt) notFound()
     const TYPE_LABEL: Record<string, string> = {
       ACT: "Акт выполненных работ", RECONCILIATION: "Акт сверки", INVOICE: "Счёт на оплату",
       CONTRACT: "Договор", HANDOVER: "Акт приёма-передачи",
@@ -67,7 +69,8 @@ export default async function VerifyPage({ params }: { params: Promise<{ id: str
   }
 
   const signatures = await db.documentSignature.findMany({
-    where: { documentId: id },
+    // Только подписи организации самого документа — чужая подпись с тем же id не засчитывается.
+    where: { documentId: id, ...(orgId ? { organizationId: orgId } : {}) },
     select: { id: true, signerName: true, signerIin: true, signerOrgBin: true, validFrom: true, validTo: true, algorithm: true, signedAt: true, signatureB64: true, tspGenTime: true, tspSerial: true },
     orderBy: { signedAt: "asc" },
   })

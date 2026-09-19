@@ -1,5 +1,6 @@
 "use server"
 
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
@@ -66,6 +67,8 @@ export async function getContractCard(
       },
     })
     if (!c) return { ok: false, error: "Договор не найден" }
+    // Сотрудник с частью зданий — только договоры арендаторов своих зданий.
+    await assertTenantBuildingAccess(c.tenant.id, orgId)
     const t = c.tenant
 
     const spaces: string[] = []

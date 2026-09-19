@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { notFound } from "next/navigation"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
@@ -65,6 +66,9 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
   ])
 
   if (!request) notFound()
+  if (request.tenantId) {
+    try { await assertTenantBuildingAccess(request.tenantId, orgId) } catch { notFound() }
+  }
 
   const statusFlow: Record<string, string[]> = {
     NEW: ["IN_PROGRESS"],

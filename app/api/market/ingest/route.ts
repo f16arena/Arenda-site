@@ -1,3 +1,4 @@
+import { safeEqual } from "@/lib/cron-auth"
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   if (!secret) {
     return NextResponse.json({ error: "MARKET_INGEST_SECRET не настроен" }, { status: 503 })
   }
-  if (req.headers.get("x-market-secret") !== secret) {
+  if (!safeEqual(req.headers.get("x-market-secret") ?? "", secret)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 

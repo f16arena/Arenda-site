@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
@@ -28,6 +29,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   try {
     await assertTenantInOrg(id, orgId)
+    await assertTenantBuildingAccess(id, orgId)
   } catch {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 })
   }

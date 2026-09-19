@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
@@ -25,8 +26,9 @@ export default async function ContractsPage() {
   const in20Days = new Date(now)
   in20Days.setDate(in20Days.getDate() + 20)
 
+  const bIds = await restrictedBuildingIds(orgId)
   const tenants = await db.tenant.findMany({
-    where: tenantScope(orgId),
+    where: bIds ? { AND: [tenantScope(orgId), tenantInBuildingIds(bIds)] } : tenantScope(orgId),
     select: {
       id: true,
       companyName: true,

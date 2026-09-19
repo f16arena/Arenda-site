@@ -10,6 +10,7 @@ interface SignedDocRow {
   id: string
   documentType: string
   sourceState: unknown
+  organizationId?: string
 }
 
 /**
@@ -27,7 +28,7 @@ export async function buildSignedGeneratedDocxBuffer(doc: SignedDocRow): Promise
   if (doc.documentType !== "INVOICE" && doc.documentType !== "ACT") return null
 
   const sigs = await db.documentSignature.findMany({
-    where: { documentType: doc.documentType, documentId: doc.id },
+    where: { documentType: doc.documentType, documentId: doc.id, ...(doc.organizationId ? { organizationId: doc.organizationId } : {}) },
     select: { signerName: true, signerIin: true, signerOrgBin: true, signedAt: true, tspGenTime: true },
     orderBy: { signedAt: "asc" },
   })

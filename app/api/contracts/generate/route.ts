@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg } from "@/lib/scope-guards"
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { BUILDING_DEFAULT } from "@/lib/landlord"
@@ -67,6 +68,8 @@ export async function GET(req: Request) {
   const { orgId } = await requireOrgAccess()
   try {
     await assertTenantInOrg(tenantId, orgId)
+    // Сотрудник с доступом к части зданий — только арендаторы своих зданий.
+    await assertTenantBuildingAccess(tenantId, orgId)
   } catch {
     return NextResponse.json({ error: "Forbidden: cross-tenant access" }, { status: 403 })
   }

@@ -3,6 +3,7 @@ import { zipSync } from "fflate"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { documentBuildingFilter } from "@/lib/building-access"
 import { isTenantRole } from "@/lib/role-capabilities"
 import { canPerformCapability } from "@/lib/capabilities"
 
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
   const { orgId } = await requireOrgAccess()
+  const byBuilding = await documentBuildingFilter(orgId)
   if (!(await canPerformCapability(session.user.role, "finance.exportZip", !!session.user.isPlatformOwner, session.user.id))) {
     return NextResponse.json({ error: "Нет права на скачивание архива документов" }, { status: 403 })
   }
@@ -44,7 +46,7 @@ export async function GET(req: Request) {
   let zipCursor: string | undefined
   for (;;) {
     const batch = await db.generatedDocument.findMany({
-      where: { organizationId: orgId, documentType: { in: types }, period, deletedAt: null },
+      where: { organizationId: orgId, documentType: { in: types }, period, deletedAt: null, ...(byBuilding ? { AND: [byBuilding] } : {}) },
       select: { id: true, documentType: true, number: true, tenantName: true, fileName: true, fileBytes: true },
       orderBy: { id: "asc" },
       take: 100,

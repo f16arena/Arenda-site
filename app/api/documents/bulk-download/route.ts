@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { documentBuildingFilter } from "@/lib/building-access"
 import PizZip from "pizzip"
 import { safeServerValue } from "@/lib/server-fallback"
 
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
   }
 
   const { orgId } = await requireOrgAccess()
+  const byBuilding = await documentBuildingFilter(orgId)
 
   let body: { ids?: unknown }
   try {
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
 
   const docs = await safeServerValue(
     db.generatedDocument.findMany({
-      where: { id: { in: ids }, organizationId: orgId },
+      where: { id: { in: ids }, organizationId: orgId, ...(byBuilding ? { AND: [byBuilding] } : {}) },
       select: {
         id: true, fileName: true, fileBytes: true,
         documentType: true, period: true, tenantName: true,

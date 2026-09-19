@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
@@ -36,8 +37,9 @@ export default async function DepositsPage() {
   }
   const { orgId } = await requireOrgAccess()
 
+  const bIds = await restrictedBuildingIds(orgId)
   const tenants = await db.tenant.findMany({
-    where: tenantScope(orgId),
+    where: bIds ? { AND: [tenantScope(orgId), tenantInBuildingIds(bIds)] } : tenantScope(orgId),
     orderBy: { companyName: "asc" },
     select: {
       id: true,

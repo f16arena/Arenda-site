@@ -105,7 +105,7 @@ export default async function CabinetFinances() {
   const docSigs = paymentDocsRaw.length
     ? await safeServerValue(
         db.documentSignature.findMany({
-          where: { documentId: { in: paymentDocsRaw.map((d) => d.id) } },
+          where: { organizationId: orgId, documentId: { in: paymentDocsRaw.map((d) => d.id) } },
           select: { documentId: true, signerOrgBin: true, signerIin: true },
         }),
         [],

@@ -15,7 +15,8 @@ export function authorizeCronRequest(req: Request): boolean {
   return safeEqual(token, secret)
 }
 
-function safeEqual(a: string, b: string): boolean {
+/** Сравнение секретов за постоянное время (без утечки по времени ответа). */
+export function safeEqual(a: string, b: string): boolean {
   const left = Buffer.from(a)
   const right = Buffer.from(b)
   if (left.length !== right.length) return false

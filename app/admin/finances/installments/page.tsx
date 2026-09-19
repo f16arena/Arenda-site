@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
@@ -26,6 +27,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function InstallmentsPage() {
   const { orgId } = await requireOrgAccess()
+  const bIds = await restrictedBuildingIds(orgId)
   const session = await auth()
   const caps = session?.user
     ? new Set(await getAllowedCapabilityKeysForUser({
@@ -43,7 +45,7 @@ export default async function InstallmentsPage() {
     safe(
       "admin.installments.plans",
       db.debtInstallmentPlan.findMany({
-        where: { tenant: tenantScope(orgId) },
+        where: { tenant: bIds ? { AND: [tenantScope(orgId), tenantInBuildingIds(bIds)] } : tenantScope(orgId) },
         select: {
           id: true, totalAmount: true, status: true, note: true, createdAt: true,
           tenant: { select: { id: true, companyName: true } },

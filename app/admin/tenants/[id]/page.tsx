@@ -2,6 +2,7 @@
 // без 60-секундной задержки кэша Next.js (см. AUDIT_2026-05-26.md).
 export const dynamic = "force-dynamic"
 
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
@@ -116,6 +117,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const { id } = await params
   try {
     await assertTenantInOrg(id, orgId)
+    await assertTenantBuildingAccess(id, orgId)
   } catch {
     notFound()
   }

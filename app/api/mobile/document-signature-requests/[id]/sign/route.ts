@@ -1,3 +1,4 @@
+import { parseCmsSignature, signerDisplayName } from "@/lib/ncalayer-cms"
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
@@ -65,6 +66,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return mobileError("signedHashB64, signatureB64 and certPemB64 are required")
   }
 
+  // Подпись должна быть настоящим CMS с сертификатом подписанта — иначе на
+  // странице проверки появлялись бы «подписи» из произвольных строк.
+  const parsed = parseCmsSignature(signatureB64)
+  if (!parsed.ok || !parsed.signer) {
+    return mobileError(parsed.ok ? "В подписи нет сертификата подписанта" : (parsed.error ?? "Некорректная подпись"), 400)
+  }
+  const signer = parsed.signer
+
   const signature = await db.documentSignature.create({
     data: {
       organizationId: result.ctx.org.id,
@@ -72,10 +81,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       documentId: requestRecord.documentId,
       documentRef: requestRecord.documentRef,
       signerUserId: result.ctx.user.id,
-      signerName: body?.signerName?.trim().slice(0, 200) || result.ctx.user.name || "Mobile signer",
+      // ФИО/ИИН/БИН — из сертификата, а не из тела запроса.
+      signerName: signerDisplayName(signer) ?? result.ctx.user.name ?? "Mobile signer",
+      signerIin: signer.iin ?? null,
+      signerOrgBin: signer.bin ?? null,
+      validFrom: signer.validFrom ?? null,
+      validTo: signer.validTo ?? null,
       signedHashB64,
       signatureB64,
-      certPemB64,
+      certPemB64: signer.certDerB64 ?? certPemB64,
     },
     select: { id: true, signedAt: true },
   })

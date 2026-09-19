@@ -249,7 +249,7 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
     })
     const periodSigs = periodDocs.length
       ? await db.documentSignature.findMany({
-          where: { OR: periodDocs.map((d) => ({ documentType: d.documentType, documentId: d.id })) },
+          where: { organizationId: orgId, OR: periodDocs.map((d) => ({ documentType: d.documentType, documentId: d.id })) },
           select: { signerOrgBin: true, signerIin: true, signedAt: true, tspGenTime: true },
         })
       : []

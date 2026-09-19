@@ -96,6 +96,7 @@ export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: bo
 }
 
 export async function listContractDrafts(): Promise<DraftListItem[]> {
+  await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
   const rows = await db.contractDraft.findMany({
     where: { organizationId: orgId, deletedAt: null },
@@ -109,6 +110,7 @@ export async function listContractDrafts(): Promise<DraftListItem[]> {
 export async function loadContractDraft(
   id: string,
 ): Promise<{ ok: boolean; name?: string; builderState?: ContractState; tenantId?: string | null; error?: string }> {
+  await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
   const row = await db.contractDraft.findFirst({
     where: { id, organizationId: orgId, deletedAt: null },

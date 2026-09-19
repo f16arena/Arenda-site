@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { notFound, redirect } from "next/navigation"
@@ -87,6 +88,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   })
 
   if (!contract) notFound()
+  try { await assertTenantBuildingAccess(contract.tenant.id, orgId) } catch { notFound() }
 
   const statusMeta = STATUS_LABELS[contract.status] ?? { label: contract.status, color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" }
   const isAddendum = contract.type === "ADDENDUM"

@@ -1,3 +1,4 @@
+import { safeEqual } from "@/lib/cron-auth"
 import { NextResponse } from "next/server"
 
 export const dynamic = "force-dynamic"
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   const secret = url.searchParams.get("secret")
   const action = url.searchParams.get("action") ?? "set"
 
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
+  if (!process.env.CRON_SECRET || !safeEqual(secret ?? "", process.env.CRON_SECRET)) {
     return NextResponse.json({ error: "Forbidden — wrong secret" }, { status: 403 })
   }
 

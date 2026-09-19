@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { documentBuildingFilter } from "@/lib/building-access"
 import { isTenantRole } from "@/lib/role-capabilities"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { buildSignedGeneratedDocxBuffer } from "@/lib/signed-generated-doc"
@@ -30,6 +31,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       select: { id: true },
     })
     where.tenantId = tenant?.id ?? "__none__"
+  } else {
+    const byBuilding = await documentBuildingFilter(orgId)
+    if (byBuilding) where.AND = [byBuilding as Prisma.GeneratedDocumentWhereInput]
   }
 
   const doc = await db.generatedDocument.findFirst({ where })

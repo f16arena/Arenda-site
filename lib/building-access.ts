@@ -121,6 +121,7 @@ export async function assertTenantBuildingAccess(tenantId: string, orgId: string
       space: { select: { floor: { select: { buildingId: true } } } },
       tenantSpaces: { select: { space: { select: { floor: { select: { buildingId: true } } } } } },
       fullFloors: { select: { buildingId: true } },
+      buildingId: true,
     },
   })
   if (!tenant) throw new Error("Арендатор не найден или нет доступа")
@@ -131,6 +132,8 @@ export async function assertTenantBuildingAccess(tenantId: string, orgId: string
     tenant.space?.floor.buildingId,
     ...tenant.tenantSpaces.map((item) => item.space.floor.buildingId),
     ...tenant.fullFloors.map((floor) => floor.buildingId),
+    // Арендатор без помещения (киоск, антенна) — привязан к зданию напрямую.
+    tenant.buildingId,
   ].filter(Boolean) as string[]
 
   if (tenantBuildingIds.length === 0) {
@@ -170,4 +173,59 @@ export async function replaceUserBuildingAccess(userId: string, buildingIds: str
         ]
       : []),
   ])
+}
+
+/**
+ * Фильтр документов (GeneratedDocument и т.п. с полем tenant) по зданиям,
+ * доступным текущему сотруднику. Владелец — без ограничений (null).
+ * Документы без арендатора остаются видны: они организации, не здания.
+ */
+export async function documentBuildingFilter(orgId: string): Promise<Record<string, unknown> | null> {
+  const session = await auth()
+  if (!session?.user || isOwnerLike(session.user.role, session.user.isPlatformOwner)) return null
+  const ids = (await getAccessibleBuildingsForUser({
+    userId: session.user.id,
+    orgId,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+  })).map((b) => b.id)
+  return {
+    OR: [
+      { tenantId: null },
+      {
+        tenant: {
+          OR: [
+            { space: { floor: { buildingId: { in: ids } } } },
+            { tenantSpaces: { some: { space: { floor: { buildingId: { in: ids } } } } } },
+            { fullFloors: { some: { buildingId: { in: ids } } } },
+            { buildingId: { in: ids } },
+          ],
+        },
+      },
+    ],
+  }
+}
+
+/** Здания сотрудника; null — владелец (все здания организации). */
+export async function restrictedBuildingIds(orgId: string): Promise<string[] | null> {
+  const session = await auth()
+  if (!session?.user || isOwnerLike(session.user.role, session.user.isPlatformOwner)) return null
+  return (await getAccessibleBuildingsForUser({
+    userId: session.user.id,
+    orgId,
+    role: session.user.role,
+    isPlatformOwner: session.user.isPlatformOwner,
+  })).map((b) => b.id)
+}
+
+/** Условие «арендатор в этих зданиях» (4 пути) — для вложенных фильтров. */
+export function tenantInBuildingIds(ids: string[]) {
+  return {
+    OR: [
+      { space: { floor: { buildingId: { in: ids } } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: { in: ids } } } } } },
+      { fullFloors: { some: { buildingId: { in: ids } } } },
+      { buildingId: { in: ids } },
+    ],
+  }
 }

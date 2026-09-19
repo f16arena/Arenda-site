@@ -1007,6 +1007,7 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
  * Возвращает {ok: true} если можно удалять чисто, либо подробную раскладку.
  */
 export async function getTenantDeleteBlockers(tenantId: string) {
+  await requireCapabilityAndFeature("tenants.delete")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
 

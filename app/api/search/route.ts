@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
+import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { tenantScope, spaceScope, requestScope, contractScope, userScope } from "@/lib/tenant-scope"
 import { safeServerValue } from "@/lib/server-fallback"
 
@@ -24,6 +25,11 @@ export async function GET(req: Request) {
   const q = (searchParams.get("q") ?? "").trim()
   if (!q || q.length < 2) return NextResponse.json({ items: [] })
 
+  // Сотрудник с частью зданий ищет только в своих зданиях.
+  const bIds = await restrictedBuildingIds(orgId)
+  const tIn = bIds ? [tenantInBuildingIds(bIds)] : []
+  const docIn = bIds ? [{ OR: [{ tenantId: null }, { tenant: tenantInBuildingIds(bIds) }] }] : []
+
   const [tenants, spaces, requests, contracts, generated, staff] = await Promise.all([
     safe(
       "api.search.tenants",
@@ -31,6 +37,7 @@ export async function GET(req: Request) {
         where: {
           AND: [
             tenantScope(orgId),
+            ...tIn,
             {
               OR: [
                 { companyName: { contains: q, mode: "insensitive" } },
@@ -52,6 +59,7 @@ export async function GET(req: Request) {
         where: {
           AND: [
             spaceScope(orgId),
+            ...(bIds ? [{ floor: { buildingId: { in: bIds } } }] : []),
             { number: { contains: q, mode: "insensitive" } },
           ],
         },
@@ -69,6 +77,7 @@ export async function GET(req: Request) {
         where: {
           AND: [
             requestScope(orgId),
+            ...(bIds ? [{ tenant: tenantInBuildingIds(bIds) }] : []),
             { title: { contains: q, mode: "insensitive" } },
           ],
         },
@@ -83,6 +92,7 @@ export async function GET(req: Request) {
         where: {
           AND: [
             contractScope(orgId),
+            ...(bIds ? [{ tenant: tenantInBuildingIds(bIds) }] : []),
             { number: { contains: q, mode: "insensitive" } },
           ],
         },
@@ -99,9 +109,14 @@ export async function GET(req: Request) {
       db.generatedDocument.findMany({
         where: {
           organizationId: orgId,
-          OR: [
-            { number: { contains: q, mode: "insensitive" } },
-            { tenantName: { contains: q, mode: "insensitive" } },
+          AND: [
+            ...docIn,
+            {
+              OR: [
+                { number: { contains: q, mode: "insensitive" } },
+                { tenantName: { contains: q, mode: "insensitive" } },
+              ],
+            },
           ],
         },
         select: {
