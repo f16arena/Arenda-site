@@ -2,9 +2,10 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
-import { formatMoney, STATUS_COLORS, STATUS_LABELS } from "@/lib/utils"
-import { Building2, Box, UserPlus } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { formatMoney } from "@/lib/utils"
+import { Building2, Box, UserPlus, DoorOpen, DoorClosed, Wallet, TrendingDown, Map as MapIcon } from "lucide-react"
+import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
+import { SpacesBoard, type SpaceRow, type FloorGroup } from "./spaces-board"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
 import { KrishaListingButton } from "./krisha-listing-button"
@@ -12,7 +13,6 @@ import { getCityMedianPerSqm } from "@/lib/market"
 import { WipeAllSpacesButton } from "./wipe-all-button"
 import { UnassignFloorButton } from "./unassign-floor-button"
 import { hasFeature } from "@/lib/plan-features"
-import { FloorCard } from "@/components/floor/floor-card"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
@@ -295,18 +295,13 @@ export default async function SpacesPage() {
         hasFeature(orgId, "floorEditor"),
       ]))
     : [null, await hasFeature(orgId, "floorEditor")]
-  const allSpaces = building?.floors.flatMap((f) => f.spaces) ?? []
-  // Считаем заполняемость только по RENTABLE — общие зоны не сдаются.
-  const rentableSpaces = allSpaces.filter((s) => s.kind !== "COMMON")
-  const total = rentableSpaces.length
-  const occupied = rentableSpaces.filter((s) => s.status === "OCCUPIED").length
-  const vacant = rentableSpaces.filter((s) => s.status === "VACANT").length
-  const rentableArea = rentableSpaces.reduce((s, sp) => s + sp.area, 0)
-  const buildingTotalArea = building?.totalArea ?? 0
-  const sumFloorArea = (building?.floors ?? []).reduce((s, f) => s + (f.totalArea ?? 0), 0)
-
   const floors = building?.floors ?? []
-  // Рыночная подсказка ₸/м² по городу здания (для свободных помещений). null — нет данных.
+  const allSpaces = floors.flatMap((f) => f.spaces)
+  // Помещения — то, что сдаётся по площади. Общие зоны не сдаются; места-объекты
+  // на крыше и территории (антенны, киоск) — отдельный блок ниже.
+  const isObjectRow = (floorKind: string, spaceKind: string) => isZoneFloor(floorKind) || isObjectSpace(spaceKind)
+  const roomFloors = floors.filter((f) => !isZoneFloor(f.kind))
+  const zoneFloors = floors.filter((f) => isZoneFloor(f.kind) || f.spaces.some((s) => isObjectSpace(s.kind)))
   const marketPerSqm = building ? await getCityMedianPerSqm([building.id]).catch(() => null) : null
   const floorOptions = floors.map((f) => ({
     id: f.id,
@@ -318,381 +313,205 @@ export default async function SpacesPage() {
   }))
   const assignableTenants: Array<{ id: string; companyName: string; placement: string | null }> = []
 
+  // Аренда арендатора — одна на всё, что он снимает: доход считаем по арендатору
+  // один раз, а в строке помещения пишем «за все N помещений».
+  const tenantRent = new Map<string, { rent: number; spaces: number }>()
+  const rowsRaw: Array<{ floor: SelectedFloorInfo; space: SelectedSpaceInfo; tenant: SpaceTenantInfo | null }> = []
+  for (const floor of floors) {
+    for (const space of floor.spaces) {
+      if (space.kind === "COMMON") continue
+      const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
+      rowsRaw.push({ floor, space, tenant })
+      if (tenant) {
+        const cur = tenantRent.get(tenant.id)
+        if (cur) cur.spaces += 1
+        else tenantRent.set(tenant.id, {
+          rent: calculateTenantMonthlyRent({
+            customRate: tenant.customRate,
+            fixedMonthlyRent: tenant.fixedMonthlyRent,
+            fullFloors: tenant.fullFloors,
+            tenantSpaces: tenant.tenantSpaces,
+            space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
+          }),
+          spaces: 1,
+        })
+      }
+    }
+  }
+
+  const actionsFor = (space: SelectedSpaceInfo, tenant: SpaceTenantInfo | null, fullFloorTenant: SelectedFloorInfo["fullFloorTenant"]) => {
+    const displayTenant = tenant ?? fullFloorTenant
+    const occupancyTenant = tenant
+      ? { id: tenant.id, companyName: tenant.companyName }
+      : fullFloorTenant
+        ? { id: fullFloorTenant.id, companyName: `${fullFloorTenant.companyName} (этаж целиком)` }
+        : null
+    return (
+      <>
+        {space.status === "VACANT" && !displayTenant && canAssignSpaces && (
+          <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">
+            <UserPlus className="h-3.5 w-3.5" /> Заселить
+          </Link>
+        )}
+        {space.status === "VACANT" && !displayTenant && canEditSpaces && <KrishaListingButton spaceId={space.id} />}
+        {canEditSpaces && (
+          <EditSpaceDialog
+            space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description, photos: space.photos, tenant: occupancyTenant }}
+            tenants={canAssignSpaces ? assignableTenants : []}
+            buildingId={building?.id}
+          />
+        )}
+        {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
+      </>
+    )
+  }
+
+  const toRow = ({ floor, space, tenant }: (typeof rowsRaw)[number]): SpaceRow => {
+    const fullFloorTenant = floor.fullFloorTenant
+    const shown = tenant ?? fullFloorTenant
+    const tr = tenant ? tenantRent.get(tenant.id) : null
+    const vacant = !shown && space.status === "VACANT"
+    return {
+      id: space.id,
+      number: space.number,
+      floorId: floor.id,
+      area: space.area,
+      status: shown ? "OCCUPIED" : space.status,
+      description: space.description,
+      tenant: shown
+        ? { id: shown.id, name: shown.companyName, contractEnd: shown.contractEnd ? new Date(shown.contractEnd).toISOString() : null, wholeFloor: !tenant }
+        : null,
+      rent: tr ? tr.rent : space.area * floor.ratePerSqm,
+      rentNote: tr && tr.spaces > 1 ? `общая за ${tr.spaces} пом.` : !shown ? "по ставке этажа" : null,
+      marketHint: vacant && marketPerSqm ? `рынок ~${marketPerSqm.toLocaleString("ru-RU")} ₸/м²` : null,
+      actions: actionsFor(space, tenant, fullFloorTenant),
+    }
+  }
+
+  const roomRows = rowsRaw.filter((r) => !isObjectRow(r.floor.kind, r.space.kind)).map(toRow)
+  const objectRows = rowsRaw.filter((r) => isObjectRow(r.floor.kind, r.space.kind)).map(toRow)
+
+  // Главные цифры — по помещениям (объекты на крыше/территории площадью не меряются)
+  const occupiedRows = roomRows.filter((r) => r.status === "OCCUPIED")
+  const vacantRows = roomRows.filter((r) => r.status !== "OCCUPIED")
+  const roomArea = roomRows.reduce((s, r) => s + r.area, 0)
+  const occupiedArea = occupiedRows.reduce((s, r) => s + r.area, 0)
+  const vacantArea = vacantRows.reduce((s, r) => s + r.area, 0)
+  const occupancyByArea = roomArea > 0 ? Math.round((occupiedArea / roomArea) * 100) : 0
+  const income = [...tenantRent.values()].reduce((s, t) => s + t.rent, 0)
+  const idleLoss = vacantRows.reduce((s, r) => s + r.rent, 0)
+  const sumFloorArea = roomFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0)
+
+  const floorGroups: FloorGroup[] = roomFloors.map((floor) => ({
+    id: floor.id,
+    name: /^-?\d+$/.test(floor.name.trim()) ? `${floor.name.trim()} этаж` : floor.name,
+    rate: floor.ratePerSqm,
+    totalArea: floor.totalArea,
+    wholeFloor: floor.fullFloorTenant ? (
+      <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-violet-50 px-3 py-2 text-xs dark:bg-violet-500/10">
+        <span className="text-violet-900 dark:text-violet-200">
+          Этаж сдан целиком: <Link href={`/admin/tenants/${floor.fullFloorTenant.id}`} className="font-medium underline hover:no-underline">{floor.fullFloorTenant.companyName}</Link>
+          {floor.fullFloorTenant.contractEnd && <> · договор до {new Date(floor.fullFloorTenant.contractEnd).toLocaleDateString("ru-RU")}</>}
+          . Помещения этажа по отдельности не сдаются.
+        </span>
+        {canAssignSpaces && <UnassignFloorButton floorId={floor.id} floorName={floor.name} tenantName={floor.fullFloorTenant.companyName} />}
+      </div>
+    ) : null,
+  }))
+
   return (
     <div className="space-y-5">
       <PageHeader
         icon={Building2}
         title="Помещения"
         subtitle={`${building?.name} · ${building?.address}`}
-        actions={
-          <>
-            {building && hasFloorEditor && (
-              <Link
-                href={`/admin/builder/${building.id}`}
-                title="Объёмный вид здания целиком: этажи, помещения, территория"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-3 py-2 text-sm font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
-              >
-                <Box className="h-4 w-4" />
-                3D здания
-              </Link>
-            )}
-            {canDeleteSpaces && building && allSpaces.length > 0 && (
-              <WipeAllSpacesButton
-                buildingId={building.id}
-                buildingName={building.name}
-                spacesCount={allSpaces.length}
-              />
-            )}
-            {canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
-          </>
-        }
+        actions={canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
       />
 
-      {/* Counts */}
       <StatGrid>
-        <StatCard label="Всего помещений" value={total} />
-        <StatCard label="Занято" value={occupied} tone="blue" />
-        <StatCard label="Свободно" value={vacant} tone="emerald" />
-        <StatCard label="Заполняемость" value={`${total ? Math.round((occupied / total) * 100) : 0}%`} />
+        <StatCard icon={DoorOpen} tone="emerald" label="Свободно" value={`${vacantRows.length} · ${fmtArea(vacantArea)}`} sub={vacantRows.length > 0 ? "можно сдавать прямо сейчас" : "всё сдано"} />
+        <StatCard icon={DoorClosed} tone="blue" label="Занято" value={`${occupancyByArea}%`} sub={`${occupiedRows.length} из ${roomRows.length} помещений · ${fmtArea(occupiedArea)}`} />
+        <StatCard icon={Wallet} tone="violet" label="Доход в месяц" value={formatMoney(income)} sub="по условиям аренды арендаторов" />
+        <StatCard icon={TrendingDown} tone={idleLoss > 0 ? "amber" : "slate"} label="Простой в месяц" value={formatMoney(idleLoss)} sub="недополучаете на свободных по ставке этажа" />
       </StatGrid>
 
-      {/* Area hierarchy: Σ Space.area ≤ Σ Floor.totalArea ≤ Building.totalArea */}
-      {(() => {
-        // На сервере вычисляем флаги для более чистого JSX
-        const hasFloorAreas = sumFloorArea > 0
-        const hasBuildingArea = buildingTotalArea > 0
-        const overFloors = hasFloorAreas && rentableArea > sumFloorArea + 0.05
-        const overBuilding = hasBuildingArea && sumFloorArea > buildingTotalArea + 0.05
-        const utilizationVsFloors = hasFloorAreas ? (rentableArea / sumFloorArea) * 100 : 0
-        const coverageVsBuilding = hasBuildingArea ? (sumFloorArea / buildingTotalArea) * 100 : 0
-        return (
-          <Card className="block rounded-2xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Площади</h3>
-              <span className={`text-xs font-medium ${overFloors || overBuilding ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                {overFloors || overBuilding ? "⚠ Расхождения" : "✓ Согласовано"}
-              </span>
+      {/* Площади — одной строкой; тревога только при настоящем расхождении */}
+      <p className="text-sm text-slate-500 dark:text-slate-400">
+        Помещения занимают <b className="text-slate-900 dark:text-slate-100">{fmtArea(roomArea)}</b>
+        {sumFloorArea > 0 && <> из <b className="text-slate-900 dark:text-slate-100">{fmtArea(sumFloorArea)}</b> площади этажей ({Math.round((roomArea / sumFloorArea) * 100)}%); остальное — коридоры, лестницы, техпомещения</>}.
+        {sumFloorArea > 0 && roomArea > sumFloorArea + 0.05 && (
+          <span className="ml-1 font-medium text-red-600 dark:text-red-400">
+            Помещений больше, чем площадь этажей: проверьте площади в «Настройках этажа».
+          </span>
+        )}
+      </p>
+
+      <SpacesBoard floors={floorGroups} rows={roomRows} initialFilter="all" />
+
+      {objectRows.length > 0 && (
+        <Card className="block overflow-hidden rounded-2xl p-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Места на крыше и территории</h2>
+            <span className="text-xs text-slate-500 dark:text-slate-400">антенны, киоски, площадки — сдаются фиксированной суммой</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                  <th className="px-5 py-2.5">Место</th>
+                  <th className="px-3 py-2.5">Где</th>
+                  <th className="px-3 py-2.5 text-right">Аренда в месяц</th>
+                  <th className="px-3 py-2.5">Арендатор</th>
+                  <th className="px-5 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {objectRows.map((r) => {
+                  const floor = zoneFloors.find((f) => f.id === r.floorId)
+                  return (
+                    <tr key={r.id} className="border-b border-slate-50 align-top dark:border-slate-800/60">
+                      <td className="px-5 py-2.5">
+                        <p className="font-semibold text-slate-900 dark:text-slate-100">{r.number}</p>
+                        {r.description && <p className="max-w-[280px] truncate text-xs text-slate-400 dark:text-slate-500" title={r.description}>{r.description}</p>}
+                      </td>
+                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{floor?.name ?? "—"}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-900 dark:text-slate-100">{r.tenant ? formatMoney(r.rent) : "—"}</td>
+                      <td className="px-3 py-2.5">
+                        {r.tenant
+                          ? <Link href={`/admin/tenants/${r.tenant.id}`} className="font-medium text-blue-600 hover:underline dark:text-blue-400">{r.tenant.name}</Link>
+                          : <span className="text-emerald-600 dark:text-emerald-400">свободно</span>}
+                      </td>
+                      <td className="px-5 py-2.5"><div className="flex flex-wrap items-center justify-end gap-2">{r.actions}</div></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Редкие и опасные действия — внизу, а не рядом с «Добавить» */}
+      {building && (hasFloorEditor || (canDeleteSpaces && allSpaces.length > 0)) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-200 px-5 py-4 text-sm dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-4">
+            <Link href={`/admin/buildings/${building.id}/map`} className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:underline dark:text-blue-400">
+              <MapIcon className="h-4 w-4" /> План с арендаторами
+            </Link>
+            {hasFloorEditor && (
+              <Link href={`/admin/builder/${building.id}`} className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:underline dark:text-blue-400">
+                <Box className="h-4 w-4" /> 3D-модель
+              </Link>
+            )}
+          </div>
+          {canDeleteSpaces && allSpaces.length > 0 && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400 dark:text-slate-500">Опасная зона:</span>
+              <WipeAllSpacesButton buildingId={building.id} buildingName={building.name} spacesCount={allSpaces.length} />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Арендопригодная */}
-              <div className="rounded-lg border border-emerald-100 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/5 p-3">
-                <p className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Арендопригодная</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">{rentableArea.toFixed(1)} м²</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Σ помещений (Space.area)</p>
-              </div>
-
-              {/* Σ этажей */}
-              <div className={`rounded-lg border p-3 ${overFloors ? "border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30"}`}>
-                <p className={`text-xs font-medium ${overFloors ? "text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-400"}`}>Σ площадь этажей</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">
-                  {hasFloorAreas ? `${sumFloorArea.toFixed(1)} м²` : "— не задана"}
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  {hasFloorAreas
-                    ? `Загруженность: ${utilizationVsFloors.toFixed(0)}%`
-                    : "Заполните Floor.totalArea на каждом этаже"}
-                </p>
-              </div>
-
-              {/* Здание */}
-              <div className={`rounded-lg border p-3 ${overBuilding ? "border-red-200 dark:border-red-500/30 bg-red-50/50 dark:bg-red-500/5" : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30"}`}>
-                <p className={`text-xs font-medium ${overBuilding ? "text-red-700 dark:text-red-300" : "text-slate-600 dark:text-slate-400"}`}>Площадь здания</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-1">
-                  {hasBuildingArea ? `${buildingTotalArea} м²` : "— не задана"}
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  {hasBuildingArea
-                    ? `Этажи покрывают ${coverageVsBuilding.toFixed(0)}%`
-                    : "Заполните в карточке здания"}
-                </p>
-              </div>
-            </div>
-
-            {/* Stacked progress bar */}
-            {hasBuildingArea && (
-              <div className="mt-4">
-                <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden flex">
-                  {/* арендопригодная */}
-                  <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (rentableArea / buildingTotalArea) * 100)}%` }} />
-                  {/* остальные этажи (общие зоны/стены) */}
-                  {sumFloorArea > rentableArea && (
-                    <div className="h-full bg-slate-400" style={{ width: `${Math.min(100, ((sumFloorArea - rentableArea) / buildingTotalArea) * 100)}%` }} />
-                  )}
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mt-1">
-                  <span>0</span>
-                  <span>{buildingTotalArea} м² (здание)</span>
-                </div>
-              </div>
-            )}
-
-            {/* Validation messages */}
-            {(overFloors || overBuilding) && (
-              <div className="mt-3 space-y-1">
-                {overFloors && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    ⚠ Сумма помещений ({rentableArea.toFixed(1)} м²) больше суммы площадей этажей ({sumFloorArea.toFixed(1)} м²).
-                    Откройте этаж и увеличьте «Общую площадь этажа» или уменьшите площадь конкретных помещений.
-                  </p>
-                )}
-                {overBuilding && (
-                  <p className="text-xs text-red-600 dark:text-red-400">
-                    ⚠ Сумма этажей ({sumFloorArea.toFixed(1)} м²) больше площади здания ({buildingTotalArea} м²).
-                    Исправьте «Общую площадь здания» в карточке здания.
-                  </p>
-                )}
-              </div>
-            )}
-            {!overFloors && !overBuilding && (!hasFloorAreas || !hasBuildingArea) && (
-              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-                💡 Заполните общие площади всех этажей и здания, чтобы система могла защищать вас от ввода помещений сверх лимита.
-              </p>
-            )}
-          </Card>
-        )
-      })()}
-
-      {/* Floors */}
-      {floors.map((floor) => {
-        const floorOccupied = floor.spaces.filter((s) => s.status === "OCCUPIED").length
-        const floorArea = floor.spaces.reduce((s, sp) => s + sp.area, 0)
-
-        const fullFloorTenant = floor.fullFloorTenant
-        return (
-          <FloorCard
-            key={floor.id}
-            floorId={floor.id}
-            accent={!!fullFloorTenant}
-            title={
-              <>
-                <Building2 className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{floor.name}</h2>
-                <span className="text-xs text-slate-400 dark:text-slate-500">Ставка: {formatMoney(floor.ratePerSqm)}/м²</span>
-                {floor.totalArea && <span className="text-xs text-slate-400 dark:text-slate-500">· {floor.totalArea} м²</span>}
-              </>
-            }
-            actions={
-              <>
-                <span><span className="font-medium text-blue-600 dark:text-blue-400">{floorOccupied}</span> / {floor.spaces.length} занято</span>
-                <span>{floorArea} м²</span>
-                <Link
-                  href={`/admin/floors/${floor.id}`}
-                  className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
-                  title="Настройки этажа"
-                >
-                  Настройки этажа →
-                </Link>
-              </>
-            }
-          >
-            {fullFloorTenant && (
-              <div className="px-5 py-3 bg-violet-50 dark:bg-violet-500/5 border-b border-violet-100 dark:border-violet-500/20 flex items-start gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 text-xs font-bold">⚿</span>
-                <div className="flex-1 text-xs">
-                  <p className="font-medium text-violet-900 dark:text-violet-200">
-                    Этаж сдан целиком: <Link href={`/admin/tenants/${fullFloorTenant.id}`} className="underline hover:no-underline">{fullFloorTenant.companyName}</Link>
-                    {fullFloorTenant.contractEnd && (
-                      <span className="ml-2 text-violet-600 dark:text-violet-400">
-                        (договор до {new Date(fullFloorTenant.contractEnd).toLocaleDateString("ru-RU")})
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-violet-700 dark:text-violet-400 mt-0.5">
-                    Помещения этажа недоступны для индивидуальной сдачи.
-                  </p>
-                </div>
-                {canAssignSpaces && (
-                  <UnassignFloorButton
-                    floorId={floor.id}
-                    floorName={floor.name}
-                    tenantName={fullFloorTenant.companyName}
-                  />
-                )}
-              </div>
-            )}
-
-            <div className="p-5">
-              {floor.spaces.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-6">Нет помещений на этом этаже</p>
-              ) : (
-                <div className="space-y-3">
-                  {hasFloorEditor && (
-                    <Link
-                      href={`/admin/buildings/${buildingId}/map`}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-                    >
-                      План этажа на карте здания →
-                    </Link>
-                  )}
-
-                  {/* Карточки на мобиле */}
-                  <div className="space-y-2 sm:hidden">
-                    {floor.spaces.map((space) => {
-                      const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
-                      const displayTenant = tenant ?? fullFloorTenant
-                      const occupancyTenant = tenant
-                        ? { id: tenant.id, companyName: tenant.companyName }
-                        : fullFloorTenant
-                          ? { id: fullFloorTenant.id, companyName: `${fullFloorTenant.companyName} (этаж целиком)` }
-                          : null
-                      const rentAmount = tenant
-                        ? calculateTenantMonthlyRent({
-                            customRate: tenant.customRate,
-                            fixedMonthlyRent: tenant.fixedMonthlyRent,
-                            fullFloors: tenant.fullFloors,
-                            tenantSpaces: tenant.tenantSpaces,
-                            space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
-                          })
-                        : space.area * floor.ratePerSqm
-                      return (
-                        <div key={space.id} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</span>
-                            <span className={cn("rounded px-1.5 py-0.5 text-[10px] font-medium", STATUS_COLORS[space.status])}>
-                              {STATUS_LABELS[space.status] ?? space.status}
-                            </span>
-                          </div>
-                          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                            <span>{space.area} м²</span>
-                            <span>{tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}/мес</span>
-                            {!displayTenant && space.status === "VACANT" && marketPerSqm && (
-                              <span className="text-emerald-600 dark:text-emerald-400" title="Медиана рынка по городу (krisha)">рынок ~{marketPerSqm.toLocaleString("ru-RU")} ₸/м²</span>
-                            )}
-                          </div>
-                          <div className="mt-1 text-xs">
-                            {displayTenant ? (
-                              <Link href={`/admin/tenants/${displayTenant.id}`} className="text-blue-600 dark:text-blue-400">
-                                {displayTenant.companyName}{!tenant && fullFloorTenant ? " · этаж целиком" : ""}
-                              </Link>
-                            ) : <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
-                          </div>
-                          {space.description && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{space.description}</p>}
-                          {(canEditSpaces || canDeleteSpaces || canAssignSpaces) && (
-                            <div className="mt-2 flex items-center gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
-                              {canEditSpaces && (
-                                <EditSpaceDialog
-                                  space={{ id: space.id, number: space.number, area: space.area, status: space.status, description: space.description, photos: space.photos, tenant: occupancyTenant }}
-                                  tenants={canAssignSpaces ? assignableTenants : []}
-                                  buildingId={building?.id}
-                                />
-                              )}
-                              {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
-                              {space.status === "VACANT" && !displayTenant && (
-                                <>
-                                  {canAssignSpaces && (
-                                    <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-                                      <UserPlus className="h-3.5 w-3.5" /> Заселить
-                                    </Link>
-                                  )}
-                                  {canEditSpaces && <KrishaListingButton spaceId={space.id} />}
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Table (sm+) */}
-                  <div className="hidden overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800 sm:block">
-                  <table className="w-full min-w-[720px] text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Кабинет</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Площадь</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Аренда/мес</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Статус</th>
-                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">Описание</th>
-                        <th className="px-3 py-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {floor.spaces.map((space) => {
-                        const tenant = space.tenantSpaces[0]?.tenant ?? space.tenant
-                        const displayTenant = tenant ?? fullFloorTenant
-                        const occupancyTenant = tenant
-                          ? { id: tenant.id, companyName: tenant.companyName }
-                          : fullFloorTenant
-                            ? { id: fullFloorTenant.id, companyName: `${fullFloorTenant.companyName} (этаж целиком)` }
-                            : null
-                        const rentAmount = tenant
-                          ? calculateTenantMonthlyRent({
-                              customRate: tenant.customRate,
-                              fixedMonthlyRent: tenant.fixedMonthlyRent,
-                              fullFloors: tenant.fullFloors,
-                              tenantSpaces: tenant.tenantSpaces,
-                              space: { area: space.area, floor: { ratePerSqm: floor.ratePerSqm } },
-                            })
-                          : space.area * floor.ratePerSqm
-
-                        return (
-                          <tr key={space.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <td className="px-3 py-2 font-medium text-slate-800 dark:text-slate-200">Каб. {space.number}</td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{space.area} м²</td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                              {tenant ? formatMoney(rentAmount) : `≈ ${formatMoney(rentAmount)}`}
-                              {!displayTenant && space.status === "VACANT" && marketPerSqm && (
-                                <div className="text-[10px] text-emerald-600 dark:text-emerald-400" title="Медиана рынка по городу (krisha)">рынок ~{marketPerSqm.toLocaleString("ru-RU")} ₸/м²</div>
-                              )}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
-                              {displayTenant ? (
-                                <Link href={`/admin/tenants/${displayTenant.id}`} className="text-blue-600 dark:text-blue-400 hover:underline">
-                                  {displayTenant.companyName}{!tenant && fullFloorTenant ? " · этаж целиком" : ""}
-                                </Link>
-                              ) : <span className="text-slate-400 dark:text-slate-500">—</span>}
-                            </td>
-                            <td className="px-3 py-2">
-                              <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", STATUS_COLORS[space.status])}>
-                                {STATUS_LABELS[space.status] ?? space.status}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{space.description ?? "—"}</td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                {canEditSpaces && (
-                                  <EditSpaceDialog
-                                    space={{
-                                      id: space.id,
-                                      number: space.number,
-                                      area: space.area,
-                                      status: space.status,
-                                      description: space.description,
-                                      photos: space.photos,
-                                      tenant: occupancyTenant,
-                                    }}
-                                    tenants={canAssignSpaces ? assignableTenants : []}
-                                    buildingId={building?.id}
-                                  />
-                                )}
-                                {canDeleteSpaces && <DeleteSpaceButton spaceId={space.id} hasTenant={!!displayTenant} />}
-                                {space.status === "VACANT" && !displayTenant && (
-                                <>
-                                  {canAssignSpaces && (
-                                    <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-                                      <UserPlus className="h-3.5 w-3.5" /> Заселить
-                                    </Link>
-                                  )}
-                                  {canEditSpaces && <KrishaListingButton spaceId={space.id} />}
-                                </>
-                              )}
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                  </div>
-                </div>
-              )}
-            </div>
-          </FloorCard>
-        )
-      })}
+          )}
+        </div>
+      )}
     </div>
   )
   })
@@ -944,4 +763,8 @@ function normalizeLegacyTenant(
     fullFloors: [],
     tenantSpaces: [{ space: { area, floor: { ratePerSqm } } }],
   }
+}
+
+function fmtArea(v: number): string {
+  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(v)} м²`
 }
