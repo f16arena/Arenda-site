@@ -153,6 +153,7 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
           { space: { floor: { buildingId } } },
           { tenantSpaces: { some: { space: { floor: { buildingId } } } } },
           { fullFloors: { some: { buildingId } } },
+          { buildingId },
         ],
       }
     : {}
@@ -166,6 +167,7 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
       space: { select: { floor: { select: { building: { select: { name: true } } } } } },
       tenantSpaces: { take: 1, select: { space: { select: { floor: { select: { building: { select: { name: true } } } } } } } },
       fullFloors: { take: 1, select: { building: { select: { name: true } } } },
+      building: { select: { name: true } },
       // Незавершённые/подписанные договоры — для предупреждения о дубликате
       // и определения действующего договора (SIGNED, срок не истёк).
       contracts: {
@@ -189,6 +191,7 @@ export async function listConstructorTenants(): Promise<ConstructorTenant[]> {
         t.space?.floor.building.name ??
         t.tenantSpaces[0]?.space.floor.building.name ??
         t.fullFloors[0]?.building.name ??
+        t.building?.name ??
         null,
       existingContract: t.contracts[0] ? { number: t.contracts[0].number, status: t.contracts[0].status } : null,
       activeContract: active ? { number: active.number } : null,
@@ -230,6 +233,7 @@ export async function prefillFromTenant(
         space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
         tenantSpaces: { select: { space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } } } },
         fullFloors: { select: { number: true, kind: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
+        building: { select: { id: true, address: true, documentAddress: true } },
       },
     })
     if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
@@ -283,6 +287,7 @@ export async function prefillFromTenant(
       tenant.space?.floor.building ??
       tenant.tenantSpaces[0]?.space.floor.building ??
       tenant.fullFloors[0]?.building ??
+      tenant.building ??
       null
     s.premises.buildingAddress = building?.documentAddress || building?.address || ""
     // Объект на крыше/территории — без «этаж/помещение» и без площади:

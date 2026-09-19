@@ -32,6 +32,8 @@ export function buildingScopedTenantWhere(orgId: string, buildingIds: string[]) 
       { space: { floor: { buildingId: { in: buildingIds } } } },
       { tenantSpaces: { some: { space: { floor: { buildingId: { in: buildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: buildingIds } } } },
+      // арендатор без помещения («крышный», свежесозданный) — здание в самой карточке
+      { buildingId: { in: buildingIds } },
     ],
   }
 }

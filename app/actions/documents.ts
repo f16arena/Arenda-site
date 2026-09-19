@@ -234,6 +234,7 @@ function tenantWhereForBuildings(buildingIds: string[]) {
       { space: { floor: { buildingId: { in: buildingIds } } } },
       { tenantSpaces: { some: { space: { floor: { buildingId: { in: buildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: buildingIds } } } },
+      { buildingId: { in: buildingIds } },
     ],
   }
 }

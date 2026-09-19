@@ -66,6 +66,7 @@ export default async function DocumentsPage({
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
       { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+      { buildingId: { in: visibleBuildingIds } },
     ],
   }
 

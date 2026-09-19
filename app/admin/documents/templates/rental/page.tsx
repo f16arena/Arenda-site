@@ -60,7 +60,7 @@ export default async function RentalContractPage({ searchParams }: PageProps) {
       ? tenant.tenantSpaces.map((item) => item.space)
       : tenant.space ? [tenant.space] : []
     : []
-  const tenantBuildingId = tenantAssignedSpaces[0]?.floor.buildingId ?? tenant?.fullFloors?.[0]?.buildingId
+  const tenantBuildingId = tenantAssignedSpaces[0]?.floor.buildingId ?? tenant?.fullFloors?.[0]?.buildingId ?? tenant?.buildingId ?? undefined
   const suggestedNumber = tenant && tenantBuildingId
     ? await suggestContractNumber(tenantBuildingId).catch(() => "01-001")
     : null
