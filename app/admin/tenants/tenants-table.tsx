@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TONE_CHIP, TONE_BADGE, type Tone } from "@/lib/ui-tones"
 import { cn } from "@/lib/utils"
+import { shortCompanyName } from "@/lib/company-name"
 
 export interface TenantRow {
   id: string
@@ -616,17 +617,6 @@ function floorLabel(name: string): string {
   return /^-?\d+$/.test(name.trim()) ? `${name.trim()} этаж` : name
 }
 
-// Правовая форма уже показана в колонке «Тип» — в названии сокращаем её
-const LEGAL_FORM_SHORT: [RegExp, string][] = [
-  [/^товарищество с ограниченной ответственностью\s*/i, "ТОО "],
-  [/^индивидуальный предприниматель\s*/i, "ИП "],
-  [/^акционерное общество\s*/i, "АО "],
-  [/^государственное коммунальное предприятие\s*/i, "ГКП "],
-]
-function shortCompanyName(name: string): string {
-  for (const [re, short] of LEGAL_FORM_SHORT) if (re.test(name)) return name.replace(re, short).trim()
-  return name
-}
 
 // Срок договора: истёк / кончается в 60 дней / действует
 function contractState(end: string | null): "none" | "expired" | "soon" | "ok" {

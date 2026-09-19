@@ -5,6 +5,7 @@ import { auth } from "@/auth"
 import { formatMoney } from "@/lib/utils"
 import { Building2, Box, UserPlus, DoorOpen, DoorClosed, Wallet, Map as MapIcon } from "lucide-react"
 import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
+import { shortCompanyName } from "@/lib/company-name"
 import { SpacesBoard, type SpaceRow, type FloorGroup } from "./spaces-board"
 import Link from "next/link"
 import { AddSpaceDialog, EditSpaceDialog, DeleteSpaceButton } from "./space-actions"
@@ -379,7 +380,7 @@ export default async function SpacesPage() {
       status: shown ? "OCCUPIED" : space.status,
       description: space.description,
       tenant: shown
-        ? { id: shown.id, name: shown.companyName, contractEnd: shown.contractEnd ? new Date(shown.contractEnd).toISOString() : null, wholeFloor: !tenant }
+        ? { id: shown.id, name: shortCompanyName(shown.companyName), contractEnd: shown.contractEnd ? new Date(shown.contractEnd).toISOString() : null, wholeFloor: !tenant }
         : null,
       rent: tr ? tr.rent : space.area * floor.ratePerSqm,
       rentNote: tr && tr.spaces > 1 ? `общая за ${tr.spaces} пом.` : !shown ? "по ставке этажа" : null,
