@@ -5,8 +5,9 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import Link from "next/link"
-import { Building2, MapPin, Layers, Users, Check, Sparkles, Box, DoorClosed, DoorOpen, Map as MapIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { Building2, MapPin, Layers, Users, Check, Box, DoorClosed, DoorOpen, Map as MapIcon, User, Phone, Mail } from "lucide-react"
+import { cn, formatMoney } from "@/lib/utils"
+import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
 import { requireOrgAccess } from "@/lib/org"
@@ -193,6 +194,16 @@ export default async function BuildingsPage() {
   )
   const prefixMap = new Map(withPrefix.map((b) => [b.id, b.contractPrefix]))
 
+  const feeRows = await safe(
+    "admin.buildings.serviceFee",
+    db.building.findMany({
+      where: { id: { in: buildings.map((b) => b.id) } },
+      select: { id: true, serviceFeeSummerRate: true, serviceFeeWinterRate: true },
+    }),
+    [] as Array<{ id: string; serviceFeeSummerRate: number | null; serviceFeeWinterRate: number | null }>,
+  )
+  const feeById = new Map(feeRows.map((r) => [r.id, { summer: r.serviceFeeSummerRate, winter: r.serviceFeeWinterRate }]))
+
   // Кандидаты в администраторы здания: ADMIN и OWNER из этой организации
   const adminCandidates = await safe(
     "admin.buildings.adminCandidates",
@@ -204,63 +215,82 @@ export default async function BuildingsPage() {
     [] as Array<{ id: string; name: string; email: string | null; phone: string | null; role: string }>,
   )
 
-  // Считаем арендаторов и помещения по всем зданиям сразу — 2 запроса вместо 3N.
-  // Семантика tenantsCount намеренно сохранена: считаем только tenants с прямой
-  // привязкой к space (не учитываем tenantSpaces и fullFloors), как было до рефактора.
+  // Помещения и арендаторы по всем зданиям сразу — 2 запроса вместо 3N.
+  // Помещения — только настоящие (кабинеты, залы); места-объекты на крыше и
+  // территории (антенна, киоск) считаются отдельно. Арендатор привязан к зданию
+  // любым из четырёх путей: основное помещение, несколько помещений, этаж
+  // целиком, здание напрямую (место без помещения).
   const buildingIds = buildings.map((b) => b.id)
+  type SpaceRow = { status: string; kind: string; floor: { buildingId: string } }
+  type TenantRow = {
+    id: string
+    buildingId: string | null
+    space: { floor: { buildingId: string } } | null
+    tenantSpaces: { space: { floor: { buildingId: string } } }[]
+    fullFloors: { buildingId: string }[]
+  }
+  const inBuildings = { in: buildingIds }
   const [allSpaces, allTenants] = await Promise.all([
     safe(
       "admin.buildings.spacesAggregate",
       buildingIds.length > 0
         ? db.space.findMany({
-            where: { floor: { buildingId: { in: buildingIds } } },
-            select: { status: true, floor: { select: { buildingId: true } } },
+            where: { floor: { buildingId: inBuildings } },
+            select: { status: true, kind: true, floor: { select: { buildingId: true } } },
           })
-        : Promise.resolve([] as Array<{ status: string; floor: { buildingId: string } }>),
-      [] as Array<{ status: string; floor: { buildingId: string } }>,
+        : Promise.resolve([] as SpaceRow[]),
+      [] as SpaceRow[],
     ),
     safe(
       "admin.buildings.tenantsAggregate",
       buildingIds.length > 0
         ? db.tenant.findMany({
-            where: { space: { floor: { buildingId: { in: buildingIds } } } },
-            select: { space: { select: { floor: { select: { buildingId: true } } } } },
+            where: {
+              user: { organizationId: orgId },
+              deletedAt: null,
+              OR: [
+                { space: { floor: { buildingId: inBuildings } } },
+                { tenantSpaces: { some: { space: { floor: { buildingId: inBuildings } } } } },
+                { fullFloors: { some: { buildingId: inBuildings } } },
+                { buildingId: inBuildings },
+              ],
+            },
+            select: {
+              id: true,
+              buildingId: true,
+              space: { select: { floor: { select: { buildingId: true } } } },
+              tenantSpaces: { select: { space: { select: { floor: { select: { buildingId: true } } } } } },
+              fullFloors: { select: { buildingId: true } },
+            },
           })
-        : Promise.resolve([] as Array<{ space: { floor: { buildingId: string } } | null }>),
-      [] as Array<{ space: { floor: { buildingId: string } } | null }>,
+        : Promise.resolve([] as TenantRow[]),
+      [] as TenantRow[],
     ),
   ])
 
-  const spaceStatsByBuilding = new Map<string, { spacesCount: number; occupiedCount: number }>()
+  const statsById = new Map(buildingIds.map((id) => [id, { tenantsCount: 0, spacesCount: 0, occupiedCount: 0, objectsCount: 0 }]))
   for (const sp of allSpaces) {
-    const bId = sp.floor.buildingId
-    const cur = spaceStatsByBuilding.get(bId) ?? { spacesCount: 0, occupiedCount: 0 }
+    const cur = statsById.get(sp.floor.buildingId)
+    if (!cur) continue
+    if (isObjectSpace(sp.kind)) {
+      cur.objectsCount += 1
+      continue
+    }
     cur.spacesCount += 1
     if (sp.status === "OCCUPIED") cur.occupiedCount += 1
-    spaceStatsByBuilding.set(bId, cur)
   }
-
-  const tenantsCountByBuilding = new Map<string, number>()
   for (const t of allTenants) {
-    const bId = t.space?.floor.buildingId
-    if (!bId) continue
-    tenantsCountByBuilding.set(bId, (tenantsCountByBuilding.get(bId) ?? 0) + 1)
+    const ids = new Set<string>([
+      ...(t.space ? [t.space.floor.buildingId] : []),
+      ...t.tenantSpaces.map((x) => x.space.floor.buildingId),
+      ...t.fullFloors.map((f) => f.buildingId),
+      ...(t.buildingId ? [t.buildingId] : []),
+    ])
+    for (const id of ids) {
+      const cur = statsById.get(id)
+      if (cur) cur.tenantsCount += 1
+    }
   }
-
-  const statsById = new Map(
-    buildings.map((b) => {
-      const sp = spaceStatsByBuilding.get(b.id) ?? { spacesCount: 0, occupiedCount: 0 }
-      return [
-        b.id,
-        {
-          id: b.id,
-          tenantsCount: tenantsCountByBuilding.get(b.id) ?? 0,
-          spacesCount: sp.spacesCount,
-          occupiedCount: sp.occupiedCount,
-        },
-      ]
-    })
-  )
 
   const active = buildings.filter((b) => b.isActive)
   const inactive = buildings.filter((b) => !b.isActive)
@@ -284,7 +314,7 @@ export default async function BuildingsPage() {
 
       <div className="space-y-4">
         {[...active, ...inactive].map((b) => {
-          const s = statsById.get(b.id) ?? { tenantsCount: 0, spacesCount: 0, occupiedCount: 0 }
+          const s = statsById.get(b.id) ?? { tenantsCount: 0, spacesCount: 0, occupiedCount: 0, objectsCount: 0 }
           const isCurrent = b.id === currentBuildingId
           return (
             <Card
@@ -318,50 +348,51 @@ export default async function BuildingsPage() {
                   {b.description && (
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{b.description}</p>
                   )}
-                  {canEditBuildings && (
-                    <div className="mt-2">
-                      <BuildingAdminAssign
-                        buildingId={b.id}
-                        current={b.administrator}
-                        candidates={adminCandidates}
-                      />
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    {b.responsible && (
-                      <span>👤 {b.responsible}</span>
+                  <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-[auto_1fr]">
+                    {canEditBuildings && (
+                      <>
+                        <dt className="self-center text-slate-400 dark:text-slate-500" title="Сотрудник, который ведёт здание в системе: получает заявки и уведомления">Администратор в системе</dt>
+                        <dd>
+                          <BuildingAdminAssign buildingId={b.id} current={b.administrator} candidates={adminCandidates} />
+                        </dd>
+                      </>
                     )}
-                    {b.phone && (
-                      <a href={`tel:${b.phone}`} className="hover:text-blue-600 dark:hover:text-blue-400">
-                        📞 {b.phone}
-                      </a>
+                    {(b.responsible || b.phone || b.email) && (
+                      <>
+                        <dt className="text-slate-400 dark:text-slate-500" title="Контакт здания для арендаторов и документов">Контакт здания</dt>
+                        <dd className="flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-slate-300">
+                          {b.responsible && <span className="inline-flex items-center gap-1"><User className="h-3 w-3 text-slate-400" />{b.responsible}</span>}
+                          {b.phone && (
+                            <a href={`tel:${b.phone}`} className="inline-flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                              <Phone className="h-3 w-3 text-slate-400" />{b.phone}
+                            </a>
+                          )}
+                          {b.email && (
+                            <a href={`mailto:${b.email}`} className="inline-flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400">
+                              <Mail className="h-3 w-3 text-slate-400" />{b.email}
+                            </a>
+                          )}
+                        </dd>
+                      </>
                     )}
-                    {b.email && (
-                      <a href={`mailto:${b.email}`} className="hover:text-blue-600 dark:hover:text-blue-400">
-                        ✉ {b.email}
-                      </a>
-                    )}
-                    {b.totalArea && (
-                      <span>📐 {b.totalArea} м²</span>
-                    )}
-                  </div>
+                  </dl>
                 </div>
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/admin/buildings/${b.id}/map`}
-                    title="Карта: план этажа с арендаторами и свободными площадями"
+                    title="План этажей: кто где сидит и что свободно"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
                   >
                     <MapIcon className="h-3.5 w-3.5" />
-                    Карта
+                    План с арендаторами
                   </Link>
                   <Link
                     href={`/admin/builder/${b.id}`}
-                    title="Конструктор здания: модель в 3D"
+                    title="3D-модель здания: стены, этажи, чертежи"
                     className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
                   >
                     <Box className="h-3.5 w-3.5" />
-                    3D
+                    3D-модель
                   </Link>
                 <BuildingActions
                   buildingId={b.id}
@@ -396,50 +427,42 @@ export default async function BuildingsPage() {
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 p-5 border-b border-slate-100 dark:border-slate-800">
-                <Stat label="Этажей" value={b._count.floors} icon={Layers} tone="slate" />
                 <Stat label="Помещений" value={s.spacesCount} icon={Building2} tone="blue" />
                 <Stat label="Занято" value={s.occupiedCount} icon={DoorClosed} tone="violet" />
                 <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} icon={DoorOpen} tone="emerald" />
+                <Stat label="Мест на крыше и территории" value={s.objectsCount} icon={Layers} tone="slate" />
                 <Stat label="Арендаторов" value={s.tenantsCount} icon={Users} tone="teal" />
               </div>
 
-              {/* Площадь здания = Σ Floor.totalArea (рассчитывается автоматически) */}
+              {/* Площадь (сумма обычных этажей) и эксплуатационный сбор — одной строкой */}
               {(() => {
-                const sumFloorArea = b.floors.reduce((acc, f) => acc + (f.totalArea ?? 0), 0)
-                const allFloorsHaveArea = b.floors.length > 0 && b.floors.every((f) => f.totalArea && f.totalArea > 0)
+                const buildingFloors = b.floors.filter((f) => !isZoneFloor(f.kind))
+                const sumFloorArea = buildingFloors.reduce((acc, f) => acc + (f.totalArea ?? 0), 0)
+                const missingArea = buildingFloors.filter((f) => !f.totalArea || f.totalArea <= 0).length
+                const fee = feeById.get(b.id)
+                const feeText = fee && (fee.summer || fee.winter)
+                  ? fee.summer === fee.winter || !fee.winter
+                    ? `${formatMoney(fee.summer ?? 0)} за м² в месяц`
+                    : `лето ${formatMoney(fee.summer ?? 0)} · зима ${formatMoney(fee.winter)} за м²`
+                  : "не настроен"
                 return (
-                  <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/20">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-slate-500 dark:text-slate-400">
-                        Общая площадь здания:{" "}
-                        <b className="text-slate-900 dark:text-slate-100 tabular-nums">
-                          {sumFloorArea > 0 ? `${sumFloorArea.toFixed(1)} м²` : "не задана"}
-                        </b>{" "}
-                        <span className="text-slate-400 dark:text-slate-500">
-                          = Σ {b.floors.length} этаж{b.floors.length === 1 ? "а" : "ей"}
-                        </span>
-                      </span>
-                    </div>
-                    {!allFloorsHaveArea && b.floors.length > 0 && (
-                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                        Не у всех этажей задана площадь — кликните этаж чтобы её заполнить.
-                      </p>
-                    )}
+                  <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-slate-100 bg-slate-50/40 px-5 py-3 text-xs dark:border-slate-800 dark:bg-slate-800/20">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Площадь здания:{" "}
+                      <b className="tabular-nums text-slate-900 dark:text-slate-100">{sumFloorArea > 0 ? `${sumFloorArea.toFixed(1)} м²` : "не задана"}</b>
+                      {missingArea > 0 && <span className="text-amber-600 dark:text-amber-400"> · у {missingArea} этаж. не указана площадь</span>}
+                    </span>
+                    <span className="text-slate-500 dark:text-slate-400">
+                      Эксплуатационный сбор: <b className="text-slate-900 dark:text-slate-100">{feeText}</b>
+                      {canEditBuildings && (
+                        <Link href={`/admin/buildings/${b.id}/service-fee`} className="ml-2 font-medium text-blue-600 hover:underline dark:text-blue-400">
+                          изменить
+                        </Link>
+                      )}
+                    </span>
                   </div>
                 )
               })()}
-
-              {canEditBuildings && (
-                <div className="mt-3 mb-2">
-                  <Link
-                    href={`/admin/buildings/${b.id}/service-fee`}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20"
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    Эксплуатационный сбор
-                  </Link>
-                </div>
-              )}
 
               <FloorsList
                 buildingId={b.id}

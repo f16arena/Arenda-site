@@ -306,7 +306,7 @@ export function FloorsList({
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
           <Layers className="h-3.5 w-3.5" />
-          Этажи ({floors.length})
+          Этажи и зоны ({floors.length})
         </p>
         {canCreate && (
         <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
@@ -328,13 +328,14 @@ export function FloorsList({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5">
-                      <span className="truncate">{f.name}</span>
-                      {f.kind === "ROOF" && (
+                      {/* этаж с названием-цифрой («1») — подписываем «1 этаж» */}
+                      <span className="truncate">{/^-?\d+$/.test(f.name.trim()) ? `${f.name.trim()} этаж` : f.name}</span>
+                      {f.kind === "ROOF" && f.name.trim().toLowerCase() !== "крыша" && (
                         <Badge className="shrink-0 bg-sky-100 dark:bg-sky-500/20 px-1.5 text-[10px] text-sky-700 dark:text-sky-300">
                           Крыша
                         </Badge>
                       )}
-                      {f.kind === "TERRITORY" && (
+                      {f.kind === "TERRITORY" && f.name.trim().toLowerCase() !== "территория" && (
                         <Badge className="shrink-0 bg-lime-100 dark:bg-lime-500/20 px-1.5 text-[10px] text-lime-700 dark:text-lime-300">
                           Территория
                         </Badge>
@@ -342,8 +343,8 @@ export function FloorsList({
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       {isZoneFloor(f.kind)
-                        ? `${f.spacesCount} объект.`
-                        : `${formatMoney(f.ratePerSqm)}/м² · ${f.spacesCount} помещ.`}
+                        ? `${f.spacesCount} ${plural(f.spacesCount, "место", "места", "мест")} для аренды`
+                        : `${f.spacesCount} ${plural(f.spacesCount, "помещение", "помещения", "помещений")} · аренда ${formatMoney(f.ratePerSqm)}/м²`}
                     </p>
                     {!isZoneFloor(f.kind) && f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
                   </div>
@@ -478,4 +479,12 @@ function ContactField({ label, children }: { label: string; children: ReactNode 
       {children}
     </div>
   )
+}
+
+function plural(n: number, one: string, few: string, many: string): string {
+  const m10 = n % 10
+  const m100 = n % 100
+  if (m10 === 1 && m100 !== 11) return one
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few
+  return many
 }
