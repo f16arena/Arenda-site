@@ -20,6 +20,8 @@ export async function TenantFullFloorSection({
         AND: [
           floorScope(orgId),
           { buildingId: { in: visibleBuildingIds } },
+          // Крыша/территория целиком не сдаются — только места на них.
+          { kind: { notIn: ["ROOF", "TERRITORY"] } },
         ],
       },
       select: {

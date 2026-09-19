@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertFloorInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { assertFloorAssignableToOneTenant } from "@/lib/full-floor-guards"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
+import { isZoneFloor } from "@/lib/zone-kinds"
 
 export async function assignFullFloor(floorId: string, tenantId: string, fixedRent: number) {
   await requireCapabilityAndFeature("tenants.assignSpaces")
@@ -26,11 +27,18 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
     where: { id: floorId },
     select: {
       id: true,
+      kind: true,
       buildingId: true,
       building: { select: { name: true } },
     },
   })
   if (!targetFloor) throw new Error("Этаж не найден")
+  // Крыша и территория — общие зоны с местами разных арендаторов (киоски,
+  // антенны). «Этаж целиком» на них блокировал всех остальных (случай 20.09:
+  // территория ушла одному киоску, и второй киоск было не посадить).
+  if (isZoneFloor(targetFloor.kind)) {
+    throw new Error("Крышу и территорию нельзя сдать целиком — посадите арендатора на конкретное место")
+  }
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },

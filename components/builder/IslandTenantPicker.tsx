@@ -6,8 +6,7 @@
 // Выбор: нет карточки места — заводим её, затем сажаем арендатора.
 
 import { useEffect, useState } from "react"
-import { listBuilderTenants, listBuildingPremises, type BuilderTenantOption } from "@/app/actions/builder-premise"
-import { assignTenantSpace } from "@/app/actions/tenant"
+import { assignTenantToPlace, listBuilderTenants, listBuildingPremises, type BuilderTenantOption } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
 import { TOKENS } from "@/lib/builder/materials"
 import { PremisePicker } from "./PremisePicker"
@@ -42,7 +41,8 @@ export function IslandTenantPicker({
     try {
       const spaceId = premiseId ?? (await ensurePremise())
       if (!spaceId) throw new Error("Не удалось завести карточку места")
-      await assignTenantSpace(tenantId, spaceId)
+      const res = await assignTenantToPlace(tenantId, spaceId)
+      if (!res.ok) throw new Error(res.error)
       const [rows, list] = await Promise.all([listBuildingPremises(buildingId), listBuilderTenants(buildingId)])
       usePremiseStore.getState().setRows(rows)
       setTenants(list)

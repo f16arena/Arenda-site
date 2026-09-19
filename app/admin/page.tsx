@@ -22,6 +22,7 @@ import { getOnboardingState } from "@/lib/onboarding"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
+import { getOccupancy } from "@/lib/data/occupancy"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { DashboardLazySections } from "./dashboard-lazy-sections"
 
@@ -147,15 +148,9 @@ async function DashboardBody() {
         fullFloors: { fixedMonthlyRent: number | null }[]
       }>,
     ),
-    safe(
-      "admin.dashboard.spacesGroup",
-      db.space.groupBy({
-        by: ["status"],
-        where: { floorId: { in: floorIds } },
-        _count: { _all: true },
-      }),
-      [] as Array<{ status: string; _count: { _all: number } }>,
-    ),
+    // Заполняемость — общая формула (lib/data/occupancy): по м², без коридоров,
+    // антенн и мест на крыше/территории, этаж целиком = занят.
+    safe("admin.dashboard.occupancy", getOccupancy(visibleBuildingIds).then((o) => o.total), null),
     safe(
       "admin.dashboard.chargesAggregate",
       db.charge.aggregate({
@@ -192,10 +187,9 @@ async function DashboardBody() {
     ),
   ]))
 
-  const occupiedSpaces = spacesGroup.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
-  const vacantSpaces = spacesGroup.find((s) => s.status === "VACANT")?._count._all ?? 0
-  const rentableTotal = occupiedSpaces + vacantSpaces
-  const occupancyPct = rentableTotal > 0 ? Math.round((occupiedSpaces / rentableTotal) * 100) : 0
+  const occupiedSpaces = spacesGroup?.occupiedCount ?? 0
+  const vacantSpaces = spacesGroup?.vacantCount ?? 0
+  const occupancyPct = spacesGroup?.pct ?? 0
   const totalDebt = chargesAgg._sum.amount ?? 0
   const debtCount = chargesAgg._count._all
   const monthlyRevenue = activeTenants.reduce((sum, t) => {
@@ -226,7 +220,7 @@ async function DashboardBody() {
           sub={debtCount > 0 ? `${debtCount} неоплаченных начислений` : "долгов нет"}
           href="/admin/finances?chargeStatus=unpaid"
         />
-        <StatCard icon={Building2} tone="teal" label="Заполняемость" value={`${occupancyPct}%`} sub={`${occupiedSpaces} занято · ${vacantSpaces} свободно`} href="/admin/spaces" />
+        <StatCard icon={Building2} tone="teal" label="Сдано площади" value={`${occupancyPct}%`} sub={`${occupiedSpaces} занято · ${vacantSpaces} свободно`} href="/admin/spaces" />
         <StatCard icon={Users} tone="violet" label="Арендаторы" value={String(activeTenants.length)} sub={buildingId ? "в выбранном здании" : "во всех зданиях"} href="/admin/tenants" />
       </StatGrid>
 

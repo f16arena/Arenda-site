@@ -299,3 +299,18 @@ export async function listBuilderTenants(buildingId: string): Promise<BuilderTen
     return { id: t.id, name: t.companyName, place: nums.length ? `№ ${nums.join(", ")}` : null }
   })
 }
+
+/**
+ * Посадить арендатора на место из конструктора. Ошибку возвращаем текстом:
+ * брошенная из server action ошибка в проде превращается в «An error occurred
+ * in the Server Components render…» и причина не видна.
+ */
+export async function assignTenantToPlace(tenantId: string, spaceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const { assignTenantSpace } = await import("@/app/actions/tenant")
+    await assignTenantSpace(tenantId, spaceId)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Не удалось посадить арендатора" }
+  }
+}

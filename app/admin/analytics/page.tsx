@@ -18,6 +18,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { safeServerValue } from "@/lib/server-fallback"
 import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
+import { getOccupancy } from "@/lib/data/occupancy"
 import { getOwnerPnL } from "@/lib/reports/owner-pnl"
 import { getTaxRatePercent } from "@/lib/org-features"
 import { getMarketComparison } from "@/lib/market"
@@ -68,20 +69,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   const { deletedAt: _ignored, ...tenantWhereWithArchived } = tenantWhere
   void _ignored
 
-  const [pnl, market, spaces, payersAgg, debtorsAgg, overdue, buildings] = await Promise.all([
+  const [pnl, market, occupancy, payersAgg, debtorsAgg, overdue, buildings] = await Promise.all([
     getOwnerPnL({ buildingIds, from, to, taxRatePercent: getTaxRatePercent(org?.features) }),
     getMarketComparison({ buildingIds }),
-    basic
-      ? safe(
-          "admin.analytics.spaces",
-          db.space.findMany({
-            // Объекты без площади (антенна, щит) в заполняемость по м² не входят.
-            where: { floor: { buildingId: { in: buildingIds } }, kind: { not: "OBJECT" } },
-            select: { area: true, status: true, floor: { select: { buildingId: true } } },
-          }),
-          [] as Array<{ area: number; status: string; floor: { buildingId: string } }>,
-        )
-      : Promise.resolve([] as Array<{ area: number; status: string; floor: { buildingId: string } }>),
+    // Заполняемость — общая формула (lib/data/occupancy), как на обзоре.
+    basic ? safe("admin.analytics.occupancy", getOccupancy(buildingIds), null) : Promise.resolve(null),
     basic
       ? safe(
           "admin.analytics.payers",
@@ -128,11 +120,12 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
   ])
 
   // ── Площади ──
-  const totalArea = spaces.reduce((s, x) => s + x.area, 0)
-  const occupiedArea = spaces.filter((x) => x.status === "OCCUPIED").reduce((s, x) => s + x.area, 0)
-  const vacant = spaces.filter((x) => x.status === "VACANT")
-  const vacantArea = vacant.reduce((s, x) => s + x.area, 0)
-  const occupancyPct = totalArea > 0 ? Math.round((occupiedArea / totalArea) * 100) : 0
+  const occ = occupancy?.total
+  const totalArea = occ?.totalArea ?? 0
+  const occupiedArea = occ?.occupiedArea ?? 0
+  const vacantArea = occ?.vacantArea ?? 0
+  const vacantCount = occ?.vacantCount ?? 0
+  const occupancyPct = occ?.pct ?? 0
   const m2 = (v: number) => `${Math.round(v).toLocaleString("ru-RU")} м²`
 
   // ── Имена арендаторов для топов ──
@@ -177,12 +170,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           _sum: { amount: true },
         }).catch(() => ({ _sum: { amount: 0 as number | null } })),
       ])
-      const own = spaces.filter((s) => s.floor.buildingId === b.id)
-      const area = own.reduce((s, x) => s + x.area, 0)
-      const occ = own.filter((x) => x.status === "OCCUPIED").reduce((s, x) => s + x.area, 0)
+      const own = occupancy?.byBuilding.get(b.id)
       const received = rev._sum.amount ?? 0
       const spent = exp._sum.amount ?? 0
-      return { ...b, area, pct: area > 0 ? Math.round((occ / area) * 100) : 0, received, spent }
+      return { ...b, area: own?.totalArea ?? 0, pct: own?.pct ?? 0, received, spent }
     }),
   )
 
@@ -231,11 +222,11 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
             />
             <StatCard
               icon={DoorOpen}
-              tone={vacant.length > 0 ? "amber" : "emerald"}
+              tone={vacantCount > 0 ? "amber" : "emerald"}
               label="Свободно сейчас"
-              value={vacant.length > 0 ? m2(vacantArea) : "Всё сдано"}
-              sub={vacant.length > 0 ? `${vacant.length} помещ. — открыть список` : undefined}
-              href={vacant.length > 0 ? "/admin/spaces" : undefined}
+              value={vacantCount > 0 ? m2(vacantArea) : "Всё сдано"}
+              sub={vacantCount > 0 ? `${vacantCount} помещ. — открыть список` : undefined}
+              href={vacantCount > 0 ? "/admin/spaces" : undefined}
             />
           </StatGrid>
 
