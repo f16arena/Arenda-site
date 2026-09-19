@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { resolveMeterTariff } from "@/lib/meter-tariff"
 import { mobileError } from "@/lib/mobile-context"
 import { currentPeriod, getMobileTenantRequest, getMobileTenantScope } from "@/lib/mobile-tenant"
 
 export const dynamic = "force-dynamic"
-
-const TARIFF_TYPE_BY_METER: Record<string, string> = {
-  ELECTRICITY: "ELECTRICITY",
-  WATER: "WATER",
-  HEAT: "HEATING",
-}
 
 const CHARGE_TYPE_BY_METER: Record<string, string> = {
   ELECTRICITY: "ELECTRICITY",
@@ -136,16 +131,7 @@ export async function POST(req: Request) {
 
   const consumption = Math.max(0, value - previous)
   if (consumption > 0) {
-    const tariffType = TARIFF_TYPE_BY_METER[meter.type]
-    const tariff = tariffType
-      ? await db.tariff.findFirst({
-          where: {
-            buildingId: meter.space.floor.buildingId,
-            type: tariffType,
-            isActive: true,
-          },
-        })
-      : null
+    const tariff = await resolveMeterTariff(tenant.id, meter.type, meter.space.floor.buildingId)
 
     if (tariff) {
       const amount = Math.round(consumption * tariff.rate)

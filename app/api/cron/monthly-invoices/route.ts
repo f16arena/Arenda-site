@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { calculateServiceFeeForPeriod } from "@/lib/service-fee"
+import { placementServiceFeeForPeriod, isPlacementContract } from "@/lib/placement-billing"
 import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
 import { notifyUser } from "@/lib/notify"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
@@ -67,7 +68,7 @@ export async function GET(req: Request) {
         where: { status: "SIGNED", deletedAt: null },
         orderBy: [{ version: "desc" }, { signedAt: "desc" }, { createdAt: "desc" }],
         take: 1,
-        select: { id: true },
+        select: { id: true, builderState: true },
       },
     },
   })
@@ -159,7 +160,33 @@ export async function GET(req: Request) {
           tenant.tenantSpaces[0]?.space.floor.building ??
           tenant.fullFloors[0]?.building ??
           null
-        if (buildingForFee && !tenant.serviceFeeExempt) {
+        // Договор на размещение ведёт эксплуатационные расходы сам (своя ставка за м²
+        // Места, круглый год) — ставка здания к нему не применяется.
+        const contractState = tenant.contracts[0]?.builderState ?? null
+        const placementFee = placementServiceFeeForPeriod(contractState, chargePeriod, tenant.contractStart, tenant.contractEnd)
+        if (placementFee && placementFee.amount > 0 && !tenant.charges.some((c) => c.period === chargePeriod && c.type === "SERVICE_FEE")) {
+          try {
+            await db.charge.create({
+              data: {
+                tenantId: tenant.id,
+                contractId: activeContractId,
+                period: chargePeriod,
+                type: "SERVICE_FEE",
+                amount: placementFee.amount,
+                description: placementFee.description,
+                dueDate,
+              },
+            })
+            results.serviceFeeCreated++
+          } catch (e) {
+            if (isUniqueConstraintError(e)) {
+              results.skipped++
+            } else {
+              throw e
+            }
+          }
+        }
+        if (buildingForFee && !tenant.serviceFeeExempt && !isPlacementContract(contractState)) {
           const existingServiceFeeForPeriod = tenant.charges.some(
             (c) => c.period === chargePeriod && c.type === "SERVICE_FEE",
           )

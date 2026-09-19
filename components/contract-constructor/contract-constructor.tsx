@@ -965,13 +965,28 @@ function PlacementFields({ state, set }: { state: ContractState; set: (m: Mutato
       <div className="mb-2"><Seg value={t.electricity} options={ELECTRICITY_OPTIONS} onChange={(v) => up((p) => { p.electricity = v })} /></div>
       {t.electricity !== "none" && (
         <div className="mb-2 grid grid-cols-2 gap-2">
+          {t.electricity === "meter" && (
+            <div><label className={labelCls}>Тариф, ₸ за кВт·ч</label><input type="number" min="0" step="0.01" className={inputCls} placeholder="по тарифу поставщика" value={t.electricityTariff || ""} onChange={(e) => up((p) => { p.electricityTariff = Number(e.target.value) || 0 })} /></div>
+          )}
           {t.electricity === "fixed" && (
             <div><label className={labelCls}>Плата за свет, ₸/мес</label><input type="number" min="0" className={inputCls} value={t.electricityFixed || ""} onChange={(e) => up((p) => { p.electricityFixed = Number(e.target.value) || 0 })} /></div>
           )}
           <div><label className={labelCls}>Разрешённая мощность, кВт</label><input type="number" step="0.1" min="0" className={inputCls} value={t.powerLimitKw || ""} onChange={(e) => up((p) => { p.powerLimitKw = Number(e.target.value) || 0 })} /></div>
-          <div className={t.electricity === "fixed" ? "col-span-2" : ""}><label className={labelCls}>Точка подключения</label><input className={inputCls} placeholder="розетка 220 В у колонны, щит ЩР-1" value={t.connectionPoint} onChange={(e) => up((p) => { p.connectionPoint = e.target.value })} /></div>
+          <div className="col-span-2"><label className={labelCls}>Точка подключения</label><input className={inputCls} placeholder="розетка 220 В у колонны, щит ЩР-1" value={t.connectionPoint} onChange={(e) => up((p) => { p.connectionPoint = e.target.value })} /></div>
         </div>
       )}
+
+      <div className={secTitleCls}>Эксплуатационные расходы</div>
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <div><label className={labelCls}>Ставка, ₸ за м² в месяц</label><input type="number" min="0" className={inputCls} placeholder="нет" value={t.serviceFeePerSqm || ""} onChange={(e) => up((p) => { p.serviceFeePerSqm = Number(e.target.value) || 0 })} /></div>
+        <div>
+          <label className={labelCls}>В месяц</label>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100">
+            {(t.serviceFeePerSqm ?? 0) > 0 && t.placeAreaSqm > 0 ? money(Math.round((t.serviceFeePerSqm ?? 0) * t.placeAreaSqm)) : "—"}
+          </div>
+        </div>
+      </div>
+      <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">Одна ставка на весь год, без зимней. Начисляется отдельной строкой счёта вместе с арендой.</p>
 
       <div className={secTitleCls}>{eq ? "Оборудование" : "Объект"}</div>
       <div className="space-y-2">

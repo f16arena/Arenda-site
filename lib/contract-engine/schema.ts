@@ -253,6 +253,11 @@ export interface PlacementTerms {
   equipment: PlacedEquipment[]
   electricity: PlacementElectricity
   electricityFixed: Money // ₸/мес при electricity = fixed
+  /** Тариф за 1 кВт·ч при electricity = meter; 0 — «по тарифам энергоснабжающей организации».
+   *  Индивидуальный для арендатора (тариф здания для всех может быть другим). */
+  electricityTariff?: Money
+  /** Эксплуатационные расходы, ₸ за 1 м² Места в месяц, круглый год; 0 — нет. */
+  serviceFeePerSqm?: Money
   powerLimitKw: number // разрешённая суммарная мощность (0 — не ограничивается в тексте)
   connectionPoint: string // точка подключения к электросети
   accessHours: string // режим доступа для обслуживания
@@ -272,6 +277,8 @@ export function defaultPlacementTerms(family: PlacementFamily): PlacementTerms {
     equipment: [],
     electricity: "meter",
     electricityFixed: 0,
+    electricityTariff: 0,
+    serviceFeePerSqm: 0,
     powerLimitKw: 0,
     connectionPoint: "",
     accessHours: family === "equipment" ? "ежедневно в часы работы здания" : "ежедневно с 07:00 до 23:00",

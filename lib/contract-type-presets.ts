@@ -64,6 +64,8 @@ export function applyContractTypePreset(draft: ContractState, type: ContractPlac
       t.equipment = prev?.equipment ?? []
       t.electricity = prev?.electricity ?? t.electricity
       t.electricityFixed = prev?.electricityFixed ?? 0
+      t.electricityTariff = prev?.electricityTariff ?? 0
+      t.serviceFeePerSqm = prev?.serviceFeePerSqm ?? 0
       t.powerLimitKw = prev?.powerLimitKw ?? 0
       t.connectionPoint = prev?.connectionPoint ?? ""
       draft.placement = t

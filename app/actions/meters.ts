@@ -7,12 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertMeterInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingAccess } from "@/lib/building-access"
-
-const TARIFF_TYPE_BY_METER: Record<string, string> = {
-  ELECTRICITY: "ELECTRICITY",
-  WATER: "WATER",
-  HEAT: "HEATING",
-}
+import { resolveMeterTariff } from "@/lib/meter-tariff"
 
 const CHARGE_TYPE_BY_METER: Record<string, string> = {
   ELECTRICITY: "ELECTRICITY",
@@ -55,16 +50,7 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
   const tenant = meter.space.tenantSpaces[0]?.tenant ?? meter.space.tenant
 
   if (tenant && consumption > 0) {
-    const tariffType = TARIFF_TYPE_BY_METER[meter.type]
-    const tariff = tariffType
-      ? await db.tariff.findFirst({
-          where: {
-            buildingId: meter.space.floor.building.id,
-            type: tariffType,
-            isActive: true,
-          },
-        })
-      : null
+    const tariff = await resolveMeterTariff(tenant.id, meter.type, meter.space.floor.building.id)
 
     if (tariff) {
       const amount = Math.round(consumption * tariff.rate)
