@@ -7,9 +7,6 @@ import {
   ArrowLeft,
   FileSignature,
   Users,
-  Building2,
-  Wallet,
-  PackageCheck,
   Save,
   Download,
   Lightbulb,
@@ -19,12 +16,14 @@ import {
   FilePlus2,
   Send,
   ShieldCheck,
+  Check,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { signWithNCALayer, type KeyStoragePref } from "@/lib/ncalayer"
 import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
 import { getLandlordSignPayload, signContractByLandlordEcp, sendContractForSignature } from "@/app/actions/contract-workflow"
 import { Button } from "@/components/ui/button"
-import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import {
   saveContractDraft,
   listContractDrafts,
@@ -147,6 +146,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
   }
   const [state, setState] = useState<ContractState>(defaultState)
   const [tab, setTab] = useState<"contract" | "annexes">("contract")
+  const [step, setStep] = useState(1)
   const [draftId, setDraftId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState("Без названия")
   const [drafts, setDrafts] = useState<DraftListItem[]>([])
@@ -307,8 +307,18 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     }
   }
 
+  const hasTenant = !!selTenant || !!draftId
+  const STEPS = [
+    { n: 1, title: "Арендатор", hint: "кто и с кем" },
+    { n: 2, title: "Что сдаём и срок", hint: "место, даты, тип" },
+    { n: 3, title: "Деньги", hint: "аренда, депозит, пеня" },
+    { n: 4, title: "Приложения", hint: "акт, схема, модули" },
+    { n: 5, title: "Проверка и подпись", hint: "замечания и отправка" },
+  ] as const
+  const goTo = (n: number) => { if (n === 1 || hasTenant) setStep(n) }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* header */}
       {!embedded && (
       <div className="flex items-center gap-3">
@@ -325,107 +335,182 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
       </div>
       )}
 
-      {/* toolbar */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900">
-        {drafts.length > 0 && (
-          <select className={`${inputCls} w-auto`} value={draftId ?? ""} onChange={(e) => doLoad(e.target.value)}>
-            <option value="">— черновики —</option>
-            {drafts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
-        )}
-        <input className={`${inputCls} w-44`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" />
-        <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить</Button>
-        <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>DOCX</Button>
-        <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract} onClick={() => doCreate({})}>Создать договор (черновик)</Button>
-        <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract} onClick={() => doCreate({ send: true })}>Отправить без подписи</Button>
-        <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={signing || pending} />
-        <Button variant="primary" size="sm" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending || !!dupContract} onClick={doCreateSignEcpSend}>Подписать ЭЦП и отправить</Button>
-        {dupContract && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-            Договор № {dupContract.number} уже есть — создание заблокировано
-          </span>
-        )}
-        {hardErrors.length > 0 && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
-            <AlertTriangle className="h-3 w-3" /> {hardErrors.length} ошибок
-          </span>
-        )}
-      </div>
+      {/* Шаги */}
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {STEPS.map((s) => {
+          const active = step === s.n
+          const locked = s.n > 1 && !hasTenant
+          const done = hasTenant && s.n < step
+          return (
+            <li key={s.n}>
+              <button
+                type="button"
+                onClick={() => goTo(s.n)}
+                disabled={locked}
+                className={`flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition ${
+                  active
+                    ? "border-blue-500 bg-blue-50 dark:border-blue-500/60 dark:bg-blue-500/10"
+                    : "border-slate-200 bg-white hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700"
+                } disabled:cursor-not-allowed disabled:opacity-50`}
+              >
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  active ? "bg-blue-600 text-white" : done ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                }`}>
+                  {done ? <Check className="h-3.5 w-3.5" /> : s.n}
+                </span>
+                <span className="min-w-0">
+                  <span className={`block truncate text-sm font-medium ${active ? "text-blue-700 dark:text-blue-300" : "text-slate-800 dark:text-slate-200"}`}>{s.title}</span>
+                  <span className="block truncate text-[11px] text-slate-400 dark:text-slate-500">{s.hint}</span>
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ol>
+
+      {/* Черновик: только когда есть что сохранять */}
+      {hasTenant && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <input className={`${inputCls} w-56`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" aria-label="Название черновика" />
+          <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить черновик</Button>
+          <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>Скачать DOCX</Button>
+          {hardErrors.length > 0 && (
+            <button type="button" onClick={() => setStep(5)} className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
+              <AlertTriangle className="h-3 w-3" /> {hardErrors.length} {hardErrors.length === 1 ? "ошибка" : "ошибки"} — посмотреть
+            </button>
+          )}
+          {dupContract && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
+              Договор № {dupContract.number} уже есть — новый создать нельзя
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        {/* ── form ── */}
+        {/* ── форма текущего шага ── */}
         <div className="space-y-4">
-          <div className={`${cardCls} p-4`}>
-            <label className={labelCls}>Заполнить из арендатора</label>
-            <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
-              <option value="">— выбрать арендатора —</option>
-              {tenantGroups.map(([b, list]) => (
-                <optgroup key={b} label={b}>
-                  {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </optgroup>
-              ))}
-            </select>
-            {(() => {
-              const ec = tenants.find((t) => t.id === selTenant)?.existingContract
-              if (!ec) return null
-              const st: Record<string, string> = { DRAFT: "черновик", SENT: "отправлен", VIEWED: "просмотрен", SIGNED_BY_TENANT: "подписан арендатором", SIGNED: "подписан" }
-              return (
-                <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                  ⛔ У этого арендатора уже есть договор <b>№ {ec.number}</b> ({st[ec.status] ?? ec.status}) — создать новый <b>нельзя</b>. Измените условия через <b>ДС</b>, сделайте новую версию из карточки договора, либо расторгните старый и создайте заново.
+          {step === 1 && (
+            <>
+              <div className={`${cardCls} p-5`}>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-900 dark:text-slate-100">С кем договор?</label>
+                <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
+                  <option value="">— выберите арендатора —</option>
+                  {tenantGroups.map(([b, list]) => (
+                    <optgroup key={b} label={b}>
+                      {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+                {(() => {
+                  const ec = tenants.find((t) => t.id === selTenant)?.existingContract
+                  if (!ec) return null
+                  const st: Record<string, string> = { DRAFT: "черновик", SENT: "отправлен", VIEWED: "просмотрен", SIGNED_BY_TENANT: "подписан арендатором", SIGNED: "подписан" }
+                  return (
+                    <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                      У этого арендатора уже есть договор <b>№ {ec.number}</b> ({st[ec.status] ?? ec.status}) — второй создать нельзя. Измените условия допсоглашением, сделайте новую версию из карточки договора или расторгните старый.
+                    </div>
+                  )
+                })()}
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Реквизиты, помещение, ставка, депозит и срок подставятся из карточки арендатора — дальше можно поправить.</p>
+                {!hasTenant && drafts.length > 0 && (
+                  <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <label className={labelCls}>…или продолжить черновик</label>
+                    <select className={inputCls} value="" onChange={(e) => doLoad(e.target.value)}>
+                      <option value="">— выберите черновик —</option>
+                      {drafts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+              {hasTenant && (
+                <div className={`${cardCls} space-y-1 p-5`}>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100"><Users className="h-4 w-4 text-slate-400" /> Стороны договора</div>
+                  <PartiesStep state={state} set={set} landlordContacts={landlordContacts} />
                 </div>
-              )
-            })()}
-            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">Реквизиты сторон, помещение, ставка, депозит и срок подставятся автоматически — дальше можно поправить вручную.</p>
+              )}
+            </>
+          )}
+          {step === 2 && (
+            <div className={`${cardCls} space-y-1 p-5`}>
+              <PremisesStep state={state} set={set} autoNumber={autoNumber} onSetAutoNumber={onSetAutoNumber} availableTypes={availableTypes} />
+            </div>
+          )}
+          {step === 3 && (
+            <div className={`${cardCls} space-y-1 p-5`}>
+              <FinancialStep state={state} set={set} />
+            </div>
+          )}
+          {step === 4 && (
+            <div className={`${cardCls} space-y-1 p-5`}>
+              <AnnexesStep state={state} set={set} />
+            </div>
+          )}
+          {step === 5 && (
+            <>
+              <div className={cardCls}>
+                <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">
+                  <Sparkles className="h-4 w-4 text-slate-400 dark:text-slate-500" /> Проверка договора
+                </div>
+                <div className="space-y-2 p-5">
+                  {hardErrors.map((m, i) => (
+                    <div key={"h" + i} className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{m}</span>
+                    </div>
+                  ))}
+                  {advices.map((a) => (
+                    <div key={a.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${ADV_BOX[a.severity]}`}>
+                      {a.severity === "warn" ? <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> : a.severity === "suggest" ? <Lightbulb className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
+                      <span className="flex-1">{a.message}</span>
+                      {a.fix && (
+                        <button onClick={() => set((s) => Object.assign(s, applyAdvisorFix(s, a.fix!)))} className="shrink-0 rounded-md border border-current px-2 py-0.5 text-[11px] font-medium hover:bg-white/40">Исправить</button>
+                      )}
+                    </div>
+                  ))}
+                  {advices.length === 0 && hardErrors.length === 0 && (
+                    <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300"><Check className="h-4 w-4" /> Замечаний нет — договор готов.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className={`${cardCls} space-y-3 p-5`}>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Как оформить</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={signing || pending} />
+                  <Button variant="primary" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending || !!dupContract || !selTenant} onClick={doCreateSignEcpSend}>
+                    Подписать ЭЦП и отправить арендатору
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Вы подписываете своим ключом, арендатор получает договор в кабинет и подписывает со своей стороны.</p>
+                <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+                  <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract || !selTenant} onClick={() => doCreate({ send: true })}>Отправить без вашей подписи</Button>
+                  <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract || !selTenant} onClick={() => doCreate({})}>Создать договор, не отправляя</Button>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Навигация по шагам */}
+          <div className="flex items-center justify-between">
+            <Button variant="outline" size="sm" leftIcon={<ChevronLeft className="h-4 w-4" />} disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>Назад</Button>
+            {step < 5 && (
+              <Button variant="primary" size="sm" disabled={!hasTenant} onClick={() => setStep((s) => Math.min(5, s + 1))}>
+                Дальше: {STEPS[step].title.toLowerCase()} <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            )}
           </div>
-          <CollapsibleCard title="Стороны" icon={Users} defaultOpen>
-            <div className="space-y-1 p-5"><PartiesStep state={state} set={set} landlordContacts={landlordContacts} /></div>
-          </CollapsibleCard>
-          <CollapsibleCard title="Помещение и реквизиты договора" icon={Building2}>
-            <div className="space-y-1 p-5"><PremisesStep state={state} set={set} autoNumber={autoNumber} onSetAutoNumber={onSetAutoNumber} availableTypes={availableTypes} /></div>
-          </CollapsibleCard>
-          <CollapsibleCard title="Финансовая модель" icon={Wallet}>
-            <div className="space-y-1 p-5"><FinancialStep state={state} set={set} /></div>
-          </CollapsibleCard>
-          <CollapsibleCard title="Приложения и модули" icon={PackageCheck}>
-            <div className="space-y-1 p-5"><AnnexesStep state={state} set={set} /></div>
-          </CollapsibleCard>
         </div>
 
-        {/* ── preview + advisor ── */}
+        {/* ── живой предпросмотр ── */}
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <div className={cardCls}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
               <button onClick={() => setTab("contract")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "contract" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>Договор</button>
               <button onClick={() => setTab("annexes")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "annexes" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>Приложения</button>
+              <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">так увидит арендатор</span>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto p-6 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
+            <div className="max-h-[70vh] overflow-y-auto p-6 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
               {tab === "contract" ? <ContractPreview state={state} /> : <AnnexesPreview state={state} />}
-            </div>
-          </div>
-
-          <div className={cardCls}>
-            <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:text-slate-300">
-              <Sparkles className="h-4 w-4 text-slate-400 dark:text-slate-500" /> Помощник
-              <span className="text-xs font-normal text-slate-400 dark:text-slate-500">{advices.length + hardErrors.length}</span>
-            </div>
-            <div className="space-y-2 p-4">
-              {hardErrors.map((m, i) => (
-                <div key={"h" + i} className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{m}</span>
-                </div>
-              ))}
-              {advices.map((a) => (
-                <div key={a.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${ADV_BOX[a.severity]}`}>
-                  {a.severity === "warn" ? <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> : a.severity === "suggest" ? <Lightbulb className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
-                  <span className="flex-1">{a.message}</span>
-                  {a.fix && (
-                    <button onClick={() => set((s) => Object.assign(s, applyAdvisorFix(s, a.fix!)))} className="shrink-0 rounded-md border border-current px-2 py-0.5 text-[11px] font-medium hover:bg-white/40">Исправить</button>
-                  )}
-                </div>
-              ))}
-              {advices.length === 0 && hardErrors.length === 0 && (
-                <p className="py-1 text-xs text-slate-400 dark:text-slate-500">Замечаний нет — договор готов к генерации.</p>
-              )}
             </div>
           </div>
         </div>
