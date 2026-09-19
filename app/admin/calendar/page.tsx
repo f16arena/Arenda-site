@@ -4,8 +4,7 @@ import { auth } from "@/auth"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { Calendar as CalendarIcon } from "lucide-react"
 import { redirect } from "next/navigation"
-import { CalendarViewLoader } from "./calendar-view-loader"
-import type { CalendarEvent } from "./calendar-view"
+import { CalendarView, type CalendarEvent } from "./calendar-view"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { db } from "@/lib/db"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
@@ -54,15 +53,26 @@ async function renderCalendarPage({
   const rangeStart = new Date(monthStart.getTime() - 7 * 24 * 3600 * 1000)
   const rangeEnd = new Date(monthEnd.getTime() + 7 * 24 * 3600 * 1000)
 
+  // Все четыре пути привязки арендатора к зданию: основное помещение, несколько
+  // помещений, этаж целиком и здание напрямую (место без помещения — киоск,
+  // автомат). Раньше учитывались только два — большинство арендаторов в
+  // календарь не попадало.
   const tenantBuildingFilter: Prisma.TenantWhereInput = {
+    user: { organizationId: orgId },
     OR: [
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+      { buildingId: { in: visibleBuildingIds } },
     ],
   }
 
+  // Оплаченное начисление показывает сама оплата — иначе один платёж
+  // появлялся в календаре дважды.
   const chargeWhere: Prisma.ChargeWhereInput = {
     dueDate: { gte: rangeStart, lt: rangeEnd },
+    isPaid: false,
+    deletedAt: null,
     tenant: tenantBuildingFilter,
   }
   const paymentWhere: Prisma.PaymentWhereInput = {
@@ -155,17 +165,25 @@ async function renderCalendarPage({
   // по тому, что любая из выборок вернула ровно CALENDAR_EVENT_SOURCE_LIMIT
   // строк (это значит, что данных могло быть больше — мы их обрезали).
 
+  // День события — по времени Казахстана. toISOString() даёт UTC, и платёж
+  // от 9-го в полночь по Алматы попадал в календарь на 8-е.
+  const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty" }).format(d)
+  const todayKey = dayKey(today)
+  const TYPE_LABEL: Record<string, string> = { RENT: "Аренда", SERVICE_FEE: "Эксплуатационные", ELECTRICITY: "Электроэнергия", WATER: "Вода", HEATING: "Отопление", PENALTY: "Пеня", DEPOSIT: "Депозит", CLEANING: "Уборка" }
+
   const events: CalendarEvent[] = []
 
   for (const charge of upcomingCharges) {
     if (!charge.dueDate) continue
-    const isOverdue = !charge.isPaid && charge.dueDate < today
+    const day = dayKey(charge.dueDate)
+    const isOverdue = day < todayKey
     events.push({
       id: `charge-${charge.id}`,
-      type: charge.isPaid ? "payment_done" : isOverdue ? "payment_overdue" : "payment_due",
-      date: charge.dueDate.toISOString(),
-      title: `${charge.tenant.companyName}: ${charge.amount.toLocaleString("ru-RU")} ₸`,
-      subtitle: charge.type === "PENALTY" ? "Пеня" : charge.isPaid ? "Оплачено" : "Ожидается",
+      type: isOverdue ? "payment_overdue" : "payment_due",
+      day,
+      amount: charge.amount,
+      title: charge.tenant.companyName,
+      subtitle: `${TYPE_LABEL[charge.type] ?? "Начисление"} · ${charge.amount.toLocaleString("ru-RU")} ₸${isOverdue ? " · просрочено" : ""}`,
       href: `/admin/tenants/${charge.tenant.id}`,
     })
   }
@@ -174,9 +192,10 @@ async function renderCalendarPage({
     events.push({
       id: `payment-${payment.id}`,
       type: "payment_done",
-      date: payment.paymentDate.toISOString(),
-      title: `${payment.tenant.companyName}: ${payment.amount.toLocaleString("ru-RU")} ₸`,
-      subtitle: "Платеж получен",
+      day: dayKey(payment.paymentDate),
+      amount: payment.amount,
+      title: payment.tenant.companyName,
+      subtitle: `Оплата получена · ${payment.amount.toLocaleString("ru-RU")} ₸`,
       href: `/admin/tenants/${payment.tenant.id}`,
     })
   }
@@ -186,9 +205,9 @@ async function renderCalendarPage({
     events.push({
       id: `contract-${tenant.id}`,
       type: "contract_ending",
-      date: tenant.contractEnd.toISOString(),
+      day: dayKey(tenant.contractEnd),
       title: tenant.companyName,
-      subtitle: "Договор истекает",
+      subtitle: "Заканчивается договор — продлите или найдите нового арендатора",
       href: `/admin/tenants/${tenant.id}`,
     })
   }
@@ -198,11 +217,22 @@ async function renderCalendarPage({
     events.push({
       id: `task-${task.id}`,
       type: "task",
-      date: task.dueDate.toISOString(),
+      day: dayKey(task.dueDate),
       title: task.title,
-      subtitle: task.priority === "HIGH" || task.priority === "URGENT" ? "Срочно" : "Задача",
+      subtitle: task.priority === "HIGH" || task.priority === "URGENT" ? "Срочная задача" : "Задача",
       href: "/admin/tasks",
     })
+  }
+
+  // Итоги именно этого месяца (события соседних недель нужны сетке, но не счёту)
+  const monthPrefix = `${year}-${String(monthNum).padStart(2, "0")}`
+  const monthEvents = events.filter((e) => e.day.startsWith(monthPrefix))
+  const sumOf = (type: CalendarEvent["type"]) => monthEvents.filter((e) => e.type === type).reduce((sum, e) => sum + (e.amount ?? 0), 0)
+  const summary = {
+    expected: sumOf("payment_due"),
+    overdue: sumOf("payment_overdue"),
+    received: sumOf("payment_done"),
+    contracts: monthEvents.filter((e) => e.type === "contract_ending").length,
   }
 
   const isCalendarCapped =
@@ -216,7 +246,7 @@ async function renderCalendarPage({
       <PageHeader
         icon={CalendarIcon}
         title="Календарь"
-        subtitle={`Платежи, договоры, задачи · ${events.length} событий в этом месяце${isCalendarCapped ? " (показаны первые)" : ""}`}
+        subtitle={`Когда ждать деньги, когда кончаются договоры и что по задачам${isCalendarCapped ? " · показаны первые события" : ""}`}
       />
 
       {isCalendarCapped && (
@@ -226,10 +256,12 @@ async function renderCalendarPage({
         </div>
       )}
 
-      <CalendarViewLoader
+      <CalendarView
         currentYear={year}
         currentMonth={monthNum}
         events={events}
+        todayKey={todayKey}
+        summary={summary}
       />
     </div>
   )
