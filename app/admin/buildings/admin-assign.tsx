@@ -32,7 +32,7 @@ export function BuildingAdminAssign({
   }
 
   return (
-    <div className="relative">
+    <div className="relative inline-block">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1.5 text-xs text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 hover:bg-violet-100 dark:hover:bg-violet-500/20 px-2 py-1 rounded-md font-medium transition-colors"
@@ -43,7 +43,7 @@ export function BuildingAdminAssign({
         <ChevronDown className="h-3 w-3" />
       </button>
       {open && (
-        <div className="absolute z-30 mt-1 right-0 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-lg overflow-hidden">
+        <div className="absolute left-0 top-full z-30 mt-1 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg shadow-lg overflow-hidden">
           <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Администратор здания</p>
             <button onClick={() => setOpen(false)} className="text-xs text-slate-400 hover:text-slate-600">×</button>
