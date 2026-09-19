@@ -14,6 +14,8 @@ import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/pan
 import { roomExplication } from "@/lib/builder/drawing/schedules"
 import { usePremiseStore } from "@/store/premise-store"
 import { createIslandPremise } from "@/app/actions/builder-premise"
+import { PremisePicker, premiseItems } from "./PremisePicker"
+import { IslandTenantPicker } from "./IslandTenantPicker"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
@@ -213,23 +215,15 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             )
           })()}
           {options.length > 0 && use === "rent" && (
-            <label className="mb-2 flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
-              Карточка помещения
-              <select
-                id="room-premise"
-                value={premise?.id ?? ""}
-                onChange={(ev) => execute(new LinkPremiseCommand({ floorId: fid }, rid, ev.target.value || null))}
-                className="w-full max-w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
-                style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
-              >
-                <option value="">— не привязано —</option>
-                {options.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.floorNumber} эт · № {p.number}{p.areaM2 != null ? ` · ${p.areaM2} м²` : ""}{p.tenantName ? ` · ${p.tenantName}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="mb-2">
+              <PremisePicker
+                label="Карточка помещения"
+                items={premiseItems(options)}
+                value={premise?.id ?? null}
+                emptyLabel="Не привязано — выберите"
+                onChange={(id) => execute(new LinkPremiseCommand({ floorId: fid }, rid, id))}
+              />
+            </div>
           )}
           <p className="pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Стиль комнаты</p>
           <div className="flex flex-wrap gap-1">
@@ -595,32 +589,37 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             <button type="button" onClick={() => { execute(new DeleteIslandCommand(islandTarget, iid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>
           </div>
           {islOptions.length > 0 && (
-            <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
-              Карточка помещения
-              <select
-                id="island-premise"
-                value={islPremise?.id ?? ""}
-                onChange={(ev) => execute(new LinkPremiseCommand(islandTarget, iid, ev.target.value || null))}
-                className="w-full max-w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
-                style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
-              >
-                <option value="">— не привязано —</option>
-                {islOptions.map((pp) => (
-                  <option key={pp.id} value={pp.id}>
-                    {pp.floorNumber} эт · № {pp.number}{pp.areaM2 != null ? ` · ${pp.areaM2} м²` : ""}{pp.tenantName ? ` · ${pp.tenantName}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PremisePicker
+              label="Карточка места"
+              items={premiseItems(islOptions)}
+              value={islPremise?.id ?? null}
+              emptyLabel="Не привязано — выберите"
+              onChange={(id) => execute(new LinkPremiseCommand(islandTarget, iid, id))}
+            />
+          )}
+          {buildingId && (
+            <IslandTenantPicker
+              buildingId={buildingId}
+              premiseId={islPremise?.id ?? null}
+              currentTenant={islPremise?.tenantName ?? null}
+              ensurePremise={async () => {
+                const row = await createIslandPremise({ floorId: f?.sourceFloorId ?? null, buildingId, areaM2: islandArea(isl), name: islandLabel(isl) })
+                if (!row) return null
+                const st = usePremiseStore.getState()
+                st.setRows([...Array.from(st.byId.values()), row])
+                execute(new LinkPremiseCommand(islandTarget, iid, row.id))
+                return row.id
+              }}
+            />
           )}
           {!islPremise && (
             <button
               type="button"
-              disabled={!f?.sourceFloorId}
-              title={f?.sourceFloorId ? "Заведёт карточку помещения «М-N» на этом этаже и привяжет к ней место" : "Место на участке или этаж не связан с данными здания — карточку создать негде"}
+              disabled={!f?.sourceFloorId && !buildingId}
+              title={f?.sourceFloorId ? "Заведёт карточку места «М-N» на этом этаже и привяжет к ней место" : buildingId ? "Место на участке — карточка заведётся на «Территории» здания" : "Модель не связана со зданием — карточку создать негде"}
               onClick={() => {
-                if (!f?.sourceFloorId) return
-                void createIslandPremise({ floorId: f.sourceFloorId, areaM2: islandArea(isl), name: islandLabel(isl) })
+                if (!f?.sourceFloorId && !buildingId) return
+                void createIslandPremise({ floorId: f?.sourceFloorId ?? null, buildingId, areaM2: islandArea(isl), name: islandLabel(isl) })
                   .then((row) => {
                     if (!row) return
                     const st = usePremiseStore.getState()

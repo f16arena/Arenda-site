@@ -21,6 +21,7 @@ import { db } from "@/lib/db"
 import { shareLinkValid } from "@/lib/builder/share-link"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingAccess } from "@/lib/building-access"
+import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
 import type { BuildingPremise } from "@/store/premise-store"
 import type { PremiseStatus } from "@/lib/builder/materials"
 
@@ -34,6 +35,12 @@ type PremiseRow = {
 }
 
 const MAX_PREMISES = 500
+
+function floorLabelOf(f: { number: number; kind: string | null }): string {
+  if (f.kind === "ROOF") return "Крыша"
+  if (f.kind === "TERRITORY") return "Территория"
+  return f.number === 0 ? "Цоколь" : `${f.number} этаж`
+}
 
 /**
  * Маппит «сырой» статус помещения (+ признаки занятости/долга) в доменный PremiseStatus.
@@ -136,7 +143,7 @@ export async function listBuildingPremises(buildingId: string): Promise<Building
       area: true,
       status: true,
       kind: true,
-      floor: { select: { number: true } },
+      floor: { select: { number: true, kind: true } },
       tenant: {
         select: {
           companyName: true,
@@ -174,6 +181,7 @@ export async function listBuildingPremises(buildingId: string): Promise<Building
       id: sp.id,
       number: sp.number,
       floorNumber: sp.floor.number,
+      floorLabel: floorLabelOf(sp.floor),
       status: sp.kind === "COMMON" ? "free" : mapStatus(sp.status, debt > 0),
       tenantName: tenant?.companyName ?? null,
       areaM2: typeof sp.area === "number" ? sp.area : null,
@@ -263,15 +271,21 @@ export async function submitBuilderLead(input: {
  */
 export async function createIslandPremise(input: {
   /** id этажа в базе (Floor.id) — берётся из floor.sourceFloorId модели */
-  floorId: string
+  floorId?: string | null
+  /** Место на участке (не на этаже) — карточка заводится на «Территории» этого здания */
+  buildingId?: string
   areaM2: number
   name?: string
 }): Promise<BuildingPremise | null> {
   const { orgId } = await requireOrgAccess()
-  const floor = await db.floor.findFirst({
-    where: { id: input.floorId, building: { organizationId: orgId } },
-    select: { id: true, number: true, buildingId: true },
-  })
+  const floor = input.floorId
+    ? await db.floor.findFirst({
+        where: { id: input.floorId, building: { organizationId: orgId } },
+        select: { id: true, number: true, kind: true, buildingId: true },
+      })
+    : input.buildingId
+      ? await territoryFloor(input.buildingId, orgId)
+      : null
   if (!floor) return null
   await assertBuildingAccess(floor.buildingId, orgId)
 
@@ -299,9 +313,52 @@ export async function createIslandPremise(input: {
     id: created.id,
     number: created.number,
     floorNumber: floor.number,
+    floorLabel: floorLabelOf(floor),
     status: "free",
     tenantName: null,
     areaM2: area,
     debt: 0,
   }
+}
+
+/** «Территория» здания — для мест на участке (киоск, навес). Нет — заводим. */
+async function territoryFloor(buildingId: string, orgId: string) {
+  const building = await db.building.findFirst({ where: { id: buildingId, organizationId: orgId }, select: { id: true } })
+  if (!building) return null
+  const existing = await db.floor.findFirst({
+    where: { buildingId, kind: "TERRITORY" },
+    select: { id: true, number: true, kind: true, buildingId: true },
+  })
+  if (existing) return existing
+  const top = await db.floor.aggregate({ where: { buildingId }, _max: { number: true } })
+  return db.floor.create({
+    data: { buildingId, number: (top._max.number ?? 0) + 1, name: "Территория", kind: "TERRITORY", ratePerSqm: 0 },
+    select: { id: true, number: true, kind: true, buildingId: true },
+  })
+}
+
+export type BuilderTenantOption = { id: string; name: string; place: string | null }
+
+/**
+ * Арендаторы здания для выбора в конструкторе — все 4 пути привязки, включая
+ * новых без помещения (киоск на территории, антенна): их и нужно сажать на место.
+ */
+export async function listBuilderTenants(buildingId: string): Promise<BuilderTenantOption[]> {
+  const { orgId } = await requireOrgAccess()
+  await assertBuildingAccess(buildingId, orgId)
+  const rows = await db.tenant.findMany({
+    where: tenantInBuildingsWhere(orgId, [buildingId]),
+    select: {
+      id: true,
+      companyName: true,
+      space: { select: { number: true } },
+      tenantSpaces: { select: { space: { select: { number: true } } } },
+    },
+    orderBy: { companyName: "asc" },
+    take: 300,
+  })
+  return rows.map((t) => {
+    const nums = [...new Set([t.space?.number, ...t.tenantSpaces.map((x) => x.space.number)].filter(Boolean))] as string[]
+    return { id: t.id, name: t.companyName, place: nums.length ? `№ ${nums.join(", ")}` : null }
+  })
 }

@@ -11,6 +11,8 @@ export type BuildingPremise = {
   id: string
   number: string
   floorNumber: number
+  /** «2 этаж», «Крыша», «Территория» — для списков выбора */
+  floorLabel?: string
   status: PremiseStatus
   tenantName: string | null
   areaM2: number | null
