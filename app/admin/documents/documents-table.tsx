@@ -1,5 +1,8 @@
 "use client"
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { deleteContractDraft } from "@/app/actions/contract-builder"
+
 import { useState, useTransition, useMemo } from "react"
 import Link from "next/link"
 import {
@@ -65,6 +68,8 @@ export interface DocRow {
   generatedId?: string
   deleteId?: string
   canDelete?: boolean
+  /** Черновик конструктора (ContractDraft.id) — удаляется из меню «⋯» */
+  draftId?: string
   isSigned?: boolean
   /** Сколько подписей ЭЦП у документа (для статуса в списке; у двусторонних 2 = обе стороны). */
   signatureCount?: number
@@ -329,6 +334,22 @@ export function DocumentsTable({
     router.refresh()
   }
 
+  function performDeleteDraft(row: DocRow) {
+    if (!row.draftId) return
+    const draftId = row.draftId
+    const snapshot = localRows
+    setLocalRows((prev) => prev.filter((r) => r.id !== row.id))
+    startTransition(async () => {
+      const result = await deleteContractDraft(draftId).catch(() => ({ ok: false }))
+      if (!result.ok) {
+        setLocalRows(snapshot)
+        toast.error("Не удалось удалить черновик")
+        return
+      }
+      toast.success("Черновик удалён")
+    })
+  }
+
   function performDelete(row: DocRow) {
     if (!row.deleteId || !row.canDelete) return
     const deleteId = row.deleteId
@@ -461,16 +482,26 @@ export function DocumentsTable({
         )}
         {/* Остальное — в меню «⋯», чтобы в строке не было четырёх кнопок.
             Подписанный документ из списка не удаляется (решение владельца 19.09.2026). */}
-        {((row.isSigned && row.deleteId) || (row.source === "contract" && row.deleteId) || (row.deleteId && row.canDelete && !row.isSigned)) && (
-          <details className="group relative">
-            <summary
-              className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 [&::-webkit-details-marker]:hidden"
+        {(row.draftId || (row.isSigned && row.deleteId) || (row.source === "contract" && row.deleteId) || (row.deleteId && row.canDelete && !row.isSigned)) && (
+          // Меню — во всплывающем слое поверх страницы: внутри таблицы с прокруткой
+          // оно обрезалось и уезжало вниз под последней строкой.
+          <Popover>
+            <PopoverTrigger
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
               aria-label="Ещё действия"
               title="Ещё действия"
             >
               ⋯
-            </summary>
-            <div className="absolute right-0 z-30 mt-1 flex w-52 flex-col items-stretch gap-1 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+            </PopoverTrigger>
+            <PopoverContent
+              align="end"
+              className="flex w-52 flex-col items-stretch gap-1 p-1.5"
+              // Окно подтверждения удаления открывается из меню — клик в нём не
+              // должен закрывать меню, иначе окно исчезнет вместе с ним.
+              onInteractOutside={(e) => {
+                if ((e.target as HTMLElement | null)?.closest?.('[role="dialog"],[role="alertdialog"]')) e.preventDefault()
+              }}
+            >
               {row.isSigned && row.deleteId && (
                 <Link
                   href={`/verify/${row.deleteId}`}
@@ -483,6 +514,24 @@ export function DocumentsTable({
               )}
               {row.source === "contract" && row.deleteId && (
                 <ContractCardButton contractId={row.deleteId} />
+              )}
+              {row.draftId && (
+                <ConfirmDialog
+                  variant="danger"
+                  title="Удалить черновик договора?"
+                  description="Черновик пропадёт из списка. Подписанные и отправленные договоры это не затрагивает."
+                  confirmLabel="Удалить черновик"
+                  onConfirm={() => performDeleteDraft(row)}
+                  trigger={
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Удалить черновик
+                    </button>
+                  }
+                />
               )}
               {row.deleteId && row.canDelete && !row.isSigned && (
                 <ConfirmDialog
@@ -504,8 +553,8 @@ export function DocumentsTable({
                   }
                 />
               )}
-            </div>
-          </details>
+            </PopoverContent>
+          </Popover>
         )}
       </div>
     )

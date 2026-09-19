@@ -370,6 +370,7 @@ export default async function DocumentsPage({
       downloadHref: null,
       viewHref: `/admin/documents?create=contract&draft=${d.id}`,
       viewLabel: "Продолжить",
+      draftId: d.id,
       category: "draft",
       canDelete: false,
       isSigned: false,

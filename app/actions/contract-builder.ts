@@ -126,6 +126,7 @@ export async function deleteContractDraft(id: string): Promise<{ ok: boolean }> 
     data: { deletedAt: new Date() },
   })
   revalidatePath("/admin/settings/document-templates")
+  revalidatePath("/admin/documents")
   return { ok: true }
 }
 
