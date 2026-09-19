@@ -17,7 +17,7 @@ import { createIslandPremise } from "@/app/actions/builder-premise"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
-import { ISLAND_PRESETS, islandArea, islandLabel, isParking, isWallMounted, mountHeight } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, islandArea, islandLabel, isParking, isRoofPlace, isWallMounted, mountHeight } from "@/lib/builder/islands"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
@@ -523,7 +523,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
               className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
           </label>
           {([["Ширина, мм", "width", isl.width], ["Глубина, мм", "depth", isl.depth], ["Высота, мм", "height", isl.height],
-             ...(isWallMounted(isl) ? [["Низ над полом, мм", "mountHeight", mountHeight(isl)] as const] : [])] as const).map(([label, key, value]) => (
+             ...(isWallMounted(isl) || isRoofPlace(isl) ? [["Низ над полом, мм", "mountHeight", mountHeight(isl)] as const] : [])] as const).map(([label, key, value]) => (
             <label key={key} className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
               {label}
               <input id={`island-${key}`} type="number" step="50" min="200" max="12000" defaultValue={value} key={`i${key}${iid}${value}`}

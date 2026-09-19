@@ -1093,6 +1093,19 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
       </g>,
     )
   })
+  // выход на лестницу: на этажах выше первого эвакуируются к лестничной клетке
+  ;(evac.stairExits ?? []).forEach((ex, i) => {
+    const x = X(ex.at.x), y = Y(ex.at.y)
+    out.push(
+      <g key={`se${i}`}>
+        <circle cx={x} cy={y} r={3.2} fill="none" stroke={G} strokeWidth={0.7} />
+        <path d={`M ${x - 1.6} ${y - 1.2} L ${x} ${y + 1.6} L ${x + 1.6} ${y - 1.2}`} fill="none" stroke={G} strokeWidth={0.7} />
+        <rect x={x - 9} y={y + 4} width={18} height={4} fill={G} rx={0.6} />
+        <text x={x} y={y + 7.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>НА ЛЕСТНИЦУ</text>
+      </g>,
+    )
+  })
+
   // легенда в свободном углу листа
   const lx = 26, ly = sheet.h - 58
   const items: Array<[string, "route" | "exit" | "stair" | "fire"]> = [

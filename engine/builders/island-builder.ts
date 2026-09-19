@@ -23,6 +23,10 @@ const LOOK: Record<Island["kind"], { body: string; front: string; plinth: boolea
   parking: { body: "asphalt", front: "paint_white", plinth: false },
   parking_truck: { body: "asphalt", front: "paint_white", plinth: false },
   parking_moto: { body: "asphalt", front: "paint_white", plinth: false },
+  kiosk_out: { body: "composite", front: "curtain_glass", plinth: true },
+  container: { body: "facade_metal", front: "facade_metal_dark", plinth: false },
+  antenna: { body: "metal_roof", front: "facade_metal", plinth: false },
+  bts: { body: "facade_metal", front: "paint_gray", plinth: false },
   other: { body: "paint_gray", front: "paint_gray", plinth: false },
 }
 
@@ -37,6 +41,8 @@ export function buildIsland(island: Island, parent: TransformNode, scene: Scene,
 
   // парковочное место — это разметка на земле: белая рамка поверх покрытия
   if (isParking(island)) return buildParkingSpot(island, root, scene, reg, meta)
+  // антенна: мачта со штырями, а не коробка
+  if (island.kind === "antenna") return buildAntenna(island, root, scene, reg, meta)
 
   const w = island.width * S
   const d = island.depth * S
@@ -106,5 +112,40 @@ function buildParkingSpot(
   strip(`isl_pk_${island.id}_r`, t, d, w / 2 - t / 2, 0)
   // «карман» открыт со стороны заезда: рисуем только дальнюю поперечину
   strip(`isl_pk_${island.id}_b`, w, t, 0, d / 2 - t / 2)
+  return root
+}
+
+/** Антенно-мачтовое сооружение: опора с площадкой и штырями. */
+function buildAntenna(
+  island: Island,
+  root: TransformNode,
+  scene: Scene,
+  reg: MaterialRegistry,
+  meta: { kind: string; floorId: string; entityId: string },
+): TransformNode {
+  const h = island.height * S
+  const y0 = mountHeight(island) * S
+  const mat = reg.get("metal_roof")
+  const put = (m: Mesh) => {
+    m.parent = root
+    m.material = mat
+    m.metadata = meta
+    m.receiveShadows = true
+  }
+  // рама-основание: мачту крепят к кровле через раму, а не бетонируют
+  const base = MeshBuilder.CreateBox(`isl_ant_${island.id}_base`, { width: island.width * S, height: 0.15, depth: island.depth * S }, scene)
+  base.position.set(0, y0 + 0.075, 0)
+  put(base)
+  const mast = MeshBuilder.CreateCylinder(`isl_ant_${island.id}_mast`, { diameter: 0.18, height: h }, scene)
+  mast.position.set(0, y0 + h / 2, 0)
+  put(mast)
+  // три секторные антенны по кругу — как у оператора связи
+  for (let i = 0; i < 3; i++) {
+    const a = (i * 2 * Math.PI) / 3
+    const panel = MeshBuilder.CreateBox(`isl_ant_${island.id}_p${i}`, { width: 0.2, height: 1.2, depth: 0.12 }, scene)
+    panel.position.set(Math.cos(a) * 0.35, y0 + h * 0.82, Math.sin(a) * 0.35)
+    panel.rotation.y = -a
+    put(panel)
+  }
   return root
 }

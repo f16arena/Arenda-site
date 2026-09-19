@@ -27,7 +27,7 @@ import type { BuilderDocument, Floor, Building, Stair, MepSystem } from "@/types
 import { MEP_SYSTEMS } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
-import { ISLAND_PRESETS, OUTDOOR_KINDS, WALL_MOUNTED, fitToFloor } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, OUTDOOR_KINDS, ROOF_KINDS, WALL_MOUNTED, fitToFloor } from "@/lib/builder/islands"
 import type { Island, IslandKind } from "@/types/builder"
 import { buildMep } from "./builders/mep-builder"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
@@ -2770,6 +2770,32 @@ export class BuilderEngine {
   private handleIslandTap(): void {
     const doc = this.getDoc()
     const preset = ISLAND_PRESETS[this.islandKind]
+    // антенна и базовая станция ставятся на кровлю: клик должен попасть в неё
+    if (ROOF_KINDS.has(this.islandKind)) {
+      const { meta, point } = this.pickMeta()
+      if (!meta || meta.kind !== "roof" || !meta.floorId || !point) {
+        this.onHud("Кликните по кровле: антенна ставится на крышу")
+        return
+      }
+      const f = doc ? findFloor(doc, meta.floorId) : undefined
+      if (!f) return
+      const step = this.snapEnabled ? 100 : 1
+      this.onCommand(new AddIslandCommand({ floorId: f.id }, {
+        id: uid("isl"),
+        kind: this.islandKind,
+        name: "",
+        tenant: "",
+        position: { x: Math.round((point.x * 1000) / step) * step, y: Math.round((point.z * 1000) / step) * step },
+        width: preset.width,
+        depth: preset.depth,
+        height: preset.height,
+        rotationDeg: 0,
+        // высота крепления считается от пола этажа: кровля выше него
+        mountHeight: Math.max(0, Math.round(point.y * 1000 - f.elevation)),
+      }))
+      this.onHud(`${preset.label}: поставлено на кровлю. Арендатор — в панели справа`)
+      return
+    }
     // парковочное место размечается на земле участка, а не на этаже
     if (OUTDOOR_KINDS.has(this.islandKind)) {
       const g = this.projectToY(0)

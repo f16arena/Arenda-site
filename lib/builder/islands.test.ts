@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ISLAND_PRESETS, clampToRoom, isParking, projectIslandSchedule, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
+import { ISLAND_PRESETS, clampToRoom, isParking, isRoofPlace, projectIslandSchedule, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
 import type { Floor, Island } from "@/types/builder"
 
 function island(extra: Partial<Island> = {}): Island {
@@ -228,5 +228,28 @@ describe("парковочные места на участке", () => {
   it("без мест на участке ведомость не меняется", () => {
     const only = projectIslandSchedule([floor([island()])], [])
     expect(only).toHaveLength(1)
+  })
+})
+
+describe("места на кровле и на территории", () => {
+  it("антенна и базовая станция — места кровли", () => {
+    expect(isRoofPlace(island({ kind: "antenna" }))).toBe(true)
+    expect(isRoofPlace(island({ kind: "bts" }))).toBe(true)
+    expect(isRoofPlace(island({ kind: "parking" }))).toBe(false)
+  })
+
+  it("мачта висит над полом этажа (крепится к кровле)", () => {
+    expect(mountHeight(island({ kind: "antenna", mountHeight: 10500 }))).toBe(10500)
+  })
+
+  it("в ведомости у антенны размещение — «Кровля»", () => {
+    const rows = islandSchedule([floor([island({ id: "a1", kind: "antenna", tenant: "Beeline", mountHeight: 10500 })])])
+    expect(rows[0].place).toBe("Кровля")
+    expect(rows[0].tenant).toBe("Beeline")
+  })
+
+  it("контейнер 20 футов — типовой размер", () => {
+    expect(ISLAND_PRESETS.container.width).toBe(6058)
+    expect(ISLAND_PRESETS.container.depth).toBe(2438)
   })
 })

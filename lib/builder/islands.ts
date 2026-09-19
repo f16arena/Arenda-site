@@ -32,6 +32,12 @@ export const ISLAND_PRESETS: Record<IslandKind, IslandPreset> = {
   parking: { label: "Парковочное место", width: 2500, depth: 5300, height: 0 },
   parking_truck: { label: "Место для грузового", width: 3500, depth: 8000, height: 0 },
   parking_moto: { label: "Мотоместо", width: 1000, depth: 2500, height: 0 },
+  // территория: киоск и морской контейнер (20 футов — 6058 × 2438 мм)
+  kiosk_out: { label: "Киоск на территории", width: 3000, depth: 2200, height: 2700 },
+  container: { label: "Контейнер 20 футов", width: 6058, depth: 2438, height: 2591 },
+  // кровля: антенно-мачтовое сооружение и базовая станция оператора
+  antenna: { label: "Антенно-мачтовое сооружение", width: 1200, depth: 1200, height: 6000 },
+  bts: { label: "Базовая станция", width: 1500, depth: 1000, height: 2000 },
   other: { label: "Арендное место", width: 1000, depth: 1000, height: 1500 },
 }
 
@@ -39,10 +45,17 @@ export const ISLAND_PRESETS: Record<IslandKind, IslandPreset> = {
 export const WALL_MOUNTED: ReadonlySet<IslandKind> = new Set<IslandKind>(["banner", "lightbox"])
 
 /** Места на участке: парковка размечается на земле, а не стоит в помещении. */
-export const OUTDOOR_KINDS: ReadonlySet<IslandKind> = new Set<IslandKind>(["parking", "parking_truck", "parking_moto"])
+export const OUTDOOR_KINDS: ReadonlySet<IslandKind> = new Set<IslandKind>(["parking", "parking_truck", "parking_moto", "kiosk_out", "container"])
+
+/** Места на кровле: антенны операторов, базовые станции — ставятся на крышу. */
+export const ROOF_KINDS: ReadonlySet<IslandKind> = new Set<IslandKind>(["antenna", "bts"])
+
+export function isRoofPlace(island: Island): boolean {
+  return ROOF_KINDS.has(island.kind)
+}
 
 export function isParking(island: Island): boolean {
-  return OUTDOOR_KINDS.has(island.kind)
+  return island.kind === "parking" || island.kind === "parking_truck" || island.kind === "parking_moto"
 }
 
 export function isWallMounted(island: Island): boolean {
@@ -141,7 +154,7 @@ export function islandSchedule(
         name: islandLabel(island),
         kind: island.kind,
         tenant: (island.tenant ?? "").trim(),
-        place: room && roomName ? roomName(floor, room.id) : "",
+        place: isRoofPlace(island) ? "Кровля" : room && roomName ? roomName(floor, room.id) : "",
         area: Math.round(islandArea(island) * 100) / 100,
         size: `${island.width}×${island.depth}`,
       })

@@ -9,7 +9,7 @@ import { MEP_SYSTEM_INFO, devicesOf } from "@/lib/builder/mep/catalog"
 import { useEditorStore, type StairShape, type TerrainMode, type FenceStyle } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
-import { ISLAND_PRESETS, OUTDOOR_KINDS } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, OUTDOOR_KINDS, ROOF_KINDS } from "@/lib/builder/islands"
 
 const PAINT_IDS = [
   // стены/фасад
@@ -91,7 +91,7 @@ export function ToolOptions() {
   // клик поставил бы вендинг посреди двора
   useEffect(() => {
     const onSite = activeLevelId === "site"
-    if (OUTDOOR_KINDS.has(islandKind) !== onSite) {
+    if ((OUTDOOR_KINDS.has(islandKind) || ROOF_KINDS.has(islandKind)) !== onSite) {
       useEditorStore.getState().setIslandKind(onSite ? "parking" : "vending")
     }
   }, [activeLevelId, islandKind])
@@ -259,7 +259,9 @@ export function ToolOptions() {
     // на участке предлагаем парковку, на этаже — места внутри и рекламу:
     // весь список сразу не влезает в строку и путает
     const onSite = activeLevelId === "site"
-    const kinds = ISLAND_KINDS.filter((k) => OUTDOOR_KINDS.has(k) === onSite)
+    // на участке: парковка, киоски, контейнеры и места на кровле; на этаже —
+    // всё, что внутри помещений
+    const kinds = ISLAND_KINDS.filter((k) => (OUTDOOR_KINDS.has(k) || ROOF_KINDS.has(k)) === onSite)
     const kind = kinds.includes(islandKind) ? islandKind : kinds[0]
     return (
       <Shell>

@@ -30,6 +30,8 @@ export interface EvacuationPlan {
   exits: Array<{ at: Vec2; dir: Vec2; kind: "main" | "emergency" }>
   /** лестницы на плане — как эвакуационные пути вниз */
   stairs: Vec2[][]
+  /** выходы на лестницу: на этажах выше первого путь ведёт к лестничной клетке */
+  stairExits: Array<{ at: Vec2; dir: Vec2 }>
   /** помещения без выхода (тупики) — их подсвечиваем */
   isolated: string[]
 }
@@ -75,6 +77,31 @@ export function buildEvacuation(floor: Floor): EvacuationPlan {
     dist.set(inner, 0)
     exitDoor.set(inner, d)
     queue.push(inner)
+  }
+  // Этажи выше первого наружных дверей не имеют: эвакуация идёт к лестничной
+  // клетке. Лифт выходом не считается — по нормам при пожаре им не пользуются.
+  const stairPoint = new Map<string, Vec2>()
+  for (const st of floor.stairs ?? []) {
+    if (st.shape === "column" || st.shape === "elevator" || st.shape === "porch" || st.shape === "ramp") continue
+    const hole = stairHoleWorld(st, floor.height)
+    // марш может выходить за помещение (лестничная клетка уже марша): пробуем
+    // центр выреза, точку установки и углы — берём первую, попавшую в комнату
+    const spots: Vec2[] = [
+      { x: (hole[0].x + hole[2].x) / 2, y: (hole[0].y + hole[2].y) / 2 },
+      { x: st.position.x, y: st.position.y },
+      ...hole,
+    ]
+    let room: FloorRoom | undefined
+    let c: Vec2 | undefined
+    for (const p of spots) {
+      room = rooms.find((r) => pointInPolygon(p, r.polygon))
+      if (room) { c = p; break }
+    }
+    if (!room || !c) continue
+    if (!stairPoint.has(room.id)) stairPoint.set(room.id, c)
+    if (dist.has(room.id)) continue
+    dist.set(room.id, 0)
+    queue.push(room.id)
   }
   while (queue.length) {
     const cur = queue.shift() as string
@@ -124,6 +151,10 @@ export function buildEvacuation(floor: Floor): EvacuationPlan {
     }
     const last = exitDoor.get(cur)
     if (last) go(last.at, cur)
+    else {
+      const st = stairPoint.get(cur)
+      if (st) go(st, cur)
+    }
     if (path.length > 1) routes.push(path)
   }
 
@@ -138,15 +169,29 @@ export function buildEvacuation(floor: Floor): EvacuationPlan {
     exits.push({ at: d.at, dir: { x: dx / L, y: dy / L }, kind: d.exit ?? "emergency" })
   }
 
+  const stairExits: EvacuationPlan["stairExits"] = []
+  for (const [roomId, at] of stairPoint) {
+    const c = centre.get(roomId)
+    const dx = c ? at.x - c.x : 0
+    const dy = c ? at.y - c.y : -1
+    const L = Math.hypot(dx, dy) || 1
+    stairExits.push({ at, dir: { x: dx / L, y: dy / L } })
+  }
+
   const stairs = floor.stairs
     .filter((s) => s.shape !== "column" && s.shape !== "porch" && s.shape !== "ramp")
     .map((s) => stairHoleWorld(s, floor.height))
 
   // помещения общего пользования в тупиках не считаем ошибкой
   // огнетушитель у каждого выхода — внутри здания, в 900 мм от двери
-  const extinguishers = exits.map((e) => ({ x: e.at.x - e.dir.x * 900, y: e.at.y - e.dir.y * 900 }))
+  // огнетушитель ставим и у выхода на лестницу: на верхних этажах это и есть
+  // эвакуационный выход
+  const extinguishers = [
+    ...exits.map((e) => ({ x: e.at.x - e.dir.x * 900, y: e.at.y - e.dir.y * 900 })),
+    ...(exits.length ? [] : stairExits.map((e) => ({ x: e.at.x - e.dir.x * 1200, y: e.at.y - e.dir.y * 1200 }))),
+  ]
 
-  return { routes, exits, stairs, extinguishers, isolated: isolated.filter((id) => {
+  return { routes, exits, stairExits, stairs, extinguishers, isolated: isolated.filter((id) => {
     const r = rooms.find((x) => x.id === id)
     return r ? roomUse(floor, r) === "rent" : false
   }) }
