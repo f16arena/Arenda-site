@@ -26,7 +26,9 @@ import { assemble } from "./assemble"
 import { deriveContext } from "./derive"
 import { partyIntro } from "./parties"
 import { money, dateLong } from "./numerals"
-import { contractDocSubtitle, contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
+import { contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
+import { contractSubtitle } from "./render"
+import { placementAnnexes, type AnnexDoc } from "./placement"
 
 // ───────────────────────── helpers ─────────────────────────
 
@@ -166,7 +168,7 @@ function contractChildren(s: ContractState, qr: Buffer | null, verifyUrl: string
   const a = assemble(s)
   const out: (Paragraph | Table)[] = []
   out.push(h1(`ДОГОВОР № ${s.meta.contractNumber || "____"}`))
-  out.push(new Paragraph({ text: contractDocSubtitle(s.meta.placementType), alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
+  out.push(new Paragraph({ text: contractSubtitle(s), alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
   out.push(metaTable(s.meta.city, s.meta.contractDate))
   out.push(para(`${partyIntro(s.landlord, "Арендодатель")}, с одной стороны, и ${partyIntro(s.tenant, "Арендатор")}, с другой стороны, совместно именуемые «Стороны», заключили настоящий Договор о нижеследующем:`))
 
@@ -306,6 +308,39 @@ function annex3OperatingCosts(s: ContractState, qr: Buffer | null, verifyUrl: st
   return out
 }
 
+/** Приложение договора на размещение (Акт с перечнем оборудования / Схема). */
+function placementAnnexDocx(s: ContractState, a: AnnexDoc, qr: Buffer | null, verifyUrl: string | null, signers: DocxSigners | undefined): (Paragraph | Table)[] {
+  const out: (Paragraph | Table)[] = []
+  out.push(new Paragraph({ children: [new TextRun({ text: `Приложение № ${a.no} к Договору № ${s.meta.contractNumber || "____"} от ${dateLong(s.meta.contractDate)}`, italics: true, size: 20 })], alignment: AlignmentType.RIGHT }))
+  out.push(h1(a.title))
+  out.push(new Paragraph({ text: a.subtitle, alignment: AlignmentType.CENTER, spacing: { after: 120 } }))
+  for (const part of a.parts) {
+    if (part.kind === "p") out.push(para(part.text))
+    else if (part.kind === "item") out.push(new Paragraph({ children: [new TextRun(`— ${part.text}`)], indent: { left: 360 }, spacing: { after: 30 } }))
+    else if (part.kind === "table") {
+      out.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({ children: part.head.map((h) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, size: 20 })] })] })) }),
+            ...part.rows.map((r) => new TableRow({ children: r.map((v) => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v, size: 20 })] })] })) })),
+          ],
+        }),
+      )
+    } else {
+      // Поле под схему: рамка ~12 см, Стороны рисуют/вклеивают схему и подписывают.
+      out.push(
+        new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [new TableRow({ height: { value: 6800, rule: "atLeast" }, children: [new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: part.caption, italics: true, size: 18 })] })] })] })],
+        }),
+      )
+    }
+  }
+  out.push(...requisitesBlock(s, qr, verifyUrl, signers))
+  return out
+}
+
 // ───────────────────────── entry ─────────────────────────
 
 /**
@@ -320,6 +355,15 @@ export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: 
   const c = deriveContext(s)
   const children: (Paragraph | Table)[] = [...contractChildren(s, qr, verifyUrl, signers)]
 
+  const placed = placementAnnexes(s)
+  if (placed.length) {
+    for (const a of placed) {
+      children.push(new Paragraph({ children: [new PageBreak()] }))
+      children.push(...placementAnnexDocx(s, a, qr, verifyUrl, signers))
+    }
+    return packDocx(children)
+  }
+
   if (c.annexes.act) {
     children.push(new Paragraph({ children: [new PageBreak()] }))
     children.push(...annex1Act(s, qr, verifyUrl, signers, c.annexNumbers.act))
@@ -333,6 +377,10 @@ export async function renderContractDocx(s: ContractState, opts?: { verifyUrl?: 
     children.push(...annex3OperatingCosts(s, qr, verifyUrl, signers, c.annexNumbers.operatingCosts))
   }
 
+  return packDocx(children)
+}
+
+function packDocx(children: (Paragraph | Table)[]): Promise<Buffer> {
   const doc = new Document({
     styles: { default: { document: { run: { font: "Times New Roman", size: 24 } } } },
     sections: [

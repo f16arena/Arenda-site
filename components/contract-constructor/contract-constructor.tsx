@@ -39,8 +39,13 @@ import {
 } from "@/app/actions/contract-builder"
 import { CONTRACT_PLACEMENT_TYPES, CORE_CONTRACT_TYPES, isContractPlacementType, type ContractPlacementType } from "@/lib/contract-placement-types"
 import { applyContractTypePreset } from "@/lib/contract-type-presets"
+import { contractSubtitle } from "@/lib/contract-engine/render"
+import { placementFamily } from "@/lib/contract-engine/placement"
+import { contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
+import { PlacementAnnexesView } from "./placement-annexes-view"
 import {
   defaultState,
+  defaultPlacementTerms,
   assemble,
   advise,
   applyAdvisorFix,
@@ -60,6 +65,9 @@ import {
   type UtilityKey,
   type UtilityMode,
   type OperatingMethod,
+  type PlacementTerms,
+  type PlacedEquipment,
+  type PlacementElectricity,
 } from "@/lib/contract-engine"
 
 type Mutator = (s: ContractState) => void
@@ -129,6 +137,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     return {
       ...s,
       handoverAct: s.handoverAct ?? d.handoverAct,
+      ...(s.placement ? { placement: { ...defaultPlacementTerms(s.placement.family), ...s.placement } } : {}),
       financials: {
         ...s.financials,
         deposit: { ...d.financials.deposit, ...s.financials?.deposit },
@@ -588,6 +597,7 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes 
           </select>
         </div>
       </div>
+      {placementFamily(state) ? <PlacementFields state={state} set={set} /> : (<>
       <div className={secTitleCls}>Помещение</div>
       <div className="mb-2"><label className={labelCls}>Адрес здания</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">
@@ -602,6 +612,7 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes 
         hint="Для арендатора, уже занимающего Помещение по прежнему договору: раздел об осведомлённости о состоянии, принятии «как есть» и отказе от претензий."
         onToggle={() => set((s) => { s.modules.asIsAcceptanceEnabled = s.modules.asIsAcceptanceEnabled !== true })}
       />
+      </>)}
     </>
   )
 }
@@ -679,6 +690,7 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
         </div>
       )}
 
+      {!placementFamily(state) && (<>
       <div className={secTitleCls}>Пресет</div>
       <div className="grid gap-2">
         {PRESETS.map((pr) => (
@@ -722,6 +734,7 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
       {op.method === "pooled_prorata" && (
         <div><label className={labelCls}>Авансовая ставка, ₸/кв.м</label><input type="number" className={inputCls} value={op.pooled?.estimatedRatePerSqm || ""} onChange={(e) => set((s) => { if (s.financials.operatingCosts.pooled) s.financials.operatingCosts.pooled.estimatedRatePerSqm = Number(e.target.value) })} /></div>
       )}
+      </>)}
 
       <div className={secTitleCls}>Депозит</div>
       <ToggleRow on={f.deposit.enabled} title="Гарантийный депозит" hint="Выкл — раздел депозита и все упоминания убираются из договора, нумерация пересчитывается." onToggle={() => set((s) => { s.financials.deposit.enabled = !s.financials.deposit.enabled })} />
@@ -783,6 +796,7 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
   const sv = state.financials.additionalServices
   // Режим уборки: фикс ₸/мес или ставка за м². Инициализируем по тому, что заполнено.
   const [cleaningMode, setCleaningMode] = useState<"fixed" | "sqm">(sv.premisesCleaning.ratePerSqm ? "sqm" : "fixed")
+  if (placementFamily(state)) return <PlacementAnnexesStep state={state} set={set} />
   return (
     <>
       <div className={secTitleCls}>Модули</div>
@@ -916,6 +930,104 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
   )
 }
 
+// ───────────────────────── договор на размещение ─────────────────────────
+
+const ELECTRICITY_OPTIONS: { v: PlacementElectricity; label: string }[] = [
+  { v: "meter", label: "По счётчику" },
+  { v: "fixed", label: "Фикс. ₸/мес" },
+  { v: "none", label: "Без подключения" },
+]
+
+/** Поля места для договора на размещение (оборудование / территория). */
+function PlacementFields({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
+  const t = state.placement!
+  const eq = t.family === "equipment"
+  const up = (mut: (p: PlacementTerms) => void) => set((s) => { if (s.placement) mut(s.placement) })
+  const upRow = (i: number, mut: (e: PlacedEquipment) => void) => up((p) => { mut(p.equipment[i]) })
+  return (
+    <>
+      <div className={secTitleCls}>{eq ? "Место для оборудования" : "Место на территории"}</div>
+      <div className="mb-2"><label className={labelCls}>Адрес {eq ? "здания" : "участка"}</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
+      <div className="mb-2 grid grid-cols-[1fr_8rem] gap-2">
+        <div><label className={labelCls}>Где именно</label><input className={inputCls} placeholder={eq ? "холл 1 этажа, справа от входа" : "у въезда, вдоль ограждения"} value={t.placeDescription} onChange={(e) => up((p) => { p.placeDescription = e.target.value })} /></div>
+        <div><label className={labelCls}>Площадь, м²</label><input type="number" step="0.1" min="0" className={inputCls} value={t.placeAreaSqm || ""} onChange={(e) => up((p) => { p.placeAreaSqm = Number(e.target.value) || 0 })} /></div>
+      </div>
+      <div className="mb-2"><label className={labelCls}>Цель использования</label><input className={inputCls} value={state.premises.purposeUse} onChange={(e) => set((s) => { s.premises.purposeUse = e.target.value })} /></div>
+      {!eq && (
+        <div className="mb-2 grid grid-cols-[1fr_11rem] gap-2">
+          <div><label className={labelCls}>Документ на земельный участок</label><input className={inputCls} placeholder="акт на право частной собственности № ___ от ___" value={t.landDocument} onChange={(e) => up((p) => { p.landDocument = e.target.value })} /></div>
+          <div><label className={labelCls}>Кадастровый номер</label><input className={inputCls} value={t.cadastralNumber} onChange={(e) => up((p) => { p.cadastralNumber = e.target.value })} /></div>
+        </div>
+      )}
+      <div className="mb-2"><label className={labelCls}>Доступ для обслуживания</label><input className={inputCls} value={t.accessHours} onChange={(e) => up((p) => { p.accessHours = e.target.value })} /></div>
+
+      <div className={secTitleCls}>Электроэнергия</div>
+      <div className="mb-2"><Seg value={t.electricity} options={ELECTRICITY_OPTIONS} onChange={(v) => up((p) => { p.electricity = v })} /></div>
+      {t.electricity !== "none" && (
+        <div className="mb-2 grid grid-cols-2 gap-2">
+          {t.electricity === "fixed" && (
+            <div><label className={labelCls}>Плата за свет, ₸/мес</label><input type="number" min="0" className={inputCls} value={t.electricityFixed || ""} onChange={(e) => up((p) => { p.electricityFixed = Number(e.target.value) || 0 })} /></div>
+          )}
+          <div><label className={labelCls}>Разрешённая мощность, кВт</label><input type="number" step="0.1" min="0" className={inputCls} value={t.powerLimitKw || ""} onChange={(e) => up((p) => { p.powerLimitKw = Number(e.target.value) || 0 })} /></div>
+          <div className={t.electricity === "fixed" ? "col-span-2" : ""}><label className={labelCls}>Точка подключения</label><input className={inputCls} placeholder="розетка 220 В у колонны, щит ЩР-1" value={t.connectionPoint} onChange={(e) => up((p) => { p.connectionPoint = e.target.value })} /></div>
+        </div>
+      )}
+
+      <div className={secTitleCls}>{eq ? "Оборудование" : "Объект"}</div>
+      <div className="space-y-2">
+        {t.equipment.map((e, i) => (
+          <div key={i} className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
+            <div className="mb-1.5 grid grid-cols-[1fr_4rem_auto] gap-1.5">
+              <input className={inputCls} placeholder={eq ? "Торговый автомат" : "Торговый киоск"} value={e.name} onChange={(ev) => upRow(i, (x) => { x.name = ev.target.value })} />
+              <input type="number" min="1" className={inputCls} title="Количество" value={e.qty || ""} onChange={(ev) => upRow(i, (x) => { x.qty = Number(ev.target.value) || 0 })} />
+              <button type="button" onClick={() => up((p) => { p.equipment.splice(i, 1) })} className="rounded-md border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800" title="Убрать">×</button>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <input className={inputCls} placeholder="Модель" value={e.model} onChange={(ev) => upRow(i, (x) => { x.model = ev.target.value })} />
+              <input className={inputCls} placeholder="Заводской №" value={e.serial} onChange={(ev) => upRow(i, (x) => { x.serial = ev.target.value })} />
+              <input className={inputCls} placeholder="Габариты, мм" value={e.size} onChange={(ev) => upRow(i, (x) => { x.size = ev.target.value })} />
+              <input type="number" step="0.1" min="0" className={inputCls} placeholder="кВт" value={e.powerKw || ""} onChange={(ev) => upRow(i, (x) => { x.powerKw = Number(ev.target.value) || 0 })} />
+            </div>
+          </div>
+        ))}
+        <button type="button" onClick={() => up((p) => { p.equipment.push({ name: "", model: "", serial: "", qty: 1, size: "", powerKw: 0 }) })} className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400">
+          + {eq ? "Добавить оборудование" : "Добавить объект"}
+        </button>
+      </div>
+    </>
+  )
+}
+
+/** Приложения договора на размещение: Акт (состояние места, показания) и Схема. */
+function PlacementAnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
+  const t = state.placement!
+  const up = (mut: (p: PlacementTerms) => void) => set((s) => { if (s.placement) mut(s.placement) })
+  return (
+    <>
+      <div className={secTitleCls}>Приложения</div>
+      <ToggleRow on={state.modules.actEnabled} title="Акт приёма-передачи" hint="Место, его состояние, точка подключения и перечень оборудования" onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
+      {state.modules.actEnabled && (
+        <div className="my-1 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
+          <label className="block">
+            <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Состояние места при передаче</span>
+            <input className={inputCls} placeholder={t.family === "equipment" ? "пол — плитка без повреждений" : "асфальт без повреждений, бордюр целый"} value={t.placeCondition} onChange={(e) => up((p) => { p.placeCondition = e.target.value })} />
+          </label>
+          {t.electricity === "meter" && (
+            <label className="block">
+              <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Показания счётчика, кВт·ч</span>
+              <input className={inputCls} value={state.handoverAct.meterElectricity} onChange={(e) => set((s) => { s.handoverAct.meterElectricity = e.target.value })} placeholder="—" />
+            </label>
+          )}
+        </div>
+      )}
+      <ToggleRow on={t.schemeEnabled} title="Схема размещения" hint="Лист с полем под схему: границы места, оборудование, точка подключения" onToggle={() => up((p) => { p.schemeEnabled = !p.schemeEnabled })} />
+      <div className={secTitleCls}>Модули</div>
+      <ToggleRow on={state.modules.insuranceEnabled} title="Страхование ответственности" hint="Обязанность арендатора застраховать ГПО перед третьими лицами" onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
+      <ToggleRow on={state.modules.confidentialityEnabled !== false} title="Конфиденциальность" onToggle={() => set((s) => { s.modules.confidentialityEnabled = s.modules.confidentialityEnabled === false })} />
+    </>
+  )
+}
+
 // ───────────────────────── preview ─────────────────────────
 
 const docTitleCls = "text-center text-base font-bold text-slate-900 dark:text-slate-100"
@@ -937,7 +1049,7 @@ function ContractPreview({ state }: { state: ContractState }) {
   return (
     <div>
       <div className={`mb-1 ${docTitleCls}`}>ДОГОВОР № {state.meta.contractNumber || "____"}</div>
-      <div className={`mb-3 ${docSubCls}`}>аренды нежилого помещения</div>
+      <div className={`mb-3 ${docSubCls}`}>{contractSubtitle(state)}</div>
       <div className="mb-3 flex justify-between text-slate-600 dark:text-slate-400">
         <span>{state.meta.city}</span>
         <span>{dateLong(state.meta.contractDate)}</span>
@@ -976,9 +1088,9 @@ function Annex1Preview({ state, annexNo }: { state: ContractState; annexNo: numb
     <div className="space-y-2 text-slate-700 dark:text-slate-300">
       <div className={docTagCls}>Приложение № {annexNo} к Договору № {state.meta.contractNumber || "____"} от {dateLong(state.meta.contractDate)}</div>
       <div className={docTitleCls}>АКТ</div>
-      <div className={docSubCls}>приёма-передачи нежилого помещения</div>
+      <div className={docSubCls}>{contractActSubtitle(state.meta.placementType)}</div>
       <p>{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
-      <p>1. Передано нежилое помещение по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
+      <p>1. Передано {isPremisesLikeType(state.meta.placementType) ? "нежилое помещение" : "место (Помещение)"} по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
       {asIs ? (
         <>
           <p>2. Помещение находится в фактическом пользовании Арендатора; Арендатор ознакомлен с его действительным состоянием по результатам предшествующей эксплуатации, включая инженерные и отопительные системы и состояние отделки.</p>
@@ -1060,6 +1172,9 @@ function Annex3Preview({ state, annexNo }: { state: ContractState; annexNo: numb
 }
 
 function AnnexesPreview({ state }: { state: ContractState }) {
+  if (placementFamily(state)) {
+    return <div className="space-y-8"><PlacementAnnexesView state={state} /></div>
+  }
   const c = assemble(state).ctx
   if (!c.annexes.act && !c.annexes.services && !c.annexes.operatingCosts) {
     return <p className="text-sm text-slate-400 dark:text-slate-500">Приложения к договору не предусмотрены — включаются Актом (Прил. № 1), доп. услугами (Прил. № 2) или методом эксплуатационных расходов (Прил. № 3).</p>

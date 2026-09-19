@@ -18,6 +18,7 @@ import { sendContractForSignature, markContractSignedByLandlord } from "@/app/ac
 import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
 import { resolveContractTypeForTenant, isContractPlacementType, type ContractPlacementType } from "@/lib/contract-placement-types"
 import { availableContractTypesForOrg } from "@/lib/contract-types-availability"
+import { applyContractTypePreset } from "@/lib/contract-type-presets"
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -223,7 +224,7 @@ export async function prefillFromTenant(
       select: {
         companyName: true, bin: true, iin: true, bankName: true, iik: true, bik: true,
         legalType: true, legalAddress: true, actualAddress: true, directorName: true,
-        usePurpose: true, customRate: true, fixedMonthlyRent: true, rentSchedule: true,
+        usePurpose: true, customRate: true, fixedMonthlyRent: true, rentSchedule: true, placementNote: true,
         contractStart: true, contractEnd: true, depositAmount: true, paymentDueDay: true,
         penaltyPercent: true, basisDocument: true, needsCleaning: true, cleaningFee: true,
         isVatPayer: true,
@@ -367,6 +368,18 @@ export async function prefillFromTenant(
 
     // Тип договора по предмету аренды — авто-определение по размещению.
     s.meta.placementType = resolveContractTypeForTenant(tenant)
+    // Договор на размещение: площадь места-объекта (в поле площади помещения она
+    // не идёт — объекты не считаются площадью здания) и описание размещения.
+    if (s.meta.placementType === "EQUIPMENT" || s.meta.placementType === "TERRITORY") {
+      applyContractTypePreset(s, s.meta.placementType)
+      const objSpaces = [tenant.space, ...tenant.tenantSpaces.map((x) => x.space)].filter((sp): sp is NonNullable<typeof sp> => !!sp && (isObjectSpace(sp.kind) || isZoneFloor(sp.floor.kind)))
+      const objArea = objSpaces.reduce((sum, sp) => sum + (sp.area || 0), 0)
+      if (s.placement) {
+        if (objArea > 0) s.placement.placeAreaSqm = objArea
+        const note = tenant.placementNote?.trim()
+        if (note) s.placement.placeDescription = note
+      }
+    }
     const availableTypes = await availableContractTypesForOrg(orgId)
 
     return { ok: true, state: s, landlordContacts: { owner: ownerContacts, admin: adminContacts }, availableTypes }

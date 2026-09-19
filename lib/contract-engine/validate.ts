@@ -3,6 +3,7 @@
 
 import { type ContractState, UTILITY_LABELS, validRentSteps } from "./schema"
 import { type DerivedContext } from "./derive"
+import { validatePlacement } from "./placement"
 
 export interface ValidationResult {
   hard: string[]
@@ -88,6 +89,10 @@ export function validate(s: ContractState, c: DerivedContext): ValidationResult 
   ) {
     soft.push("Пеня сторон различается — рекомендуется симметрия.")
   }
+
+  const pl = validatePlacement(s)
+  hard.push(...pl.hard)
+  soft.push(...pl.soft)
 
   return { hard, soft }
 }

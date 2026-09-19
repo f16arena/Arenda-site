@@ -7,6 +7,7 @@ import { UTILITY_GENITIVE } from "./schema"
 import { type DerivedContext } from "./derive"
 import { money, moneyWithWords, moneyWithWordsTiyn, monthsGenitive, monthYearGenitive, monthYearNominative, dateLong } from "./numerals"
 import { isPremisesLikeType } from "@/lib/contract-placement-types"
+import { buildPlacementClauses, placementFamily } from "./placement"
 
 /** "YYYY-MM" → предыдущий месяц "YYYY-MM" (для «по … включительно»). */
 function prevMonth(ym: string): string {
@@ -48,6 +49,9 @@ const PERIOD_LABEL: Record<string, string> = {
  * Функции html()/when() — замыкания над (s, c).
  */
 export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection[] {
+  // Договоры на размещение (оборудование / территория) — свой набор пунктов.
+  const family = placementFamily(s)
+  if (family) return buildPlacementClauses(s, c, family)
   const f = s.financials
   const op = f.operatingCosts
   const p = s.premises
@@ -123,53 +127,7 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
         },
       ],
     },
-    {
-      n: 14,
-      title: "Урегулирование ранее образовавшейся задолженности",
-      when: () => f.debtSettlement?.enabled === true && (f.debtSettlement?.totalAmount ?? 0) > 0,
-      blocks: [
-        {
-          id: "cl_debt_confirm",
-          html: () => {
-            const d = f.debtSettlement!
-            // Точку в конце документа-основания снимаем — иначе «…29.06.2026 г..»
-            const basis = d.basisDoc.trim().replace(/\.$/, "")
-            return `Стороны подтверждают, что на дату заключения настоящего Договора за Арендатором перед Арендодателем числится задолженность по ранее действовавшим отношениям аренды в размере ${moneyWithWords(d.totalAmount)}${basis ? `, что подтверждается ${basis}` : ""}.`
-          },
-        },
-        {
-          id: "cl_debt_discount",
-          when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
-          html: () => {
-            const d = f.debtSettlement!
-            return `Идя навстречу Арендатору, Арендодатель уменьшает указанную задолженность на ${d.discountPercent}%. Остаток к погашению составляет ${moneyWithWordsTiyn(debtRemainder(d))}.`
-          },
-        },
-        {
-          id: "cl_debt_discount_scope",
-          when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
-          html: () =>
-            "Указанное уменьшение предоставляется в счёт полного и окончательного урегулирования всех взаимных претензий Сторон, связанных с ранее действовавшими отношениями аренды и состоянием Помещения. Расходы Арендатора, превышающие сумму уменьшения, возмещению, зачёту либо снижению арендной платы не подлежат.",
-        },
-        {
-          id: "cl_debt_due",
-          html: () => {
-            const d = f.debtSettlement!
-            const rem = debtRemainder(d)
-            const label = d.discountPercent > 0 ? "Остаток задолженности" : "Задолженность"
-            return `${label} в размере ${moneyWithWordsTiyn(rem)} Арендатор погашает в течение ${monthsGenitive(d.payWithinMonths)} со дня подписания настоящего Договора.`
-          },
-        },
-        {
-          id: "cl_debt_forfeit",
-          when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
-          html: () => {
-            const d = f.debtSettlement!
-            return `В случае нарушения срока погашения остатка предусмотренное настоящим разделом уменьшение утрачивает силу, и Арендодатель вправе требовать задолженность в полном объёме (${money(d.totalAmount)}) с начислением пени, предусмотренной настоящим Договором.`
-          },
-        },
-      ],
-    },
+    debtSettlementSection(s),
     {
       n: 2,
       title: "Срок Аренды",
@@ -535,4 +493,59 @@ export function buildClauses(s: ContractState, c: DerivedContext): ClauseSection
       ],
     },
   ]
+}
+
+/**
+ * Раздел «Урегулирование ранее образовавшейся задолженности» — общий для договора
+ * помещения и договоров на размещение (текст не зависит от предмета аренды).
+ */
+export function debtSettlementSection(s: ContractState): ClauseSection {
+  const f = s.financials
+  return {
+    n: 14,
+    title: "Урегулирование ранее образовавшейся задолженности",
+    when: () => f.debtSettlement?.enabled === true && (f.debtSettlement?.totalAmount ?? 0) > 0,
+    blocks: [
+      {
+        id: "cl_debt_confirm",
+        html: () => {
+          const d = f.debtSettlement!
+          // Точку в конце документа-основания снимаем — иначе «…29.06.2026 г..»
+          const basis = d.basisDoc.trim().replace(/\.$/, "")
+          return `Стороны подтверждают, что на дату заключения настоящего Договора за Арендатором перед Арендодателем числится задолженность по ранее действовавшим отношениям аренды в размере ${moneyWithWords(d.totalAmount)}${basis ? `, что подтверждается ${basis}` : ""}.`
+        },
+      },
+      {
+        id: "cl_debt_discount",
+        when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
+        html: () => {
+          const d = f.debtSettlement!
+          return `Идя навстречу Арендатору, Арендодатель уменьшает указанную задолженность на ${d.discountPercent}%. Остаток к погашению составляет ${moneyWithWordsTiyn(debtRemainder(d))}.`
+        },
+      },
+      {
+        id: "cl_debt_discount_scope",
+        when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
+        html: () =>
+          "Указанное уменьшение предоставляется в счёт полного и окончательного урегулирования всех взаимных претензий Сторон, связанных с ранее действовавшими отношениями аренды и состоянием Помещения. Расходы Арендатора, превышающие сумму уменьшения, возмещению, зачёту либо снижению арендной платы не подлежат.",
+      },
+      {
+        id: "cl_debt_due",
+        html: () => {
+          const d = f.debtSettlement!
+          const rem = debtRemainder(d)
+          const label = d.discountPercent > 0 ? "Остаток задолженности" : "Задолженность"
+          return `${label} в размере ${moneyWithWordsTiyn(rem)} Арендатор погашает в течение ${monthsGenitive(d.payWithinMonths)} со дня подписания настоящего Договора.`
+        },
+      },
+      {
+        id: "cl_debt_forfeit",
+        when: () => (f.debtSettlement?.discountPercent ?? 0) > 0,
+        html: () => {
+          const d = f.debtSettlement!
+          return `В случае нарушения срока погашения остатка предусмотренное настоящим разделом уменьшение утрачивает силу, и Арендодатель вправе требовать задолженность в полном объёме (${money(d.totalAmount)}) с начислением пени, предусмотренной настоящим Договором.`
+        },
+      },
+    ],
+  }
 }

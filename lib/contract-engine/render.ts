@@ -11,6 +11,7 @@ import { partyIntro, partyRequisites } from "./parties"
 import { dateLong, money } from "./numerals"
 import { deriveContext } from "./derive"
 import { contractDocSubtitle, contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
+import { placementDocSubtitle, placementFamily, placementAnnexesText } from "./placement"
 
 function fillBlank(v: string | undefined | null, blank = "____________________________"): string {
   return v && v.trim() ? v.trim() : blank
@@ -23,6 +24,8 @@ function fillBlank(v: string | undefined | null, blank = "______________________
  * и подпись покрывала приложения.
  */
 function renderAnnexesText(s: ContractState): string[] {
+  // Договор на размещение — свои приложения (Акт с перечнем оборудования, Схема).
+  if (placementFamily(s)) return placementAnnexesText(s)
   const c = deriveContext(s)
   const out: string[] = []
   const head = (no: number, title: string, subtitle: string) => {
@@ -104,12 +107,17 @@ export interface RenderedContract {
   assembly: AssemblyResult
 }
 
+/** Подзаголовок под «ДОГОВОР № …»: у договора на размещение — свой. */
+export function contractSubtitle(s: ContractState): string {
+  return placementDocSubtitle(s) ?? contractDocSubtitle(s.meta.placementType)
+}
+
 export function renderContractText(s: ContractState): string {
   const a = assemble(s)
   const lines: string[] = []
 
   lines.push(`ДОГОВОР № ${s.meta.contractNumber || "____"}`)
-  lines.push(contractDocSubtitle(s.meta.placementType))
+  lines.push(contractSubtitle(s))
   lines.push("")
   lines.push(`${s.meta.city}    ${dateLong(s.meta.contractDate)}`)
   lines.push("")

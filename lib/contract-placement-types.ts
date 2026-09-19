@@ -111,8 +111,10 @@ type PlacementLike = {
 
 /**
  * Авто-определение типа договора по видам этажей помещений арендатора.
- * Крыша → ROOF, территория → TERRITORY, обычный этаж → PREMISES.
- * «Крышные» без помещения (только антенна) → по умолчанию ROOF.
+ * Крыша → ROOF, территория → TERRITORY, обычный этаж → PREMISES; место-объект
+ * без площади на обычном этаже (автомат, банкомат из конструктора здания) →
+ * EQUIPMENT. Без помещения вовсе → EQUIPMENT: операторы антенн работают по своим
+ * договорам, а «место без кабинета» у нас чаще всего — оборудование.
  */
 export function resolveContractTypeForTenant(t: PlacementLike): ContractPlacementType {
   const floorKinds: string[] = []
@@ -125,8 +127,11 @@ export function resolveContractTypeForTenant(t: PlacementLike): ContractPlacemen
   }
   if (floorKinds.includes("ROOF")) return "ROOF"
   if (floorKinds.includes("TERRITORY")) return "TERRITORY"
-  const hasAnySpace =
-    !!t.space || (t.tenantSpaces?.length ?? 0) > 0 || (t.fullFloors?.length ?? 0) > 0
-  if (hasAnySpace) return "PREMISES"
-  return "ROOF"
+  const spaces = [t.space, ...(t.tenantSpaces ?? []).map((x) => x.space)].filter(Boolean)
+  if ((t.fullFloors?.length ?? 0) > 0) return "PREMISES"
+  if (spaces.length > 0) {
+    // только объекты без площади (Space.kind = OBJECT) → размещение оборудования
+    return spaces.every((sp) => String(sp?.kind ?? "").toUpperCase() === "OBJECT") ? "EQUIPMENT" : "PREMISES"
+  }
+  return "EQUIPMENT"
 }

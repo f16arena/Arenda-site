@@ -223,6 +223,64 @@ export interface HandoverAct {
   meterHotWater: string         // горячая вода, куб. м
 }
 
+/**
+ * Договоры на размещение (не помещение): оборудование в здании (вендинг,
+ * банкомат, кофе-точка) или временный объект на территории (киоск, контейнер).
+ * Семейство задаёт СВОЙ набор пунктов и приложений (lib/contract-engine/placement.ts).
+ * Блок опционален: у ранее подписанных договоров его нет — они рендерятся
+ * прежним текстом, байт-в-байт как при подписании.
+ */
+export type PlacementFamily = "equipment" | "territory"
+
+/** Строка перечня оборудования (или описание временного объекта на территории). */
+export interface PlacedEquipment {
+  name: string // «Торговый автомат», «Киоск»
+  model: string
+  serial: string // заводской номер
+  qty: number
+  size: string // габариты, «900×800×1830 мм»
+  powerKw: number // потребляемая мощность, кВт (0 — не подключается)
+}
+
+/** Электроснабжение места: по отдельному счётчику, фикс-платой или без подключения. */
+export type PlacementElectricity = "meter" | "fixed" | "none"
+
+export interface PlacementTerms {
+  family: PlacementFamily
+  placeAreaSqm: number // площадь Места
+  placeDescription: string // где именно: «холл 1 этажа, справа от входа»
+  placeCondition: string // состояние Места/покрытия на момент передачи (для Акта)
+  equipment: PlacedEquipment[]
+  electricity: PlacementElectricity
+  electricityFixed: Money // ₸/мес при electricity = fixed
+  powerLimitKw: number // разрешённая суммарная мощность (0 — не ограничивается в тексте)
+  connectionPoint: string // точка подключения к электросети
+  accessHours: string // режим доступа для обслуживания
+  /** Территория: правоустанавливающий документ на земельный участок и кадастровый номер. */
+  landDocument: string
+  cadastralNumber: string
+  /** Приложение «Схема размещения» (границы Места). */
+  schemeEnabled: boolean
+}
+
+export function defaultPlacementTerms(family: PlacementFamily): PlacementTerms {
+  return {
+    family,
+    placeAreaSqm: 0,
+    placeDescription: "",
+    placeCondition: "",
+    equipment: [],
+    electricity: "meter",
+    electricityFixed: 0,
+    powerLimitKw: 0,
+    connectionPoint: "",
+    accessHours: family === "equipment" ? "ежедневно в часы работы здания" : "ежедневно с 07:00 до 23:00",
+    landDocument: "",
+    cadastralNumber: "",
+    schemeEnabled: true,
+  }
+}
+
 export interface ContractMeta {
   contractNumber: string
   contractDate: string // ISO
@@ -242,6 +300,8 @@ export interface ContractState {
   term: Term
   modules: Modules
   handoverAct: HandoverAct
+  /** Условия размещения (договор на оборудование / территорию). Нет — договор аренды помещения. */
+  placement?: PlacementTerms
   /** зафиксирован ли договор (после подписания меняется только через ДС) */
   signed: boolean
 }

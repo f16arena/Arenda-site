@@ -49,7 +49,8 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     id: "MODEL_METERED_PREREQ",
     category: "risk",
     severity: "info",
-    when: (_s, c) => c.metered.length > 0,
+    // в договоре на размещение коммунальной матрицы нет — только электроэнергия
+    when: (s, c) => !s.placement && c.metered.length > 0,
     message: () =>
       "Раздельный учёт требует исправных индивидуальных счётчиков; при их отсутствии расчёт пойдёт пропорционально площади.",
   },
@@ -57,7 +58,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     id: "MODEL_INCLUDED_RISK",
     category: "risk",
     severity: "suggest",
-    when: (_s, c) => c.included.filter((r) => r.key !== "garbage" && r.key !== "sewerage").length >= 3,
+    when: (s, c) => !s.placement && c.included.filter((r) => r.key !== "garbage" && r.key !== "sewerage").length >= 3,
     message: () =>
       "Много коммунальных услуг включено в аренду — риск роста тарифов несёт владелец. Рассмотрите счётчики или эксплуатационные расходы.",
   },

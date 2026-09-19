@@ -11,6 +11,10 @@ import { assemble, type ContractState } from "@/lib/contract-engine"
 import { deriveContext } from "@/lib/contract-engine/derive"
 import { partyIntro, partyRequisites } from "@/lib/contract-engine/parties"
 import { money, dateLong } from "@/lib/contract-engine/numerals"
+import { contractSubtitle } from "@/lib/contract-engine/render"
+import { placementFamily } from "@/lib/contract-engine/placement"
+import { contractActSubtitle, isPremisesLikeType } from "@/lib/contract-placement-types"
+import { PlacementAnnexesView } from "./placement-annexes-view"
 
 type Redact = (s: string) => string
 const identity: Redact = (s) => s
@@ -35,7 +39,7 @@ export function ContractDocumentView({
       {/* Шапка */}
       <header className="text-center mb-6">
         <h2 className="text-base font-bold tracking-wide text-slate-900">ДОГОВОР № {state.meta.contractNumber || "____"}</h2>
-        <p className="text-sm">аренды нежилого помещения</p>
+        <p className="text-sm">{contractSubtitle(state)}</p>
         <div className="mt-3 flex justify-between text-xs text-slate-500">
           <span>{state.meta.city}</span>
           <span>{dateLong(state.meta.contractDate)}</span>
@@ -89,9 +93,15 @@ export function ContractDocumentView({
       </section>
 
       {/* ── Приложения ── */}
-      {c.annexes.act && <AnnexAct state={state} no={c.annexNumbers.act} />}
-      {c.annexes.services && <AnnexServices state={state} no={c.annexNumbers.services} />}
-      {c.annexes.operatingCosts && <AnnexOperatingCosts state={state} no={c.annexNumbers.operatingCosts} covers={c.covers} />}
+      {placementFamily(state) ? (
+        <div className="mt-8 border-t border-dashed border-slate-300 pt-6"><PlacementAnnexesView state={state} paper /></div>
+      ) : (
+        <>
+          {c.annexes.act && <AnnexAct state={state} no={c.annexNumbers.act} />}
+          {c.annexes.services && <AnnexServices state={state} no={c.annexNumbers.services} />}
+          {c.annexes.operatingCosts && <AnnexOperatingCosts state={state} no={c.annexNumbers.operatingCosts} covers={c.covers} />}
+        </>
+      )}
     </article>
   )
 }
@@ -120,9 +130,9 @@ function AnnexAct({ state, no }: { state: ContractState; no: number }) {
   ]
   return (
     <section>
-      <AnnexHeader no={no} state={state} title="АКТ" subtitle="приёма-передачи нежилого помещения" />
+      <AnnexHeader no={no} state={state} title="АКТ" subtitle={contractActSubtitle(state.meta.placementType)} />
       <p className="mb-2">{state.landlord.name || "Арендодатель"} (Арендодатель) и {state.tenant.name || "Арендатор"} (Арендатор) составили настоящий Акт о нижеследующем:</p>
-      <p className="mb-2">1. Арендодатель передал, а Арендатор принял нежилое помещение по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
+      <p className="mb-2">1. Арендодатель передал, а Арендатор принял {isPremisesLikeType(state.meta.placementType) ? "нежилое помещение" : "место (Помещение)"} по адресу: {p.buildingAddress || "________"}{p.placement ? ", " + p.placement : ""}, общей площадью {p.spaceAreaSqm || "____"} кв. м.</p>
       {asIs ? (
         <>
           <p className="mb-2">2. Помещение находится в фактическом пользовании Арендатора; Арендатор ознакомлен с его действительным состоянием по результатам предшествующей эксплуатации, включая инженерные и отопительные системы и состояние отделки.</p>
