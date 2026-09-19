@@ -288,7 +288,7 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
       space: { include: { floor: true } },
       tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
-      charges: { where: { period, type: "RENT" } },
+      charges: { where: { deletedAt: null, period, type: "RENT" } },
       // Активный договор для привязки charge.contractId. Если нет SIGNED — null.
       contracts: {
         where: { status: "SIGNED", deletedAt: null },
@@ -415,7 +415,7 @@ export async function listChargeableTenants(period: string) {
       space: { include: { floor: true } },
       tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
-      charges: { where: { period, type: "RENT" } },
+      charges: { where: { deletedAt: null, period, type: "RENT" } },
     },
   })
 

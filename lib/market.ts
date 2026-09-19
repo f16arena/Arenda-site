@@ -80,6 +80,7 @@ async function computeOwnerPerSqm(buildingIds: string[]): Promise<{ perSqm: numb
         { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
         { fullFloors: { some: { buildingId: { in: buildingIds } } } },
         { buildingId: { in: buildingIds } },
+        { buildingId: { in: buildingIds } },
       ],
     },
     select: {

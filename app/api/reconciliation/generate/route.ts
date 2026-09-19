@@ -60,9 +60,9 @@ export async function GET(req: Request) {
       include: {
         user: { select: { name: true } },
         bankAccounts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
-        charges: { where: { period: { gte: from, lte: to } }, orderBy: { period: "asc" } },
+        charges: { where: { deletedAt: null, period: { gte: from, lte: to } }, orderBy: { period: "asc" } },
         payments: {
-          where: { paymentDate: { gte: fromDate, lt: toEndExclusive } },
+          where: { deletedAt: null, paymentDate: { gte: fromDate, lt: toEndExclusive } },
           orderBy: { paymentDate: "asc" },
         },
       },

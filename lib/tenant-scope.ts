@@ -66,6 +66,17 @@ export function tenantInBuildingsWhere(orgId: string, buildingIds: string[]) {
   return {
     deletedAt: null,
     user: { organizationId: orgId },
+    ...tenantLinkedToBuildings(buildingIds),
+  }
+}
+
+/**
+ * Только привязка к зданиям (4 пути), без организации и без deletedAt — для
+ * истории денег: оплаты удалённого арендатора всё равно поступили.
+ * Здания уже проверены на принадлежность организации вызывающим кодом.
+ */
+export function tenantLinkedToBuildings(buildingIds: string[]) {
+  return {
     OR: [
       { space: { floor: { buildingId: { in: buildingIds } } } },
       { tenantSpaces: { some: { space: { floor: { buildingId: { in: buildingIds } } } } } },

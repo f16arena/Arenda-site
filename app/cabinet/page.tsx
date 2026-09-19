@@ -32,16 +32,19 @@ export default async function CabinetDashboard() {
     where: { userId: session!.user.id },
     include: {
       space: { include: { floor: true } },
+      // Этаж целиком — без него аренда в кабинете считалась как 0.
+      fullFloors: { select: { fixedMonthlyRent: true } },
       tenantSpaces: {
         orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
         include: { space: { include: { floor: true } } },
       },
       charges: {
-        where: { isPaid: false },
+        where: { deletedAt: null, isPaid: false },
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
         take: 8,
       },
       payments: {
+        where: { deletedAt: null },
         orderBy: { paymentDate: "desc" },
         take: 3,
       },

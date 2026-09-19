@@ -46,12 +46,14 @@ export default async function CabinetReconciliationPrint({
       user: { select: { organizationId: true } },
       charges: {
         where: {
+          deletedAt: null,
           period: { gte: fromPeriod, lte: toPeriod },
         },
         orderBy: { period: "asc" },
       },
       payments: {
         where: {
+          deletedAt: null,
           paymentDate: { gte: fromDate, lte: toDate },
         },
         orderBy: { paymentDate: "asc" },

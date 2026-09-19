@@ -161,7 +161,9 @@ async function suggestContractNumberFromExisting(
       tenant: {
         OR: [
           { space: { floorId: { in: floorIds } } },
+          { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
           { fullFloors: { some: { id: { in: floorIds } } } },
+          { buildingId },
         ],
       },
     },

@@ -86,7 +86,9 @@ export default async function RequestsPage({
   const tenantBuildingWhere = {
     OR: [
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+      { buildingId: { in: visibleBuildingIds } },
     ],
   }
   const selectedStatuses = selectedFilterConfig.statuses as readonly string[] | null

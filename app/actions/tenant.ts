@@ -1,5 +1,6 @@
 "use server"
 
+import { softDeleteTenantRecords } from "@/lib/data/tenant-delete"
 import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { redirect } from "next/navigation"
@@ -1084,39 +1085,7 @@ export async function deleteTenant(
   // Force-удаление: soft-delete арендатора и связанных финансов/договоров
   // (миграция 019). TenantSpace/Request/TenantDocument удаляются жёстко —
   // эти модели не имеют deletedAt и являются техническими связями.
-  const spaceIdsToVacate = [...new Set([
-    tenant.spaceId,
-    ...tenant.tenantSpaces.map((item) => item.spaceId),
-  ].filter(Boolean) as string[])]
-
-  const now = new Date()
-
-  await db.$transaction([
-    // Освобождаем помещения
-    ...(spaceIdsToVacate.length > 0
-      ? [db.space.updateMany({ where: { id: { in: spaceIdsToVacate } }, data: { status: "VACANT" } })]
-      : []),
-    db.tenantSpace.deleteMany({ where: { tenantId } }),
-    // Снимаем full-floor привязки
-    db.floor.updateMany({
-      where: { fullFloorTenantId: tenantId },
-      data: { fullFloorTenantId: null, fixedMonthlyRent: null },
-    }),
-    // Документы помещений
-    db.tenantDocument.deleteMany({ where: { tenantId } }),
-    // Заявки и комментарии к ним
-    db.requestComment.deleteMany({ where: { request: { tenantId } } }),
-    db.request.deleteMany({ where: { tenantId } }),
-    // Договоры — soft delete
-    db.contract.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
-    // Финансы — soft delete
-    db.payment.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
-    db.charge.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
-    // Сам арендатор — soft delete
-    db.tenant.update({ where: { id: tenantId }, data: { deletedAt: now, spaceId: null } }),
-    // Деактивируем пользователя — историю не теряем
-    db.user.update({ where: { id: tenant.userId }, data: { isActive: false } }),
-  ])
+  await softDeleteTenantRecords(tenantId, { purgeTechnical: true })
 
   await audit({
     action: "DELETE",

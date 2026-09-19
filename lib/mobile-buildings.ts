@@ -62,6 +62,7 @@ export async function getBuildingNoticeRecipients(orgId: string, buildingId: str
           { space: { floor: { buildingId } } },
           { tenantSpaces: { some: { space: { floor: { buildingId } } } } },
           { fullFloors: { some: { buildingId } } },
+          { buildingId },
         ],
       },
       select: { userId: true },

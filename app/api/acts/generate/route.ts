@@ -60,7 +60,7 @@ export async function GET(req: Request) {
         },
         fullFloors: true,
         bankAccounts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
-        charges: { where: { period }, orderBy: { createdAt: "asc" } },
+        charges: { where: { deletedAt: null, period }, orderBy: { createdAt: "asc" } },
         contracts: { orderBy: { createdAt: "desc" }, take: 1 },
       },
     }),

@@ -112,7 +112,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
       },
       fullFloors: { select: { name: true } },
       charges: {
-        where: { isPaid: false },
+        where: { deletedAt: null, isPaid: false },
         select: { id: true },
         take: 1,
       },

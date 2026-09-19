@@ -254,7 +254,7 @@ async function renderFinancesPage({
               id: true,
               companyName: true,
               charges: {
-                where: { isPaid: false },
+                where: { deletedAt: null, isPaid: false },
                 select: {
                   id: true,
                   type: true,

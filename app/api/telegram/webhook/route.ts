@@ -154,7 +154,7 @@ export async function POST(req: Request) {
           id: true,
           companyName: true,
           charges: {
-            where: { isPaid: false },
+            where: { deletedAt: null, isPaid: false },
             select: { id: true, type: true, amount: true, period: true, dueDate: true },
             orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
             take: 10,

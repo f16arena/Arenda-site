@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { tenantLinkedToBuildings } from "@/lib/tenant-scope"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -38,17 +39,14 @@ export async function GET(req: Request) {
   const to = toStr ? new Date(toStr) : new Date(today.getFullYear(), 11, 31, 23, 59, 59)
   const landlord = await getOrganizationRequisites(orgId)
 
-  const floorIds = (await db.floor.findMany({
-    where: { buildingId },
-    select: { id: true },
-  })).map((f) => f.id)
-
   const payments = await db.payment.findMany({
     where: {
       paymentDate: { gte: from, lte: to },
       // deletedAt: null — удалённые платежи не должны попадать в 1С (аудит 2026-06-10, п.2).
       deletedAt: null,
-      tenant: { space: { floorId: { in: floorIds } } },
+      // Все 4 пути привязки: раньше только основное помещение — оплаты киоска,
+      // антенн, нескольких помещений и этажа целиком в 1С не попадали.
+      tenant: tenantLinkedToBuildings([buildingId]),
     },
     include: { tenant: { select: { companyName: true, bin: true, iin: true } } },
     orderBy: { paymentDate: "asc" },

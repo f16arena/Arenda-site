@@ -37,7 +37,7 @@ export default async function CabinetInvoicePrint({
     include: {
       user: { select: { organizationId: true } },
       charges: {
-        where: { period: currentPeriod, isPaid: false },
+        where: { deletedAt: null, period: currentPeriod, isPaid: false },
         orderBy: { createdAt: "asc" },
       },
       contracts: {

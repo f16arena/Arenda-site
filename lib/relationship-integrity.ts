@@ -144,6 +144,8 @@ export async function getRelationshipIntegrityOverview({
       { space: spaceScope },
       { tenantSpaces: { some: { space: spaceScope } } },
       { fullFloors: { some: { building: buildingScope } } },
+      // Киоск/антенна без помещения — привязан к зданию напрямую.
+      { building: buildingScope },
     ],
   }
   const orgTenantScope: Prisma.TenantWhereInput = {

@@ -19,8 +19,8 @@ export default async function CabinetFinances() {
     where: { userId: session!.user.id },
     include: {
       user: { select: { organizationId: true } },
-      charges: { orderBy: { createdAt: "desc" }, take: 80 },
-      payments: { orderBy: { paymentDate: "desc" }, take: 8 },
+      charges: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 80 },
+      payments: { where: { deletedAt: null }, orderBy: { paymentDate: "desc" }, take: 8 },
       paymentReports: {
         where: { status: { in: ["PENDING", "DISPUTED", "REJECTED"] } },
         orderBy: { createdAt: "desc" },

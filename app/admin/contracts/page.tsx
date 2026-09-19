@@ -39,10 +39,14 @@ export default async function ContractsPage() {
       legalType: true,
       customRate: true,
       fixedMonthlyRent: true,
+      // Ступенчатый график и доп. помещения — иначе «аренда в месяц» здесь
+      // расходилась с карточкой арендатора и обзором.
+      rentSchedule: true,
+      tenantSpaces: { select: { space: { select: { area: true, floor: { select: { ratePerSqm: true } } } } } },
       space: { select: { number: true, area: true, kind: true, floor: { select: { name: true, kind: true, ratePerSqm: true } } } },
       fullFloors: { select: { id: true, name: true, fixedMonthlyRent: true } },
-      contracts: { orderBy: { createdAt: "desc" }, take: 1 },
-      charges: { where: { isPaid: false }, select: { amount: true, dueDate: true } },
+      contracts: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 1 },
+      charges: { where: { deletedAt: null, isPaid: false }, select: { amount: true, dueDate: true } },
     },
     orderBy: { contractEnd: "asc" },
   })

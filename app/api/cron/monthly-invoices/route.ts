@@ -59,7 +59,7 @@ export async function GET(req: Request) {
       tenantSpaces: { include: { space: { include: { floor: { include: { building: true } } } } } },
       fullFloors: { include: { building: true } },
       charges: {
-        where: { period: { in: [period, previousPeriod] }, type: { in: ["RENT", "SERVICE_FEE"] } },
+        where: { deletedAt: null, period: { in: [period, previousPeriod] }, type: { in: ["RENT", "SERVICE_FEE"] } },
         select: { id: true, period: true, type: true },
       },
       // Активный договор (SIGNED) — нужен чтобы привязать новые charges к контракту.

@@ -50,7 +50,7 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
       space: { include: { floor: true } },
       tenantSpaces: { include: { space: { include: { floor: true } } } },
       fullFloors: true,
-      charges: { where: { period, type: "RENT" }, select: { id: true } },
+      charges: { where: { deletedAt: null, period, type: "RENT" }, select: { id: true } },
     },
   })
 

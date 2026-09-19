@@ -97,6 +97,7 @@ export default async function StoragePage({
       { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
       { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
       { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
+      { buildingId: { in: visibleBuildingIds } },
     ],
   }
 

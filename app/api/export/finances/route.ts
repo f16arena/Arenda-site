@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { tenantLinkedToBuildings } from "@/lib/tenant-scope"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -37,17 +38,8 @@ export async function GET(req: Request) {
   const from = fromStr ? new Date(fromStr) : new Date(today.getFullYear(), 0, 1)
   const to = toStr ? new Date(toStr) : new Date(today.getFullYear(), 11, 31, 23, 59, 59)
 
-  const floorIds = (await db.floor.findMany({
-    where: { buildingId },
-    select: { id: true },
-  })).map((f) => f.id)
-
-  const tenantWhere = {
-    OR: [
-      { space: { floorId: { in: floorIds } } },
-      { fullFloors: { some: { id: { in: floorIds } } } },
-    ],
-  }
+  // Все 4 пути привязки арендатора к зданию (раньше — только 2).
+  const tenantWhere = tenantLinkedToBuildings([buildingId])
 
   const [charges, payments, expenses, building] = await Promise.all([
     db.charge.findMany({

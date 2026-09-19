@@ -50,7 +50,7 @@ export async function generateMonthlyInvoicesForOrg(orgId: string, period: strin
       id: true, userId: true, companyName: true, legalType: true, bin: true, iin: true,
       legalAddress: true, actualAddress: true,
       bankAccounts: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }], select: { bankName: true, iik: true, bik: true, isPrimary: true } },
-      charges: { where: { period }, orderBy: { createdAt: "asc" }, select: { type: true, amount: true, description: true } },
+      charges: { where: { deletedAt: null, period }, orderBy: { createdAt: "asc" }, select: { type: true, amount: true, description: true } },
       contracts: { orderBy: { createdAt: "desc" }, take: 1, select: { number: true, startDate: true } },
     },
   })

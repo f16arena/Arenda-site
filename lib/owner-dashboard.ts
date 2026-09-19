@@ -76,6 +76,8 @@ export async function getOwnerBuildingMetrics({
   const floorIds = [...floorToBuildingId.keys()]
 
   const tenantInBuildingsWhere = {
+    // Удалённые арендаторы не считаются: их долг и доход не должны висеть в отчёте.
+    deletedAt: null,
     OR: [
       { space: { floorId: { in: floorIds } } },
       { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
@@ -130,6 +132,7 @@ export async function getOwnerBuildingMetrics({
         by: ["tenantId"],
         where: {
           isPaid: false,
+          deletedAt: null,
           tenant: tenantInBuildingsWhere,
         },
         _sum: { amount: true },

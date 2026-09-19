@@ -1,4 +1,5 @@
 import { db } from "@/lib/db"
+import { tenantLinkedToBuildings } from "@/lib/tenant-scope"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
 import { getMobileAccessibleBuildings } from "@/lib/mobile-buildings"
 
@@ -35,13 +36,8 @@ export function tenantInBuildingsWhere(buildingIds: string[]) {
     return { id: "__none__" }
   }
 
-  return {
-    OR: [
-      { space: { floor: { buildingId: { in: buildingIds } } } },
-      { tenantSpaces: { some: { space: { floor: { buildingId: { in: buildingIds } } } } } },
-      { fullFloors: { some: { buildingId: { in: buildingIds } } } },
-    ],
-  }
+  // Как на сайте: 4 пути (включая киоск/антенну без помещения), без удалённых.
+  return { deletedAt: null, ...tenantLinkedToBuildings(buildingIds) }
 }
 
 export function requestInBuildingsWhere(buildingIds: string[]) {

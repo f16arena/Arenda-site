@@ -55,7 +55,7 @@ export async function GET(req: Request) {
           include: { space: { include: { floor: true } } },
         },
         fullFloors: true,
-        charges: { where: { period }, orderBy: { createdAt: "asc" } },
+        charges: { where: { deletedAt: null, period }, orderBy: { createdAt: "asc" } },
         contracts: { orderBy: { createdAt: "desc" }, take: 1 },
         bankAccounts: {
           orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],

@@ -1,5 +1,6 @@
 ﻿"use server"
 
+import { softDeleteTenantRecords } from "@/lib/data/tenant-delete"
 import { db } from "@/lib/db"
 import { revalidatePath, revalidateTag } from "next/cache"
 import bcrypt from "bcryptjs"
@@ -226,24 +227,10 @@ export async function deleteUserAdmin(userId: string) {
     throw new Error("Нельзя удалить самого себя")
   }
 
-  const tenant = await db.tenant.findUnique({
-    where: { userId },
-    include: { tenantSpaces: { select: { spaceId: true } } },
-  })
-  if (tenant) {
-    const spaceIds = [...new Set([
-      tenant.spaceId,
-      ...tenant.tenantSpaces.map((item) => item.spaceId),
-    ].filter(Boolean) as string[])]
-    if (spaceIds.length > 0) {
-      await db.space.updateMany({ where: { id: { in: spaceIds } }, data: { status: "VACANT" } })
-    }
-    // Soft delete (миграция 019). Освобождаем space, помечаем deletedAt.
-    await db.tenant.update({
-      where: { id: tenant.id },
-      data: { deletedAt: new Date(), spaceId: null },
-    })
-  }
+  const tenant = await db.tenant.findUnique({ where: { userId }, select: { id: true } })
+  // Тот же путь, что «Удалить арендатора»: начисления, оплаты, договоры и
+  // привязки к помещениям тоже гасятся (раньше оставались живыми).
+  if (tenant) await softDeleteTenantRecords(tenant.id)
 
   await db.staff.deleteMany({ where: { userId } })
   await db.rolePermission.deleteMany({ where: { role: userCapabilityRole(userId) } })
