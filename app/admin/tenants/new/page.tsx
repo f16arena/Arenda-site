@@ -41,7 +41,7 @@ export default async function NewTenantWizardPage({ searchParams }: { searchPara
   })
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs
         items={[
           { label: "Главная", href: "/admin" },

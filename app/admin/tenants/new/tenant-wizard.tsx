@@ -29,6 +29,29 @@ const labelCls = "block text-xs font-medium text-slate-500 dark:text-slate-400 m
 
 const STEPS = ["Контакты и компания", "Помещение и условия", "Проверка и создание"] as const
 
+const STEP_HINTS: string[][] = [
+  [
+    "Обязательно только ФИО, телефон и название компании.",
+    "По ИИН/БИН статус НДС подтянется из КГД сам.",
+    "Если указать email — арендатор получит доступ в личный кабинет.",
+  ],
+  [
+    "Выберите свободное помещение — аренда посчитается по ставке этажа.",
+    "Киоск, антенна, место без помещения — «Фикс. сумма/мес».",
+    "Сроки и депозит можно не заполнять сейчас — их задаст договор.",
+  ],
+  [
+    "Проверьте сводку — всё можно поправить кнопкой «Назад».",
+    "После создания сразу откроется путь к договору.",
+  ],
+]
+
+const OUTCOME: [string, string][] = [
+  ["Карточка арендатора", "контакты, реквизиты, НДС"],
+  ["Помещение и аренда", "занятость, начисления каждый месяц"],
+  ["Договор", "конструктор заполнит его сам — останется подписать"],
+]
+
 /** Поля, которые после создания арендатора уходят в updateTenantRentalTerms. */
 const RENTAL_TERMS_FIELDS = [
   "rentMode", "customRate", "fixedMonthlyRent", "cleaningFee", "needsCleaning",
@@ -217,6 +240,7 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
         ))}
       </div>
 
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
       {/* Одна форма на все шаги: скрытые шаги остаются в DOM, данные не теряются. */}
       <Card className="block p-6">
       <form ref={formRef} onSubmit={(e) => e.preventDefault()}>
@@ -440,6 +464,37 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
         </div>
       </form>
       </Card>
+
+      {/* Справа — подсказка к текущему шагу и что будет дальше */}
+      <aside className="space-y-4 lg:sticky lg:top-20">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/30 dark:bg-blue-500/5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Шаг {step + 1} из 3</p>
+          <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{STEPS[step]}</p>
+          <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+            {STEP_HINTS[step].map((h) => (
+              <li key={h} className="flex gap-2"><span className="text-blue-500">•</span><span>{h}</span></li>
+            ))}
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Что получится</p>
+          <ol className="mt-3 space-y-3">
+            {OUTCOME.map(([title, sub], i) => (
+              <li key={title} className="flex gap-3">
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                  i < step ? "bg-emerald-500 text-white" : i === step ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
+                  {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{title}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{sub}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </aside>
+      </div>
     </div>
   )
 }
