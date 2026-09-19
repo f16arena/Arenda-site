@@ -436,10 +436,7 @@ export class BuilderEngine {
       this.onCommand(new MoveObjectCommand(target, sel.id, cx, cz))
     }
     this.setupPointer()
-    this.bundle.scene.onBeforeRenderObservable.add(() => {
-      this.syncCamera()
-      this.applyWallPeek()
-    })
+    this.bundle.scene.onBeforeRenderObservable.add(() => this.syncCamera())
     // Перф для слабых ПК: сцена статична между действиями — кадр рисуется только
     // когда что-то меняется (камера, мышь, клавиши, правка) и немного после.
     // Раньше рендер шёл 60 раз в секунду всегда и грузил видеокарту на 100 %.
@@ -611,9 +608,6 @@ export class BuilderEngine {
     scene.executeWhenReady(() => this.invalidate(600))
     this.lastCtx = ctx
     this.lastDoc = doc
-    // после пересборки меши новые: срез ближних стен считаем заново
-    this.peekHidden.clear()
-    this.peekAt = null
     if (this.docRoot) this.docRoot.dispose()
     this.dragOverlay = null // оверлей жил под docRoot — уже освобождён вместе с ним
     this.dragFloorId = null
@@ -1152,119 +1146,6 @@ export class BuilderEngine {
 
   // Каждый кадр: ортогональные границы следуют за зумом (иначе колесо в плане
   // ничего не делало), скорость панорамы — за расстоянием до цели.
-  /** Прятать стены между камерой и зданием (вид «как в Симс»). */
-  setPeekWalls(on: boolean): void {
-    if (on === this.peekWalls) return
-    this.peekWalls = on
-    this.applyWallPeek(true)
-    this.invalidate(600)
-  }
-
-  private peekWalls = true
-  /** спрятанные стены и их прежняя видимость: этаж мог быть уже полупрозрачным */
-  private peekHidden = new Map<string, number>()
-  private peekAt: { x: number; y: number; z: number } | null = null
-
-  /**
-   * Стены, которые стоят между камерой и зданием, прячутся — иначе в 3D видно
-   * только наружную коробку. Поворот камеры возвращает их и убирает следующие,
-   * как в The Sims. Считается по геометрии документа: стена на «ближней»
-   * стороне здания и развёрнута к камере — значит, она загораживает.
-   */
-  private applyWallPeek(force = false): void {
-    const doc = this.lastDoc
-    const scene = this.bundle.scene
-    const cam = scene.activeCamera
-    if (!doc || !cam) return
-    // Стены срезаем только когда выбран конкретный этаж: на «Участке» человек
-    // смотрит на здание снаружи и ждёт фасад с окнами, а не вскрытую коробку.
-    // В обходе тоже не режем — человек внутри.
-    const walking = this.walkCamera && scene.activeCamera === this.walkCamera
-    const onSite = !this.activeFloorId
-    const p = cam.position
-    if (!force && this.peekAt && Math.abs(p.x - this.peekAt.x) + Math.abs(p.y - this.peekAt.y) + Math.abs(p.z - this.peekAt.z) < 0.15) return
-    this.peekAt = { x: p.x, y: p.y, z: p.z }
-    const show = (id: string) => {
-      const back = this.peekHidden.get(id) ?? 1
-      for (const m of this.meshById.get(id) ?? []) {
-        m.visibility = back
-        m.isPickable = true
-      }
-    }
-    if (!this.peekWalls || walking || onSite) {
-      for (const id of this.peekHidden.keys()) show(id)
-      this.peekHidden.clear()
-      return
-    }
-    const target = "target" in cam ? (cam as unknown as { target: Vector3 }).target : null
-    const vx = (target ? target.x : 0) - p.x
-    const vz = (target ? target.z : 0) - p.z
-    const vlen = Math.hypot(vx, vz)
-    const next = new Set<string>()
-    if (vlen > 0.1) {
-      const ux = vx / vlen
-      const uz = vz / vlen
-      for (const b of doc.buildings) {
-        for (const f of b.floors) {
-          if (!f.visible) continue
-          const nodes = Object.values(f.wallGraph.nodes)
-          if (nodes.length < 2) continue
-          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
-          for (const n of nodes) {
-            minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x)
-            minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y)
-          }
-          // центр этажа в метрах сцены (ось Y плана — это Z сцены)
-          const cx = ((minX + maxX) / 2 + b.origin.x) * S
-          const cz = ((minY + maxY) / 2 + b.origin.y) * S
-          const toCamX = p.x - cx
-          const toCamZ = p.z - cz
-          const byWall = new Map<string, string[]>()
-          for (const o of f.openings) byWall.set(o.wallId, [...(byWall.get(o.wallId) ?? []), o.id])
-          for (const id in f.wallGraph.edges) {
-            const e = f.wallGraph.edges[id]
-            const a = f.wallGraph.nodes[e.a]
-            const c = f.wallGraph.nodes[e.b]
-            if (!a || !c) continue
-            const ax = (a.x + b.origin.x) * S, az = (a.y + b.origin.y) * S
-            const bx = (c.x + b.origin.x) * S, bz = (c.y + b.origin.y) * S
-            const dx = bx - ax, dz = bz - az
-            const len = Math.hypot(dx, dz)
-            if (len < 0.05) continue
-            // нормаль стены: если она почти параллельна взгляду, стена вид не
-            // загораживает — такие оставляем, иначе исчезала бы половина здания
-            const nx = dz / len, nz = -dx / len
-            if (Math.abs(nx * ux + nz * uz) < 0.35) continue
-            const mx = (ax + bx) / 2 - cx
-            const mz = (az + bz) / 2 - cz
-            // стена на стороне камеры относительно центра этажа
-            if (mx * toCamX + mz * toCamZ <= 0) continue
-            next.add(id)
-            for (const oid of byWall.get(id) ?? []) next.add(oid)
-          }
-        }
-      }
-    }
-    for (const id of [...this.peekHidden.keys()]) {
-      if (next.has(id)) continue
-      show(id)
-      this.peekHidden.delete(id)
-    }
-    for (const id of next) {
-      if (this.peekHidden.has(id)) continue
-      const list = this.meshById.get(id) ?? []
-      // стена уже не видна (этаж выключен режимом показа) — трогать нечего
-      if (!list.length || list[0].visibility === 0) continue
-      // этаж мог быть полупрозрачным («Призрак») — запоминаем, чтобы вернуть как было
-      this.peekHidden.set(id, list[0].visibility)
-      for (const m of list) {
-        m.visibility = 0
-        m.isPickable = false
-      }
-    }
-    this.invalidate(300)
-  }
-
   private syncCamera(): void {
     const camera = this.bundle.camera
     // Панорама (ПКМ) должна идти ровно за курсором: сколько метров в пикселе на

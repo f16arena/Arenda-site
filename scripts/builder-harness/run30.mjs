@@ -151,7 +151,7 @@ await page.waitForTimeout(800)
     const doc = st.doc
     const f = doc.buildings.flatMap((b) => b.floors).find((x) => (x.islands ?? []).length)
     const isl = f.islands[0]
-    st.execute(new window.__commands.DeleteIslandCommand(f.id, isl.id))
+    st.execute(new window.__commands.DeleteIslandCommand({ floorId: f.id }, isl.id))
   })
   await page.waitForTimeout(500)
   const after = (await islands()).length

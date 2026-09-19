@@ -241,7 +241,6 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   const walking = cameraMode === "walk"
   const showTenants = useLabelStore((s) => s.showTenants)
   const showFurniture = useLabelStore((s) => s.showFurniture)
-  const peekWalls = useLabelStore((s) => s.peekWalls)
   const hourOfDay = useLabelStore((s) => s.hourOfDay)
   // 3D-движок грузится только когда нужен: в «Плане» слабый компьютер не тратит
   // на Babylon ни памяти, ни времени загрузки
@@ -440,11 +439,6 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   useEffect(() => {
     engineRef.current?.setShowFurniture(showFurniture)
   }, [showFurniture, ready])
-
-  // срез ближних стен: без пересборки, только видимость мешей
-  useEffect(() => {
-    engineRef.current?.setPeekWalls(peekWalls)
-  }, [peekWalls, ready])
 
   // время суток: солнце, тени и цвет неба — без пересборки сцены
   useEffect(() => {
@@ -846,15 +840,6 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             style={{ background: showFurniture ? TOKENS.accent : "rgba(148,163,184,0.16)", color: showFurniture ? "#0b1220" : TOKENS.text }}
           >
             Мебель
-          </button>
-          <button
-            type="button"
-            title="Прятать стены между камерой и зданием — видно, что внутри. Поверни камеру: стены вернутся, спрячутся следующие"
-            onClick={() => useLabelStore.getState().togglePeekWalls()}
-            className="rounded-md px-2 py-1 text-[11px] font-semibold"
-            style={{ background: peekWalls ? TOKENS.accent : "rgba(148,163,184,0.16)", color: peekWalls ? "#0b1220" : TOKENS.text }}
-          >
-            Стены
           </button>
           {/* убранные предметы автомебели: вернуть все сразу */}
           {!readOnly && hiddenFurnish > 0 && (
