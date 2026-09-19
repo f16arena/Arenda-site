@@ -129,7 +129,7 @@ const ADV_BOX: Record<string, string> = {
   info: "border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200",
 }
 
-export function ContractConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
+export function ContractConstructor({ embedded = false, initialTenantId, initialDraftId }: { embedded?: boolean; initialTenantId?: string; initialDraftId?: string } = {}) {
   // Старые черновики/договоры могли сохраняться без handoverAct — дополняем дефолтом.
   // Достраиваем дефолты для черновиков, сохранённых до появления новых полей
   // (handoverAct, deposit.enabled, penalty caps) — иначе раздел депозита/поля пени
@@ -221,6 +221,14 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
   // Предзаполнить номер договора следующим свободным (если включена автонумерация).
   useEffect(() => { if (autoNumber) applyAutoNumber() }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // Автовыбор арендатора из ?tenantId= (когда конструктор открыт из карточки арендатора).
+  // Открыть черновик по ссылке «Продолжить» из списка документов — когда список
+  // арендаторов уже загружен (нужен для подстановки арендатора черновика).
+  const appliedInitialDraft = useRef(false)
+  useEffect(() => {
+    if (appliedInitialDraft.current || !initialDraftId || tenants.length === 0) return
+    appliedInitialDraft.current = true
+    doLoad(initialDraftId)
+  }, [tenants, initialDraftId]) // eslint-disable-line react-hooks/exhaustive-deps
   const appliedInitialTenant = useRef(false)
   useEffect(() => {
     if (appliedInitialTenant.current || !initialTenantId) return
@@ -263,7 +271,7 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
 
   function doSave() {
     startTransition(async () => {
-      const r = await saveContractDraft({ id: draftId ?? undefined, name: draftName, builderState: state })
+      const r = await saveContractDraft({ id: draftId ?? undefined, name: draftName, builderState: state, tenantId: selTenant || undefined })
       if (r.ok) { setDraftId(r.id ?? null); toast.success("Черновик сохранён"); refreshDrafts() } else toast.error(r.error ?? "Ошибка сохранения")
     })
   }
@@ -271,7 +279,19 @@ export function ContractConstructor({ embedded = false, initialTenantId }: { emb
     if (!id) return
     startTransition(async () => {
       const r = await loadContractDraft(id)
-      if (r.ok && r.builderState) { setState(withDefaults(r.builderState)); setDraftId(id); setDraftName(r.name ?? "Без названия"); setAutoNum(false); toast.success("Черновик загружен") } else toast.error(r.error ?? "Не удалось загрузить")
+      if (r.ok && r.builderState) {
+        const loaded = withDefaults(r.builderState)
+        defaultsApplied.current = true // условия организации не накладываем поверх черновика
+        setState(loaded)
+        setDraftId(id)
+        setDraftName(r.name ?? "Без названия")
+        setAutoNum(false)
+        // Арендатор черновика — сразу, без перезаполнения из карточки (иначе
+        // правки черновика затёрлись бы). Старые черновики без tenantId — по названию.
+        const byName = tenants.find((t) => t.name.trim() === (loaded.tenant.name ?? "").trim())
+        setSelTenant(r.tenantId ?? byName?.id ?? "")
+        toast.success("Черновик открыт — можно продолжать")
+      } else toast.error(r.error ?? "Не удалось загрузить")
     })
   }
   function doDownload() {

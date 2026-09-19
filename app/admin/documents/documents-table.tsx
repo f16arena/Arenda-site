@@ -57,6 +57,8 @@ export interface DocRow {
   viewHref?: string | null
   /** Подпись вида вместо общего «Договор» (например, «Допсоглашение») */
   typeLabel?: string
+  /** Подпись кнопки открытия (у черновика — «Продолжить») */
+  viewLabel?: string
   /** Категория для под-вкладок: активные / на подпись / черновик / архив. */
   category: DocCategory
   /** Для bulk: GeneratedDocument id (без префикса) */
@@ -454,7 +456,7 @@ export function DocumentsTable({
             className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-200"
           >
             <FileText className="h-3 w-3" />
-            Открыть
+            {row.viewLabel ?? "Открыть"}
           </Link>
         )}
         {/* Остальное — в меню «⋯», чтобы в строке не было четырёх кнопок.

@@ -10,7 +10,7 @@ describe("условия договора по умолчанию для орг�
     src.financials.penalty.tenantPerDay = 0.3
     src.financials.deposit.enabled = false
     src.modules.insuranceEnabled = false
-    src.financials.premisesUtilities.water = "included" as never
+    src.financials.premisesUtilities.coldWater = "metered_separate"
     const saved = JSON.parse(JSON.stringify(extractContractDefaults(src)))
 
     const fresh = defaultState()
@@ -20,6 +20,7 @@ describe("условия договора по умолчанию для орг�
     expect(fresh.financials.penalty.tenantPerDay).toBe(0.3)
     expect(fresh.financials.deposit.enabled).toBe(false)
     expect(fresh.modules.insuranceEnabled).toBe(false)
+    expect(fresh.financials.premisesUtilities.coldWater).toBe("metered_separate")
   })
 
   it("суммы, даты и стороны не запоминаются", () => {

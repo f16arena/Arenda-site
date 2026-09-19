@@ -28,9 +28,11 @@ function tabBtn(active: boolean): string {
 export function DocumentCreate({
   initialTab = "contract",
   initialTenantId,
+  initialDraftId,
 }: {
   initialTab?: CreateTab
   initialTenantId?: string
+  initialDraftId?: string
 }) {
   const [tab, setTab] = useState<CreateTab>(initialTab)
   return (
@@ -40,7 +42,7 @@ export function DocumentCreate({
           <button key={t.key} onClick={() => setTab(t.key)} className={tabBtn(tab === t.key)}>{t.label}</button>
         ))}
       </div>
-      {tab === "contract" && <ContractConstructor embedded initialTenantId={initialTenantId} />}
+      {tab === "contract" && <ContractConstructor embedded initialTenantId={initialTenantId} initialDraftId={initialDraftId} />}
       {tab === "addendum" && <AddendumConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "avr" && <AvrConstructor embedded initialTenantId={initialTenantId} />}
       {tab === "invoice" && <InvoiceConstructor embedded initialTenantId={initialTenantId} />}

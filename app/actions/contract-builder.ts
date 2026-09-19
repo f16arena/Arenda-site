@@ -88,6 +88,7 @@ export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: bo
     }
 
     revalidatePath("/admin/settings/document-templates")
+    revalidatePath("/admin/documents")
     return { ok: true, id }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить" }
@@ -107,14 +108,14 @@ export async function listContractDrafts(): Promise<DraftListItem[]> {
 
 export async function loadContractDraft(
   id: string,
-): Promise<{ ok: boolean; name?: string; builderState?: ContractState; error?: string }> {
+): Promise<{ ok: boolean; name?: string; builderState?: ContractState; tenantId?: string | null; error?: string }> {
   const { orgId } = await requireOrgAccess()
   const row = await db.contractDraft.findFirst({
     where: { id, organizationId: orgId, deletedAt: null },
-    select: { name: true, builderState: true },
+    select: { name: true, builderState: true, tenantId: true },
   })
   if (!row) return { ok: false, error: "Черновик не найден" }
-  return { ok: true, name: row.name, builderState: row.builderState as unknown as ContractState }
+  return { ok: true, name: row.name, builderState: row.builderState as unknown as ContractState, tenantId: row.tenantId }
 }
 
 export async function deleteContractDraft(id: string): Promise<{ ok: boolean }> {

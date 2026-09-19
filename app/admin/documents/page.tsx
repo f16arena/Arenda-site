@@ -27,7 +27,7 @@ const DOCUMENT_SOURCE_LIMIT = 200
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[]; create?: string; tenantId?: string }>
+  searchParams: Promise<{ type?: string; q?: string; period?: string; page?: string | string[]; create?: string; tenantId?: string; draft?: string }>
 }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
@@ -55,7 +55,7 @@ export default async function DocumentsPage({
   const canExportZip = allowedCapabilities.has("finance.exportZip")
   const canEsf = allowedCapabilities.has("documents.esf")
 
-  const { type, q, period, create, tenantId: createTenantId } = await searchParams
+  const { type, q, period, create, tenantId: createTenantId, draft: createDraftId } = await searchParams
   const CREATE_TABS = ["contract", "addendum", "avr", "invoice", "reconciliation"] as const
   const createTab = (CREATE_TABS as readonly string[]).includes(create ?? "")
     ? (create as (typeof CREATE_TABS)[number])
@@ -340,7 +340,44 @@ export default async function DocumentsPage({
     }
   })
 
-  const allRows: DocRow[] = [...contractRows, ...generatedRows].sort(
+  // Черновики конструктора («Сохранить черновик») — во вкладке «Черновики»,
+  // иначе их было видно только внутри конструктора и казалось, что они пропали.
+  const builderDrafts = canCreateDocuments
+    ? await safe(
+        "admin.documents.builderDrafts",
+        db.contractDraft.findMany({
+          where: { organizationId: orgId, deletedAt: null, status: "DRAFT" },
+          select: { id: true, name: true, tenantId: true, builderState: true, updatedAt: true },
+          orderBy: { updatedAt: "desc" },
+          take: 50,
+        }),
+        [] as Array<{ id: string; name: string; tenantId: string | null; builderState: unknown; updatedAt: Date }>,
+      )
+    : []
+  const draftRows: DocRow[] = builderDrafts.map((d) => {
+    const bs = d.builderState as { tenant?: { name?: string }; financials?: { monthlyRent?: number }; meta?: { contractNumber?: string } } | null
+    return {
+      id: `d-${d.id}`,
+      type: "CONTRACT",
+      typeLabel: "Черновик договора",
+      number: bs?.meta?.contractNumber || "",
+      tenantName: bs?.tenant?.name || d.name,
+      tenantId: d.tenantId,
+      period: null,
+      totalAmount: bs?.financials?.monthlyRent && bs.financials.monthlyRent > 0 ? bs.financials.monthlyRent : null,
+      generatedAt: d.updatedAt,
+      source: "contract",
+      downloadHref: null,
+      viewHref: `/admin/documents?create=contract&draft=${d.id}`,
+      viewLabel: "Продолжить",
+      category: "draft",
+      canDelete: false,
+      isSigned: false,
+      signatureCount: 0,
+    }
+  })
+
+  const allRows: DocRow[] = [...contractRows, ...generatedRows, ...draftRows].sort(
     (a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()
   )
 
@@ -355,7 +392,7 @@ export default async function DocumentsPage({
           subtitle="Выберите вид и арендатора — реквизиты, помещение и суммы подставятся сами"
           backHref="/admin/documents"
         />
-        <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} />
+        <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} initialDraftId={createDraftId} />
       </div>
     )
   }
