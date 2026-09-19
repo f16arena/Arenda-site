@@ -292,7 +292,7 @@ export async function listBuilderTenants(buildingId: string): Promise<BuilderTen
       tenantSpaces: { select: { space: { select: { number: true } } } },
     },
     orderBy: { companyName: "asc" },
-    take: 300,
+    take: 100,
   })
   return rows.map((t) => {
     const nums = [...new Set([t.space?.number, ...t.tenantSpaces.map((x) => x.space.number)].filter(Boolean))] as string[]
