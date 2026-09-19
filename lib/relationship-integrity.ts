@@ -621,7 +621,7 @@ export async function getRelationshipIntegrityOverview({
   addLimitIssue(issues, plan?.maxBuildings, buildingCount, "subscription-buildings-limit", "Превышен лимит зданий тарифа", "Зданий", "/admin/buildings")
   addLimitIssue(issues, plan?.maxTenants, activeTenantCount, "subscription-tenants-limit", "Превышен лимит арендаторов тарифа", "Арендаторов", "/admin/tenants")
   addLimitIssue(issues, plan?.maxUsers, activeUserCount, "subscription-users-limit", "Превышен лимит пользователей тарифа", "Пользователей", "/admin/users")
-  addLimitIssue(issues, plan?.maxLeads, leadCount, "subscription-leads-limit", "Превышен лимит лидов тарифа", "Лидов", "/admin/leads")
+  addLimitIssue(issues, plan?.maxLeads, leadCount, "subscription-leads-limit", "Превышен лимит лидов тарифа", "Лидов", "/admin/subscription")
 
   addIssue(issues, {
     key: "owner-missing",

@@ -16,6 +16,7 @@
 // проекту с известным зданием — создаём Lead (модель есть в схеме). Иначе валидируем вход
 // и возвращаем {ok:true} (мягкий приём, без выдуманных миграций).
 
+import { notifyRentalInquiry } from "@/lib/rental-inquiry"
 import { db } from "@/lib/db"
 import { shareLinkValid } from "@/lib/builder/share-link"
 import { requireOrgAccess } from "@/lib/org"
@@ -233,6 +234,13 @@ export async function submitBuilderLead(input: {
             status: "NEW",
             notes: notesParts.length > 0 ? notesParts.join(" — ") : null,
           },
+        })
+        await notifyRentalInquiry({
+          buildingId,
+          name,
+          contact: phone,
+          details: notesParts.length > 0 ? notesParts.join(" — ") : null,
+          source: "витрины здания",
         })
       }
     } catch {

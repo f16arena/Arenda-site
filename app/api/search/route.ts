@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
-import { tenantScope, spaceScope, requestScope, leadScope, contractScope, userScope } from "@/lib/tenant-scope"
+import { tenantScope, spaceScope, requestScope, contractScope, userScope } from "@/lib/tenant-scope"
 import { safeServerValue } from "@/lib/server-fallback"
 
 export const dynamic = "force-dynamic"
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
   const q = (searchParams.get("q") ?? "").trim()
   if (!q || q.length < 2) return NextResponse.json({ items: [] })
 
-  const [tenants, spaces, requests, leads, contracts, generated, staff] = await Promise.all([
+  const [tenants, spaces, requests, contracts, generated, staff] = await Promise.all([
     safe(
       "api.search.tenants",
       db.tenant.findMany({
@@ -73,26 +73,6 @@ export async function GET(req: Request) {
           ],
         },
         select: { id: true, title: true, status: true },
-        take: 5,
-      }),
-      [],
-    ),
-    safe(
-      "api.search.leads",
-      db.lead.findMany({
-        where: {
-          AND: [
-            leadScope(orgId),
-            {
-              OR: [
-                { name: { contains: q, mode: "insensitive" } },
-                { contact: { contains: q } },
-                { companyName: { contains: q, mode: "insensitive" } },
-              ],
-            },
-          ],
-        },
-        select: { id: true, name: true, companyName: true },
         take: 5,
       }),
       [],
@@ -177,13 +157,6 @@ export async function GET(req: Request) {
       title: r.title,
       subtitle: `Заявка · ${r.status}`,
       href: `/admin/requests/${r.id}`,
-    })),
-    ...leads.map((l) => ({
-      type: "lead",
-      id: l.id,
-      title: l.name,
-      subtitle: l.companyName ?? "Лид",
-      href: `/admin/leads`,
     })),
     ...contracts.map((c) => ({
       type: "contract",

@@ -1,9 +1,9 @@
 "use server"
 
+import { notifyRentalInquiry } from "@/lib/rental-inquiry"
 import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
-import { revalidatePath } from "next/cache"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 
 /**
@@ -68,6 +68,12 @@ export async function createBookingLead(
     },
   })
 
-  revalidatePath("/admin/leads")
+  await notifyRentalInquiry({
+    buildingId,
+    name,
+    contact: phone,
+    details: notesParts.length > 0 ? notesParts.join(" · ") : null,
+    source: "бронирования",
+  })
   return { ok: true }
 }

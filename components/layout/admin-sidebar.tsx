@@ -8,7 +8,7 @@ import {
   FileText, ClipboardList, CheckSquare,
   MessageSquare, Phone, BarChart3,
   Package, Settings as SettingsIcon,
-  Mail, History, TrendingUp,
+  Mail, History,
   LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive,
@@ -83,7 +83,6 @@ const nav: NavSection[] = [
     title: "АРЕНДА И КЛИЕНТЫ",
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
-      { href: "/admin/leads", label: "Лиды (CRM)", icon: TrendingUp, section: "leads" },
       { href: "/admin/listings", label: "Объявления", icon: Megaphone, section: "leads" },
     ],
   },

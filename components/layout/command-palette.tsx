@@ -33,7 +33,6 @@ const QUICK_ACTIONS: { label: string; href: string; icon: React.ElementType; key
   { label: "Запуск платформы", href: "/admin/onboarding", icon: Rocket, keywords: "onboarding запуск настройка чеклист старт" },
   { label: "Календарь", href: "/admin/calendar", icon: CalendarDays, keywords: "calendar события" },
   { label: "Арендаторы", href: "/admin/tenants", icon: Users, keywords: "tenants клиенты" },
-  { label: "Лиды (CRM)", href: "/admin/leads", icon: TrendingUp, keywords: "leads crm" },
   { label: "Финансы", href: "/admin/finances", icon: Wallet, keywords: "finance деньги" },
   { label: "Документы", href: "/admin/documents", icon: FileText, keywords: "documents" },
   { label: "Создать документ", href: "/admin/documents?create=1", icon: Plus, keywords: "документ создать договор счет акт авр сверка" },
@@ -52,7 +51,6 @@ const QUICK_CREATE: { label: string; href: string; icon: React.ElementType; keyw
   { label: "Создать АВР", href: "/admin/documents/new/act", icon: Plus, keywords: "акт авр act выполненных работ услуги" },
   { label: "Создать акт сверки", href: "/admin/documents/new/reconciliation", icon: Plus, keywords: "сверка reconciliation" },
   { label: "Добавить арендатора", href: "/admin/tenants?new=1", icon: Plus, keywords: "арендатор новый создать" },
-  { label: "Добавить лида", href: "/admin/leads?new=1", icon: Plus, keywords: "лид lead" },
 ]
 
 const SYSTEM_ACTIONS: { label: string; icon: React.ElementType; keywords: string; action: "logout" }[] = [
