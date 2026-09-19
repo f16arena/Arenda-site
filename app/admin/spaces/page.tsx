@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { formatMoney } from "@/lib/utils"
-import { Building2, Box, UserPlus, DoorOpen, DoorClosed, Wallet, TrendingDown, Map as MapIcon } from "lucide-react"
+import { Building2, Box, UserPlus, DoorOpen, DoorClosed, Wallet, Map as MapIcon } from "lucide-react"
 import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
 import { SpacesBoard, type SpaceRow, type FloorGroup } from "./spaces-board"
 import Link from "next/link"
@@ -400,24 +400,34 @@ export default async function SpacesPage() {
   const occupancyByArea = roomArea > 0 ? Math.round((occupiedArea / roomArea) * 100) : 0
   const income = [...tenantRent.values()].reduce((s, t) => s + t.rent, 0)
   const idleLoss = vacantRows.reduce((s, r) => s + r.rent, 0)
-  const sumFloorArea = roomFloors.reduce((s, f) => s + (f.totalArea ?? 0), 0)
 
-  const floorGroups: FloorGroup[] = roomFloors.map((floor) => ({
-    id: floor.id,
-    name: /^-?\d+$/.test(floor.name.trim()) ? `${floor.name.trim()} этаж` : floor.name,
-    rate: floor.ratePerSqm,
-    totalArea: floor.totalArea,
-    wholeFloor: floor.fullFloorTenant ? (
-      <div className="mt-2 flex flex-wrap items-center gap-3 rounded-lg bg-violet-50 px-3 py-2 text-xs dark:bg-violet-500/10">
-        <span className="text-violet-900 dark:text-violet-200">
-          Этаж сдан целиком: <Link href={`/admin/tenants/${floor.fullFloorTenant.id}`} className="font-medium underline hover:no-underline">{floor.fullFloorTenant.companyName}</Link>
-          {floor.fullFloorTenant.contractEnd && <> · договор до {new Date(floor.fullFloorTenant.contractEnd).toLocaleDateString("ru-RU")}</>}
-          . Помещения этажа по отдельности не сдаются.
-        </span>
-        {canAssignSpaces && <UnassignFloorButton floorId={floor.id} floorName={floor.name} tenantName={floor.fullFloorTenant.companyName} />}
-      </div>
-    ) : null,
-  }))
+  const wholeFloorNote = (floor: SelectedFloorInfo) => floor.fullFloorTenant ? (
+    <div className="flex flex-wrap items-center gap-3 rounded-xl bg-violet-50 px-4 py-2.5 text-sm dark:bg-violet-500/10">
+      <span className="text-violet-900 dark:text-violet-200">
+        Этаж сдан целиком: <Link href={`/admin/tenants/${floor.fullFloorTenant.id}`} className="font-medium underline hover:no-underline">{floor.fullFloorTenant.companyName}</Link>
+        {floor.fullFloorTenant.contractEnd && <> · до {new Date(floor.fullFloorTenant.contractEnd).toLocaleDateString("ru-RU")}</>}
+      </span>
+      {canAssignSpaces && <UnassignFloorButton floorId={floor.id} floorName={floor.name} tenantName={floor.fullFloorTenant.companyName} />}
+    </div>
+  ) : null
+  const floorName = (name: string) => (/^-?\d+$/.test(name.trim()) ? `${name.trim()} этаж` : name)
+  const floorGroups: FloorGroup[] = [
+    ...roomFloors.map((floor) => ({
+      id: floor.id,
+      name: floorName(floor.name),
+      note: `аренда ${formatMoney(floor.ratePerSqm)} за м²`,
+      wholeFloor: wholeFloorNote(floor),
+    })),
+    ...zoneFloors.filter((f) => isZoneFloor(f.kind)).map((floor) => ({
+      id: floor.id,
+      name: floor.name,
+      note: "места за фиксированную сумму",
+      wholeFloor: null,
+      isZone: true,
+    })),
+  ]
+  // Объекты на обычных этажах (автомат в холле) показываем плиткой на своём этаже
+  const boardRows = [...roomRows, ...objectRows]
 
   return (
     <div className="space-y-5">
@@ -428,68 +438,13 @@ export default async function SpacesPage() {
         actions={canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
       />
 
-      <StatGrid>
-        <StatCard icon={DoorOpen} tone="emerald" label="Свободно" value={`${vacantRows.length} · ${fmtArea(vacantArea)}`} sub={vacantRows.length > 0 ? "можно сдавать прямо сейчас" : "всё сдано"} />
-        <StatCard icon={DoorClosed} tone="blue" label="Занято" value={`${occupancyByArea}%`} sub={`${occupiedRows.length} из ${roomRows.length} помещений · ${fmtArea(occupiedArea)}`} />
-        <StatCard icon={Wallet} tone="violet" label="Доход в месяц" value={formatMoney(income)} sub="по условиям аренды арендаторов" />
-        <StatCard icon={TrendingDown} tone={idleLoss > 0 ? "amber" : "slate"} label="Простой в месяц" value={formatMoney(idleLoss)} sub="недополучаете на свободных по ставке этажа" />
+      <StatGrid cols={3}>
+        <StatCard icon={DoorOpen} tone="emerald" label="Свободно" value={vacantRows.length} sub={vacantRows.length > 0 ? `${fmtArea(vacantArea)} · ≈ ${formatMoney(idleLoss)} в месяц можно получать` : "всё сдано"} />
+        <StatCard icon={DoorClosed} tone="blue" label="Занято" value={`${occupancyByArea}%`} sub={`${occupiedRows.length} из ${roomRows.length} помещений`} />
+        <StatCard icon={Wallet} tone="violet" label="Доход в месяц" value={formatMoney(income)} sub="с арендаторов здания" />
       </StatGrid>
 
-      {/* Площади — одной строкой; тревога только при настоящем расхождении */}
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Помещения занимают <b className="text-slate-900 dark:text-slate-100">{fmtArea(roomArea)}</b>
-        {sumFloorArea > 0 && <> из <b className="text-slate-900 dark:text-slate-100">{fmtArea(sumFloorArea)}</b> площади этажей ({Math.round((roomArea / sumFloorArea) * 100)}%); остальное — коридоры, лестницы, техпомещения</>}.
-        {sumFloorArea > 0 && roomArea > sumFloorArea + 0.05 && (
-          <span className="ml-1 font-medium text-red-600 dark:text-red-400">
-            Помещений больше, чем площадь этажей: проверьте площади в «Настройках этажа».
-          </span>
-        )}
-      </p>
-
-      <SpacesBoard floors={floorGroups} rows={roomRows} initialFilter="all" />
-
-      {objectRows.length > 0 && (
-        <Card className="block overflow-hidden rounded-2xl p-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Места на крыше и территории</h2>
-            <span className="text-xs text-slate-500 dark:text-slate-400">антенны, киоски, площадки — сдаются фиксированной суммой</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-left text-xs font-medium text-slate-500 dark:border-slate-800 dark:text-slate-400">
-                  <th className="px-5 py-2.5">Место</th>
-                  <th className="px-3 py-2.5">Где</th>
-                  <th className="px-3 py-2.5 text-right">Аренда в месяц</th>
-                  <th className="px-3 py-2.5">Арендатор</th>
-                  <th className="px-5 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {objectRows.map((r) => {
-                  const floor = zoneFloors.find((f) => f.id === r.floorId)
-                  return (
-                    <tr key={r.id} className="border-b border-slate-50 align-top dark:border-slate-800/60">
-                      <td className="px-5 py-2.5">
-                        <p className="font-semibold text-slate-900 dark:text-slate-100">{r.number}</p>
-                        {r.description && <p className="max-w-[280px] truncate text-xs text-slate-400 dark:text-slate-500" title={r.description}>{r.description}</p>}
-                      </td>
-                      <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300">{floor?.name ?? "—"}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-medium text-slate-900 dark:text-slate-100">{r.tenant ? formatMoney(r.rent) : "—"}</td>
-                      <td className="px-3 py-2.5">
-                        {r.tenant
-                          ? <Link href={`/admin/tenants/${r.tenant.id}`} className="font-medium text-blue-600 hover:underline dark:text-blue-400">{r.tenant.name}</Link>
-                          : <span className="text-emerald-600 dark:text-emerald-400">свободно</span>}
-                      </td>
-                      <td className="px-5 py-2.5"><div className="flex flex-wrap items-center justify-end gap-2">{r.actions}</div></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+      <SpacesBoard floors={floorGroups} rows={boardRows} />
 
       {/* Редкие и опасные действия — внизу, а не рядом с «Добавить» */}
       {building && (hasFloorEditor || (canDeleteSpaces && allSpaces.length > 0)) && (
