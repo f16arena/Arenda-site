@@ -1,4 +1,6 @@
 "use client"
+import { FIELD_CLS } from "@/lib/ui-fields"
+import { ModalShell } from "@/components/ui/modal"
 import { askText } from "@/components/ui/dialog-host"
 
 import { createContext, useContext, useMemo, useState, useTransition, type ReactNode } from "react"
@@ -52,7 +54,7 @@ export function RowInactiveBadge() {
   const row = useContext(RowStatusContext)
   if (!row || row.active) return null
   return (
-    <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
+    <span className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
   )
 }
 
@@ -114,7 +116,7 @@ export function CreateUserDialog({
             <PasswordWithGenerate label="Пароль *" name="password" />
 
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-700 py-2 text-sm text-slate-300">
+              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">
                 Отмена
               </button>
               <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white disabled:opacity-60">
@@ -167,7 +169,7 @@ export function UserApprovalButtons({ userId, userName }: { userId: string; user
             }
           })
         }}
-        className="rounded-md border border-red-500/40 px-2.5 py-1.5 text-[11px] font-medium text-red-300 transition hover:bg-red-500/10 disabled:opacity-60"
+        className="rounded-md border border-red-500/40 px-2.5 py-1.5 text-[11px] font-medium text-red-700 dark:text-red-300 transition hover:bg-red-500/10 disabled:opacity-60"
       >
         Отклонить
       </button>
@@ -192,7 +194,7 @@ export function EditUserDialog({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-blue-400 hover:text-blue-200"
+        className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-200"
         aria-label="Редактировать"
         title="Редактировать"
       >
@@ -228,7 +230,7 @@ export function EditUserDialog({
             <Field label="Новый пароль" name="newPassword" type="password" placeholder="Оставьте пустым, если не меняете" />
 
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-700 py-2 text-sm text-slate-300">
+              <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">
                 Отмена
               </button>
               <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white disabled:opacity-60">
@@ -402,7 +404,7 @@ export function UserCapabilitiesDialog({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-purple-400 hover:text-purple-200"
+        className="text-purple-400 hover:text-purple-700 dark:hover:text-purple-200"
         aria-label="Личные права"
         title="Личные права"
       >
@@ -412,7 +414,7 @@ export function UserCapabilitiesDialog({
       {open && (
         <Modal title="Личные права сотрудника" onClose={() => setOpen(false)} wide>
           <div className="space-y-4 p-6">
-            <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs text-purple-100">
+            <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs text-purple-700 dark:text-purple-100">
               Эти настройки применяются только к пользователю «{userName}» и имеют приоритет над должностью «{roleLabel}».
             </div>
 
@@ -432,7 +434,7 @@ export function UserCapabilitiesDialog({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Поиск действия..."
-                className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500"
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
               />
             </div>
 
@@ -450,19 +452,11 @@ export function UserCapabilitiesDialog({
                       return (
                         <div
                           key={capability.key}
-                          className={`rounded-lg border p-3 ${
-                            capability.locked
-                              ? "border-slate-800 bg-slate-950/50 opacity-60"
-                              : mode === "ALLOW"
-                                ? "border-emerald-500/40 bg-emerald-500/10"
-                                : mode === "DENY"
-                                  ? "border-red-500/40 bg-red-500/10"
-                                  : "border-slate-800 bg-slate-950/50"
-                          }`}
+                          className={`rounded-lg border p-3 ${ capability.locked ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 opacity-60" : mode === "ALLOW" ? "border-emerald-500/40 bg-emerald-500/10" : mode === "DENY" ? "border-red-500/40 bg-red-500/10" : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50" }`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
+                              <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
                                 {capability.label}
                                 {effectiveState && <EffectiveStatePill state={effectiveState} />}
                               </p>
@@ -473,15 +467,13 @@ export function UserCapabilitiesDialog({
                                 </p>
                               )}
                               {capability.locked && (
-                                <p className="mt-2 text-[11px] text-amber-300">
+                                <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
                                   Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}
                                 </p>
                               )}
                             </div>
                             {mode !== "INHERIT" && (
-                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                mode === "ALLOW" ? "bg-emerald-500/20 text-emerald-200" : "bg-red-500/20 text-red-200"
-                              }`}>
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${ mode === "ALLOW" ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200" : "bg-red-500/20 text-red-700 dark:text-red-200" }`}>
                                 {mode === "ALLOW" ? "разрешено" : "запрещено"}
                               </span>
                             )}
@@ -508,7 +500,7 @@ export function UserCapabilitiesDialog({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="w-full rounded-lg border border-slate-700 py-2 text-sm text-slate-300"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300"
             >
               Закрыть
             </button>
@@ -529,11 +521,11 @@ function RightsStat({
   tone: "blue" | "amber" | "emerald" | "red" | "slate"
 }) {
   const tones = {
-    blue: "border-blue-500/30 bg-blue-500/10 text-blue-200",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-    red: "border-red-500/30 bg-red-500/10 text-red-200",
-    slate: "border-slate-800 bg-slate-950/50 text-slate-300",
+    blue: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-200",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200",
+    red: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200",
+    slate: "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300",
   }
 
   return (
@@ -547,13 +539,7 @@ function RightsStat({
 function EffectiveStatePill({ state }: { state: EffectiveCapabilityState }) {
   const allowed = state.allowed && !state.locked
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
-      state.locked
-        ? "border-slate-700 text-slate-500"
-        : allowed
-          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
-          : "border-red-500/30 bg-red-500/10 text-red-200"
-    }`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${ state.locked ? "border-slate-200 dark:border-slate-700 text-slate-500" : allowed ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200" : "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200" }`}>
       {state.locked ? <Lock className="h-3 w-3" /> : allowed ? <ShieldCheck className="h-3 w-3" /> : <X className="h-3 w-3" />}
       {state.locked ? "тариф" : allowed ? "разрешено" : "запрещено"}
     </span>
@@ -601,7 +587,7 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-amber-400 hover:text-amber-200"
+        className="text-amber-400 hover:text-amber-700 dark:hover:text-amber-200"
         aria-label="Сбросить пароль"
         title="Сбросить пароль"
       >
@@ -614,7 +600,7 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
             {!done ? (
               <>
                 <p className="text-sm text-slate-400">
-                  Новый пароль для <span className="font-medium text-slate-200">{userName}</span>. Можно сгенерировать
+                  Новый пароль для <span className="font-medium text-slate-800 dark:text-slate-200">{userName}</span>. Можно сгенерировать
                   и передать пользователю — при первом входе он будет обязан сменить его.
                 </p>
                 <div className="flex gap-2">
@@ -623,19 +609,19 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
                     placeholder="Минимум 6 символов"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-100"
+                    className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100"
                     minLength={6}
                   />
                   <button
                     type="button"
                     onClick={() => setPassword(genPassword())}
-                    className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800"
+                    className="shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
                     Сгенерировать
                   </button>
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={close} className="flex-1 rounded-lg border border-slate-700 py-2 text-sm text-slate-300">Отмена</button>
+                  <button onClick={close} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">Отмена</button>
                   <button
                     disabled={pending || password.length < 6}
                     onClick={() => {
@@ -660,12 +646,12 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
                 <p className="text-sm text-slate-400">
                   Пароль обновлён. Передайте его пользователю — при первом входе система попросит сменить пароль.
                 </p>
-                <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 p-3">
-                  <code className="min-w-0 flex-1 break-all font-mono text-sm text-slate-100">{password}</code>
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3">
+                  <code className="min-w-0 flex-1 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{password}</code>
                   <button
                     type="button"
                     onClick={copy}
-                    className="shrink-0 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+                    className="shrink-0 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
                     {copied ? "Скопировано" : "Копировать"}
                   </button>
@@ -716,7 +702,7 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
       }
       trigger={
         <button
-          className={active ? "text-slate-500 hover:text-slate-300" : "text-emerald-400 hover:text-emerald-200"}
+          className={active ? "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300" : "text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-200"}
           aria-label={active ? "Деактивировать" : "Активировать"}
           title={active ? "Активен — нажмите, чтобы деактивировать" : "Неактивен — нажмите, чтобы активировать"}
         >
@@ -756,7 +742,7 @@ function RoleSelect({
       <select
         value={role}
         onChange={(event) => setRole(event.target.value)}
-        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100"
+        className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
       >
         {roleOptions.map((item) => (
           <option key={item.value} value={item.value}>{item.label}</option>
@@ -779,11 +765,11 @@ function BuildingAccessField({
     <div>
       <label className="mb-1.5 block text-xs font-medium text-slate-500">Здания *</label>
       {buildings.length === 0 ? (
-        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+        <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
           Сначала создайте здание, затем назначьте сотрудника.
         </p>
       ) : (
-        <div className="max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-slate-700 p-2">
+        <div className="max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 p-2">
           {buildings.map((building) => (
             <label key={building.id} className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-slate-800/50">
               <input
@@ -793,7 +779,7 @@ function BuildingAccessField({
                 defaultChecked={selected.size > 0 ? selected.has(building.id) : buildings.length === 1}
                 className="rounded border-slate-600"
               />
-              <span className="text-slate-300">{building.name}</span>
+              <span className="text-slate-700 dark:text-slate-300">{building.name}</span>
             </label>
           ))}
         </div>
@@ -822,7 +808,7 @@ function Field({
   required?: boolean
   minLength?: number
 }) {
-  const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500"
+  const inputCls = FIELD_CLS
   return (
     <div>
       <label className="mb-1.5 block text-xs font-medium text-slate-500">{label}</label>
@@ -867,12 +853,12 @@ function PasswordWithGenerate({ label, name }: { label: string; name: string }) 
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder="Минимум 6 символов"
-          className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 font-mono text-sm text-slate-100 outline-none focus:border-blue-500"
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
         />
         <button
           type="button"
           onClick={() => setValue(genPassword())}
-          className="shrink-0 rounded-lg border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-800"
+          className="shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           Сгенерировать
         </button>
@@ -898,19 +884,17 @@ function ModeButton({
   children: React.ReactNode
 }) {
   const activeClass = tone === "allow"
-    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-100"
+    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-700 dark:text-emerald-100"
     : tone === "deny"
-      ? "border-red-500/50 bg-red-500/15 text-red-100"
-      : "border-blue-500/50 bg-blue-500/15 text-blue-100"
+      ? "border-red-500/50 bg-red-500/15 text-red-700 dark:text-red-100"
+      : "border-blue-500/50 bg-blue-500/15 text-blue-700 dark:text-blue-100"
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg border px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
-        active ? activeClass : "border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200"
-      }`}
+      className={`rounded-lg border px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50 ${ active ? activeClass : "border-slate-200 dark:border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-900 dark:hover:text-slate-200" }`}
     >
       {children}
     </button>
@@ -931,16 +915,14 @@ function Modal({
   wide?: boolean
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-slate-900 shadow-2xl ${wide ? "max-w-3xl" : narrow ? "max-w-sm" : "max-w-md"}`}>
-        <div className="sticky top-0 flex items-center justify-between border-b border-slate-800 bg-slate-900 px-6 py-4">
-          <h2 className="text-base font-semibold text-slate-100">{title}</h2>
+    <ModalShell open onClose={onClose} title={title} className={`w-full rounded-2xl bg-white shadow-2xl dark:bg-slate-900 ${wide ? "max-w-3xl" : narrow ? "max-w-sm" : "max-w-md"}`}>
+        <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <button onClick={onClose} aria-label="Закрыть">
             <X className="h-5 w-5 text-slate-500" />
           </button>
         </div>
         {children}
-      </div>
-    </div>
+    </ModalShell>
   )
 }

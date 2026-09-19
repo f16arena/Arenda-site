@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -39,9 +40,7 @@ export function RecurringExpenseDialog({
         Постоянный расход
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Постоянный расход</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" title="Закрыть">
@@ -136,9 +135,7 @@ export function RecurringExpenseDialog({
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

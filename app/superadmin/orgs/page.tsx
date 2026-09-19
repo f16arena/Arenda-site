@@ -232,7 +232,7 @@ export default async function OrgsListPage({
 
       {items.length === 0 ? (
         <Card className="block rounded-2xl p-12 text-center">
-          <Building2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
+          <Building2 className="h-12 w-12 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
           <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Пока нет организаций</p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Создайте первую через кнопку выше</p>
         </Card>

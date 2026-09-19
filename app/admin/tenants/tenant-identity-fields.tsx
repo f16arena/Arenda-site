@@ -204,7 +204,7 @@ export function TenantIdentityFields({
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          {taxIdLabel} <span className="text-slate-300 dark:text-slate-600">12 цифр</span>
+          {taxIdLabel} <span className="text-slate-300 dark:text-slate-500">12 цифр</span>
         </label>
         <Input
           name={usesBin ? "bin" : "iin"}

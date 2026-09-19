@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useEffect, useState, useTransition } from "react"
 import { Plus, X, Edit2 } from "lucide-react"
@@ -69,9 +70,7 @@ export function AddSpaceDialog({
         {allZones ? "Добавить объект" : "Добавить помещение"}
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">{isZone ? "Новый объект" : "Новое помещение"}</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -238,9 +237,7 @@ export function AddSpaceDialog({
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }
@@ -308,9 +305,7 @@ export function EditSpaceDialog({
         Изменить
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Редактировать помещение</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -429,9 +424,7 @@ export function EditSpaceDialog({
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

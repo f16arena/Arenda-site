@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { Plus, X, Edit2, UserX, UserCheck, Banknote, CheckCircle, RefreshCw, Copy } from "lucide-react"
@@ -42,9 +43,7 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
         Добавить сотрудника
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Новый сотрудник</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400">
@@ -136,9 +135,7 @@ export function CreateStaffDialog({ buildings }: { buildings: BuildingOption[] }
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }
@@ -165,9 +162,7 @@ export function EditStaffDialog({ user, buildings }: { user: StaffUser; building
         Изменить
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Редактировать сотрудника</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400">
@@ -239,9 +234,7 @@ export function EditStaffDialog({ user, buildings }: { user: StaffUser; building
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

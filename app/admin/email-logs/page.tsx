@@ -117,7 +117,7 @@ export default async function EmailLogsPage({
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
         {logs.length === 0 ? (
           <div className="px-5 py-16 text-center">
-            <Mail className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+            <Mail className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
             <p className="text-sm text-slate-500 dark:text-slate-400">Пока нет отправок</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Отправленные письма (счета, акты, уведомления) будут логироваться здесь

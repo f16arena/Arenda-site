@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft } from "lucide-react"
@@ -79,6 +80,7 @@ export function LegalShell({
 }) {
   return (
     <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
+      <ForceLight />
       {/* Header — те же визуалы, что на лендинге, чтобы пользователь
           понимал, что находится на том же сайте, а не на стороннем. */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">

@@ -556,7 +556,7 @@ export function IndoorMapApp({
                       ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
                       : has
                         ? "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-                        : "text-slate-300 hover:bg-slate-50 dark:text-slate-600 dark:hover:bg-slate-800/60"
+                        : "text-slate-300 hover:bg-slate-50 dark:text-slate-500 dark:hover:bg-slate-800/60"
                   }`}
                 >
                   {floor.number}

@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { Plus, X, DollarSign, TrendingDown, FileText } from "lucide-react"
@@ -35,9 +36,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
         Внести оплату
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Зафиксировать платёж</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть окно оплаты" title="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -111,9 +110,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }
@@ -150,9 +147,7 @@ export function ExpenseDialog({
         {triggerLabel}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Новый расход</h2>
               <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть окно расхода" title="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -223,9 +218,7 @@ export function ExpenseDialog({
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

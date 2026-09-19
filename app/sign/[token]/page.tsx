@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 export const dynamic = "force-dynamic"
 
 import { notFound } from "next/navigation"
@@ -38,6 +39,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   if (wrongTenant) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+        <ForceLight />
         <div className="max-w-md w-full bg-white rounded-2xl border border-slate-200 p-8 text-center">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-3">
             <Lock className="h-6 w-6" />
@@ -122,6 +124,7 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
 
   return (
     <div className="min-h-screen bg-slate-50 py-8">
+        <ForceLight />
       <div className="max-w-3xl mx-auto px-4">
         {/* Header */}
         <header className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">

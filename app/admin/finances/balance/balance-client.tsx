@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
@@ -163,7 +164,7 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
 
         {accounts.length === 0 && (
           <Card className="md:col-span-2 block p-10 text-center">
-            <Wallet className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+            <Wallet className="h-10 w-10 text-slate-300 dark:text-slate-500 mx-auto mb-3" />
             <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет счетов</p>
             <Button onClick={() => setDialog({ kind: "create" })} className="mt-3">
               <Plus className="h-4 w-4" />
@@ -287,11 +288,7 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
 
 function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
-      <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <ModalShell open onClose={onClose} title={title} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md border border-slate-200 dark:border-slate-800">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
           <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
@@ -299,8 +296,7 @@ function Dialog({ title, onClose, children }: { title: string; onClose: () => vo
           </button>
         </div>
         <div className="p-6">{children}</div>
-      </div>
-    </div>
+    </ModalShell>
   )
 }
 

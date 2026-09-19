@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
@@ -52,9 +53,7 @@ export function ResetOwnerPasswordButton({ userId, ownerName }: { userId: string
         Сбросить пароль
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="w-full max-w-sm rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
             <div className="flex items-start justify-between gap-4 p-6 pb-4">
               <div>
                 <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -113,9 +112,7 @@ export function ResetOwnerPasswordButton({ userId, ownerName }: { userId: string
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

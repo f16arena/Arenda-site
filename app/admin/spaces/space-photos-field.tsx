@@ -94,7 +94,7 @@ export function SpacePhotosField({
     <div>
       <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
         <Camera className="h-3.5 w-3.5" />
-        Фото помещения <span className="text-slate-300 dark:text-slate-600">для витрины и карточки</span>
+        Фото помещения <span className="text-slate-300 dark:text-slate-500">для витрины и карточки</span>
       </label>
       <div className="grid grid-cols-4 gap-2">
         {photos.map((p, i) => (

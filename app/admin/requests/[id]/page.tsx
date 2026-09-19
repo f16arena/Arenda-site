@@ -133,7 +133,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
               {request.comments.map((c) => (
                 <div key={c.id} className="px-5 py-4">
                   <div className="flex items-center gap-2 mb-1.5">
-                    <div className="h-6 w-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0">
+                    <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
                       <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">{c.author.name[0]?.toUpperCase()}</span>
                     </div>
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{c.author.name}</span>

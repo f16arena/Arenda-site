@@ -271,7 +271,7 @@ export default async function UsersPage() {
           <>
             <Link
               href="/admin/audit?type=permissions"
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <History className="h-4 w-4" />
               Журнал прав
@@ -285,8 +285,8 @@ export default async function UsersPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         {roleOptions.slice(0, 10).map((role) => (
-          <div key={role.value} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-            <p className="text-2xl font-bold text-slate-100">{byRole[role.value] ?? 0}</p>
+          <div key={role.value} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{byRole[role.value] ?? 0}</p>
             <p className="mt-0.5 truncate text-xs text-slate-500">{role.label}</p>
           </div>
         ))}
@@ -294,18 +294,18 @@ export default async function UsersPage() {
 
       {pendingUsers.length > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-          <p className="text-sm font-semibold text-amber-100">Пользователи ожидают подтверждения</p>
+          <p className="text-sm font-semibold text-amber-700 dark:text-amber-100">Пользователи ожидают подтверждения</p>
           <p className="mt-1 text-xs text-amber-200/75">
             Подтвердите только тех администраторов и арендаторов, которых вы реально подключали к организации.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {pendingUsers.slice(0, 6).map((user) => (
-              <span key={user.id} className="rounded-full border border-amber-500/30 bg-slate-950/40 px-3 py-1 text-xs text-amber-100">
+              <span key={user.id} className="rounded-full border border-amber-500/30 bg-slate-50 dark:bg-slate-950/40 px-3 py-1 text-xs text-amber-700 dark:text-amber-100">
                 {user.name} · {displayRoleLabel(user.role)}
               </span>
             ))}
             {pendingUsers.length > 6 && (
-              <span className="rounded-full border border-amber-500/30 px-3 py-1 text-xs text-amber-100">
+              <span className="rounded-full border border-amber-500/30 px-3 py-1 text-xs text-amber-700 dark:text-amber-100">
                 +{pendingUsers.length - 6}
               </span>
             )}
@@ -313,11 +313,11 @@ export default async function UsersPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-200 dark:border-slate-800 p-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-              <Shield className="h-4 w-4 text-blue-300" />
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <Shield className="h-4 w-4 text-blue-700 dark:text-blue-300" />
               Ревизия доступов
             </p>
             <p className="mt-1 text-xs text-slate-500">
@@ -326,7 +326,7 @@ export default async function UsersPage() {
           </div>
           <Link
             href="/admin/data-quality"
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-700 px-3 text-xs font-medium text-slate-300 transition-colors hover:border-slate-600 hover:text-slate-100"
+            className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors hover:border-slate-600 hover:text-slate-100"
           >
             Открыть качество данных
           </Link>
@@ -340,22 +340,22 @@ export default async function UsersPage() {
         </div>
 
         {accessReviewItems.length > 0 ? (
-          <div className="border-t border-slate-800 p-4">
-            <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-300">
+          <div className="border-t border-slate-200 dark:border-slate-800 p-4">
+            <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
               <AlertTriangle className="h-4 w-4" />
               Проверить в первую очередь
             </p>
             <div className="grid gap-2 lg:grid-cols-2">
               {accessReviewItems.slice(0, 6).map((item) => (
-                <div key={item.userId} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
+                <div key={item.userId} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-medium text-slate-100">{item.name}</p>
+                      <p className="font-medium text-slate-900 dark:text-slate-100">{item.name}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{item.roleLabel}</p>
                     </div>
                     <span className={cn(
                       "rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                      ROLE_COLORS[item.role] ?? "bg-indigo-500/10 text-indigo-300",
+                      ROLE_COLORS[item.role] ?? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
                     )}>
                       {item.roleLabel}
                     </span>
@@ -370,11 +370,11 @@ export default async function UsersPage() {
             </div>
           </div>
         ) : (
-          <div className="border-t border-slate-800 p-4">
+          <div className="border-t border-slate-200 dark:border-slate-800 p-4">
             <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
-              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
+              <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700 dark:text-emerald-300" />
               <div>
-                <p className="text-sm font-medium text-emerald-100">Критичных отклонений по доступам не найдено</p>
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-100">Критичных отклонений по доступам не найдено</p>
                 <p className="mt-1 text-xs text-emerald-200/70">
                   Все активные сотрудники привязаны к зданиям, а личные исключения и рискованные права не требуют внимания.
                 </p>
@@ -384,10 +384,10 @@ export default async function UsersPage() {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-800/50">
+            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50">
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Пользователь</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Должность</th>
               <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Контакты</th>
@@ -407,21 +407,21 @@ export default async function UsersPage() {
                 <UserRow key={user.id} initialActive={user.isActive}>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800">
-                        <span className="text-xs font-bold text-slate-300">{user.name[0]?.toUpperCase()}</span>
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{user.name[0]?.toUpperCase()}</span>
                       </div>
                       <div>
-                        <p className="flex items-center gap-2 font-medium text-slate-100">
+                        <p className="flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
                           {user.name}
                           {isSelf && (
-                            <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-purple-300">вы</span>
+                            <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:text-purple-300">вы</span>
                           )}
                           <RowInactiveBadge />
                           {user.approvalStatus === APPROVAL_PENDING && (
-                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-200">на подтверждении</span>
+                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-200">на подтверждении</span>
                           )}
                           {user.approvalStatus === APPROVAL_REJECTED && (
-                            <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-red-200">
+                            <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-200">
                               {approvalLabel(user.approvalStatus)}
                             </span>
                           )}
@@ -433,7 +433,7 @@ export default async function UsersPage() {
                   <td className="px-5 py-3.5">
                     <span className={cn(
                       "rounded-full px-2 py-0.5 text-xs font-medium",
-                      ROLE_COLORS[user.role] ?? "bg-indigo-500/10 text-indigo-300",
+                      ROLE_COLORS[user.role] ?? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
                     )}>
                       {displayRoleLabel(user.role)}
                     </span>
@@ -635,21 +635,21 @@ function EffectiveRightsCell({ summary }: { summary: EffectiveRightsSummary }) {
   const personalCount = summary.personalAllow + summary.personalDeny
   return (
     <div className="flex max-w-52 flex-wrap gap-1.5">
-      <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-200">
+      <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-200">
         {summary.allowed} действий
       </span>
       {summary.highRisk > 0 && (
-        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-200">
+        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-200">
           риск {summary.highRisk}
         </span>
       )}
       {personalCount > 0 && (
-        <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-200">
+        <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-700 dark:text-purple-200">
           личные {personalCount}
         </span>
       )}
       {summary.locked > 0 && (
-        <span className="rounded-full border border-slate-700 bg-slate-800/70 px-2 py-0.5 text-[11px] font-medium text-slate-400">
+        <span className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-800/70 px-2 py-0.5 text-[11px] font-medium text-slate-400">
           тариф {summary.locked}
         </span>
       )}
@@ -667,11 +667,11 @@ function AccessReviewMetric({
   tone: "amber" | "emerald" | "purple" | "red" | "slate"
 }) {
   const tones = {
-    amber: "border-amber-500/25 bg-amber-500/10 text-amber-200",
-    emerald: "border-emerald-500/25 bg-emerald-500/10 text-emerald-200",
-    purple: "border-purple-500/25 bg-purple-500/10 text-purple-200",
-    red: "border-red-500/25 bg-red-500/10 text-red-200",
-    slate: "border-slate-800 bg-slate-950/50 text-slate-300",
+    amber: "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+    emerald: "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200",
+    purple: "border-purple-500/25 bg-purple-500/10 text-purple-700 dark:text-purple-200",
+    red: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-200",
+    slate: "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 text-slate-700 dark:text-slate-300",
   }
 
   return (
@@ -684,9 +684,9 @@ function AccessReviewMetric({
 
 function AccessReasonPill({ reason }: { reason: AccessReviewItem["reasons"][number] }) {
   const tones = {
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-    purple: "border-purple-500/30 bg-purple-500/10 text-purple-200",
-    red: "border-red-500/30 bg-red-500/10 text-red-200",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+    purple: "border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-200",
+    red: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200",
   }
 
   return (

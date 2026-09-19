@@ -47,7 +47,7 @@ export default async function CabinetMetersPage() {
   if (!tenant || assignedSpaces.length === 0) {
     return (
       <div className="text-center py-16">
-        <Gauge className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+        <Gauge className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
         <p className="text-slate-400 dark:text-slate-500">У вас нет привязанного помещения</p>
       </div>
     )
@@ -68,7 +68,7 @@ export default async function CabinetMetersPage() {
 
       {meters.length === 0 && (
         <Card className="block py-16 text-center">
-          <Gauge className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+          <Gauge className="h-8 w-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
           <p className="text-sm text-slate-400 dark:text-slate-500">Счётчики не установлены</p>
         </Card>
       )}

@@ -221,7 +221,7 @@ export function NotificationPanel({
             </div>
           ) : visibleItems.length === 0 ? (
             <div className="py-12 text-center">
-              <Bell className="mx-auto mb-2 h-8 w-8 text-slate-200" />
+              <Bell className="mx-auto mb-2 h-8 w-8 text-slate-200 dark:text-slate-700" />
               <p className="text-sm text-slate-400 dark:text-slate-500">
                 {items.length === 0 ? "Нет уведомлений" : showRead ? "В этой категории пусто" : "Нет новых уведомлений"}
               </p>

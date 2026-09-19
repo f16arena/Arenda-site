@@ -75,7 +75,7 @@ export default async function EmergencyPage() {
         ))}
         {contacts.length === 0 && (
           <Card className="col-span-full block py-16 text-center">
-            <Phone className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+            <Phone className="h-8 w-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
             <p className="text-sm text-slate-400 dark:text-slate-500">Контакты не добавлены</p>
           </Card>
         )}

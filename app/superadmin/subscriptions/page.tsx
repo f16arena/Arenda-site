@@ -204,7 +204,7 @@ async function renderSubscriptionsTimelinePage({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-100">
+          <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
             <CalendarIcon className="h-6 w-6 text-slate-500" />
             Подписки и выручка
           </h1>
@@ -214,7 +214,7 @@ async function renderSubscriptionsTimelinePage({
         </div>
         <Link
           href="/superadmin/plans"
-          className="inline-flex items-center justify-center rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 hover:bg-slate-800"
+          className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           Конструктор тарифов
         </Link>
@@ -237,7 +237,7 @@ async function renderSubscriptionsTimelinePage({
             <StatCard label="В порядке" value={String(okCount)} icon={CheckCircle} tone="emerald" />
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
             <form className="flex flex-col gap-3 sm:flex-row" action="/superadmin/subscriptions">
               {filter !== "all" && <input type="hidden" name="status" value={filter} />}
               <label className="relative flex-1">
@@ -246,7 +246,7 @@ async function renderSubscriptionsTimelinePage({
                   name="q"
                   defaultValue={query}
                   placeholder="Поиск по организации или slug..."
-                  className="border-slate-700 bg-slate-950 pl-9 text-slate-100 placeholder:text-slate-600"
+                  className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 pl-9 text-slate-900 dark:text-slate-100 placeholder:text-slate-600"
                 />
               </label>
               <Button>
@@ -261,12 +261,12 @@ async function renderSubscriptionsTimelinePage({
                   className={cn(
                     "inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition",
                     filter === item.value
-                      ? "border-blue-500 bg-blue-500/10 text-blue-200"
-                      : "border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200",
+                      ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-200"
+                      : "border-slate-200 dark:border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-900 dark:hover:text-slate-200",
                   )}
                 >
                   {item.label}
-                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                  <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] text-slate-700 dark:text-slate-300">
                     {filterCounts[item.value]}
                   </span>
                 </Link>
@@ -275,23 +275,23 @@ async function renderSubscriptionsTimelinePage({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900">
-          <div className="border-b border-slate-800 px-5 py-3">
-            <h2 className="text-sm font-semibold text-slate-100">Тарифы по выручке</h2>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-3">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Тарифы по выручке</h2>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {planRows.length === 0 ? (
               <p className="px-5 py-4 text-sm text-slate-500">Активных организаций пока нет.</p>
             ) : (
               planRows.map((plan) => (
                 <div key={plan.key} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div>
-                    <p className="text-sm font-medium text-slate-100">{plan.name}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{plan.name}</p>
                     <p className="text-xs text-slate-500">
                       {plan.clients} клиентов · {plan.priceMonthly.toLocaleString("ru-RU")} ₸/мес за клиента
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-emerald-300">{plan.mrr.toLocaleString("ru-RU")} ₸</p>
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{plan.mrr.toLocaleString("ru-RU")} ₸</p>
                 </div>
               ))
             )}
@@ -299,7 +299,7 @@ async function renderSubscriptionsTimelinePage({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
+      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <Group
           title={filterTitle(filter)}
           orgs={orgs}
@@ -335,7 +335,7 @@ const ACCENT_STYLES: Record<Accent, { dot: string; titleText: string }> = {
   amber: { dot: "bg-amber-500", titleText: "text-amber-400" },
   blue: { dot: "bg-blue-500", titleText: "text-blue-400" },
   emerald: { dot: "bg-emerald-500", titleText: "text-emerald-400" },
-  slate: { dot: "bg-slate-400", titleText: "text-slate-300" },
+  slate: { dot: "bg-slate-400", titleText: "text-slate-700 dark:text-slate-300" },
 }
 
 function Group({
@@ -368,7 +368,7 @@ function Group({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-3 border-b border-slate-800 px-5 py-3">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 px-5 py-3">
         <div className="flex items-center gap-2">
           <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />
           <h2 className={`text-sm font-semibold ${style.titleText}`}>
@@ -376,12 +376,12 @@ function Group({
             <span className="ml-2 font-normal text-slate-500">· {orgs.length} на странице</span>
           </h2>
         </div>
-        <span className="text-sm font-semibold text-emerald-300">{pageMrr.toLocaleString("ru-RU")} ₸ MRR на странице</span>
+        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{pageMrr.toLocaleString("ru-RU")} ₸ MRR на странице</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-800/50">
+            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50">
               <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Организация</th>
               <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
               <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Истекает</th>
@@ -399,7 +399,7 @@ function Group({
               return (
                 <tr key={org.id} className="border-b border-slate-800/70 transition last:border-b-0 hover:bg-slate-800/50">
                   <td className="px-5 py-2.5">
-                    <Link href={`/superadmin/orgs/${org.id}`} className="font-medium text-slate-100 hover:text-purple-300">
+                    <Link href={`/superadmin/orgs/${org.id}`} className="font-medium text-slate-900 dark:text-slate-100 hover:text-purple-700 dark:hover:text-purple-300">
                       {org.name}
                     </Link>
                     <div>
@@ -407,7 +407,7 @@ function Group({
                         href={`https://${org.slug}.${ROOT_HOST}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-0.5 font-mono text-[10px] text-slate-500 hover:text-blue-300"
+                        className="inline-flex items-center gap-0.5 font-mono text-[10px] text-slate-500 hover:text-blue-700 dark:hover:text-blue-300"
                       >
                         {org.slug}.{ROOT_HOST} <ExternalLink className="h-2.5 w-2.5" />
                       </a>
@@ -417,7 +417,7 @@ function Group({
                   <td className="px-5 py-2.5">
                     {org.planExpiresAt ? (
                       <div>
-                        <p className="text-slate-300">{org.planExpiresAt.toLocaleDateString("ru-RU")}</p>
+                        <p className="text-slate-700 dark:text-slate-300">{org.planExpiresAt.toLocaleDateString("ru-RU")}</p>
                         {days !== null && (
                           <p className={cn(
                             "text-[11px]",
@@ -435,7 +435,7 @@ function Group({
                       "-"
                     )}
                   </td>
-                  <td className="px-5 py-2.5 text-right font-medium text-emerald-300">
+                  <td className="px-5 py-2.5 text-right font-medium text-emerald-700 dark:text-emerald-300">
                     {org.plan ? `${org.plan.priceMonthly.toLocaleString("ru-RU")} ₸` : "-"}
                   </td>
                   <td className="px-5 py-2.5 text-right text-slate-400">{org._count.buildings}</td>
@@ -467,20 +467,20 @@ function StatCard({
   urgent?: boolean
 }) {
   const tones = {
-    red: "border-red-500/30 bg-red-500/10 text-red-300",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-    blue: "border-blue-500/30 bg-blue-500/10 text-blue-300",
-    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    slate: "border-slate-800 bg-slate-900 text-slate-300",
+    red: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    blue: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    slate: "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300",
   }
 
   return (
-    <div className={`rounded-xl border p-4 ${urgent ? tones[tone] : "border-slate-800 bg-slate-900"}`}>
+    <div className={`rounded-xl border p-4 ${urgent ? tones[tone] : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"}`}>
       <div className="mb-1 flex items-start justify-between">
         <span className="text-xs font-medium text-slate-500">{label}</span>
         <Icon className={`h-4 w-4 ${urgent ? "" : "text-slate-500"}`} />
       </div>
-      <p className="text-2xl font-bold text-slate-100">{value}</p>
+      <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{value}</p>
     </div>
   )
 }

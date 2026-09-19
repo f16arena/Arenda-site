@@ -26,11 +26,11 @@ import { RouteTabs } from "@/components/ui/route-tabs"
 import { TEAM_TABS } from "@/lib/hub-tabs"
 
 const ROLE_COLORS: Record<string, string> = {
-  OWNER: "bg-purple-500/10 text-purple-300 border-purple-500/30",
-  ADMIN: "bg-blue-500/10 text-blue-300 border-blue-500/30",
-  ACCOUNTANT: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
-  FACILITY_MANAGER: "bg-amber-500/10 text-amber-300 border-amber-500/30",
-  EMPLOYEE: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+  OWNER: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
+  ADMIN: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30",
+  ACCOUNTANT: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30",
+  FACILITY_MANAGER: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30",
+  EMPLOYEE: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30",
 }
 
 export default async function RolesPage() {
@@ -153,13 +153,13 @@ export default async function RolesPage() {
           <>
             <Link
               href="/admin/audit?type=permissions"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-4 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-800"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <History className="h-4 w-4" />
               Журнал прав
             </Link>
-            <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-300">
-              <p className="font-medium text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
+              <p className="font-medium text-slate-900 dark:text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
               <p className="mt-1 text-xs text-slate-500">
                 Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
               </p>
@@ -189,7 +189,7 @@ export default async function RolesPage() {
         roles={roles.map((role) => ({
           key: role.value,
           label: role.label || displayRoleLabel(role.value),
-          color: ROLE_COLORS[role.value] ?? "bg-indigo-500/10 text-indigo-300 border-indigo-500/30",
+          color: ROLE_COLORS[role.value] ?? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
           system: role.system,
           userCount: userCounts[role.value] ?? 0,
         }))}
@@ -218,9 +218,9 @@ function Notice({
   icon?: React.ElementType
 }) {
   const styles = tone === "amber"
-    ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-    : "border-blue-500/30 bg-blue-500/10 text-blue-200"
-  const iconColor = tone === "amber" ? "text-amber-300" : "text-blue-300"
+    ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+    : "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-200"
+  const iconColor = tone === "amber" ? "text-amber-700 dark:text-amber-300" : "text-blue-700 dark:text-blue-300"
 
   return (
     <div className={`rounded-xl border p-4 ${styles}`}>

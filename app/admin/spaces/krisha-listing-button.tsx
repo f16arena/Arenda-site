@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { Megaphone, Copy, ExternalLink, X, Download, Check } from "lucide-react"
@@ -84,9 +85,8 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
         {pending && !open ? "…" : "Krisha"}
       </button>
 
-      {open && data && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+      {data && (
+      <ModalShell open={open} onClose={() => setOpen(false)} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
               <h2 className="text-base font-semibold">Объявление для Krisha</h2>
               <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -204,8 +204,7 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
+          </ModalShell>
       )}
     </>
   )

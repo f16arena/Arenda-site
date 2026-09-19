@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import type { ReactNode } from "react"
 import Link from "next/link"
 
@@ -6,6 +7,7 @@ import Link from "next/link"
 export default function BlogLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-white text-slate-900">
+      <ForceLight />
       <header className="border-b border-slate-200">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-4">
           <Link href="/" className="flex items-center gap-2">

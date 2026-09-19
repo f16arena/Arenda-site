@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
@@ -22,6 +23,7 @@ export default async function ChangePasswordPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <ForceLight />
       <ChangePasswordForm
         forced={user.mustChangePassword}
         userLogin={user.email ?? user.phone ?? user.name}

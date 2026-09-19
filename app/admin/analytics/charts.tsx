@@ -70,7 +70,7 @@ export function Waterfall({
                   y1={y(c.end)}
                   y2={y(c.end)}
                   stroke="currentColor"
-                  className="text-slate-300 dark:text-slate-600"
+                  className="text-slate-300 dark:text-slate-500"
                   strokeWidth={1}
                   strokeDasharray="3 3"
                 />

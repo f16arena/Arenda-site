@@ -295,7 +295,7 @@ export default async function BuildingsPage() {
 
       {buildings.length === 0 && (
         <Card className="block py-16 text-center">
-          <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+          <Building2 className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
           <p className="text-sm text-slate-500 dark:text-slate-400">Нет зданий</p>
           {canCreateBuildings && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
         </Card>

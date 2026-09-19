@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import Link from "next/link"
 import { Building, AlertCircle } from "lucide-react"
 import { db } from "@/lib/db"
@@ -28,6 +29,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <ForceLight />
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5">

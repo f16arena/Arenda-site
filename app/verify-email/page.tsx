@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import Link from "next/link"
 import { Building, CheckCircle2, AlertCircle } from "lucide-react"
 import { confirmEmailChange } from "@/app/actions/my-account"
@@ -38,6 +39,7 @@ export default async function VerifyEmailPage({ searchParams }: { searchParams: 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <ForceLight />
       <div className="w-full max-w-md">
         <div className="text-center mb-6">
           <Link href="/" className="inline-flex items-center gap-2.5">

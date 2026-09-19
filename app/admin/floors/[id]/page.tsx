@@ -271,9 +271,9 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                       {tenant ? (
                         <Link href={`/admin/tenants/${tenant.id}`} className="hover:underline">{tenant.companyName}</Link>
                       ) : sp.kind === "COMMON" ? (
-                        <span className="text-slate-400 dark:text-slate-600 text-[11px]">не сдаётся</span>
+                        <span className="text-slate-400 dark:text-slate-500 text-[11px]">не сдаётся</span>
                       ) : fullFloorTenant ? (
-                        <span className="text-slate-400 dark:text-slate-600 text-[11px]">этаж сдан</span>
+                        <span className="text-slate-400 dark:text-slate-500 text-[11px]">этаж сдан</span>
                       ) : caps.has("spaces.assignTenant") ? (
                         <AssignTenantButton
                           spaceId={sp.id}
@@ -281,14 +281,14 @@ export default async function FloorSettingsPage({ params }: { params: Promise<{ 
                           candidates={candidates}
                         />
                       ) : (
-                        <span className="text-slate-300 dark:text-slate-600">—</span>
+                        <span className="text-slate-300 dark:text-slate-500">—</span>
                       )}
                     </td>
                     <td className="px-5 py-2.5 text-right tabular-nums">
                       {debt > 0 ? (
                         <span className="text-red-600 dark:text-red-400 font-medium">{formatMoney(debt)}</span>
                       ) : (
-                        <span className="text-slate-300 dark:text-slate-600">—</span>
+                        <span className="text-slate-300 dark:text-slate-500">—</span>
                       )}
                     </td>
                   </tr>

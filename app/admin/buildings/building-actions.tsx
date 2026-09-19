@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { FIELD_CLS } from "@/lib/ui-fields"
 import { useState, useTransition } from "react"
@@ -40,9 +41,7 @@ export function CreateBuildingButton() {
         Добавить здание
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
               <h2 className="text-base font-semibold flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
@@ -97,9 +96,7 @@ export function CreateBuildingButton() {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }
@@ -205,9 +202,7 @@ export function BuildingActions({
         />
       )}
 
-      {editOpen && canEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg">
+      <ModalShell open={editOpen && canEdit} onClose={() => setEditOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Редактировать здание</h2>
               <button onClick={() => setEditOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -282,9 +277,7 @@ export function BuildingActions({
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </div>
   )
 }
@@ -349,7 +342,7 @@ export function FloorsList({
                     </p>
                     {!isZoneFloor(f.kind) && f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
                   </div>
-                  <ArrowRight className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
+                  <ArrowRight className="h-4 w-4 text-slate-300 dark:text-slate-500 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all shrink-0 mt-0.5" />
                 </div>
               </Link>
               {canDelete && (
@@ -370,9 +363,7 @@ export function FloorsList({
         </div>
       )}
 
-      {open && canCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open && canCreate} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">
                 {newKind === "ROOF" ? "Новая крыша" : newKind === "TERRITORY" ? "Новая территория" : "Новый этаж"}
@@ -440,9 +431,7 @@ export function FloorsList({
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </div>
   )
 }

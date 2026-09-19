@@ -42,19 +42,19 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
   return (
     <div className="space-y-4">
       {active.length > 0 && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900">
-          <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-slate-100">История разовых услуг</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">История разовых услуг</h2>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {active.map((s) => {
               const status = STATUS_LABEL[s.status] ?? STATUS_LABEL.PENDING
               const Icon = status.icon
               return (
                 <div key={s.id} className="px-5 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-100 truncate">{s.serviceName}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{s.serviceName}</p>
                     <p className="text-xs text-slate-500">
                       {s.price.toLocaleString("ru-RU")} ₸ ·
                       <span className={`ml-1 inline-flex items-center gap-1 ${status.cls}`}>
@@ -72,22 +72,22 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
           <Briefcase className="h-4 w-4 text-purple-400" />
-          <h2 className="text-sm font-semibold text-slate-100">Разовые услуги под ваш тариф</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разовые услуги под ваш тариф</h2>
         </div>
         {catalog.length === 0 ? (
           <p className="px-5 py-6 text-sm text-slate-500">Для текущего тарифа нет доступных разовых услуг.</p>
         ) : (
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             {catalog.map((item) => (
-              <div key={item.code} className="rounded-lg border border-slate-800 bg-slate-950/40 p-4 flex flex-col">
-                <p className="text-sm font-semibold text-slate-100">{item.label}</p>
+              <div key={item.code} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4 flex flex-col">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.label}</p>
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed flex-1">{item.description}</p>
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-bold text-slate-100">
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
                       {item.price.toLocaleString("ru-RU")} <span className="text-xs font-normal text-slate-500">₸</span>
                     </p>
                     {item.recurringMonthly ? (

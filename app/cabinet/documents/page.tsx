@@ -174,7 +174,7 @@ export default async function CabinetDocuments() {
         </div>
         {tenant.contracts.length === 0 ? (
           <div className="py-12 text-center">
-            <FileText className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+            <FileText className="h-8 w-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
             <p className="text-sm text-slate-400 dark:text-slate-500">Нет документов</p>
           </div>
         ) : (
@@ -226,7 +226,7 @@ export default async function CabinetDocuments() {
         </div>
         {tenant.documents.length === 0 ? (
           <div className="py-12 text-center">
-            <Upload className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+            <Upload className="h-8 w-8 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
             <p className="text-sm text-slate-400 dark:text-slate-500">Документы не загружены</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Загрузите ИИН, устав, свидетельство ИП и другие документы

@@ -120,7 +120,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                 selectedId === c.id && "bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-50 dark:hover:bg-blue-500/10"
               )}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 shrink-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700 shrink-0">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{c.name[0]?.toUpperCase()}</span>
               </div>
               <div className="flex-1 min-w-0">
@@ -164,7 +164,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                 </>
               ) : selectedContact ? (
                 <>
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
                     <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{selectedContact.name[0]?.toUpperCase()}</span>
                   </div>
                   <div>

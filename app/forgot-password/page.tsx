@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import Link from "next/link"
 import { Building } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic"
 export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <ForceLight />
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2.5">

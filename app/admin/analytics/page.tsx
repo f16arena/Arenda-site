@@ -278,7 +278,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                   {aging.map((a) => (
                     <div key={a.label} className="min-w-0">
                       <p className="text-[11px] text-slate-400 dark:text-slate-500">просрочка {a.label}</p>
-                      <p className={`truncate text-sm font-semibold tabular-nums ${a.v > 0 ? a.cls : "text-slate-300 dark:text-slate-600"}`}>{formatMoney(a.v)}</p>
+                      <p className={`truncate text-sm font-semibold tabular-nums ${a.v > 0 ? a.cls : "text-slate-300 dark:text-slate-500"}`}>{formatMoney(a.v)}</p>
                     </div>
                   ))}
                 </div>

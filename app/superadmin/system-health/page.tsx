@@ -239,7 +239,7 @@ function CheckCard({ check }: { check: SystemCheck }) {
         <div className="space-y-2 p-5">
           {check.details.map((detail, index) => (
             <div key={`${check.id}-${index}`} className="flex items-start gap-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
-              <Activity className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-600" />
+              <Activity className="mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
               <span>{detail}</span>
             </div>
           ))}

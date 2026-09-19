@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
@@ -50,6 +51,7 @@ export default async function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8fb] flex items-center justify-center p-4">
+      <ForceLight />
       <LoginForm />
     </div>
   )

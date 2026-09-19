@@ -19,6 +19,10 @@ function applyTheme(theme: Theme) {
 export const themeInitScript = `
 (function() {
   try {
+    var seg = location.pathname.split('/')[1] || '';
+    // Публичные страницы — всегда светлые (components/force-light.tsx).
+    var light = ['login','signup','sign','booking','blog','forgot-password','reset-password','change-password','verify-email','privacy','terms','offer','sla'];
+    if (light.indexOf(seg) !== -1) { document.documentElement.style.colorScheme = 'light'; return; }
     var t = localStorage.getItem('theme') || 'system';
     var dark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     if (dark) document.documentElement.classList.add('dark');

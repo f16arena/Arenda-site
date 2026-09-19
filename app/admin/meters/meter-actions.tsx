@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { Plus, X, Gauge } from "lucide-react"
@@ -24,9 +25,7 @@ export function InlineReadingButton({ meterId, period }: { meterId: string; peri
     <>
       <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">Внести</button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xs">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-xs">
             <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-sm font-semibold">Показание счётчика</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-4 w-4 text-slate-400 dark:text-slate-500" /></button>
@@ -53,9 +52,7 @@ export function InlineReadingButton({ meterId, period }: { meterId: string; peri
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }
@@ -80,9 +77,7 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
         Внести показания
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Внести показания</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -119,9 +114,7 @@ export function MeterReadingDialog({ meters }: { meters: Meter[] }) {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }
@@ -145,9 +138,7 @@ export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
         Добавить счётчик
       </Button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">Новый счётчик</h2>
               <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
@@ -196,9 +187,7 @@ export function AddMeterDialog({ spaces }: { spaces: Space[] }) {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

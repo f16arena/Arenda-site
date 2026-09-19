@@ -106,7 +106,7 @@ export default async function SuperadminAuditPage({
           <tbody>
             {logs.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-12 text-center">
-                <History className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+                <History className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
                 <p className="text-sm text-slate-500 dark:text-slate-400">Нет записей</p>
               </td></tr>
             ) : logs.map((l) => {

@@ -35,18 +35,18 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
   return (
     <div className="space-y-4">
       {active.length > 0 && (
-        <div className="rounded-xl border border-slate-800 bg-slate-900">
-          <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+          <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
             <Package className="h-4 w-4 text-purple-400" />
-            <h2 className="text-sm font-semibold text-slate-100">Ваши аддоны</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ваши аддоны</h2>
           </div>
-          <div className="divide-y divide-slate-800">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {active.map((a) => {
               const item = catalog.find((c) => c.code === a.addonCode)
               return (
                 <div key={a.id} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-100 truncate">{item?.label ?? a.addonCode}{a.quantity > 1 ? ` × ${a.quantity}` : ""}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{item?.label ?? a.addonCode}{a.quantity > 1 ? ` × ${a.quantity}` : ""}</p>
                     <p className="text-xs text-slate-500">
                       {a.priceMonthly.toLocaleString("ru-RU")} ₸/мес ·
                       {a.isActive ? (
@@ -63,21 +63,21 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
         </div>
       )}
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="px-5 py-3.5 border-b border-slate-800 flex items-center gap-2">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
           <Package className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-semibold text-slate-100">Доступные аддоны</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Доступные аддоны</h2>
         </div>
         {catalog.length === 0 ? (
           <p className="px-5 py-6 text-sm text-slate-500">Для текущего тарифа аддонов нет.</p>
         ) : (
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             {catalog.map((item) => (
-              <div key={item.code} className="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
-                <p className="text-sm font-semibold text-slate-100">{item.label}</p>
+              <div key={item.code} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4">
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.label}</p>
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">{item.description}</p>
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-sm font-bold text-slate-100">
+                  <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     {item.priceMonthly.toLocaleString("ru-RU")} <span className="text-xs font-normal text-slate-500">₸/мес</span>
                   </p>
                   <button

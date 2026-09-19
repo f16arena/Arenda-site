@@ -166,7 +166,7 @@ export default async function AuditPage({
       <Card padded={false}>
         {logs.length === 0 ? (
           <div className="py-16 text-center">
-            <History className="mx-auto mb-3 h-10 w-10 text-slate-200" />
+            <History className="mx-auto mb-3 h-10 w-10 text-slate-200 dark:text-slate-700" />
             <p className="text-sm text-slate-500 dark:text-slate-400">Записей не найдено</p>
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
               Выберите другой фильтр или проверьте, что действия логируются через audit helper.

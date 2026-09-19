@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
@@ -77,6 +78,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <ForceLight />
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10 backdrop-blur bg-white/95">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -103,7 +105,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {allVacantSpaces.length === 0 ? (
           <Card className="block p-12 text-center">
-            <Building2 className="h-12 w-12 text-slate-200 mx-auto mb-3" />
+            <Building2 className="h-12 w-12 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
             <h2 className="text-lg font-semibold text-slate-900 mb-1">Свободных помещений нет</h2>
             <p className="text-sm text-slate-500 mb-4">
               Сейчас все помещения заняты. Оставьте заявку — мы свяжемся когда что-то освободится.

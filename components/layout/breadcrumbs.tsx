@@ -24,7 +24,7 @@ export function Breadcrumbs({ items, className }: { items: Crumb[]; className?: 
           {idx > 0 && (
             <ChevronRight
               aria-hidden
-              className="h-3 w-3 text-slate-300 dark:text-slate-600"
+              className="h-3 w-3 text-slate-300 dark:text-slate-500"
             />
           )}
           {item.href ? (

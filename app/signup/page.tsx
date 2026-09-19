@@ -1,3 +1,4 @@
+import { ForceLight } from "@/components/force-light"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
@@ -22,6 +23,7 @@ export default async function SignupPage() {
 
   return (
     <div className="min-h-screen bg-[#f6f8fb]">
+      <ForceLight />
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
           <Link href="/" className="flex items-center" aria-label="Commrent.kz">

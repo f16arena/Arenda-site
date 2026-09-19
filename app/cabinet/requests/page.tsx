@@ -109,7 +109,7 @@ export default async function CabinetRequests() {
 
         {tenant.requests.length === 0 && (
           <Card className="block py-16 text-center">
-            <ClipboardList className="h-10 w-10 text-slate-200 mx-auto mb-3" />
+            <ClipboardList className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
             <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Заявок нет</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
               Создайте заявку на замену лампочки, подключение интернета или любой другой вопрос

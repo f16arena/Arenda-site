@@ -1,4 +1,5 @@
 "use client"
+import { ModalShell } from "@/components/ui/modal"
 
 import { useState, useTransition } from "react"
 import { AlertTriangle, Trash2, X } from "lucide-react"
@@ -53,9 +54,7 @@ export function WipeAllSpacesButton({
         {pending ? "Удаление..." : "Очистить всё"}
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
+      <ModalShell open={open} onClose={() => setOpen(false)} className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300">
@@ -134,9 +133,7 @@ export function WipeAllSpacesButton({
                 {pending ? "Удаление..." : "Удалить помещения"}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+          </ModalShell>
     </>
   )
 }

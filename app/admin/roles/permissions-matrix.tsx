@@ -368,7 +368,7 @@ export function PermissionsMatrix({
 
   if (!selected) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center text-sm text-slate-400">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-400">
         Нет должностей для настройки.
       </div>
     )
@@ -376,13 +376,13 @@ export function PermissionsMatrix({
 
   return (
     <div className="space-y-4">
-      <div className="inline-flex rounded-xl border border-slate-800 bg-slate-900 p-1">
+      <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1">
         <button
           type="button"
           onClick={() => setTab("roles")}
           className={cn(
             "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
-            tab === "roles" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200",
+            tab === "roles" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-slate-200",
           )}
         >
           <ShieldCheck className="h-4 w-4" />
@@ -393,7 +393,7 @@ export function PermissionsMatrix({
           onClick={() => setTab("users")}
           className={cn(
             "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition",
-            tab === "users" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-200",
+            tab === "users" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-slate-900 dark:hover:text-slate-200",
           )}
         >
           <Users className="h-4 w-4" />
@@ -417,13 +417,13 @@ export function PermissionsMatrix({
       ) : (
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
       <aside className="space-y-4">
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-100">Должности</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Должности</p>
               <p className="mt-1 text-xs text-slate-500">Роль это пресет: разделы плюс точные действия.</p>
             </div>
-            <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">{roles.length}</span>
+            <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs text-slate-400">{roles.length}</span>
           </div>
           <div className="mt-4 space-y-2">
             {roles.map((role) => (
@@ -438,7 +438,7 @@ export function PermissionsMatrix({
                   "w-full rounded-lg border px-3 py-2 text-left transition",
                   selectedRole === role.key
                     ? "border-blue-500 bg-blue-500/10"
-                    : "border-slate-800 bg-slate-950/40 hover:border-slate-700",
+                    : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 hover:border-slate-700",
                 )}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -455,21 +455,21 @@ export function PermissionsMatrix({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-          <p className="text-sm font-semibold text-slate-100">Создать должность</p>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Создать должность</p>
           <p className="mt-1 text-xs text-slate-500">Например: управляющий, оператор, техник, кассир.</p>
           <input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             disabled={!editable || pending}
             placeholder="Название должности"
-            className="mt-3 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"
+            className="mt-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"
           />
           <select
             value={sourceRole}
             onChange={(event) => setSourceRole(event.target.value)}
             disabled={!editable || pending}
-            className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"
+            className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"
           >
             {roles.map((role) => (
               <option key={role.key} value={role.key}>{role.label}</option>
@@ -489,20 +489,20 @@ export function PermissionsMatrix({
               type="button"
               onClick={() => create(true)}
               disabled={!editable || pending || !label.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 px-3 py-2 text-sm font-medium text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Copy className="h-4 w-4" />
               Копия
             </button>
           </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500/10">
-              <ClipboardCheck className="h-4 w-4 text-blue-300" />
+              <ClipboardCheck className="h-4 w-4 text-blue-700 dark:text-blue-300" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-100">Ревизия должностей</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ревизия должностей</p>
               <p className="mt-1 text-xs text-slate-500">
                 Какие пресеты прав стоит проверить перед назначением сотрудникам.
               </p>
@@ -523,12 +523,12 @@ export function PermissionsMatrix({
                     "w-full rounded-lg border p-3 text-left transition",
                     selectedRole === review.role.key
                       ? "border-blue-500/40 bg-blue-500/10"
-                      : "border-slate-800 bg-slate-950/40 hover:border-slate-700",
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 hover:border-slate-700",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-slate-100">{review.role.label}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{review.role.label}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{review.role.userCount} сотрудников</p>
                     </div>
                     <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", review.role.color)}>
@@ -556,7 +556,7 @@ export function PermissionsMatrix({
             </div>
           ) : (
             <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
-              <p className="text-sm font-medium text-emerald-100">Все должности выглядят спокойно</p>
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-100">Все должности выглядят спокойно</p>
               <p className="mt-1 text-xs text-emerald-200/70">
                 Нет рискованных пресетов и лишних точечных настроек для проверки.
               </p>
@@ -565,15 +565,15 @@ export function PermissionsMatrix({
         </div>
       </aside>
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-5 md:flex-row md:items-start md:justify-between">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-200 dark:border-slate-800 p-5 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className={cn("rounded-full border px-2.5 py-1 text-xs font-semibold", selected.color)}>
                 {selected.label}
               </span>
               {selected.key === "OWNER" && (
-                <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-xs text-purple-200">
+                <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-xs text-purple-700 dark:text-purple-200">
                   полный доступ
                 </span>
               )}
@@ -587,7 +587,7 @@ export function PermissionsMatrix({
               type="button"
               onClick={() => remove(selected)}
               disabled={!editable || pending || selected.userCount > 0}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-700 dark:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
               title={selected.userCount > 0 ? "Сначала переназначьте пользователей на другую должность" : "Удалить должность"}
             >
               <Trash2 className="h-4 w-4" />
@@ -613,9 +613,9 @@ export function PermissionsMatrix({
           {selectedHighRiskCapabilities.length > 0 && selected.key !== "OWNER" && (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
                 <div>
-                  <p className="text-sm font-semibold text-amber-100">У этой должности есть рискованные права</p>
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-100">У этой должности есть рискованные права</p>
                   <p className="mt-1 text-xs text-amber-100/75">
                     Проверьте, что сотрудник действительно должен работать с деньгами, удалениями, реквизитами или доступами.
                   </p>
@@ -623,7 +623,7 @@ export function PermissionsMatrix({
                     {selectedHighRiskCapabilities.map((capability) => (
                       <span
                         key={capability.key}
-                        className="rounded-full border border-amber-500/30 bg-slate-950/40 px-2 py-1 text-[11px] font-medium text-amber-100"
+                        className="rounded-full border border-amber-500/30 bg-slate-50 dark:bg-slate-950/40 px-2 py-1 text-[11px] font-medium text-amber-700 dark:text-amber-100"
                       >
                         {capability.label}
                       </span>
@@ -634,9 +634,9 @@ export function PermissionsMatrix({
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4">
             <div className="mb-3">
-              <p className="text-sm font-semibold text-slate-100">Доступ к разделам</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Доступ к разделам</p>
               <p className="mt-1 text-xs text-slate-500">
                 Клик переключает: нет доступа -&gt; просмотр -&gt; редактирование -&gt; нет доступа.
               </p>
@@ -671,11 +671,11 @@ export function PermissionsMatrix({
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <p className="flex items-center gap-2 text-sm font-semibold text-slate-100">
-                  <Zap className="h-4 w-4 text-blue-300" />
+                <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  <Zap className="h-4 w-4 text-blue-700 dark:text-blue-300" />
                   Точные действия
                 </p>
                 <p className="mt-1 max-w-2xl text-xs text-slate-500">
@@ -688,7 +688,7 @@ export function PermissionsMatrix({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Поиск действия..."
-                  className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -703,8 +703,8 @@ export function PermissionsMatrix({
                     className={cn(
                       "rounded-lg border px-3 py-2 text-left transition",
                       active
-                        ? "border-blue-500/40 bg-blue-500/10 text-blue-200"
-                        : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700",
+                        ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200"
+                        : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-400 hover:border-slate-700",
                     )}
                     title={filter.description}
                   >
@@ -742,7 +742,7 @@ export function PermissionsMatrix({
                 </div>
               ))}
               {filteredCapabilityGroups.length === 0 && (
-                <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 text-center text-sm text-slate-500">
+                <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-center text-sm text-slate-500">
                   По такому запросу точных действий не найдено.
                 </div>
               )}
@@ -785,7 +785,7 @@ function UsersView({
 
   if (!user) {
     return (
-      <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-center text-sm text-slate-400">
+      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-400">
         Нет сотрудников для индивидуальной настройки. Сначала пригласите сотрудников.
       </div>
     )
@@ -808,13 +808,13 @@ function UsersView({
 
   return (
     <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-      <aside className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <aside className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-100">Сотрудники</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Сотрудники</p>
             <p className="mt-1 text-xs text-slate-500">Точечно выдайте или отнимите право поверх роли.</p>
           </div>
-          <span className="rounded-full bg-slate-800 px-2 py-1 text-xs text-slate-400">{users.length}</span>
+          <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs text-slate-400">{users.length}</span>
         </div>
         <div className="mt-4 space-y-2">
           {users.map((item) => {
@@ -826,15 +826,15 @@ function UsersView({
                 onClick={() => onSelectUser(item.id)}
                 className={cn(
                   "w-full rounded-lg border px-3 py-2 text-left transition",
-                  selectedUserId === item.id ? "border-blue-500 bg-blue-500/10" : "border-slate-800 bg-slate-950/40 hover:border-slate-700",
+                  selectedUserId === item.id ? "border-blue-500 bg-blue-500/10" : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 hover:border-slate-700",
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-slate-100">{item.name || item.email || "Без имени"}</span>
-                  {count > 0 && <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300">{count}</span>}
+                  <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{item.name || item.email || "Без имени"}</span>
+                  {count > 0 && <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{count}</span>}
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  {item.roleLabel}{!item.isActive ? " · отключён" : ""}
+                  {item.roleLabel}{!item.isActive ? "· отключён" : ""}
                 </p>
               </button>
             )
@@ -842,14 +842,14 @@ function UsersView({
         </div>
       </aside>
 
-      <section className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="flex flex-col gap-3 border-b border-slate-800 p-5 md:flex-row md:items-start md:justify-between">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="flex flex-col gap-3 border-b border-slate-200 dark:border-slate-800 p-5 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-base font-semibold text-slate-100">{user.name || user.email}</p>
+            <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{user.name || user.email}</p>
             <p className="mt-1 text-sm text-slate-400">
-              Роль <span className="text-slate-200">{user.roleLabel}</span> даёт базовый набор. Здесь можно
-              отдельно <span className="text-emerald-300">выдать</span> или <span className="text-red-300">отнять</span> право этому человеку.
-              {overrideCount > 0 && <> Сейчас переопределено: <span className="text-amber-300">{overrideCount}</span>.</>}
+              Роль <span className="text-slate-800 dark:text-slate-200">{user.roleLabel}</span> даёт базовый набор. Здесь можно
+              отдельно <span className="text-emerald-700 dark:text-emerald-300">выдать</span> или <span className="text-red-700 dark:text-red-300">отнять</span> право этому человеку.
+              {overrideCount > 0 && <> Сейчас переопределено: <span className="text-amber-700 dark:text-amber-300">{overrideCount}</span>.</>}
             </p>
           </div>
           <div className="relative w-full md:w-72">
@@ -858,7 +858,7 @@ function UsersView({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Поиск действия..."
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-100 outline-none focus:border-blue-500"
+              className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -888,7 +888,7 @@ function UsersView({
             </div>
           ))}
           {visibleGroups.length === 0 && (
-            <div className="rounded-lg border border-slate-800 bg-slate-900 p-5 text-center text-sm text-slate-500">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-center text-sm text-slate-500">
               По такому запросу действий не найдено.
             </div>
           )}
@@ -914,7 +914,7 @@ function UserCapabilityRow({
   const effective = override === "ALLOW" ? true : override === "DENY" ? false : inherited
   const sensitive = capability.risk === "sensitive" || capability.level === "sensitive"
   const states: Array<{ mode: "INHERIT" | OverrideMode; label: string; active: string }> = [
-    { mode: "INHERIT", label: `Как у роли (${inherited ? "вкл" : "выкл"})`, active: "bg-slate-700 text-slate-100" },
+    { mode: "INHERIT", label: `Как у роли (${inherited ? "вкл" : "выкл"})`, active: "bg-slate-700 text-slate-900 dark:text-slate-100" },
     { mode: "ALLOW", label: "Выдать", active: "bg-emerald-600 text-white" },
     { mode: "DENY", label: "Отнять", active: "bg-red-600 text-white" },
   ]
@@ -924,16 +924,16 @@ function UserCapabilityRow({
     <div
       className={cn(
         "flex flex-col gap-3 rounded-lg border p-3 md:flex-row md:items-center md:justify-between",
-        capability.locked ? "border-slate-800 bg-slate-900/80 opacity-60" : "border-slate-800 bg-slate-950/40",
+        capability.locked ? "border-slate-200 dark:border-slate-800 bg-slate-900/80 opacity-60" : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40",
       )}
     >
       <div className="min-w-0">
-        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
+        <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
           {capability.label}
           {sensitive && (
-            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">важно</span>
+            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">важно</span>
           )}
-          <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", effective ? "bg-emerald-500/15 text-emerald-300" : "bg-slate-700/50 text-slate-400")}>
+          <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", effective ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-slate-700/50 text-slate-400")}>
             {effective ? "доступно" : "скрыто"}
           </span>
         </p>
@@ -942,7 +942,7 @@ function UserCapabilityRow({
           <p className="mt-1 text-[11px] text-slate-600">Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}</p>
         )}
       </div>
-      <div className="inline-flex shrink-0 rounded-lg border border-slate-700 bg-slate-900 p-0.5">
+      <div className="inline-flex shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5">
         {states.map((state) => (
           <button
             key={state.mode}
@@ -951,7 +951,7 @@ function UserCapabilityRow({
             onClick={() => onChange(state.mode)}
             className={cn(
               "rounded-md px-2.5 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed",
-              current === state.mode ? state.active : "text-slate-400 hover:text-slate-200",
+              current === state.mode ? state.active : "text-slate-400 hover:text-slate-900 dark:hover:text-slate-200",
             )}
           >
             {state.label}
@@ -976,11 +976,11 @@ function RoleStat({
       "rounded-xl border p-3",
       tone === "amber"
         ? "border-amber-500/30 bg-amber-500/10"
-        : "border-slate-800 bg-slate-950/40",
+        : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40",
     )}>
       <p className={cn(
         "text-xl font-semibold",
-        tone === "amber" ? "text-amber-200" : "text-slate-100",
+        tone === "amber" ? "text-amber-700 dark:text-amber-200" : "text-slate-900 dark:text-slate-100",
       )}>
         {value}
       </p>
@@ -1002,9 +1002,9 @@ function ReviewPill({
   children: ReactNode
 }) {
   const tones = {
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-    blue: "border-blue-500/30 bg-blue-500/10 text-blue-200",
-    slate: "border-slate-700 bg-slate-800/70 text-slate-400",
+    amber: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-200",
+    blue: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-200",
+    slate: "border-slate-200 dark:border-slate-700 bg-slate-800/70 text-slate-400",
   }
 
   return (
@@ -1037,17 +1037,17 @@ function SectionButton({
       className={cn(
         "flex min-h-16 items-start justify-between gap-3 rounded-lg border p-3 text-left transition",
         section.locked
-          ? "border-slate-800 bg-slate-900/80 opacity-60"
+          ? "border-slate-200 dark:border-slate-800 bg-slate-900/80 opacity-60"
           : current.canEdit
             ? "border-blue-500/40 bg-blue-500/10"
             : current.canView
               ? "border-emerald-500/40 bg-emerald-500/10"
-              : "border-slate-800 bg-slate-900 hover:border-slate-700",
+              : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-700",
         editable && !section.locked ? "cursor-pointer" : "cursor-default",
       )}
     >
       <span>
-        <span className="block text-sm font-medium text-slate-100">{section.label}</span>
+        <span className="block text-sm font-medium text-slate-900 dark:text-slate-100">{section.label}</span>
         <span className="mt-1 block text-xs text-slate-500">
           {section.locked
             ? `Закрыто тарифом: ${section.requiredFeatureLabel ?? section.requiredFeature}`
@@ -1085,20 +1085,20 @@ function CapabilityButton({
       className={cn(
         "flex min-h-20 items-start justify-between gap-3 rounded-lg border p-3 text-left transition",
         capability.locked
-          ? "border-slate-800 bg-slate-900/80 opacity-60"
+          ? "border-slate-200 dark:border-slate-800 bg-slate-900/80 opacity-60"
           : enabled
             ? sensitive
               ? "border-amber-500/40 bg-amber-500/10"
               : "border-blue-500/40 bg-blue-500/10"
-            : "border-slate-800 bg-slate-900 hover:border-slate-700",
+            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-700",
         editable && !capability.locked ? "cursor-pointer" : "cursor-default",
       )}
     >
       <span>
-        <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-100">
+        <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
           {capability.label}
           {sensitive && (
-            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
               важно
             </span>
           )}
@@ -1115,10 +1115,10 @@ function CapabilityButton({
       <span className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold",
         capability.locked
-          ? "border-slate-700 text-slate-500"
+          ? "border-slate-200 dark:border-slate-700 text-slate-500"
           : enabled
-            ? "border-blue-500/40 text-blue-300"
-            : "border-slate-700 text-slate-500",
+            ? "border-blue-500/40 text-blue-700 dark:text-blue-300"
+            : "border-slate-200 dark:border-slate-700 text-slate-500",
       )}>
         {capability.locked ? <Lock className="h-3.5 w-3.5" /> : enabled ? <ShieldCheck className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
         {capability.locked ? "тариф" : enabled ? "on" : "off"}
@@ -1132,12 +1132,12 @@ function StatusPill({ locked, view, edit }: { locked: boolean; view: boolean; ed
     <span className={cn(
       "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold",
       locked
-        ? "border-slate-700 text-slate-500"
+        ? "border-slate-200 dark:border-slate-700 text-slate-500"
         : edit
-          ? "border-blue-500/40 text-blue-300"
+          ? "border-blue-500/40 text-blue-700 dark:text-blue-300"
           : view
-            ? "border-emerald-500/40 text-emerald-300"
-            : "border-slate-700 text-slate-500",
+            ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+            : "border-slate-200 dark:border-slate-700 text-slate-500",
     )}>
       {locked ? <Lock className="h-3.5 w-3.5" /> : edit ? <Edit2 className="h-3.5 w-3.5" /> : view ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
       {locked ? "тариф" : edit ? "edit" : view ? "view" : "off"}

@@ -97,7 +97,7 @@ export default async function StaffDetailPage({
       </div>
 
       <div className="flex items-start gap-4">
-        <div className="h-16 w-16 rounded-2xl bg-slate-200 flex items-center justify-center shrink-0">
+        <div className="h-16 w-16 rounded-2xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center shrink-0">
           <span className="text-xl font-bold text-slate-700 dark:text-slate-300">
             {user.name[0]?.toUpperCase()}
           </span>
