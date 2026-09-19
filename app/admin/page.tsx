@@ -111,7 +111,7 @@ async function DashboardBody() {
     )
   }
 
-  const { floorIds, tenantWhereInBuilding } = await loadFloorScope(orgId, visibleBuildingIds)
+  const { tenantWhereInBuilding } = await loadFloorScope(orgId, visibleBuildingIds)
 
   const [
     activeTenants,

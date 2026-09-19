@@ -134,7 +134,7 @@ export async function getOwnerPnL({
   const chartFrom = new Date(Number(chartMonths[0].split("-")[0]), Number(chartMonths[0].split("-")[1]) - 1, 1)
   const windowFrom = chartFrom < from ? chartFrom : from
 
-  const [chargeRows, paymentRows, expenseRows, debt] = await Promise.all([
+  const [chargeRows, paymentRows, expenseRows, debt, paidDepositRows] = await Promise.all([
     // Начисления по [period, type] за всё окно месяцев
     safe(
       "ownerPnL.chargesByPeriodType",
@@ -173,7 +173,19 @@ export async function getOwnerPnL({
       }),
       { _sum: { amount: null as number | null }, _count: { _all: 0 } },
     ),
+    // Оплаченные депозиты по месяцам: платежи не помечены «за что», поэтому
+    // депозит вычитаем из дохода по оплате через его оплаченное начисление.
+    safe(
+      "ownerPnL.paidDeposits",
+      db.charge.groupBy({
+        by: ["period"],
+        where: { period: { in: allMonths }, type: "DEPOSIT", isPaid: true, deletedAt: null, tenant: tenantInBuildings },
+        _sum: { amount: true },
+      }),
+      [] as Array<{ period: string; _sum: { amount: number | null } }>,
+    ),
   ])
+  const depositByMonth = new Map(paidDepositRows.map((r) => [r.period, r._sum.amount ?? 0]))
 
   const selSet = new Set(selMonths)
   const inSelDate = (d: Date) => d >= from && d < to
@@ -199,6 +211,10 @@ export async function getOwnerPnL({
   // ── Доход по оплате (cash) за выбранный период ──
   let cashIncome = 0
   for (const p of paymentRows) if (inSelDate(p.paymentDate)) cashIncome += p.amount
+  // Депозит — возвратное обеспечение, не выручка.
+  let depositsCollected = 0
+  for (const m of selMonths) depositsCollected += depositByMonth.get(m) ?? 0
+  cashIncome = Math.max(0, cashIncome - depositsCollected)
 
   // ── Расходы за выбранный период + разбивка по категориям ──
   const expenseCatMap = new Map<string, number>()
@@ -223,6 +239,9 @@ export async function getOwnerPnL({
     const k = monthKey(p.paymentDate)
     cashByMonth.set(k, (cashByMonth.get(k) ?? 0) + p.amount)
   }
+  for (const [k, dep] of depositByMonth) {
+    if (cashByMonth.has(k)) cashByMonth.set(k, Math.max(0, (cashByMonth.get(k) ?? 0) - dep))
+  }
   const expenseByMonth = new Map<string, number>()
   for (const e of expenseRows) {
     const k = monthKey(e.date)
@@ -236,7 +255,7 @@ export async function getOwnerPnL({
     expense: Math.round(expenseByMonth.get(period) ?? 0),
   }))
 
-  const collected = cashIncome
+  const collected = cashIncome + depositsCollected
   const collectionRate = accruedAll > 0 ? Math.round((collected / accruedAll) * 100) : null
 
   return {

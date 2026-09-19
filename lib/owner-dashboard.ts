@@ -177,10 +177,14 @@ export async function getOwnerBuildingMetrics({
     for (const floor of tenant.fullFloors) addTenantBuilding(tenant.id, floor.buildingId)
   }
 
+  // Арендатор с помещениями в нескольких зданиях: сумма делится поровну между
+  // ними. Раньше полная сумма шла в КАЖДОЕ здание — итог по зданиям был больше,
+  // чем реально поступило.
   const incomeByBuilding = new Map(activeBuildingIds.map((id) => [id, 0]))
   for (const row of incomeRows) {
-    const amount = row._sum.amount ?? 0
-    for (const buildingId of tenantBuildingIds.get(row.tenantId) ?? []) {
+    const ids = [...(tenantBuildingIds.get(row.tenantId) ?? [])]
+    const amount = (row._sum.amount ?? 0) / Math.max(1, ids.length)
+    for (const buildingId of ids) {
       incomeByBuilding.set(buildingId, (incomeByBuilding.get(buildingId) ?? 0) + amount)
     }
   }
@@ -188,9 +192,10 @@ export async function getOwnerBuildingMetrics({
   const debtByBuilding = new Map(activeBuildingIds.map((id) => [id, 0]))
   const debtCountByBuilding = new Map(activeBuildingIds.map((id) => [id, 0]))
   for (const row of debtRows) {
-    const amount = row._sum.amount ?? 0
+    const ids = [...(tenantBuildingIds.get(row.tenantId) ?? [])]
+    const amount = (row._sum.amount ?? 0) / Math.max(1, ids.length)
     const count = row._count._all ?? 0
-    for (const buildingId of tenantBuildingIds.get(row.tenantId) ?? []) {
+    for (const buildingId of ids) {
       debtByBuilding.set(buildingId, (debtByBuilding.get(buildingId) ?? 0) + amount)
       debtCountByBuilding.set(buildingId, (debtCountByBuilding.get(buildingId) ?? 0) + count)
     }

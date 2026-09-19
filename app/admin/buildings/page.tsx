@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic"
 
+import { getOccupancy } from "@/lib/data/occupancy"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
@@ -7,7 +8,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import Link from "next/link"
 import { Building2, MapPin, Layers, Users, Check, Box, DoorClosed, DoorOpen, Map as MapIcon, User, Phone, Mail } from "lucide-react"
 import { cn, formatMoney } from "@/lib/utils"
-import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
+import { isZoneFloor } from "@/lib/zone-kinds"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
 import { requireOrgAccess } from "@/lib/org"
@@ -221,7 +222,6 @@ export default async function BuildingsPage() {
   // любым из четырёх путей: основное помещение, несколько помещений, этаж
   // целиком, здание напрямую (место без помещения).
   const buildingIds = buildings.map((b) => b.id)
-  type SpaceRow = { status: string; kind: string; floor: { buildingId: string } }
   type TenantRow = {
     id: string
     buildingId: string | null
@@ -230,17 +230,9 @@ export default async function BuildingsPage() {
     fullFloors: { buildingId: string }[]
   }
   const inBuildings = { in: buildingIds }
-  const [allSpaces, allTenants] = await Promise.all([
-    safe(
-      "admin.buildings.spacesAggregate",
-      buildingIds.length > 0
-        ? db.space.findMany({
-            where: { floor: { buildingId: inBuildings } },
-            select: { status: true, kind: true, floor: { select: { buildingId: true } } },
-          })
-        : Promise.resolve([] as SpaceRow[]),
-      [] as SpaceRow[],
-    ),
+  const [occupancy, allTenants] = await Promise.all([
+    // Заполняемость — общая формула (lib/data/occupancy), как на обзоре и в аналитике.
+    safe("admin.buildings.occupancy", getOccupancy(buildingIds), null),
     safe(
       "admin.buildings.tenantsAggregate",
       buildingIds.length > 0
@@ -269,15 +261,12 @@ export default async function BuildingsPage() {
   ])
 
   const statsById = new Map(buildingIds.map((id) => [id, { tenantsCount: 0, spacesCount: 0, occupiedCount: 0, objectsCount: 0 }]))
-  for (const sp of allSpaces) {
-    const cur = statsById.get(sp.floor.buildingId)
+  for (const [id, o] of occupancy?.byBuilding ?? []) {
+    const cur = statsById.get(id)
     if (!cur) continue
-    if (isObjectSpace(sp.kind)) {
-      cur.objectsCount += 1
-      continue
-    }
-    cur.spacesCount += 1
-    if (sp.status === "OCCUPIED") cur.occupiedCount += 1
+    cur.spacesCount = o.rentableCount
+    cur.occupiedCount = o.occupiedCount
+    cur.objectsCount = o.objects.total
   }
   for (const t of allTenants) {
     const ids = new Set<string>([
