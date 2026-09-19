@@ -19,6 +19,8 @@ const CHARGE_TYPE_LABEL: Record<string, string> = {
   SERVICE_FEE: "Эксплуатационные расходы",
   SERVICE_FEE_INDEXED: "Эксплуатационные расходы (с индексацией)",
   SERVICE_DELIVERED: "Оказанные услуги",
+  INTERNET: "Услуги интернета",
+  SECURITY: "Охрана помещения",
   PENALTY: "Пеня",
   DEPOSIT: "Гарантийный взнос (депозит)",
   OTHER: "Прочие услуги",

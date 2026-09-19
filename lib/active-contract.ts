@@ -50,7 +50,7 @@ export interface ContractPosition {
  *  1) аренда (из условий аренды, синхронизированных с договором);
  *  2) эксплуатационные расходы (сезонная ставка здания × площадь);
  *  3) уборка помещения — если заказана;
- *  4) доп. услуги из конструктора договора (интернет), если заказаны с суммой.
+ *  4) доп. услуги из конструктора договора и подписанных ДС (интернет, охрана).
  */
 export async function buildContractPositions(
   tenantId: string,
@@ -140,15 +140,60 @@ export async function buildContractPositions(
     positions.push({ name: `Уборка помещения за ${period}`, amount: cleaning, type: "CLEANING" })
   }
 
-  const security = orderedAmount(add?.premisesSecurity)
+  // Подписанные допсоглашения «доп. услуги» тоже часть договора: интернет/охрана
+  // из ДС заменяют сумму из основного договора (последнее ДС — главное).
+  const fromAddenda = await addendumServicesForPeriod(contract.id, period)
+  const security = fromAddenda.security ?? orderedAmount(add?.premisesSecurity)
   if (security > 0) {
     positions.push({ name: `Охрана помещения за ${period}`, amount: security, type: "SECURITY" })
   }
 
-  const internet = orderedAmount(add?.internet)
+  const internet = fromAddenda.internet ?? orderedAmount(add?.internet)
   if (internet > 0) {
     positions.push({ name: `Услуги интернета за ${period}`, amount: internet, type: "INTERNET" })
   }
 
   return positions
+}
+
+/**
+ * Услуги из подписанных ДС (changeKind SERVICES) на месяц `period` ("YYYY-MM").
+ * ДС, вступившее в силу в середине месяца, считается за дни с даты вступления;
+ * вступившее позже месяца — не учитывается. null — ДС про эту услугу нет.
+ */
+export async function addendumServicesForPeriod(
+  contractId: string,
+  period: string,
+): Promise<{ internet: number | null; security: number | null }> {
+  const [y, m] = period.split("-").map(Number)
+  const monthStart = new Date(y, m - 1, 1)
+  const nextMonth = new Date(y, m, 1)
+  const daysInMonth = Math.round((nextMonth.getTime() - monthStart.getTime()) / 86_400_000)
+  const addenda = await db.contract.findMany({
+    where: {
+      parentContractId: contractId,
+      type: "ADDENDUM",
+      status: "SIGNED",
+      changeKind: "SERVICES",
+      deletedAt: null,
+      effectiveDate: { lt: nextMonth },
+    },
+    orderBy: { effectiveDate: "asc" },
+    select: { effectiveDate: true, changePayload: true },
+  })
+  const out: { internet: number | null; security: number | null } = { internet: null, security: null }
+  for (const a of addenda) {
+    const services = (a.changePayload as { services?: Record<string, { monthly?: unknown } | null> } | null)?.services
+    if (!services) continue
+    const eff = a.effectiveDate ?? monthStart
+    // Доля месяца: с даты вступления в силу до конца месяца.
+    const share = eff > monthStart
+      ? Math.max(0, Math.round((nextMonth.getTime() - new Date(eff.getFullYear(), eff.getMonth(), eff.getDate()).getTime()) / 86_400_000)) / daysInMonth
+      : 1
+    for (const key of ["internet", "security"] as const) {
+      const monthly = services[key]?.monthly
+      if (typeof monthly === "number" && monthly > 0) out[key] = Math.round(monthly * share * 100) / 100
+    }
+  }
+  return out
 }
