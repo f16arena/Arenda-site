@@ -21,6 +21,7 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
+import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { DashboardLazySections } from "./dashboard-lazy-sections"
 
@@ -46,14 +47,8 @@ async function loadFloorScope(orgId: string, visibleBuildingIds: string[]) {
     [] as string[],
     { source: "admin.dashboard.floorIds", route: "/admin", orgId },
   )
-  const tenantWhereInBuilding: Prisma.TenantWhereInput = {
-    user: { organizationId: orgId },
-    OR: [
-      { space: { floorId: { in: floorIds } } },
-      { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
-      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
-    ],
-  }
+  // Все 4 пути привязки + без удалённых — как в «Аналитике» и «Финансах».
+  const tenantWhereInBuilding: Prisma.TenantWhereInput = tenantInBuildingsWhere(orgId, visibleBuildingIds)
   return { floorIds, tenantWhereInBuilding }
 }
 
@@ -132,6 +127,7 @@ async function DashboardBody() {
           id: true,
           customRate: true,
           fixedMonthlyRent: true,
+          rentSchedule: true,
           space: { select: { area: true, floor: { select: { ratePerSqm: true } } } },
           tenantSpaces: {
             select: {
@@ -145,6 +141,7 @@ async function DashboardBody() {
         id: string
         customRate: number | null
         fixedMonthlyRent: number | null
+        rentSchedule: string | null
         space: { area: number; floor: { ratePerSqm: number } } | null
         tenantSpaces: { space: { area: number; floor: { ratePerSqm: number } } }[]
         fullFloors: { fixedMonthlyRent: number | null }[]
@@ -164,6 +161,7 @@ async function DashboardBody() {
       db.charge.aggregate({
         where: {
           isPaid: false,
+          deletedAt: null,
           tenant: tenantWhereInBuilding,
         },
         _sum: { amount: true },

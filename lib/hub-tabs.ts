@@ -14,12 +14,6 @@ export const HEALTH_TABS = [
   { href: "/admin/system-health", label: "Проверка системы" },
 ]
 
-export const ANALYTICS_TABS = [
-  { href: "/admin/analytics", label: "Аналитика" },
-  { href: "/admin/dashboard/owner", label: "Финансовый дашборд" },
-  { href: "/admin/reports", label: "Отчётность" },
-]
-
 export const DOCUMENTS_TABS = [
   { href: "/admin/documents", label: "Все документы" },
   { href: "/admin/contracts", label: "Договоры" },

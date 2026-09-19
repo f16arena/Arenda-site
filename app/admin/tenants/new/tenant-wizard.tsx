@@ -120,40 +120,70 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
         }
         await updateTenantRentalTerms(tenantId, terms)
 
+        // Сводка — из того, что реально ушло в базу (шаг 3 мог быть пропущен).
+        setSummary(buildSummary())
         setCreatedTenantId(tenantId)
-        toast.success("Арендатор создан, условия аренды сохранены")
+        window.scrollTo({ top: 0 })
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Не удалось создать арендатора")
       }
     })
   }
 
-  // ── Готово: ссылки на договор и карточку ───────────────────────────────
+  // ── Готово: что сохранили + следующий шаг (договор) ─────────────────────
   if (createdTenantId) {
+    const company = summary.find(([k]) => k === "Компания")?.[1]?.replace(/\s*\([^)]*\)$/, "") ?? "Арендатор"
     return (
-      <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-8 text-center dark:border-emerald-500/30 dark:bg-emerald-500/5">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
-          <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+      <div className="mx-auto max-w-5xl space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+            <Check className="h-6 w-6" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">{company} заселён</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Карточка создана, условия аренды сохранены. Осталось оформить договор.</p>
+          </div>
         </div>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Арендатор заселён</h2>
-        <p className="mx-auto mt-1 max-w-md text-sm text-slate-500 dark:text-slate-400">
-          Контакты, помещение и условия аренды сохранены. Остался последний шаг — договор:
-          конструктор уже заполнит его данными арендатора.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link
-            href={`/admin/documents?create=contract&tenantId=${createdTenantId}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
-          >
-            <FileSignature className="h-4 w-4" />
-            Создать договор
-          </Link>
-          <Link
-            href={`/admin/tenants/${createdTenantId}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-300"
-          >
-            Открыть карточку
-          </Link>
+
+        <div className="grid gap-4 lg:grid-cols-5">
+          {/* Что сохранили */}
+          <section className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:col-span-3">
+            <h2 className="border-b border-slate-100 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">Что сохранили</h2>
+            <dl className="divide-y divide-slate-100 dark:divide-slate-800">
+              {summary.map(([k, val]) => (
+                <div key={k} className="grid grid-cols-[120px_1fr] gap-3 px-5 py-2.5 text-sm">
+                  <dt className="text-slate-500 dark:text-slate-400">{k}</dt>
+                  <dd className="min-w-0 break-words font-medium text-slate-900 dark:text-slate-100">{val}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+              <Link href={`/admin/tenants/${createdTenantId}`} className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400">
+                Открыть карточку и поправить →
+              </Link>
+            </div>
+          </section>
+
+          {/* Следующий шаг */}
+          <section className="flex flex-col rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/30 dark:bg-blue-500/5 lg:col-span-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Следующий шаг</p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Договор аренды</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+              Конструктор сам подставит реквизиты, помещение, сумму и срок — останется проверить и отправить на подпись.
+            </p>
+            <Link
+              href={`/admin/documents?create=contract&tenantId=${createdTenantId}`}
+              className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              <FileSignature className="h-4 w-4" />
+              Создать договор
+            </Link>
+            <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1 pt-5 text-sm">
+              {/* Полная перезагрузка: мастер начинается с чистой формы */}
+              <button type="button" onClick={() => window.location.assign("/admin/tenants/new")} className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100">Заселить ещё одного</button>
+              <Link href="/admin/tenants" className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100">К списку арендаторов</Link>
+            </div>
+          </section>
         </div>
       </div>
     )

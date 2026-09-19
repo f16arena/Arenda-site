@@ -57,9 +57,9 @@ export function ReportView({ data, exportHref }: { data: OwnerPnL; exportHref: s
       {/* Карточки P&L */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card title="Доход" value={formatMoney(income)} icon={TrendingUp} accent="emerald" />
-        <Card title="Расход" value={formatMoney(data.expense)} icon={TrendingDown} accent="red" />
+        <Card title="Расход" value={formatMoney(data.expense)} icon={TrendingDown} accent="red" hint={data.expense === 0 ? "не внесены — добавьте в «Финансах»" : undefined} />
         <Card title={`Налог · ${data.taxRatePercent}%`} value={formatMoney(tax)} icon={Receipt} accent="amber" hint="с оборота, оценочно" />
-        <Card title="Чистая прибыль" value={formatMoney(net)} icon={Wallet} accent={net >= 0 ? "blue" : "red"} />
+        <Card title="Чистая прибыль" value={formatMoney(net)} icon={Wallet} accent={net >= 0 ? "blue" : "red"} hint={data.expense === 0 ? "пока без расходов — завышена" : undefined} />
       </div>
 
       {/* Водопад: как доход превращается в прибыль */}

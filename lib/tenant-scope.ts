@@ -58,6 +58,23 @@ export function tenantScope(orgId: string | null) {
   }
 }
 
+// Действующий (не удалённый) арендатор в этих зданиях — любым из 4 путей
+// привязки: основное помещение, доп. помещения, этаж целиком, здание напрямую
+// (киоск, антенна на крыше — без помещения). Один фильтр для обзора и
+// аналитики, чтобы цифры на разных страницах не расходились.
+export function tenantInBuildingsWhere(orgId: string, buildingIds: string[]) {
+  return {
+    deletedAt: null,
+    user: { organizationId: orgId },
+    OR: [
+      { space: { floor: { buildingId: { in: buildingIds } } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: { in: buildingIds } } } } } },
+      { fullFloors: { some: { buildingId: { in: buildingIds } } } },
+      { buildingId: { in: buildingIds } },
+    ],
+  }
+}
+
 // Charge → tenant → ... → org
 export function chargeScope(orgId: string | null) {
   if (!orgId) return NEVER

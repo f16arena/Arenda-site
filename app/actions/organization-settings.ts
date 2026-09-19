@@ -69,7 +69,7 @@ export async function updateOrganizationTax(orgId: string, formData: FormData) {
     await db.organization.update({ where: { id: orgId }, data: { features: JSON.stringify(features) } })
 
     revalidatePath("/admin/settings")
-    revalidatePath("/admin/reports")
+    revalidatePath("/admin/analytics")
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
     return { success: true }
   } catch (e) {

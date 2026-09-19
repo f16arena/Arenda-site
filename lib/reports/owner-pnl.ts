@@ -101,7 +101,7 @@ export async function getOwnerPnL({
 }): Promise<OwnerPnL | null> {
   if (buildingIds.length === 0) return null
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
-    safeServerValue(promise, fallback, { source, route: "/admin/reports", extra: { buildingIds } })
+    safeServerValue(promise, fallback, { source, route: "/admin/analytics", extra: { buildingIds } })
 
   // Здания → этажи → арендаторы (как в owner-dashboard). Арендатор «в зданиях», если
   // его space/tenantSpaces/fullFloors принадлежат этим зданиям.
@@ -140,7 +140,7 @@ export async function getOwnerPnL({
       "ownerPnL.chargesByPeriodType",
       db.charge.groupBy({
         by: ["period", "type"],
-        where: { period: { in: allMonths }, tenant: tenantInBuildings },
+        where: { period: { in: allMonths }, deletedAt: null, tenant: tenantInBuildings },
         _sum: { amount: true },
       }),
       [] as Array<{ period: string; type: string; _sum: { amount: number | null } }>,
@@ -149,7 +149,7 @@ export async function getOwnerPnL({
     safe(
       "ownerPnL.payments",
       db.payment.findMany({
-        where: { paymentDate: { gte: windowFrom, lt: to }, tenant: tenantInBuildings },
+        where: { paymentDate: { gte: windowFrom, lt: to }, deletedAt: null, tenant: tenantInBuildings },
         select: { amount: true, paymentDate: true },
       }),
       [] as Array<{ amount: number; paymentDate: Date }>,
@@ -167,7 +167,7 @@ export async function getOwnerPnL({
     safe(
       "ownerPnL.debt",
       db.charge.aggregate({
-        where: { isPaid: false, tenant: tenantInBuildings },
+        where: { isPaid: false, deletedAt: null, tenant: tenantInBuildings },
         _sum: { amount: true },
         _count: { _all: true },
       }),

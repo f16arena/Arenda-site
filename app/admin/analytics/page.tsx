@@ -1,23 +1,35 @@
 export const dynamic = "force-dynamic"
 
-import { db } from "@/lib/db"
-import { auth } from "@/auth"
-import { redirect } from "next/navigation"
+// «Аналитика» — одна страница вместо трёх вкладок (Аналитика / Финансовый
+// дашборд / Отчётность), которые показывали одно и то же — доход, заполняемость,
+// должников, прогноз — но считали по-разному, и цифры не сходились.
+// Сверху — деньги за период (доход, расход, налог, прибыль, динамика),
+// ниже — арендаторы и площади, сравнение зданий и рынок.
+
 import Link from "next/link"
-import { getCurrentBuildingId } from "@/lib/current-building"
+import { redirect } from "next/navigation"
+import { Activity, AlertCircle, Award, Building2, DoorOpen, Lock, SquareDashed } from "lucide-react"
+import { auth } from "@/auth"
+import { db } from "@/lib/db"
 import { formatMoney } from "@/lib/utils"
-import { TrendingUp, Users, Building2, Award, Activity, Wallet, AlertCircle, BarChart3, FileBarChart, Lock } from "lucide-react"
-import { OccupancyHeatmap } from "./occupancy-heatmap"
 import { requireOrgAccess } from "@/lib/org"
+import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { safeServerValue } from "@/lib/server-fallback"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
-import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
-import { RouteTabs } from "@/components/ui/route-tabs"
-import { ANALYTICS_TABS } from "@/lib/hub-tabs"
+import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
+import { getOwnerPnL } from "@/lib/reports/owner-pnl"
+import { getTaxRatePercent } from "@/lib/org-features"
+import { getMarketComparison } from "@/lib/market"
+import { REPORT_PERIODS, parseReportPeriod, reportPeriodCaption, resolveReportRange } from "@/lib/reports/period"
+import { shortCompanyName } from "@/lib/company-name"
+import { PageHeader, StatGrid, StatCard, Card, Section } from "@/components/ui/page"
+import { ReportView } from "./report-view"
+import { MarketSection } from "./market-section"
 
-export default async function AnalyticsPage() {
+type Features = { analyticsBasic?: boolean; analyticsAdvanced?: boolean }
+
+export default async function AnalyticsPage({ searchParams }: { searchParams: Promise<{ period?: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
@@ -27,487 +39,313 @@ export default async function AnalyticsPage() {
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
-  const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
-  if (visibleBuildingIds.length === 0) {
-    return <div className="p-12 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400">Нет доступных зданий</div>
-  }
-
-  // Gate по тарифу: разбор фич плана.
-  const orgForFeatures = await db.organization.findUnique({ where: { id: orgId }, select: { plan: { select: { features: true, name: true } } } })
-  type Features = { analyticsBasic?: boolean; analyticsAdvanced?: boolean; analyticsCustomReports?: boolean }
-  let features: Features = {}
-  try { features = JSON.parse(orgForFeatures?.plan?.features ?? "{}") as Features } catch { /* ignore */ }
-  if (!features.analyticsBasic) {
+  const buildingIds = buildingId ? [buildingId] : accessibleBuildingIds
+  if (buildingIds.length === 0) {
     return (
-      <div className="space-y-4">
-        <RouteTabs items={ANALYTICS_TABS} className="mb-2" />
-        <PageHeader icon={Activity} title="Аналитика" />
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 text-amber-100">
-          <div className="flex items-start gap-3">
-            <Lock className="mt-0.5 h-5 w-5 shrink-0" />
-            <div>
-              <p className="font-medium text-amber-50">Аналитика доступна на тарифе Pro и выше</p>
-              <p className="mt-1 text-sm text-amber-200">
-                Текущий тариф: <b>{orgForFeatures?.plan?.name ?? "—"}</b>. На Pro появятся дашборд, прогноз cashflow, топ должников и заполняемость по времени.
-                Чтобы повысить тариф — <Link href="/admin/subscription" className="underline">обратитесь к супер-админу</Link>.
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+        Нет доступных зданий
       </div>
     )
   }
-  const advancedEnabled = !!features.analyticsAdvanced
-  const customReportsEnabled = !!features.analyticsCustomReports
 
-  const floorIds = await safe(
-    "admin.analytics.floorIds",
-    db.floor.findMany({ where: { buildingId: { in: visibleBuildingIds } }, select: { id: true } }).then((rows) => rows.map((f) => f.id)),
-    [] as string[],
-  )
-  const tenantWhere = {
-    user: { organizationId: orgId },
-    OR: [
-      { space: { floorId: { in: floorIds } } },
-      { tenantSpaces: { some: { space: { floorId: { in: floorIds } } } } },
-      { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
-    ],
-  }
-
+  const sp = await searchParams
+  const period = parseReportPeriod(sp.period)
   const now = new Date()
-  const thisYear = now.getFullYear()
-  const yearStart = new Date(thisYear, 0, 1)
+  const { from, to } = resolveReportRange(period, now)
+  const caption = reportPeriodCaption(period, now)
 
-  const [
-    spaceStats,
-    activeTenantsCount,
-    contractDurations,
-    paymentsThisYear,
-    expensesThisYear,
-    topPayersAgg,
-    monthlyOccupancy,
-  ] = await Promise.all([
-    safe(
-      "admin.analytics.spaceStats",
-      db.space.groupBy({
-        by: ["status"],
-        where: { floorId: { in: floorIds } },
-        _count: { _all: true },
-      }),
-      [],
-    ),
-    safe(
-      "admin.analytics.activeTenantsCount",
-      db.tenant.count({
-        where: tenantWhere,
-      }),
-      0,
-    ),
-    safe(
-      "admin.analytics.contractDurations",
-      db.tenant.findMany({
-        where: tenantWhere,
-        select: { contractStart: true, contractEnd: true },
-      }),
-      [],
-    ),
-    safe(
-      "admin.analytics.paymentsThisYear",
-      db.payment.aggregate({
-        where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
-        _sum: { amount: true },
-      }),
-      { _sum: { amount: 0 } },
-    ),
-    safe(
-      "admin.analytics.expensesThisYear",
-      db.expense.aggregate({
-        where: { date: { gte: yearStart }, buildingId: { in: visibleBuildingIds } },
-        _sum: { amount: true },
-      }),
-      { _sum: { amount: 0 } },
-    ),
-    safe(
-      "admin.analytics.topPayersAgg",
-      db.payment.groupBy({
-        by: ["tenantId"],
-        where: { paymentDate: { gte: yearStart }, tenant: tenantWhere },
-        _sum: { amount: true },
-        orderBy: { _sum: { amount: "desc" } },
-        take: 5,
-      }),
-      [],
-    ),
-    safe(
-      "admin.analytics.monthlyOccupancy",
-      db.tenant.findMany({
-        where: tenantWhere,
-        select: {
-          space: { select: { id: true, number: true, area: true, floor: { select: { name: true, number: true } } } },
-          contractStart: true,
-          contractEnd: true,
-        },
-      }),
-      [],
-    ),
+  const org = await db.organization.findUnique({
+    where: { id: orgId },
+    select: { features: true, plan: { select: { features: true } } },
+  })
+  let features: Features = {}
+  try { features = JSON.parse(org?.plan?.features ?? "{}") as Features } catch { /* битый JSON тарифа — без доп. блоков */ }
+  const basic = !!features.analyticsBasic
+  const advanced = !!features.analyticsAdvanced
+
+  const tenantWhere = tenantInBuildingsWhere(orgId, buildingIds)
+  // Оплаты считаем и от удалённых арендаторов: деньги-то поступили.
+  const { deletedAt: _ignored, ...tenantWhereWithArchived } = tenantWhere
+  void _ignored
+
+  const [pnl, market, spaces, payersAgg, debtorsAgg, overdue, buildings] = await Promise.all([
+    getOwnerPnL({ buildingIds, from, to, taxRatePercent: getTaxRatePercent(org?.features) }),
+    getMarketComparison({ buildingIds }),
+    basic
+      ? safe(
+          "admin.analytics.spaces",
+          db.space.findMany({
+            // Объекты без площади (антенна, щит) в заполняемость по м² не входят.
+            where: { floor: { buildingId: { in: buildingIds } }, kind: { not: "OBJECT" } },
+            select: { area: true, status: true, floor: { select: { buildingId: true } } },
+          }),
+          [] as Array<{ area: number; status: string; floor: { buildingId: string } }>,
+        )
+      : Promise.resolve([] as Array<{ area: number; status: string; floor: { buildingId: string } }>),
+    basic
+      ? safe(
+          "admin.analytics.payers",
+          db.payment.groupBy({
+            by: ["tenantId"],
+            where: { paymentDate: { gte: from, lt: to }, deletedAt: null, tenant: tenantWhereWithArchived },
+            _sum: { amount: true },
+            orderBy: { _sum: { amount: "desc" } },
+            take: 5,
+          }),
+          [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
+        )
+      : Promise.resolve([] as Array<{ tenantId: string; _sum: { amount: number | null } }>),
+    basic
+      ? safe(
+          "admin.analytics.debtors",
+          db.charge.groupBy({
+            by: ["tenantId"],
+            where: { isPaid: false, deletedAt: null, tenant: tenantWhere },
+            _sum: { amount: true },
+            orderBy: { _sum: { amount: "desc" } },
+            take: 10,
+          }),
+          [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
+        )
+      : Promise.resolve([] as Array<{ tenantId: string; _sum: { amount: number | null } }>),
+    advanced
+      ? safe(
+          "admin.analytics.overdue",
+          db.charge.findMany({
+            where: { isPaid: false, deletedAt: null, dueDate: { lt: now }, tenant: tenantWhere },
+            select: { amount: true, dueDate: true },
+          }),
+          [] as Array<{ amount: number; dueDate: Date | null }>,
+        )
+      : Promise.resolve([] as Array<{ amount: number; dueDate: Date | null }>),
+    advanced && buildingIds.length > 1
+      ? safe(
+          "admin.analytics.buildings",
+          db.building.findMany({ where: { id: { in: buildingIds } }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+          [] as Array<{ id: string; name: string }>,
+        )
+      : Promise.resolve([] as Array<{ id: string; name: string }>),
   ])
 
-  const totalSpaces = spaceStats.reduce((s, x) => s + x._count._all, 0) || 1
-  const occupied = spaceStats.find((s) => s.status === "OCCUPIED")?._count._all ?? 0
-  const occupancyRate = Math.round((occupied / totalSpaces) * 100)
+  // ── Площади ──
+  const totalArea = spaces.reduce((s, x) => s + x.area, 0)
+  const occupiedArea = spaces.filter((x) => x.status === "OCCUPIED").reduce((s, x) => s + x.area, 0)
+  const vacant = spaces.filter((x) => x.status === "VACANT")
+  const vacantArea = vacant.reduce((s, x) => s + x.area, 0)
+  const occupancyPct = totalArea > 0 ? Math.round((occupiedArea / totalArea) * 100) : 0
+  const m2 = (v: number) => `${Math.round(v).toLocaleString("ru-RU")} м²`
 
-  const completedContracts = contractDurations.filter((c) => c.contractStart && c.contractEnd)
-  const avgDurationDays = completedContracts.length > 0
-    ? completedContracts.reduce((s, c) => {
-        const d = (c.contractEnd!.getTime() - c.contractStart!.getTime()) / 86_400_000
-        return s + d
-      }, 0) / completedContracts.length
-    : 0
-  const avgMonths = Math.round(avgDurationDays / 30)
-
-  const totalRevenue = paymentsThisYear._sum.amount ?? 0
-  const totalExpense = expensesThisYear._sum.amount ?? 0
-  const profit = totalRevenue - totalExpense
-  const margin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100) : 0
-
-  const topPayerIds = topPayersAgg.map((t) => t.tenantId)
-  const topPayerInfo = await safe(
-    "admin.analytics.topPayerInfo",
-    db.tenant.findMany({
-      where: { id: { in: topPayerIds } },
-      select: { id: true, companyName: true },
-    }),
-    [],
-  )
-  const topPayers = topPayersAgg.map((t) => {
-    const info = topPayerInfo.find((p) => p.id === t.tenantId)
-    return { ...t, companyName: info?.companyName ?? "—" }
-  })
-
-  const occupancyData = monthlyOccupancy.map((t) => {
-    if (!t.space || !t.contractStart) return null
-    const start = new Date(Math.max(t.contractStart.getTime(), yearStart.getTime()))
-    const end = t.contractEnd ? new Date(Math.min(t.contractEnd.getTime(), now.getTime())) : now
-    const days = Math.max(0, (end.getTime() - start.getTime()) / 86_400_000)
-    const yearDays = (now.getTime() - yearStart.getTime()) / 86_400_000
-    const percent = Math.min(100, Math.round((days / yearDays) * 100))
-    return {
-      spaceId: t.space.id,
-      spaceNumber: t.space.number,
-      // Этаж в подписи ячейки — номера помещений сами по себе неинформативны
-      // («all», «Весь» и т.п.), нужен контекст «какой этаж».
-      floorName: t.space.floor?.name?.trim() || `Этаж ${t.space.floor?.number ?? "?"}`,
-      area: t.space.area,
-      percent,
-    }
-  }).filter(Boolean) as { spaceId: string; spaceNumber: string; floorName: string; area: number; percent: number }[]
-
-  // ===== analyticsBasic блоки =====
-  // Топ-10 должников (по сумме неоплаченных начислений).
-  const debtorAgg = await safe(
-    "admin.analytics.debtorAgg",
-    db.charge.groupBy({
-      by: ["tenantId"],
-      where: { isPaid: false, deletedAt: null, tenant: tenantWhere },
-      _sum: { amount: true },
-      orderBy: { _sum: { amount: "desc" } },
-      take: 10,
-    }),
-    [] as Array<{ tenantId: string; _sum: { amount: number | null } }>,
-  )
-  const debtorInfo = debtorAgg.length > 0
-    ? await safe("admin.analytics.debtorInfo",
-        db.tenant.findMany({ where: { id: { in: debtorAgg.map((d) => d.tenantId) } }, select: { id: true, companyName: true } }),
-        [] as Array<{ id: string; companyName: string }>)
+  // ── Имена арендаторов для топов ──
+  const nameIds = [...new Set([...payersAgg, ...debtorsAgg].map((r) => r.tenantId))]
+  const names = nameIds.length
+    ? await safe(
+        "admin.analytics.names",
+        db.tenant.findMany({ where: { id: { in: nameIds } }, select: { id: true, companyName: true } }),
+        [] as Array<{ id: string; companyName: string }>,
+      )
     : []
-  const top10Debtors = debtorAgg.map((d) => ({
-    tenantId: d.tenantId,
-    companyName: debtorInfo.find((t) => t.id === d.tenantId)?.companyName ?? "—",
-    total: d._sum.amount ?? 0,
-  }))
+  const nameOf = (id: string) => shortCompanyName(names.find((n) => n.id === id)?.companyName ?? "—")
+  const payersTotal = payersAgg.reduce((s, r) => s + (r._sum.amount ?? 0), 0)
+  const debtTotal = debtorsAgg.reduce((s, r) => s + (r._sum.amount ?? 0), 0)
 
-  // Прогноз cashflow на 6 (и 12 для advanced) мес: сумма месячной аренды активных арендаторов.
-  const activeTenants = await safe(
-    "admin.analytics.activeTenants",
-    db.tenant.findMany({
-      where: { ...tenantWhere, OR: [{ contractEnd: null }, { contractEnd: { gte: now } }] },
-      include: {
-        space: { include: { floor: true } },
-        fullFloors: true,
-        tenantSpaces: { include: { space: { include: { floor: true } } } },
-      },
-    }),
-    [],
-  )
-  const monthlyExpectedTotal = activeTenants.reduce((s, t) => s + calculateTenantMonthlyRent(t), 0)
-  const cashflowForecast6 = monthlyExpectedTotal * 6
-  const cashflowForecast12 = monthlyExpectedTotal * 12
-
-  // ===== analyticsAdvanced блоки (только если фича включена) =====
-  type PnL = { id: string; name: string; revenue: number; expense: number; profit: number }
-  let plPerBuilding: PnL[] = []
-  type AgeBuckets = { d0_30: number; d30_60: number; d60_90: number; d90plus: number }
-  const aging: AgeBuckets = { d0_30: 0, d30_60: 0, d60_90: 0, d90plus: 0 }
-  type BuildingCompare = { id: string; name: string; totalSpaces: number; occupied: number; occupiedPct: number; totalArea: number; revenue: number }
-  let buildingsCompare: BuildingCompare[] = []
-
-  if (advancedEnabled) {
-    const buildings = await safe("admin.analytics.buildings",
-      db.building.findMany({ where: { id: { in: visibleBuildingIds } }, select: { id: true, name: true } }),
-      [] as Array<{ id: string; name: string }>)
-
-    // P&L: revenue = платежи арендаторов здания за год; expense = расходы здания за год.
-    plPerBuilding = await Promise.all(buildings.map(async (b) => {
-      const tenantInBuildingWhere = {
-        OR: [
-          { space: { floor: { buildingId: b.id } } },
-          { tenantSpaces: { some: { space: { floor: { buildingId: b.id } } } } },
-          { fullFloors: { some: { buildingId: b.id } } },
-        ],
-      }
-      const [rev, exp] = await Promise.all([
-        db.payment.aggregate({
-          where: { paymentDate: { gte: yearStart, lt: now }, tenant: tenantInBuildingWhere },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-        db.expense.aggregate({
-          where: { buildingId: b.id, date: { gte: yearStart, lt: now } },
-          _sum: { amount: true },
-        }).catch(() => ({ _sum: { amount: 0 } })),
-      ])
-      const revenue = rev._sum.amount ?? 0
-      const expense = exp._sum.amount ?? 0
-      return { id: b.id, name: b.name, revenue, expense, profit: revenue - expense }
-    }))
-
-    // Дебиторка по возрасту долга.
-    const overdue = await safe("admin.analytics.aging",
-      db.charge.findMany({
-        where: { isPaid: false, deletedAt: null, dueDate: { lt: now }, tenant: tenantWhere },
-        select: { amount: true, dueDate: true },
-      }),
-      [] as Array<{ amount: number; dueDate: Date | null }>)
-    for (const c of overdue) {
-      if (!c.dueDate) continue
-      const days = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000)
-      if (days < 30) aging.d0_30 += c.amount
-      else if (days < 60) aging.d30_60 += c.amount
-      else if (days < 90) aging.d60_90 += c.amount
-      else aging.d90plus += c.amount
-    }
-
-    // Сравнение зданий: площадь, заполненность, доход.
-    buildingsCompare = await Promise.all(buildings.map(async (b) => {
-      const spaces = await db.space.findMany({
-        where: { floor: { buildingId: b.id } },
-        select: { area: true, status: true },
-      })
-      const total = spaces.length
-      const occupied = spaces.filter((s) => s.status === "OCCUPIED").length
-      const totalArea = spaces.reduce((s, sp) => s + sp.area, 0)
-      const pl = plPerBuilding.find((p) => p.id === b.id)
-      return {
-        id: b.id, name: b.name,
-        totalSpaces: total,
-        occupied,
-        occupiedPct: total > 0 ? Math.round((occupied / total) * 100) : 0,
-        totalArea,
-        revenue: pl?.revenue ?? 0,
-      }
-    }))
+  // ── Возраст долга ──
+  const aging = [
+    { label: "до 30 дней", v: 0, cls: "text-amber-600 dark:text-amber-400" },
+    { label: "30–60", v: 0, cls: "text-orange-600 dark:text-orange-400" },
+    { label: "60–90", v: 0, cls: "text-red-600 dark:text-red-400" },
+    { label: "90+", v: 0, cls: "text-red-700 dark:text-red-500" },
+  ]
+  for (const c of overdue) {
+    if (!c.dueDate) continue
+    const days = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000)
+    aging[days < 30 ? 0 : days < 60 ? 1 : days < 90 ? 2 : 3].v += c.amount
   }
 
+  // ── Сравнение зданий (если их несколько) ──
+  const buildingRows = await Promise.all(
+    buildings.map(async (b) => {
+      const where = tenantInBuildingsWhere(orgId, [b.id])
+      const { deletedAt: _d, ...withArchived } = where
+      void _d
+      const [rev, exp] = await Promise.all([
+        db.payment.aggregate({
+          where: { paymentDate: { gte: from, lt: to }, deletedAt: null, tenant: withArchived },
+          _sum: { amount: true },
+        }).catch(() => ({ _sum: { amount: 0 as number | null } })),
+        db.expense.aggregate({
+          where: { buildingId: b.id, date: { gte: from, lt: to } },
+          _sum: { amount: true },
+        }).catch(() => ({ _sum: { amount: 0 as number | null } })),
+      ])
+      const own = spaces.filter((s) => s.floor.buildingId === b.id)
+      const area = own.reduce((s, x) => s + x.area, 0)
+      const occ = own.filter((x) => x.status === "OCCUPIED").reduce((s, x) => s + x.area, 0)
+      const received = rev._sum.amount ?? 0
+      const spent = exp._sum.amount ?? 0
+      return { ...b, area, pct: area > 0 ? Math.round((occ / area) * 100) : 0, received, spent }
+    }),
+  )
+
+  const periodNav = (
+    <nav className="inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
+      {REPORT_PERIODS.map((t) => (
+        <Link
+          key={t.key}
+          href={`/admin/analytics?period=${t.key}`}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+            period === t.key
+              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+              : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          }`}
+        >
+          {t.label}
+        </Link>
+      ))}
+    </nav>
+  )
+
   return (
-    <div className="space-y-5">
-      <PageHeader icon={Activity} title="Аналитика" subtitle={`Ключевые показатели за ${thisYear} год`} />
+    <div className="space-y-6">
+      <PageHeader
+        icon={Activity}
+        title="Аналитика"
+        subtitle={`Сколько заработали, куда ушло и кто должен — ${caption}${buildingId ? "" : buildingIds.length > 1 ? " · все здания" : ""}`}
+        actions={periodNav}
+      />
 
-      <StatGrid>
-        <StatCard label="Заполняемость" value={`${occupancyRate}%`} icon={Building2} sub={`${occupied} из ${totalSpaces} помещений`} tone="blue" />
-        <StatCard label="Доход за год" value={formatMoney(totalRevenue)} icon={TrendingUp} sub={`${activeTenantsCount} арендаторов`} tone="emerald" />
-        <StatCard label="Прибыль" value={formatMoney(profit)} icon={Award} sub={`Маржа ${margin}%`} tone={profit >= 0 ? "emerald" : "red"} />
-        <StatCard label="Средний срок" value={`${avgMonths} мес.`} icon={Users} sub="по подписанным договорам" tone="violet" />
-      </StatGrid>
+      {pnl ? (
+        <ReportView data={pnl} exportHref="/api/export/owner-report" />
+      ) : (
+        <Card><p className="text-center text-sm text-slate-500 dark:text-slate-400">Нет данных за период</p></Card>
+      )}
 
-      <Card padded={false} className="overflow-x-auto" icon={Award} title={`Топ-5 арендаторов по выручке за ${thisYear}`}>
-        <table className="w-full min-w-[480px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">№</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">% от общей</th>
-            </tr>
-          </thead>
-          <tbody>
-            {topPayers.length === 0 ? (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет платежей за этот год</td></tr>
-            ) : topPayers.map((t, i) => {
-              const amount = t._sum.amount ?? 0
-              const percent = totalRevenue > 0 ? Math.round((amount / totalRevenue) * 100) : 0
-              return (
-                <tr key={t.tenantId} className="border-b border-slate-50">
-                  <td className="px-5 py-2.5 text-slate-400 dark:text-slate-500">#{i + 1}</td>
-                  <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{t.companyName}</td>
-                  <td className="px-5 py-2.5 text-right font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(amount)}</td>
-                  <td className="px-5 py-2.5 text-right text-slate-500 dark:text-slate-400">{percent}%</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </Card>
+      {basic ? (
+        <Section title="Арендаторы и площади" icon={Building2}>
+          <StatGrid cols={2}>
+            <StatCard
+              icon={Building2}
+              tone="blue"
+              label="Сдано площади"
+              value={`${occupancyPct}%`}
+              sub={`${m2(occupiedArea)} из ${m2(totalArea)} · без антенн и щитов`}
+            />
+            <StatCard
+              icon={DoorOpen}
+              tone={vacant.length > 0 ? "amber" : "emerald"}
+              label="Свободно сейчас"
+              value={vacant.length > 0 ? m2(vacantArea) : "Всё сдано"}
+              sub={vacant.length > 0 ? `${vacant.length} помещ. — открыть список` : undefined}
+              href={vacant.length > 0 ? "/admin/spaces" : undefined}
+            />
+          </StatGrid>
 
-      <OccupancyHeatmap data={occupancyData} />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card padded={false} icon={Award} title={`Больше всех заплатили ${caption}`}>
+              {payersAgg.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Оплат за период нет</p>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {payersAgg.map((r) => {
+                    const amount = r._sum.amount ?? 0
+                    const share = pnl && pnl.cashIncome > 0 ? Math.round((amount / pnl.cashIncome) * 100) : null
+                    return (
+                      <li key={r.tenantId}>
+                        <Link href={`/admin/tenants/${r.tenantId}`} className="flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <span className="min-w-0 flex-1 truncate font-medium text-slate-900 dark:text-slate-100">{nameOf(r.tenantId)}</span>
+                          {share !== null && <span className="text-xs text-slate-400 dark:text-slate-500">{share}%</span>}
+                          <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(amount)}</span>
+                        </Link>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+              {payersAgg.length > 0 && (
+                <p className="border-t border-slate-100 px-5 py-2 text-[11.5px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
+                  Вместе {formatMoney(payersTotal)} — % от всех поступлений за период
+                </p>
+              )}
+            </Card>
 
-      {/* ===== analyticsBasic: топ-10 должников и прогноз cashflow ===== */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card padded={false} className="overflow-x-auto" icon={AlertCircle} title="Топ-10 должников">
-          <table className="w-full min-w-[360px] text-sm">
+            <Card padded={false} icon={AlertCircle} title="Кто должен сейчас">
+              {debtorsAgg.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Должников нет</p>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {debtorsAgg.map((r) => (
+                    <li key={r.tenantId}>
+                      <Link href={`/admin/tenants/${r.tenantId}`} className="flex items-center gap-3 px-5 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                        <span className="min-w-0 flex-1 truncate font-medium text-slate-900 dark:text-slate-100">{nameOf(r.tenantId)}</span>
+                        <span className="font-semibold tabular-nums text-red-600 dark:text-red-400">{formatMoney(r._sum.amount ?? 0)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {advanced && overdue.length > 0 && (
+                <div className="grid grid-cols-4 gap-2 border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+                  {aging.map((a) => (
+                    <div key={a.label} className="min-w-0">
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500">просрочка {a.label}</p>
+                      <p className={`truncate text-sm font-semibold tabular-nums ${a.v > 0 ? a.cls : "text-slate-300 dark:text-slate-600"}`}>{formatMoney(a.v)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {debtorsAgg.length > 0 && (
+                <p className="border-t border-slate-100 px-5 py-2 text-[11.5px] text-slate-400 dark:border-slate-800 dark:text-slate-500">
+                  Топ-{debtorsAgg.length}: {formatMoney(debtTotal)} ·{" "}
+                  <Link href="/admin/finances" className="underline hover:text-slate-600 dark:hover:text-slate-300">все долги в «Финансах»</Link>
+                </p>
+              )}
+            </Card>
+          </div>
+        </Section>
+      ) : null}
+
+      {buildingRows.length > 1 && (
+        <Card padded={false} className="overflow-x-auto" icon={SquareDashed} title={`Сравнение зданий ${caption}`}>
+          <table className="w-full min-w-[560px] text-sm">
             <thead>
-              <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">№</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
-                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Долг</th>
+              <tr className="border-b border-slate-100 bg-slate-50 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400">
+                <th className="px-5 py-2 text-left font-medium">Здание</th>
+                <th className="px-5 py-2 text-right font-medium">Площадь</th>
+                <th className="px-5 py-2 text-right font-medium">Сдано</th>
+                <th className="px-5 py-2 text-right font-medium">Поступило</th>
+                <th className="px-5 py-2 text-right font-medium">Расходы</th>
+                <th className="px-5 py-2 text-right font-medium">Итог</th>
               </tr>
             </thead>
             <tbody>
-              {top10Debtors.length === 0 ? (
-                <tr><td colSpan={3} className="px-5 py-6 text-center text-sm text-slate-400 dark:text-slate-500">Должников нет</td></tr>
-              ) : top10Debtors.map((d, i) => (
-                <tr key={d.tenantId} className="border-b border-slate-50">
-                  <td className="px-5 py-2.5 text-slate-400 dark:text-slate-500">#{i + 1}</td>
-                  <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{d.companyName}</td>
-                  <td className="px-5 py-2.5 text-right font-semibold text-red-600 dark:text-red-400">{formatMoney(d.total)}</td>
-                </tr>
-              ))}
+              {buildingRows.map((b) => {
+                const result = b.received - b.spent
+                return (
+                  <tr key={b.id} className="border-b border-slate-50 last:border-0 dark:border-slate-800/60">
+                    <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{b.name}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{m2(b.area)}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{b.pct}%</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-emerald-600 dark:text-emerald-400">{formatMoney(b.received)}</td>
+                    <td className="px-5 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-300">{b.spent > 0 ? formatMoney(b.spent) : "не внесены"}</td>
+                    <td className={`px-5 py-2.5 text-right font-semibold tabular-nums ${result >= 0 ? "text-slate-900 dark:text-slate-100" : "text-red-600 dark:text-red-400"}`}>{formatMoney(result)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </Card>
-
-        <Card padded={false} icon={Wallet} title="Прогноз cashflow">
-          <div className="grid grid-cols-2 gap-3 p-5">
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400">На 6 месяцев</p>
-              <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(cashflowForecast6)}</p>
-              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">~{formatMoney(monthlyExpectedTotal)}/мес</p>
-            </div>
-            <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400">На 12 месяцев</p>
-              {advancedEnabled ? (
-                <p className="mt-1 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(cashflowForecast12)}</p>
-              ) : (
-                <p className="mt-1 text-sm text-slate-400 dark:text-slate-500 flex items-center gap-1"><Lock className="h-3 w-3" /> Business+</p>
-              )}
-            </div>
-          </div>
-          <p className="px-5 pb-4 text-[11px] text-slate-400 dark:text-slate-500">
-            По активным договорам на сегодня. Не учитывает индексацию, расторжения и просрочки.
-          </p>
-        </Card>
-      </div>
-
-      {/* ===== analyticsAdvanced (Business+) ===== */}
-      {advancedEnabled ? (
-        <>
-          <Card padded={false} className="overflow-x-auto" icon={BarChart3} title={`P&L по объектам (${thisYear})`}>
-            <table className="w-full min-w-[520px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                  <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>
-                  <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Доход</th>
-                  <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Расход</th>
-                  <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Прибыль</th>
-                </tr>
-              </thead>
-              <tbody>
-                {plPerBuilding.length === 0 ? (
-                  <tr><td colSpan={4} className="px-5 py-6 text-center text-sm text-slate-400 dark:text-slate-500">Нет данных</td></tr>
-                ) : plPerBuilding.map((b) => (
-                  <tr key={b.id} className="border-b border-slate-50">
-                    <td className="px-5 py-2.5 font-medium text-slate-900 dark:text-slate-100">{b.name}</td>
-                    <td className="px-5 py-2.5 text-right text-emerald-600 dark:text-emerald-400">{formatMoney(b.revenue)}</td>
-                    <td className="px-5 py-2.5 text-right text-red-600 dark:text-red-400">{formatMoney(b.expense)}</td>
-                    <td className={`px-5 py-2.5 text-right font-semibold ${b.profit >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>{formatMoney(b.profit)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card padded={false} icon={AlertCircle} title="Дебиторка по возрасту долга">
-              <div className="grid grid-cols-2 gap-3 p-5">
-                {[
-                  { label: "0–30 дней", v: aging.d0_30, color: "text-amber-600 dark:text-amber-400" },
-                  { label: "30–60 дней", v: aging.d30_60, color: "text-orange-600 dark:text-orange-400" },
-                  { label: "60–90 дней", v: aging.d60_90, color: "text-red-600 dark:text-red-400" },
-                  { label: "90+ дней", v: aging.d90plus, color: "text-red-700 dark:text-red-500" },
-                ].map((b) => (
-                  <div key={b.label} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{b.label}</p>
-                    <p className={`mt-1 text-lg font-bold ${b.color}`}>{formatMoney(b.v)}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card padded={false} className="overflow-x-auto" icon={Building2} title="Сравнение зданий">
-              <table className="w-full min-w-[420px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Площадь</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Заполн.</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Доход/год</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {buildingsCompare.length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-slate-400 dark:text-slate-500">Нет данных</td></tr>
-                  ) : buildingsCompare.map((b) => (
-                    <tr key={b.id} className="border-b border-slate-50">
-                      <td className="px-4 py-2.5 font-medium text-slate-900 dark:text-slate-100">{b.name}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{b.totalArea.toLocaleString("ru-RU")} м²</td>
-                      <td className="px-4 py-2.5 text-right text-slate-700 dark:text-slate-300">{b.occupied}/{b.totalSpaces} ({b.occupiedPct}%)</td>
-                      <td className="px-4 py-2.5 text-right text-emerald-600 dark:text-emerald-400">{formatMoney(b.revenue)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
-          </div>
-        </>
-      ) : (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-5">
-          <div className="flex items-start gap-3">
-            <Lock className="mt-0.5 h-4 w-4 text-slate-400" />
-            <div>
-              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Расширенная аналитика — на тарифе Business</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                P&L по каждому объекту, дебиторка по возрасту долга, сравнение зданий, прогноз cashflow на 12 месяцев.
-                <Link href="/admin/subscription" className="ml-1 text-blue-600 dark:text-blue-400 underline">Обновить тариф</Link>
-              </p>
-            </div>
-          </div>
-        </div>
       )}
 
-      {/* ===== analyticsCustomReports (Business+ с фичей) ===== */}
-      {customReportsEnabled ? (
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-          <div className="flex items-start gap-3">
-            <FileBarChart className="mt-0.5 h-4 w-4 text-purple-600" />
-            <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Кастомные отчёты</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Шаблоны под вашу форму (например, выгрузка для УК), регулярная отправка по email/Telegram, экспорт в Power BI / Tableau через API.
-                <Link href="/admin/subscription" className="ml-1 text-blue-600 dark:text-blue-400 underline">Заказать — свяжитесь с супер-админом</Link>
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MarketSection data={market} />
+
+      {(!basic || !advanced) && (
+        <p className="flex items-start gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {!basic
+            ? "Топ плательщиков, должники и заполняемость по площади — на тарифе Pro."
+            : "Возраст долга и сравнение зданий — на тарифе Business."}{" "}
+          <Link href="/admin/subscription" className="underline hover:text-slate-600 dark:hover:text-slate-300">Тарифы</Link>
+        </p>
+      )}
     </div>
   )
 }
-
