@@ -1,5 +1,8 @@
 export const dynamic = "force-dynamic"
 
+import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
+import { assertBuildingInOrg } from "@/lib/scope-guards"
+import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { IMPORT_TABS } from "@/lib/hub-tabs"
@@ -23,15 +26,14 @@ export default async function ImportPage() {
   }))
   const canApply = caps.has("finance.importBank")
 
+  // Только арендаторы СВОЕЙ организации (и выбранного здания). Раньше без
+  // выбранного здания where был пустой — в список попадали арендаторы всех
+  // организаций платформы с БИН/ИИН.
   const buildingId = await getCurrentBuildingId()
-  const floorIds = buildingId
-    ? (await db.floor.findMany({ where: { buildingId }, select: { id: true } })).map((f) => f.id)
-    : []
+  if (buildingId) await assertBuildingInOrg(buildingId, orgId)
+  const buildingIds = buildingId ? [buildingId] : await getAccessibleBuildingIdsForSession(orgId)
   const tenants = await db.tenant.findMany({
-    where: floorIds.length > 0 ? { OR: [
-      { space: { floorId: { in: floorIds } } },
-      { spaceId: null },
-    ] } : undefined,
+    where: tenantInBuildingsWhere(orgId, buildingIds),
     select: { id: true, companyName: true, bin: true, iin: true },
     orderBy: { companyName: "asc" },
   })

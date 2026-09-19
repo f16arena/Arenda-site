@@ -93,8 +93,10 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
       }),
       db.tenant.count({
         where: {
-          ...tenantScope(org.id),
-          OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }],
+          AND: [
+            tenantScope(org.id),
+            { OR: [{ spaceId: { not: null } }, { tenantSpaces: { some: {} } }, { fullFloors: { some: {} } }] },
+          ],
           contracts: { none: { status: "SIGNED" } },
         },
       }),

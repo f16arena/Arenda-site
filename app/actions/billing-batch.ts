@@ -35,12 +35,15 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
 
   const tenants = await db.tenant.findMany({
     where: {
-      ...tenantScope(orgId),
-      OR: [
-        { spaceId: { not: null } },
-        { tenantSpaces: { some: {} } },
-        { fullFloors: { some: {} } },
-        { fixedMonthlyRent: { gt: 0 } },
+      // AND, не spread: второй OR затирал бы OR изоляции организации.
+      AND: [
+        tenantScope(orgId),
+        { OR: [
+          { spaceId: { not: null } },
+          { tenantSpaces: { some: {} } },
+          { fullFloors: { some: {} } },
+          { fixedMonthlyRent: { gt: 0 } },
+        ] },
       ],
     },
     include: {

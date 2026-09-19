@@ -29,16 +29,19 @@ export async function GET(req: Request) {
     : buildingIds
   const tenantWhere = {
     user: { organizationId: ctx.org.id },
-    ...tenantInBuildingsWhere(scopedBuildingIds),
-    ...(q
-      ? {
-          OR: [
-            { companyName: { contains: q, mode: "insensitive" as const } },
-            { bin: { contains: q } },
-            { iin: { contains: q } },
-          ],
-        }
-      : {}),
+    // Поиск — через AND: OR поиска не должен затирать OR «здания сотрудника».
+    AND: [
+      tenantInBuildingsWhere(scopedBuildingIds),
+      ...(q
+        ? [{
+            OR: [
+              { companyName: { contains: q, mode: "insensitive" as const } },
+              { bin: { contains: q } },
+              { iin: { contains: q } },
+            ],
+          }]
+        : []),
+    ],
   }
 
   const [total, tenants] = await Promise.all([
