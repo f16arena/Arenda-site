@@ -2661,8 +2661,9 @@ export class BuilderEngine {
       const f = doc ? findFloor(doc, meta.floorId) : undefined
       if (!f) return
       const step = this.snapEnabled ? 100 : 1
+      const id = uid("isl")
       this.onCommand(new AddIslandCommand({ floorId: f.id }, {
-        id: uid("isl"),
+        id,
         kind: this.islandKind,
         name: "",
         tenant: "",
@@ -2675,6 +2676,7 @@ export class BuilderEngine {
         mountHeight: Math.max(0, Math.round(point.y * 1000 - f.elevation)),
       }))
       this.onHud(`${preset.label}: поставлено на кровлю. Арендатор — в панели справа`)
+      this.onPick({ kind: "island", floorId: f.id, entityId: id })
       return
     }
     // парковочное место размечается на земле участка, а не на этаже
@@ -2682,8 +2684,9 @@ export class BuilderEngine {
       const g = this.projectToY(0)
       if (!g) return
       const step = this.snapEnabled ? 100 : 1
+      const id = uid("isl")
       this.onCommand(new AddIslandCommand({ site: true }, {
-        id: uid("isl"),
+        id,
         kind: this.islandKind,
         name: "",
         tenant: "",
@@ -2694,6 +2697,7 @@ export class BuilderEngine {
         rotationDeg: 0,
       }))
       this.onHud(`${preset.label}: размечено. Размеры и арендатор — в панели справа`)
+      this.onPick({ kind: "island", floorId: "site", entityId: id })
       return
     }
     const f = doc ? findFloor(doc, this.toolFloorId) : undefined
@@ -2707,8 +2711,9 @@ export class BuilderEngine {
       return
     }
     const g = this.snapEnabled ? 50 : 1
+    const id = uid("isl")
     this.onCommand(new AddIslandCommand({ floorId: f.id }, {
-      id: uid("isl"),
+      id,
       kind: this.islandKind,
       name: "",
       tenant: "",
@@ -2724,6 +2729,7 @@ export class BuilderEngine {
       rotationDeg: onWall ? onWall.rotation : 0,
     }))
     this.onHud(`${preset.label}: поставлено. Размеры и арендатор — в панели справа`)
+    this.onPick({ kind: "island", floorId: f.id, entityId: id })
   }
 
   private handleStairTap(): void {

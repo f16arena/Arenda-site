@@ -12,7 +12,7 @@ import type { BuilderDocument } from "@/types/builder"
 import { useDocumentStore, useEditorStore, useSyncStore, type Tool, type CameraMode } from "@/store/builder-store"
 import { loadBuilderProject } from "@/app/actions/builder"
 import type { BuilderEngine, MeshMeta } from "@/engine/engine"
-import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, TransformWallsCommand, DeleteAnnotationCommand, CompositeCommand, type Command } from "@/core/document/commands"
+import { AddObjectCommand, DeleteObjectCommand, MoveObjectCommand, DeleteWallCommand, DeleteWaterCommand, DeletePathCommand, DeletePavementCommand, DeleteStairCommand, MoveStairCommand, MoveIslandCommand, DeleteOpeningCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateMepDeviceCommand, DeleteSectionCommand, replanDeleteWall, replanDeleteOpening, TransformWallsCommand, DeleteAnnotationCommand, CompositeCommand, type Command } from "@/core/document/commands"
 import { uid } from "@/core/id"
 import { listBuildingPremises } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
@@ -612,6 +612,40 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           else if (e.key === "ArrowLeft") at.x -= step
           else at.x += step
           docState.execute(new UpdateMepDeviceCommand(ed.selection.floorId, dev.id, { at }, `move-${dev.id}`))
+        }
+        return
+      }
+      // Стрелки — сдвиг выбранного арендного места: на этаже и на участке
+      // (Shift — мелкий шаг). Так место ставится ровно, без мыши.
+      if (e.key.startsWith("Arrow") && ed.selection.type === "island" && ed.selection.id) {
+        e.preventDefault()
+        const onSite = !ed.selection.floorId || ed.selection.floorId === "site"
+        const list = onSite ? docState.doc.site.islands ?? [] : findFloor(docState.doc, ed.selection.floorId as string)?.islands ?? []
+        const isl = list.find((x) => x.id === ed.selection.id)
+        if (isl) {
+          const step = e.shiftKey ? 10 : 100
+          let { x, y } = isl.position
+          if (e.key === "ArrowUp") y -= step
+          else if (e.key === "ArrowDown") y += step
+          else if (e.key === "ArrowLeft") x -= step
+          else if (e.key === "ArrowRight") x += step
+          docState.execute(new MoveIslandCommand(onSite ? { site: true } : { floorId: ed.selection.floorId as string }, isl.id, Math.round(x), Math.round(y)))
+        }
+        return
+      }
+      // Стрелки — сдвиг лестницы, колонны, лифта или пандуса.
+      if (e.key.startsWith("Arrow") && ed.selection.type === "stair" && ed.selection.id && ed.selection.floorId) {
+        e.preventDefault()
+        const fl = findFloor(docState.doc, ed.selection.floorId)
+        const st = fl?.stairs.find((x) => x.id === ed.selection.id)
+        if (st) {
+          const step = e.shiftKey ? 10 : 100
+          let { x, y } = st.position
+          if (e.key === "ArrowUp") y -= step
+          else if (e.key === "ArrowDown") y += step
+          else if (e.key === "ArrowLeft") x -= step
+          else if (e.key === "ArrowRight") x += step
+          docState.execute(new MoveStairCommand(ed.selection.floorId, st.id, Math.round(x), Math.round(y)))
         }
         return
       }

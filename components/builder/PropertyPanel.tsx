@@ -576,6 +576,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
               Создать карточку места
             </button>
           )}
+          <p className="text-[10px]" style={{ color: TOKENS.muted }}>Стрелки — сдвиг на 100 мм, Shift — на 10 мм.</p>
           <p className="text-[10px]" style={{ color: TOKENS.muted }}>Место стоит в общей зоне и в площадь помещения не входит — оно идёт отдельной строкой в ведомости арендных мест.</p>
         </div>
       )

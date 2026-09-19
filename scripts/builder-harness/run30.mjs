@@ -266,6 +266,33 @@ await page.waitForTimeout(800)
   }
 }
 
+// ── I14. выбранное место двигается стрелками ──
+{
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setCameraMode("orbit"); s.setTool("island"); s.setIslandKind("vending") })
+  await page.waitForTimeout(1200)
+  const box = await page.locator("canvas").first().boundingBox()
+  await page.mouse.click(box.x + box.width * 0.45, box.y + box.height * 0.55)
+  await page.waitForTimeout(900)
+  const before = await page.evaluate(() => {
+    const f = window.__doc().buildings.flatMap((b) => b.floors).find((x) => (x.islands ?? []).length)
+    const sel = window.__stores.useEditorStore.getState().selection
+    return { pos: f?.islands?.[f.islands.length - 1]?.position ?? null, sel: sel.type }
+  })
+  await page.keyboard.press("ArrowRight")
+  await page.keyboard.press("ArrowRight")
+  await page.keyboard.down("Shift")
+  await page.keyboard.press("ArrowUp")
+  await page.keyboard.up("Shift")
+  await page.waitForTimeout(600)
+  const after = await page.evaluate(() => {
+    const f = window.__doc().buildings.flatMap((b) => b.floors).find((x) => (x.islands ?? []).length)
+    return f?.islands?.[f.islands.length - 1]?.position ?? null
+  })
+  const dx = after && before.pos ? after.x - before.pos.x : 0
+  const dy = after && before.pos ? after.y - before.pos.y : 0
+  check("I14 стрелки двигают место", dx === 200 && dy === -10, `выделено ${before.sel}, сдвиг ${dx} / ${dy}`)
+}
+
 check("ошибок в консоли нет", errors.length === 0, errors.slice(0, 3).join(" | "))
 console.log(results.join("\n"))
 await browser.close()
