@@ -3,12 +3,13 @@
 // ADR: Контекстные опции активного инструмента (под тулбаром): палитра материалов для
 // «ведра», форма лестницы, подсказки для стены/проёмов. Управляет editorStore.
 
+import { useEffect } from "react"
 import { ISLAND_KINDS, MEP_SYSTEMS } from "@/types/builder"
 import { MEP_SYSTEM_INFO, devicesOf } from "@/lib/builder/mep/catalog"
 import { useEditorStore, type StairShape, type TerrainMode, type FenceStyle } from "@/store/builder-store"
 import { MATERIALS, TOKENS } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
-import { ISLAND_PRESETS } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, OUTDOOR_KINDS } from "@/lib/builder/islands"
 
 const PAINT_IDS = [
   // стены/фасад
@@ -85,6 +86,15 @@ export function ToolOptions() {
   const stairShape = useEditorStore((s) => s.stairShape)
   const setStairShape = useEditorStore((s) => s.setStairShape)
   const islandKind = useEditorStore((s) => s.islandKind)
+  const activeLevelId = useEditorStore((s) => s.activeLevelId)
+  // ушли на участок — переключаем вид места на парковку и наоборот: иначе
+  // клик поставил бы вендинг посреди двора
+  useEffect(() => {
+    const onSite = activeLevelId === "site"
+    if (OUTDOOR_KINDS.has(islandKind) !== onSite) {
+      useEditorStore.getState().setIslandKind(onSite ? "parking" : "vending")
+    }
+  }, [activeLevelId, islandKind])
   const setIslandKind = useEditorStore((s) => s.setIslandKind)
   const terrainMode = useEditorStore((s) => s.terrainMode)
   const setTerrainMode = useEditorStore((s) => s.setTerrainMode)
@@ -246,11 +256,16 @@ export function ToolOptions() {
     )
   }
   if (tool === "island") {
+    // на участке предлагаем парковку, на этаже — места внутри и рекламу:
+    // весь список сразу не влезает в строку и путает
+    const onSite = activeLevelId === "site"
+    const kinds = ISLAND_KINDS.filter((k) => OUTDOOR_KINDS.has(k) === onSite)
+    const kind = kinds.includes(islandKind) ? islandKind : kinds[0]
     return (
       <Shell>
-        <span className="shrink-0">Арендное место:</span>
-        {ISLAND_KINDS.map((k) => {
-          const active = islandKind === k
+        <span className="shrink-0">{onSite ? "Место на участке:" : "Арендное место:"}</span>
+        {kinds.map((k) => {
+          const active = kind === k
           const pr = ISLAND_PRESETS[k]
           return (
             <button
@@ -264,7 +279,7 @@ export function ToolOptions() {
             </button>
           )
         })}
-        <span className="shrink-0">— клик в коридоре или холле ставит место {ISLAND_PRESETS[islandKind].width}×{ISLAND_PRESETS[islandKind].depth} мм; размеры и арендатор — в свойствах</span>
+        <span className="shrink-0">— клик {onSite ? "по земле размечает место" : "в коридоре или холле ставит место"} {ISLAND_PRESETS[kind].width}×{ISLAND_PRESETS[kind].depth} мм; размеры и арендатор — в панели справа</span>
       </Shell>
     )
   }

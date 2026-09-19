@@ -7,7 +7,7 @@
 import { floorRooms } from "@/lib/builder/rooms"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { roomWallsToDelete } from "@/lib/builder/room-delete"
-import { findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, SetIslandCommand, DeleteIslandCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand, SetRoomUseCommand } from "@/core/document/commands"
+import { type IslandTarget, findFloor, AddObjectCommand, SetObjectRotationCommand, SetObjectScaleCommand, SetObjectSizeCommand, DeleteObjectCommand, SetWallPropsCommand, DeleteWallCommand, MoveNodeCommand, CompositeCommand, SetOpeningSizeCommand, DeleteOpeningCommand, SetStairCommand, DeleteStairCommand, SetIslandCommand, DeleteIslandCommand, ApplyRoomPresetCommand, LinkPremiseCommand, UpdateMepRunCommand, UpdateMepDeviceCommand, DeleteMepRunCommand, DeleteMepDeviceCommand, UpdateSectionCommand, DeleteSectionCommand, SetWallPhaseCommand, SetOpeningPhaseCommand, UpdateAnnotationCommand, DeleteAnnotationCommand, SetRoomNameCommand, SetOpeningExitCommand, ToggleExitReverseCommand, MoveStairCommand, setColumnSizeCommand, SetRoomUseCommand } from "@/core/document/commands"
 import { ISLAND_KINDS, MEP_SYSTEMS, type IslandKind, type MepSystem } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
@@ -17,7 +17,7 @@ import { createIslandPremise } from "@/app/actions/builder-premise"
 import { uid } from "@/core/id"
 import type { WallKind } from "@/core/geometry/wall-graph"
 import { presetsFor } from "@/lib/builder/openings"
-import { ISLAND_PRESETS, islandArea, islandLabel, isWallMounted, mountHeight } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, islandArea, islandLabel, isParking, isWallMounted, mountHeight } from "@/lib/builder/islands"
 import { ROOM_PRESETS } from "@/lib/builder/room-presets"
 import { distance } from "@/core/geometry/math"
 import { columnRow } from "@/lib/builder/plan-editor-math"
@@ -207,7 +207,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
               <select
                 id="room-premise"
                 value={premise?.id ?? ""}
-                onChange={(ev) => execute(new LinkPremiseCommand(fid, rid, ev.target.value || null))}
+                onChange={(ev) => execute(new LinkPremiseCommand({ floorId: fid }, rid, ev.target.value || null))}
                 className="w-full max-w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
                 style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
               >
@@ -232,7 +232,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             onClick={() => {
               const ids = roomWallsToDelete(f.wallGraph, rid)
               const commands = [
-                ...(linkKey ? [new LinkPremiseCommand(fid, rid, null)] : []),
+                ...(linkKey ? [new LinkPremiseCommand({ floorId: fid }, rid, null)] : []),
                 ...ids.map((id) => new DeleteWallCommand(fid, id)),
               ]
               if (commands.length) execute(new CompositeCommand("удаление помещения", commands))
@@ -466,12 +466,15 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
         )
       }
     }
-  } else if (selection.type === "island" && selection.floorId && selection.id) {
-    const f = findFloor(doc, selection.floorId)
-    const isl = (f?.islands ?? []).find((x) => x.id === selection.id)
-    title = "Арендное место"
-    if (f && isl) {
-      const fid = selection.floorId
+  } else if (selection.type === "island" && selection.id) {
+    // место живёт на этаже или на участке (парковка) — панель одна и та же
+    const onSite = !selection.floorId || selection.floorId === "site"
+    const f = onSite ? null : findFloor(doc, selection.floorId as string)
+    const islandTarget: IslandTarget = onSite ? { site: true } : { floorId: selection.floorId as string }
+    const links = onSite ? doc.site.premiseLinks ?? {} : f?.premiseLinks ?? {}
+    const isl = (onSite ? doc.site.islands ?? [] : f?.islands ?? []).find((x) => x.id === selection.id)
+    title = isl && isParking(isl) ? "Парковочное место" : "Арендное место"
+    if (isl) {
       const iid = selection.id
       const num = (v: string) => parseFloat(v.replace(",", "."))
       const inputStyle = { color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }
@@ -481,7 +484,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
       rows.push(<Row key="xy" label="X · Y" value={`${(isl.position.x / 1000).toFixed(2)} · ${(isl.position.y / 1000).toFixed(2)} м`} />)
       // привязка к карточке помещения: если она есть, арендатор и статус —
       // из базы, а не из подписи руками
-      const islPremise = resolvePremise(f.premiseLinks?.[iid] ?? "")
+      const islPremise = resolvePremise(links[iid] ?? "")
       const islOptions = Array.from(premisesById.values())
       if (islPremise) {
         rows.push(<Row key="st" label="Статус" value={STATUS_LABEL[islPremise.status]} />)
@@ -499,7 +502,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
                 const pr = ISLAND_PRESETS[kind]
                 // вид меняет и габарит — но только если размеры остались типовыми
                 const typical = isl.width === ISLAND_PRESETS[isl.kind].width && isl.depth === ISLAND_PRESETS[isl.kind].depth
-                execute(new SetIslandCommand(fid, iid, typical ? { kind, width: pr.width, depth: pr.depth, height: pr.height } : { kind }))
+                execute(new SetIslandCommand(islandTarget, iid, typical ? { kind, width: pr.width, depth: pr.depth, height: pr.height } : { kind }))
               }}
               className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs"
               style={inputStyle}
@@ -510,13 +513,13 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
           <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
             Название
             <input id="island-name" type="text" defaultValue={isl.name} key={`nm${iid}${isl.name}`} placeholder={ISLAND_PRESETS[isl.kind].label}
-              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== isl.name) execute(new SetIslandCommand(fid, iid, { name: v })) }}
+              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== isl.name) execute(new SetIslandCommand(islandTarget, iid, { name: v })) }}
               className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
           </label>
           <label className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
             Арендатор
             <input id="island-tenant" type="text" defaultValue={isl.tenant} key={`tn${iid}${isl.tenant}`} placeholder="ИП / компания"
-              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== isl.tenant) execute(new SetIslandCommand(fid, iid, { tenant: v })) }}
+              onBlur={(ev) => { const v = ev.target.value.trim().slice(0, 60); if (v !== isl.tenant) execute(new SetIslandCommand(islandTarget, iid, { tenant: v })) }}
               className="w-40 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
           </label>
           {([["Ширина, мм", "width", isl.width], ["Глубина, мм", "depth", isl.depth], ["Высота, мм", "height", isl.height],
@@ -524,13 +527,13 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             <label key={key} className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
               {label}
               <input id={`island-${key}`} type="number" step="50" min="200" max="12000" defaultValue={value} key={`i${key}${iid}${value}`}
-                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 200 && v !== value) execute(new SetIslandCommand(fid, iid, { [key]: Math.min(12000, v) })) }}
+                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 200 && v !== value) execute(new SetIslandCommand(islandTarget, iid, { [key]: Math.min(12000, v) })) }}
                 className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
             </label>
           ))}
           <div className="flex gap-1">
-            <button type="button" onClick={() => execute(new SetIslandCommand(fid, iid, { rotationDeg: (isl.rotationDeg + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
-            <button type="button" onClick={() => { execute(new DeleteIslandCommand(fid, iid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>
+            <button type="button" onClick={() => execute(new SetIslandCommand(islandTarget, iid, { rotationDeg: (isl.rotationDeg + 90) % 360 }))} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>⟳ 90°</button>
+            <button type="button" onClick={() => { execute(new DeleteIslandCommand(islandTarget, iid)); useEditorStore.getState().setSelection({ type: "none" }) }} className="flex-1 rounded-md py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}>Удалить</button>
           </div>
           {islOptions.length > 0 && (
             <label className="flex flex-col gap-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
@@ -538,7 +541,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
               <select
                 id="island-premise"
                 value={islPremise?.id ?? ""}
-                onChange={(ev) => execute(new LinkPremiseCommand(fid, iid, ev.target.value || null))}
+                onChange={(ev) => execute(new LinkPremiseCommand(islandTarget, iid, ev.target.value || null))}
                 className="w-full max-w-full rounded-md bg-white/5 px-1.5 py-1 text-xs normal-case tracking-normal"
                 style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
               >
@@ -554,16 +557,16 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
           {!islPremise && (
             <button
               type="button"
-              disabled={!f.sourceFloorId}
-              title={f.sourceFloorId ? "Заведёт карточку помещения «М-N» на этом этаже и привяжет к ней место" : "Этаж не связан с данными здания — карточку создать негде"}
+              disabled={!f?.sourceFloorId}
+              title={f?.sourceFloorId ? "Заведёт карточку помещения «М-N» на этом этаже и привяжет к ней место" : "Место на участке или этаж не связан с данными здания — карточку создать негде"}
               onClick={() => {
-                if (!f.sourceFloorId) return
+                if (!f?.sourceFloorId) return
                 void createIslandPremise({ floorId: f.sourceFloorId, areaM2: islandArea(isl), name: islandLabel(isl) })
                   .then((row) => {
                     if (!row) return
                     const st = usePremiseStore.getState()
                     st.setRows([...Array.from(st.byId.values()), row])
-                    execute(new LinkPremiseCommand(fid, iid, row.id))
+                    execute(new LinkPremiseCommand(islandTarget, iid, row.id))
                   })
                   .catch(() => {})
               }}

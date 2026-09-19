@@ -17,7 +17,7 @@ import { buildRoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildSitePlan } from "@/lib/builder/drawing/site-plan"
 import { buildDetails } from "@/lib/builder/drawing/details"
-import { islandSchedule } from "@/lib/builder/islands"
+import { projectIslandSchedule } from "@/lib/builder/islands"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomDisplayName } from "@/lib/builder/room-use"
 import { buildFloorDrawing, pickSheet, type Sheet, type PlanStage } from "@/lib/builder/drawing/floor-drawing"
@@ -103,7 +103,7 @@ export function SheetAlbum({ buildingId, buildingName, address, author, building
     }
     // ведомость арендных мест — один лист на здание, только если места есть
     {
-      const rows = islandSchedule(floors, (f) => floorRooms(f), (f, roomId) => {
+      const rows = projectIslandSchedule(floors, site?.islands ?? [], (f) => floorRooms(f), (f, roomId) => {
         const r = floorRooms(f).find((x) => x.id === roomId)
         return r ? roomDisplayName(f, r) : ""
       })

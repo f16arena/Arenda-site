@@ -6,7 +6,7 @@
 import { MeshBuilder, TransformNode, type Mesh, type Scene } from "@babylonjs/core"
 import type { Island } from "@/types/builder"
 import type { MaterialRegistry } from "../material-registry"
-import { isWallMounted, mountHeight } from "@/lib/builder/islands"
+import { isParking, isWallMounted, mountHeight } from "@/lib/builder/islands"
 
 const S = 0.001
 
@@ -20,6 +20,9 @@ const LOOK: Record<Island["kind"], { body: string; front: string; plinth: boolea
   rack: { body: "paint_white", front: "curtain_glass", plinth: false },
   banner: { body: "paint_white", front: "composite", plinth: false },
   lightbox: { body: "paint_white", front: "curtain_glass", plinth: false },
+  parking: { body: "asphalt", front: "paint_white", plinth: false },
+  parking_truck: { body: "asphalt", front: "paint_white", plinth: false },
+  parking_moto: { body: "asphalt", front: "paint_white", plinth: false },
   other: { body: "paint_gray", front: "paint_gray", plinth: false },
 }
 
@@ -31,6 +34,9 @@ export function buildIsland(island: Island, parent: TransformNode, scene: Scene,
   root.position.set(island.position.x * S, 0, island.position.y * S)
   root.rotation.y = (island.rotationDeg * Math.PI) / 180
   const meta = { kind: "island", floorId: "", entityId: island.id }
+
+  // парковочное место — это разметка на земле: белая рамка поверх покрытия
+  if (isParking(island)) return buildParkingSpot(island, root, scene, reg, meta)
 
   const w = island.width * S
   const d = island.depth * S
@@ -73,5 +79,32 @@ export function buildIsland(island: Island, parent: TransformNode, scene: Scene,
   sign.position.set(0, y0 + h + 0.12, -d / 2)
   attach(sign, island.tenant ? "paint_blue" : "paint_gray")
 
+  return root
+}
+
+/** Разметка парковочного места: четыре белые полосы 100 мм по периметру. */
+function buildParkingSpot(
+  island: Island,
+  root: TransformNode,
+  scene: Scene,
+  reg: MaterialRegistry,
+  meta: { kind: string; floorId: string; entityId: string },
+): TransformNode {
+  const w = island.width * S
+  const d = island.depth * S
+  const t = 0.1 // ширина полосы, м
+  const mat = reg.get(island.tenant ? "paint_yellow" : "paint_white")
+  const strip = (name: string, sw: number, sd: number, x: number, z: number) => {
+    const m = MeshBuilder.CreateBox(name, { width: sw, height: 0.02, depth: sd }, scene)
+    m.position.set(x, 0.012, z)
+    m.parent = root
+    m.material = mat
+    m.metadata = meta
+    m.receiveShadows = true
+  }
+  strip(`isl_pk_${island.id}_l`, t, d, -w / 2 + t / 2, 0)
+  strip(`isl_pk_${island.id}_r`, t, d, w / 2 - t / 2, 0)
+  // «карман» открыт со стороны заезда: рисуем только дальнюю поперечину
+  strip(`isl_pk_${island.id}_b`, w, t, 0, d / 2 - t / 2)
   return root
 }

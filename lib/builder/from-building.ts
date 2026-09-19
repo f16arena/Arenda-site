@@ -621,7 +621,7 @@ export function buildProjectFromBuilding(src: SourceBuilding): BuildFromBuilding
       const c = centroid(room.polygon)
       const match = plan.rooms.find((r) => r.spaceId && pointInPolygon(c, r.outline))
       if (!match || !match.spaceId) continue
-      run(new LinkPremiseCommand(floorId, room.id, match.spaceId))
+      run(new LinkPremiseCommand({ floorId }, room.id, match.spaceId))
       report.roomsLinked += 1
       linkedSpaceIds.add(match.spaceId)
 

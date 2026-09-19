@@ -84,7 +84,7 @@ export const BuilderObjectSchema = z.object({
  * распознать: место задаётся прямоугольником с поворотом прямо в коридоре или
  * в холле. Площадь считается по габариту и идёт в ведомость арендных мест.
  */
-export const ISLAND_KINDS = ["vending", "kiosk", "atm", "counter", "coffee", "rack", "banner", "lightbox", "other"] as const
+export const ISLAND_KINDS = ["vending", "kiosk", "atm", "counter", "coffee", "rack", "banner", "lightbox", "parking", "parking_truck", "parking_moto", "other"] as const
 export const IslandKindSchema = z.enum(ISLAND_KINDS)
 export type IslandKind = z.infer<typeof IslandKindSchema>
 
@@ -268,6 +268,10 @@ export const SiteSchema = z.object({
   paths: z.array(PathFeatureSchema).default([]),
   // Площадки-покрытия по контуру (асфальт/брусчатка/газон и т.п.).
   pavements: z.array(PavementSchema).default([]),
+  /** арендные места на участке: парковочные места, киоски у входа */
+  islands: z.array(IslandSchema).optional(),
+  /** привязка мест участка к карточкам помещений: islandId → premiseId */
+  premiseLinks: z.record(z.string(), z.string()).optional(),
 })
 
 export const ProjectSchema = z.object({

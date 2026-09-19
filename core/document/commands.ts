@@ -724,28 +724,29 @@ export class LinkPremiseCommand implements Command {
   readonly label = "привязка помещения"
   private prev?: string
   private captured = false
-  constructor(private floorId: string, private roomId: string, private premiseId: string | null) {}
+  /** roomId или id арендного места; target — этаж либо участок */
+  constructor(private target: IslandTarget, private roomId: string, private premiseId: string | null) {}
   apply(doc: BuilderDocument): BuilderDocument {
-    const f = findFloor(doc, this.floorId)
-    if (!f) return doc
+    const links = "site" in this.target ? doc.site.premiseLinks ?? {} : findFloor(doc, this.target.floorId)?.premiseLinks
+    if (!links) return doc
     if (!this.captured) {
-      this.prev = f.premiseLinks[this.roomId]
+      this.prev = links[this.roomId]
       this.captured = true
     }
-    return mapFloor(doc, this.floorId, (fl) => {
-      const links = { ...fl.premiseLinks }
-      if (this.premiseId) links[this.roomId] = this.premiseId
-      else delete links[this.roomId]
-      return { ...fl, premiseLinks: links }
-    })
+    return this.write(doc, this.premiseId)
   }
   revert(doc: BuilderDocument): BuilderDocument {
-    return mapFloor(doc, this.floorId, (fl) => {
-      const links = { ...fl.premiseLinks }
-      if (this.prev) links[this.roomId] = this.prev
-      else delete links[this.roomId]
-      return { ...fl, premiseLinks: links }
-    })
+    return this.write(doc, this.prev ?? null)
+  }
+  private write(doc: BuilderDocument, id: string | null): BuilderDocument {
+    const put = (links: Record<string, string>) => {
+      const next = { ...links }
+      if (id) next[this.roomId] = id
+      else delete next[this.roomId]
+      return next
+    }
+    if ("site" in this.target) return { ...doc, site: { ...doc.site, premiseLinks: put(doc.site.premiseLinks ?? {}) } }
+    return mapFloor(doc, this.target.floorId, (fl) => ({ ...fl, premiseLinks: put(fl.premiseLinks) }))
   }
 }
 
@@ -901,33 +902,46 @@ export class ResetFurnishCommand implements Command {
   }
 }
 
-// ── Островки (арендные места в общих зонах) ───────────────────────────────────
+// ── Островки (арендные места в общих зонах и на участке) ─────────────────────
+// Место живёт либо на этаже, либо на участке (парковочные места) — поэтому у
+// команд общий «адрес», как у объектов.
+export type IslandTarget = { floorId: string } | { site: true }
+
+function mapIslands(doc: BuilderDocument, target: IslandTarget, fn: (list: Island[]) => Island[]): BuilderDocument {
+  if ("site" in target) return { ...doc, site: { ...doc.site, islands: fn(doc.site.islands ?? []) } }
+  return mapFloor(doc, target.floorId, (fl) => ({ ...fl, islands: fn(fl.islands ?? []) }))
+}
+
+export function islandsOf(doc: BuilderDocument, target: IslandTarget): Island[] {
+  if ("site" in target) return doc.site.islands ?? []
+  return findFloor(doc, target.floorId)?.islands ?? []
+}
+
 export class AddIslandCommand implements Command {
   readonly kind = "add-island"
-  readonly label = "островок"
-  constructor(private floorId: string, private island: Island) {}
+  readonly label = "арендное место"
+  constructor(private target: IslandTarget, private island: Island) {}
   apply(doc: BuilderDocument): BuilderDocument {
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: [...(fl.islands ?? []), this.island] }))
+    return mapIslands(doc, this.target, (list) => [...list, this.island])
   }
   revert(doc: BuilderDocument): BuilderDocument {
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).filter((i) => i.id !== this.island.id) }))
+    return mapIslands(doc, this.target, (list) => list.filter((i) => i.id !== this.island.id))
   }
 }
 
 export class DeleteIslandCommand implements Command {
   readonly kind = "delete-island"
-  readonly label = "удаление островка"
+  readonly label = "удаление места"
   private removed?: Island
-  constructor(private floorId: string, private islandId: string) {}
+  constructor(private target: IslandTarget, private islandId: string) {}
   apply(doc: BuilderDocument): BuilderDocument {
-    const f = findFloor(doc, this.floorId)
-    this.removed = (f?.islands ?? []).find((i) => i.id === this.islandId) ?? this.removed
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).filter((i) => i.id !== this.islandId) }))
+    this.removed = islandsOf(doc, this.target).find((i) => i.id === this.islandId) ?? this.removed
+    return mapIslands(doc, this.target, (list) => list.filter((i) => i.id !== this.islandId))
   }
   revert(doc: BuilderDocument): BuilderDocument {
-    if (!this.removed) return doc
     const isl = this.removed
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: [...(fl.islands ?? []), isl] }))
+    if (!isl) return doc
+    return mapIslands(doc, this.target, (list) => [...list, isl])
   }
 }
 
@@ -935,50 +949,53 @@ type IslandProps = Partial<Pick<Island, "kind" | "name" | "tenant" | "width" | "
 
 export class SetIslandCommand implements Command {
   readonly kind = "set-island"
-  readonly label = "островок"
+  readonly label = "арендное место"
   private prev?: IslandProps
   private captured = false
-  constructor(private floorId: string, private islandId: string, private props: IslandProps) {}
+  constructor(private target: IslandTarget, private islandId: string, private props: IslandProps) {}
   apply(doc: BuilderDocument): BuilderDocument {
-    const f = findFloor(doc, this.floorId)
-    const i = (f?.islands ?? []).find((x) => x.id === this.islandId)
+    const i = islandsOf(doc, this.target).find((x) => x.id === this.islandId)
     if (i && !this.captured) {
       this.prev = { kind: i.kind, name: i.name, tenant: i.tenant, width: i.width, depth: i.depth, height: i.height, rotationDeg: i.rotationDeg, mountHeight: i.mountHeight }
       this.captured = true
     }
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, ...this.props } : x)) }))
+    return mapIslands(doc, this.target, (list) => list.map((x) => (x.id === this.islandId ? { ...x, ...this.props } : x)))
   }
   revert(doc: BuilderDocument): BuilderDocument {
-    if (!this.prev) return doc
     const prev = this.prev
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, ...prev } : x)) }))
+    if (!prev) return doc
+    return mapIslands(doc, this.target, (list) => list.map((x) => (x.id === this.islandId ? { ...x, ...prev } : x)))
   }
 }
 
 export class MoveIslandCommand implements Command {
   readonly kind = "move-island"
-  readonly label = "перемещение островка"
+  readonly label = "перемещение места"
   private prev?: { x: number; y: number }
-  constructor(private floorId: string, private islandId: string, private x: number, private y: number) {}
+  constructor(private target: IslandTarget, private islandId: string, private x: number, private y: number) {}
   apply(doc: BuilderDocument): BuilderDocument {
-    const f = findFloor(doc, this.floorId)
-    const i = (f?.islands ?? []).find((x) => x.id === this.islandId)
+    const i = islandsOf(doc, this.target).find((x) => x.id === this.islandId)
     if (i && !this.prev) this.prev = { x: i.position.x, y: i.position.y }
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, position: { x: this.x, y: this.y } } : x)) }))
+    return mapIslands(doc, this.target, (list) => list.map((x) => (x.id === this.islandId ? { ...x, position: { x: this.x, y: this.y } } : x)))
   }
   revert(doc: BuilderDocument): BuilderDocument {
-    if (!this.prev) return doc
     const prev = this.prev
-    return mapFloor(doc, this.floorId, (fl) => ({ ...fl, islands: (fl.islands ?? []).map((x) => (x.id === this.islandId ? { ...x, position: prev } : x)) }))
+    if (!prev) return doc
+    return mapIslands(doc, this.target, (list) => list.map((x) => (x.id === this.islandId ? { ...x, position: prev } : x)))
   }
   merge(next: Command): boolean {
-    if (next instanceof MoveIslandCommand && next.floorId === this.floorId && next.islandId === this.islandId) {
+    if (next instanceof MoveIslandCommand && sameIslandTarget(next.target, this.target) && next.islandId === this.islandId) {
       this.x = next.x
       this.y = next.y
       return true
     }
     return false
   }
+}
+
+function sameIslandTarget(a: IslandTarget, b: IslandTarget): boolean {
+  if ("site" in a) return "site" in b
+  return !("site" in b) && a.floorId === b.floorId
 }
 
 // ── Размер/вариант проёма ─────────────────────────────────────────────────────

@@ -82,6 +82,25 @@ const stat = () => page.evaluate(() => {
   await page.waitForTimeout(800)
 }
 
+// ── W6. на «Участке» стены и окна не срезаются: это вид снаружи ──
+{
+  await page.evaluate(() => { const s = window.__stores.useEditorStore.getState(); s.setActiveLevel("site") })
+  await page.waitForTimeout(1500)
+  await page.mouse.move(700, 400)
+  await page.mouse.down()
+  await page.mouse.move(640, 400, { steps: 8 })
+  await page.mouse.up()
+  await page.waitForTimeout(1200)
+  const s = await page.evaluate(() => {
+    const scene = window.__engine.scene ?? window.__engine.bundle.scene
+    const walls = scene.meshes.filter((m) => m.metadata?.kind === "wall")
+    const openings = scene.meshes.filter((m) => m.metadata?.kind === "opening")
+    return { peek: window.__engine.peekHidden.size, wallsHidden: walls.filter((m) => m.visibility === 0).length, openHidden: openings.filter((m) => m.visibility === 0).length }
+  })
+  check("W6 на участке фасад цел", s.peek === 0 && s.wallsHidden === 0 && s.openHidden === 0, `в списке ${s.peek}, скрыто стен ${s.wallsHidden}, проёмов ${s.openHidden}`)
+  await page.screenshot({ path: join(shots, "peek-site.png") })
+}
+
 check("ошибок в консоли нет", errors.length === 0, errors.slice(0, 3).join(" | "))
 console.log(results.join("\n"))
 await browser.close()

@@ -46,7 +46,7 @@ import { buildDetails, type Detail } from "@/lib/builder/drawing/details"
 import { DetailsBody } from "./DetailsBody"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
-import { ISLAND_PRESETS, WALL_MOUNTED, islandSchedule, islandsTotal, type IslandRow } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, WALL_MOUNTED, islandsTotal, projectIslandSchedule, type IslandRow } from "@/lib/builder/islands"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomDisplayName } from "@/lib/builder/room-use"
 import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
@@ -163,7 +163,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const islandRows = useMemo(() => {
     if (view !== "islands") return null
     const list = building?.floors ?? floors
-    return islandSchedule(list, (f) => floorRooms(f), (f, roomId) => {
+    return projectIslandSchedule(list, site?.islands ?? [], (f) => floorRooms(f), (f, roomId) => {
       const r = floorRooms(f).find((x) => x.id === roomId)
       return r ? roomDisplayName(f, r) : ""
     })
@@ -1357,6 +1357,13 @@ function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => numbe
       ))}
       {plan.parking.map((p, i) => (
         <text key={`pk${i}`} x={X(p.x)} y={Y(p.y) + 1} fontSize={3} textAnchor="middle">П</text>
+      ))}
+      {/* размеченные арендные места участка: габарит и марка */}
+      {plan.spots.map((sp, i) => (
+        <g key={`sp${i}`} stroke="#000" fill="none">
+          <polygon points={sp.poly.map((q) => `${X(q.x).toFixed(2)},${Y(q.y).toFixed(2)}`).join(" ")} strokeWidth={0.3} />
+          <text x={X(sp.at.x)} y={Y(sp.at.y) + 1} fontSize={2.4} textAnchor="middle" stroke="none" fill="#000">{sp.mark}</text>
+        </g>
       ))}
       {/* размеры участка и привязка здания к границам — без них генплан не читается */}
       {(() => {

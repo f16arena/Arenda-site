@@ -4,6 +4,7 @@
 import type { BuilderDocument } from "@/types/builder"
 import type { Vec2 } from "@/core/geometry/math"
 import { buildingOutline, footprintArea } from "./indicators"
+import { islandLabel, islandPolygon } from "../islands"
 
 export interface SitePlan {
   /** граница участка */
@@ -20,6 +21,8 @@ export interface SitePlan {
   greenery: Vec2[]
   /** парковочные места (объекты parking) */
   parking: Vec2[]
+  /** размеченные арендные места участка: габарит, марка и наименование */
+  spots: Array<{ poly: Vec2[]; at: Vec2; mark: string; name: string; taken: boolean }>
   bounds: { minX: number; minY: number; maxX: number; maxY: number }
   /** показатели: площадь участка и застройки, процент застройки */
   siteM2: number
@@ -72,6 +75,13 @@ export function buildSitePlan(doc: Pick<BuilderDocument, "site" | "buildings">):
     water: (site.water ?? []).map((w) => ({ points: w.points })),
     greenery,
     parking,
+    spots: (site.islands ?? []).map((isl, i) => ({
+      poly: islandPolygon(isl),
+      at: { x: isl.position.x, y: isl.position.y },
+      mark: `П${i + 1}`,
+      name: islandLabel(isl),
+      taken: !!(isl.tenant ?? "").trim(),
+    })),
     bounds: { minX, minY, maxX, maxY },
     siteM2,
     builtM2,

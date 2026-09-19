@@ -28,11 +28,22 @@ export const ISLAND_PRESETS: Record<IslandKind, IslandPreset> = {
   rack: { label: "Торговая стойка", width: 1000, depth: 1000, height: 1600 },
   banner: { label: "Баннер на стене", width: 3000, depth: 80, height: 1500 },
   lightbox: { label: "Лайтбокс", width: 1200, depth: 150, height: 1800 },
+  // парковка: легковое место по СП 113.13330 — 2,5 × 5,3 м, грузовое крупнее
+  parking: { label: "Парковочное место", width: 2500, depth: 5300, height: 0 },
+  parking_truck: { label: "Место для грузового", width: 3500, depth: 8000, height: 0 },
+  parking_moto: { label: "Мотоместо", width: 1000, depth: 2500, height: 0 },
   other: { label: "Арендное место", width: 1000, depth: 1000, height: 1500 },
 }
 
 /** Рекламные места висят на стене: пола они не занимают и проход не сужают. */
 export const WALL_MOUNTED: ReadonlySet<IslandKind> = new Set<IslandKind>(["banner", "lightbox"])
+
+/** Места на участке: парковка размечается на земле, а не стоит в помещении. */
+export const OUTDOOR_KINDS: ReadonlySet<IslandKind> = new Set<IslandKind>(["parking", "parking_truck", "parking_moto"])
+
+export function isParking(island: Island): boolean {
+  return OUTDOOR_KINDS.has(island.kind)
+}
 
 export function isWallMounted(island: Island): boolean {
   return WALL_MOUNTED.has(island.kind)
@@ -233,4 +244,31 @@ export function fitToFloor(floor: Floor, island: Island, at: Vec2, margin = 0): 
   const room = floorRooms(floor).find((r) => pointInPolygon(at, r.polygon))
   if (!room) return { x: Math.round(at.x), y: Math.round(at.y) }
   return clampToRoom(island, room.polygon, at, margin)
+}
+
+/**
+ * Ведомость по всему проекту: места на этажах плюс места на участке
+ * (парковка). У участка своя «этажность» — в ведомости это строка «Участок».
+ */
+export function projectIslandSchedule(
+  floors: Floor[],
+  siteIslands: Island[],
+  roomsOf?: (floor: Floor) => RoomLike[],
+  roomName?: (floor: Floor, roomId: string) => string,
+): IslandRow[] {
+  const rows = islandSchedule(floors, roomsOf, roomName)
+  siteIslands.forEach((island, idx) => {
+    rows.push({
+      id: island.id,
+      mark: `П${idx + 1}`,
+      floorName: "Участок",
+      name: islandLabel(island),
+      kind: island.kind,
+      tenant: (island.tenant ?? "").trim(),
+      place: isParking(island) ? "Парковка" : "Территория",
+      area: Math.round(islandArea(island) * 100) / 100,
+      size: `${island.width}×${island.depth}`,
+    })
+  })
+  return rows
 }

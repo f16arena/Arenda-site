@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { ISLAND_PRESETS, clampToRoom, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
+import { ISLAND_PRESETS, clampToRoom, isParking, projectIslandSchedule, islandArea, islandAt, islandLabel, islandPolygon, islandSchedule, islandsTotal, isWallMounted, mountHeight, passageLeft } from "./islands"
 import type { Floor, Island } from "@/types/builder"
 
 function island(extra: Partial<Island> = {}): Island {
@@ -196,5 +196,37 @@ describe("прижим к стенам", () => {
     const at = clampToRoom(isl, room, { x: 3000, y: 3900 })
     const poly = islandPolygon({ ...isl, position: at })
     expect(Math.max(...poly.map((p) => p.y))).toBeLessThanOrEqual(4000.5)
+  })
+})
+
+describe("парковочные места на участке", () => {
+  it("парковка считается местом участка, автомат — нет", () => {
+    expect(isParking(island({ kind: "parking" }))).toBe(true)
+    expect(isParking(island({ kind: "parking_truck" }))).toBe(true)
+    expect(isParking(island())).toBe(false)
+  })
+
+  it("типовое место 2,5 × 5,3 м — 13,25 м²", () => {
+    const p = ISLAND_PRESETS.parking
+    expect(p.width).toBe(2500)
+    expect(p.depth).toBe(5300)
+    expect(islandArea(island({ kind: "parking", width: p.width, depth: p.depth }))).toBeCloseTo(13.25)
+  })
+
+  it("в общей ведомости места участка идут строкой «Участок» с маркой П", () => {
+    const rows = projectIslandSchedule(
+      [floor([island({ tenant: "ИП Forbs" })])],
+      [island({ id: "p1", kind: "parking", width: 2500, depth: 5300, tenant: "ТОО Ромашка" })],
+    )
+    expect(rows).toHaveLength(2)
+    expect(rows[1].mark).toBe("П1")
+    expect(rows[1].floorName).toBe("Участок")
+    expect(rows[1].place).toBe("Парковка")
+    expect(rows[1].area).toBeCloseTo(13.25)
+  })
+
+  it("без мест на участке ведомость не меняется", () => {
+    const only = projectIslandSchedule([floor([island()])], [])
+    expect(only).toHaveLength(1)
   })
 })

@@ -140,7 +140,7 @@ export function buildDemoProject(): BuilderDocument {
     const rooms = detectRooms(groundFloor.wallGraph)
     const premiseIds = ["demo-101", "demo-102", "demo-103", "demo-104"]
     rooms.slice(0, premiseIds.length).forEach((room, i) => {
-      run(new LinkPremiseCommand(ground.id, room.id, premiseIds[i]))
+      run(new LinkPremiseCommand({ floorId: ground.id }, room.id, premiseIds[i]))
     })
   }
 

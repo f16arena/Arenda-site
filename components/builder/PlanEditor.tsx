@@ -334,7 +334,7 @@ export function PlanEditor() {
     if (hit.kind === "wall") cmd = replanDeleteWall(doc, floor.id, hit.id, replanMode)
     else if (hit.kind === "opening") cmd = replanDeleteOpening(doc, floor.id, hit.id, replanMode)
     else if (hit.kind === "stair") cmd = new DeleteStairCommand(floor.id, hit.id)
-    else if (hit.kind === "island") cmd = new DeleteIslandCommand(floor.id, hit.id)
+    else if (hit.kind === "island") cmd = new DeleteIslandCommand({ floorId: floor.id }, hit.id)
     else if (hit.kind === "annotation") cmd = new DeleteAnnotationCommand(floor.id, hit.id)
     else if (hit.kind === "mep-device") cmd = new DeleteMepDeviceCommand(floor.id, hit.id)
     if (cmd) execute(cmd)
@@ -551,7 +551,7 @@ export function PlanEditor() {
         if (snapEnabled && !e.altKey) { x = Math.round(x / 50) * 50; y = Math.round(y / 50) * 50 }
         const isl = (floor.islands ?? []).find((q) => q.id === d.id)
         const to = isl && !WALL_MOUNTED.has(isl.kind) ? fitToFloor(floor, isl, { x, y }) : { x: Math.round(x), y: Math.round(y) }
-        execute(new MoveIslandCommand(floor.id, d.id, to.x, to.y))
+        execute(new MoveIslandCommand({ floorId: floor.id }, d.id, to.x, to.y))
       } else if (d.kind === "stair") {
         let x = d.origin.x + at.p.x - d.from.x, y = d.origin.y + at.p.y - d.from.y
         if (floor.stairs.find((q) => q.id === d.id)?.shape === "column" && !e.altKey) ({ x, y } = snapColumn(floor, { x, y }, tolMm, d.id, snapEnabled ? 50 : 0).p)
@@ -627,7 +627,7 @@ export function PlanEditor() {
         const id = uid("isl")
         // реклама вешается на ближайшую стену и разворачивается вдоль неё
         const onWall = WALL_MOUNTED.has(islandKind) ? wallMount(at.p, floor.wallGraph, preset.depth) : null
-        execute(new AddIslandCommand(floor.id, {
+        execute(new AddIslandCommand({ floorId: floor.id }, {
           id,
           kind: islandKind,
           name: "",

@@ -27,7 +27,7 @@ import type { BuilderDocument, Floor, Building, Stair, MepSystem } from "@/types
 import { MEP_SYSTEMS } from "@/types/builder"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
-import { ISLAND_PRESETS, WALL_MOUNTED, fitToFloor } from "@/lib/builder/islands"
+import { ISLAND_PRESETS, OUTDOOR_KINDS, WALL_MOUNTED, fitToFloor } from "@/lib/builder/islands"
 import type { Island, IslandKind } from "@/types/builder"
 import { buildMep } from "./builders/mep-builder"
 import { dimGeometry, signedOffset } from "@/lib/builder/annotations"
@@ -673,6 +673,17 @@ export class BuilderEngine {
       if (mesh) this.registerMesh(pav.id, mesh)
     }
 
+    // Арендные места на участке: парковочные места и точки у входа.
+    for (const isl of doc.site.islands ?? []) {
+      const node = buildIsland(isl, siteRoot, scene, this.reg, this.lastCtx?.lite ?? false)
+      node.getChildMeshes().forEach((m) => {
+        if (m instanceof Mesh) {
+          m.metadata = { ...(m.metadata as object), floorId: "site" }
+          this.registerMesh(isl.id, m)
+        }
+      })
+    }
+
     for (const b of doc.buildings) {
       const bRoot = new TransformNode(`b_${b.id}`, scene)
       bRoot.parent = this.docRoot
@@ -1165,8 +1176,11 @@ export class BuilderEngine {
     const scene = this.bundle.scene
     const cam = scene.activeCamera
     if (!doc || !cam) return
-    // в обходе человек внутри — прятать стены нельзя
+    // Стены срезаем только когда выбран конкретный этаж: на «Участке» человек
+    // смотрит на здание снаружи и ждёт фасад с окнами, а не вскрытую коробку.
+    // В обходе тоже не режем — человек внутри.
     const walking = this.walkCamera && scene.activeCamera === this.walkCamera
+    const onSite = !this.activeFloorId
     const p = cam.position
     if (!force && this.peekAt && Math.abs(p.x - this.peekAt.x) + Math.abs(p.y - this.peekAt.y) + Math.abs(p.z - this.peekAt.z) < 0.15) return
     this.peekAt = { x: p.x, y: p.y, z: p.z }
@@ -1177,7 +1191,7 @@ export class BuilderEngine {
         m.isPickable = true
       }
     }
-    if (!this.peekWalls || walking) {
+    if (!this.peekWalls || walking || onSite) {
       for (const id of this.peekHidden.keys()) show(id)
       this.peekHidden.clear()
       return
@@ -2042,7 +2056,9 @@ export class BuilderEngine {
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
         const to = this.islandDragTarget(this.dragIsland.floorId, this.dragIsland.islandId, p.x * 1000, p.z * 1000)
-        this.previewFloorDrag(this.dragIsland.floorId, new MoveIslandCommand(this.dragIsland.floorId, this.dragIsland.islandId, to.x, to.y))
+        if (this.dragIsland.floorId !== "site") {
+          this.previewFloorDrag(this.dragIsland.floorId, new MoveIslandCommand({ floorId: this.dragIsland.floorId }, this.dragIsland.islandId, to.x, to.y))
+        }
       }
       return
     }
@@ -2256,13 +2272,13 @@ export class BuilderEngine {
         const iid = this.dragIsland.islandId
         const to = this.islandDragTarget(fid, iid, p.x * 1000, p.z * 1000)
         const doc = this.getDoc()
-        const isl = (doc ? findFloor(doc, fid)?.islands ?? [] : []).find((x) => x.id === iid)
+        const isl = (fid === "site" ? doc?.site.islands ?? [] : doc ? findFloor(doc, fid)?.islands ?? [] : []).find((x) => x.id === iid)
         // реклама, переехавшая на другую стену, разворачивается вдоль неё
-        const m = isl && WALL_MOUNTED.has(isl.kind) ? wallMount({ x: p.x * 1000, y: p.z * 1000 }, findFloor(doc!, fid)!.wallGraph, isl.depth) : null
-        const move = new MoveIslandCommand(fid, iid, to.x, to.y)
+        const m = isl && fid !== "site" && WALL_MOUNTED.has(isl.kind) ? wallMount({ x: p.x * 1000, y: p.z * 1000 }, findFloor(doc!, fid)!.wallGraph, isl.depth) : null
+        const move = new MoveIslandCommand(fid === "site" ? { site: true } : { floorId: fid }, iid, to.x, to.y)
         this.onCommand(
           m && isl && Math.round(m.rotation) !== Math.round(isl.rotationDeg)
-            ? new CompositeCommand("перемещение места", [move, new SetIslandCommand(fid, iid, { rotationDeg: Math.round(m.rotation) })])
+            ? new CompositeCommand("перемещение места", [move, new SetIslandCommand({ floorId: fid }, iid, { rotationDeg: Math.round(m.rotation) })])
             : move,
         )
       }
@@ -2735,6 +2751,11 @@ export class BuilderEngine {
   /** Куда встанет место при перетаскивании: реклама липнет к стене, остальное — сетка 50 мм. */
   private islandDragTarget(floorId: string, islandId: string, xMm: number, yMm: number): { x: number; y: number } {
     const doc = this.getDoc()
+    // место участка (парковка) двигается по земле с шагом 100 мм
+    if (floorId === "site") {
+      const step = this.snapEnabled ? 100 : 1
+      return { x: Math.round(xMm / step) * step, y: Math.round(yMm / step) * step }
+    }
     const f = doc ? findFloor(doc, floorId) : undefined
     const isl = (f?.islands ?? []).find((x) => x.id === islandId)
     if (!f || !isl) return { x: Math.round(xMm), y: Math.round(yMm) }
@@ -2748,11 +2769,30 @@ export class BuilderEngine {
 
   private handleIslandTap(): void {
     const doc = this.getDoc()
+    const preset = ISLAND_PRESETS[this.islandKind]
+    // парковочное место размечается на земле участка, а не на этаже
+    if (OUTDOOR_KINDS.has(this.islandKind)) {
+      const g = this.projectToY(0)
+      if (!g) return
+      const step = this.snapEnabled ? 100 : 1
+      this.onCommand(new AddIslandCommand({ site: true }, {
+        id: uid("isl"),
+        kind: this.islandKind,
+        name: "",
+        tenant: "",
+        position: { x: Math.round((g.x * 1000) / step) * step, y: Math.round((g.z * 1000) / step) * step },
+        width: preset.width,
+        depth: preset.depth,
+        height: preset.height,
+        rotationDeg: 0,
+      }))
+      this.onHud(`${preset.label}: размечено. Размеры и арендатор — в панели справа`)
+      return
+    }
     const f = doc ? findFloor(doc, this.toolFloorId) : undefined
     if (!f) return
     const p = this.projectToPlane()
     if (!p) return
-    const preset = ISLAND_PRESETS[this.islandKind]
     const raw = { x: p.x * 1000, y: p.z * 1000 }
     const onWall = WALL_MOUNTED.has(this.islandKind) ? wallMount(raw, f.wallGraph, preset.depth) : null
     if (WALL_MOUNTED.has(this.islandKind) && !onWall) {
@@ -2760,7 +2800,7 @@ export class BuilderEngine {
       return
     }
     const g = this.snapEnabled ? 50 : 1
-    this.onCommand(new AddIslandCommand(f.id, {
+    this.onCommand(new AddIslandCommand({ floorId: f.id }, {
       id: uid("isl"),
       kind: this.islandKind,
       name: "",
@@ -3280,7 +3320,7 @@ export class BuilderEngine {
       if (cmd) this.onCommand(cmd)
     }
     else if (meta.kind === "stair" && meta.floorId) this.onCommand(new DeleteStairCommand(meta.floorId, meta.entityId))
-    else if (meta.kind === "island" && meta.floorId) this.onCommand(new DeleteIslandCommand(meta.floorId, meta.entityId))
+    else if (meta.kind === "island" && meta.floorId) this.onCommand(new DeleteIslandCommand(meta.floorId === "site" ? { site: true } : { floorId: meta.floorId }, meta.entityId))
     else if (meta.kind === "furnish" && meta.floorId && meta.entityId) {
       // автомебель в документе не лежит: «удаление» — это пометка, что предмет
       // убран. Ctrl+Z возвращает, кнопка «Вернуть мебель» — все сразу.
