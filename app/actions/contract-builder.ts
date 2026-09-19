@@ -238,7 +238,7 @@ export async function prefillFromTenant(
         bankAccounts: { select: { bankName: true, iik: true, bik: true, isPrimary: true } },
         space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } },
         tenantSpaces: { select: { space: { select: { number: true, area: true, kind: true, floor: { select: { number: true, name: true, kind: true, ratePerSqm: true, building: { select: { id: true, address: true, documentAddress: true } } } } } } } },
-        fullFloors: { select: { number: true, kind: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
+        fullFloors: { select: { number: true, name: true, kind: true, totalArea: true, fixedMonthlyRent: true, building: { select: { id: true, address: true, documentAddress: true } } } },
         building: { select: { id: true, address: true, documentAddress: true } },
       },
     })
@@ -323,7 +323,12 @@ export async function prefillFromTenant(
         0,
       )
     } else if (tenant.fullFloors.length > 0) {
-      s.premises.placement = tenant.fullFloors.map((fl) => `${fl.number} этаж целиком`).join("; ")
+      // Крыша/территория — не «N этаж целиком» (номер у зоны служебный: «5 этаж»
+      // вместо «Территория» попадал в договор). Зоны целиком теперь не сдаются,
+      // но старые привязки подписываем по названию.
+      s.premises.placement = tenant.fullFloors
+        .map((fl) => (isZoneFloor(fl.kind) ? fl.name || "прилегающая территория" : `${fl.number} этаж целиком`))
+        .join("; ")
       s.premises.spaceAreaSqm = tenant.fullFloors.reduce((sum, fl) => sum + (fl.totalArea ?? 0), 0)
     }
     if (tenant.usePurpose) s.premises.purposeUse = tenant.usePurpose
