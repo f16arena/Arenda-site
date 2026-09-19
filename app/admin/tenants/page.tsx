@@ -3,13 +3,14 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import Link from "next/link"
-import { Wand2, Users, AlertTriangle, Wallet, CircleCheck } from "lucide-react"
+import { Suspense } from "react"
+import { Wand2, Users, Wallet, CalendarClock, FileWarning } from "lucide-react"
+import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatMoney } from "@/lib/utils"
 import { PageHeader, StatGrid, StatCard } from "@/components/ui/page"
 import { TenantDialog } from "./tenant-dialog"
 import { BulkNotifyButton } from "./bulk-notify-button"
-import { TenantsTableLoader } from "./tenants-table-loader"
-import type { TenantRow } from "./tenants-table"
+import { TenantsTable, type TenantRow } from "./tenants-table"
 import { requireOrgAccess } from "@/lib/org"
 import { spaceScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -50,23 +51,21 @@ export default async function TenantsPage(props: TenantsPageProps) {
   const sp = await props.searchParams
   const page = normalizePage(sp?.page)
 
-  const tenantWhere = buildingId
-    ? {
-        OR: [
-          { space: { floor: { buildingId } } },
-          { tenantSpaces: { some: { space: { floor: { buildingId } } } } },
-          { fullFloors: { some: { buildingId } } },
-          { spaceId: null, user: { organizationId: orgId } },
-        ],
-      }
-    : {
-        OR: [
-          { space: { floor: { buildingId: { in: visibleBuildingIds } } } },
-          { tenantSpaces: { some: { space: { floor: { buildingId: { in: visibleBuildingIds } } } } } },
-          { fullFloors: { some: { buildingId: { in: visibleBuildingIds } } } },
-          { spaceId: null, user: { organizationId: orgId } },
-        ],
-      }
+  // Арендатор в здании — любым из четырёх путей привязки. Раньше сюда шёл любой
+  // арендатор без основного помещения (spaceId = null), а у арендатора с
+  // несколькими помещениями основного нет — он всплывал в чужом здании.
+  // Совсем не назначенные (ни помещения, ни этажа, ни здания) видны везде.
+  const inVisible = { in: visibleBuildingIds }
+  const tenantWhere = {
+    user: { organizationId: orgId },
+    OR: [
+      { space: { floor: { buildingId: inVisible } } },
+      { tenantSpaces: { some: { space: { floor: { buildingId: inVisible } } } } },
+      { fullFloors: { some: { buildingId: inVisible } } },
+      { buildingId: inVisible },
+      { spaceId: null, buildingId: null, tenantSpaces: { none: {} }, fullFloors: { none: {} } },
+    ],
+  }
 
   // Все арендаторы текущей организации — включая ещё не назначенных на помещение,
   // но привязанных через user.organizationId (если spaceId = null).
@@ -83,6 +82,11 @@ export default async function TenantsPage(props: TenantsPageProps) {
         iin: true,
         category: true,
         placementNote: true,
+        contractEnd: true,
+        customRate: true,
+        fixedMonthlyRent: true,
+        rentSchedule: true,
+        contracts: { where: { status: "SIGNED", deletedAt: null }, select: { id: true }, take: 1 },
         user: { select: { name: true, phone: true, email: true } },
         space: {
           select: {
@@ -142,6 +146,13 @@ export default async function TenantsPage(props: TenantsPageProps) {
   const debtorsCount = debtAgg.filter((row) => (row._sum.amount ?? 0) > 0).length
   const totalDebt = debtAgg.reduce((sum, row) => sum + (row._sum.amount ?? 0), 0)
 
+  const today = new Date()
+  const in60Days = new Date(today.getTime() + 60 * 24 * 3600 * 1000)
+  const [expiringCount, unsignedCount] = await Promise.all([
+    db.tenant.count({ where: { AND: [tenantWhere, { contractEnd: { gte: today, lte: in60Days } }] } }),
+    db.tenant.count({ where: { AND: [tenantWhere, { contracts: { none: { status: "SIGNED", deletedAt: null } } }] } }),
+  ])
+
   const vacantSpaces = await db.space.findMany({
     where: {
       AND: [
@@ -181,6 +192,9 @@ export default async function TenantsPage(props: TenantsPageProps) {
       fixedMonthlyRent: f.fixedMonthlyRent,
     })),
     debt: debtMap.get(t.id) ?? 0,
+    rent: calculateTenantMonthlyRent(t),
+    contractEnd: t.contractEnd ? t.contractEnd.toISOString() : null,
+    hasSignedContract: t.contracts.length > 0,
   }))
 
   return (
@@ -197,15 +211,17 @@ export default async function TenantsPage(props: TenantsPageProps) {
             {allowedCapabilities.has("tenants.create") && (
               <Link
                 href="/admin/tenants/new"
-                className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
+                className="order-last inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
                 title="Заселение за 3 шага: контакты → помещение и условия → договор"
               >
                 <Wand2 className="h-4 w-4" />
-                Мастер заселения
+                Заселить арендатора
               </Link>
             )}
             {allowedCapabilities.has("tenants.create") && (
               <TenantDialog
+                label="Только карточка"
+                variant="outline"
                 buildingId={buildingId}
                 vacantSpaces={vacantSpaces.map((s) => ({
                   id: s.id,
@@ -222,30 +238,36 @@ export default async function TenantsPage(props: TenantsPageProps) {
       />
 
       <StatGrid>
-        <StatCard icon={Users} label="Всего арендаторов" value={totalTenants} tone="blue" />
-        <StatCard
-          icon={AlertTriangle}
-          label="С долгом"
-          value={debtorsCount}
-          sub={debtorsCount > 0 ? `${Math.round((debtorsCount / Math.max(totalTenants, 1)) * 100)}% от всех` : "все платят вовремя"}
-          tone={debtorsCount > 0 ? "amber" : "slate"}
-        />
+        <StatCard icon={Users} label="Арендаторов" value={totalTenants} tone="blue" sub={buildingId ? "в выбранном здании" : "во всех зданиях"} />
         <StatCard
           icon={Wallet}
-          label="Сумма долга"
+          label="Долг"
           value={formatMoney(totalDebt)}
-          sub="неоплаченные начисления"
-          tone={totalDebt > 0 ? "red" : "slate"}
+          sub={debtorsCount > 0 ? `у ${debtorsCount} арендатор${debtorsCount === 1 ? "а" : "ов"}` : "все платят вовремя"}
+          tone={totalDebt > 0 ? "red" : "emerald"}
+          href={totalDebt > 0 ? "/admin/tenants?debt=debt" : undefined}
         />
         <StatCard
-          icon={CircleCheck}
-          label="Без долга"
-          value={Math.max(totalTenants - debtorsCount, 0)}
-          tone="emerald"
+          icon={CalendarClock}
+          label="Договор кончается"
+          value={expiringCount}
+          sub="в ближайшие 60 дней — продлите заранее"
+          tone={expiringCount > 0 ? "amber" : "slate"}
+          href={expiringCount > 0 ? "/admin/tenants?contract=expiring" : undefined}
+        />
+        <StatCard
+          icon={FileWarning}
+          label="Без подписанного договора"
+          value={unsignedCount}
+          sub={unsignedCount > 0 ? "счета по ним выставить нельзя" : "у всех есть договор"}
+          tone={unsignedCount > 0 ? "amber" : "emerald"}
+          href={unsignedCount > 0 ? "/admin/tenants?contract=none" : undefined}
         />
       </StatGrid>
 
-      <TenantsTableLoader tenants={rows} canDelete={allowedCapabilities.has("tenants.delete")} />
+      <Suspense fallback={null}>
+        <TenantsTable tenants={rows} canDelete={allowedCapabilities.has("tenants.delete")} />
+      </Suspense>
       <PaginationControls
         basePath="/admin/tenants"
         page={page}

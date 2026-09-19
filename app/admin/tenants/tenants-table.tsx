@@ -33,12 +33,17 @@ export interface TenantRow {
   // Размещение без помещения (крышные: вышки/камеры)
   placementNote: string | null
   debt: number
+  /** Аренда в месяц по условиям арендатора */
+  rent: number
+  /** Окончание договора (ISO) */
+  contractEnd: string | null
+  hasSignedContract: boolean
 }
 
-type SortKey = "companyName" | "legalType" | "space" | "area" | "debt" | "phone"
+type SortKey = "companyName" | "legalType" | "space" | "area" | "debt" | "phone" | "rent" | "contractEnd"
 type SortDir = "asc" | "desc"
 
-const SORT_KEYS: SortKey[] = ["companyName", "legalType", "space", "area", "debt", "phone"]
+const SORT_KEYS: SortKey[] = ["companyName", "legalType", "space", "area", "debt", "phone", "rent", "contractEnd"]
 function parseSortKey(value: string | null): SortKey {
   return value && (SORT_KEYS as string[]).includes(value) ? (value as SortKey) : "companyName"
 }
@@ -51,6 +56,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
   const search = sp.get("q") ?? ""
   const legalFilter = sp.get("legal") ?? ""
   const debtFilter = sp.get("debt") ?? ""
+  const contractFilter = sp.get("contract") ?? ""
   const sortKey = parseSortKey(sp.get("sort"))
   const sortDir: SortDir = sp.get("dir") === "desc" ? "desc" : "asc"
 
@@ -109,6 +115,8 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
     if (legalFilter) list = list.filter((t) => t.legalType === legalFilter)
     if (debtFilter === "debt") list = list.filter((t) => t.debt > 0)
     if (debtFilter === "ok") list = list.filter((t) => t.debt === 0)
+    if (contractFilter === "none") list = list.filter((t) => !t.hasSignedContract)
+    if (contractFilter === "expiring") list = list.filter((t) => contractState(t.contractEnd) === "soon")
 
     // Сортировка
     const sorted = [...list].sort((a, b) => {
@@ -135,11 +143,17 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
         case "phone":
           cmp = (a.user.phone ?? "").localeCompare(b.user.phone ?? "")
           break
+        case "rent":
+          cmp = a.rent - b.rent
+          break
+        case "contractEnd":
+          cmp = (a.contractEnd ?? "9999").localeCompare(b.contractEnd ?? "9999")
+          break
       }
       return sortDir === "asc" ? cmp : -cmp
     })
     return sorted
-  }, [tenants, search, legalFilter, debtFilter, sortKey, sortDir])
+  }, [tenants, search, legalFilter, debtFilter, contractFilter, sortKey, sortDir])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -276,6 +290,15 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
           <option value="debt">С долгом</option>
           <option value="ok">Без долга</option>
         </select>
+        <select
+          value={contractFilter}
+          onChange={(e) => updateParam("contract", e.target.value || null)}
+          className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+        >
+          <option value="">Все договоры</option>
+          <option value="expiring">Кончается в 60 дней</option>
+          <option value="none">Без подписанного договора</option>
+        </select>
 
         <div className="ml-auto flex items-center gap-2">
           <Button
@@ -320,6 +343,8 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
               <span className="inline-flex items-center"><SpaceCell tenant={t} /></span>
               {tenantArea(t) > 0 && <span>{tenantArea(t).toFixed(0)} м²</span>}
+              {t.rent > 0 && <span className="font-medium text-slate-700 dark:text-slate-200">{formatMoney(t.rent)}/мес</span>}
+              <ContractCell tenant={t} />
               {(t.user.phone || t.user.email) && <span className="font-mono">{t.user.phone ?? t.user.email}</span>}
             </div>
             <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
@@ -341,15 +366,16 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
 
       {/* Table (sm и шире) */}
       <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 sm:block">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[1040px] text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
             <tr className="border-b border-slate-100 dark:border-slate-800">
-              <SortHeader k="companyName" label="Компания" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="legalType" label="Тип" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="companyName" label="Арендатор" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader k="space" label="Помещение" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader k="area" label="Площадь" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="rent" label="Аренда в месяц" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="contractEnd" label="Договор до" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <SortHeader k="phone" label="Телефон" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="debt" label="Задолженность" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="debt" label="Долг" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -365,18 +391,23 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
                     {/* max-w — иначе длинный вид деятельности по ОКЭД растягивает всю таблицу */}
                     <span className="min-w-0 max-w-[340px]">
                       <p className="truncate font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{shortCompanyName(t.companyName)}</p>
-                      <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+                      <p className="truncate text-xs text-slate-400 dark:text-slate-500">
+                        {LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}{t.category ? ` · ${t.category}` : ""}
+                      </p>
                     </span>
                   </Link>
-                </td>
-                <td className="px-5 py-3.5">
-                  <LegalBadge legalType={t.legalType} />
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400">
                   <SpaceCell tenant={t} />
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-right tabular-nums text-slate-600 dark:text-slate-400">
                   {tenantArea(t) ? `${tenantArea(t).toFixed(0)} м²` : "—"}
+                </td>
+                <td className="whitespace-nowrap px-5 py-3.5 text-right tabular-nums font-medium text-slate-900 dark:text-slate-100">
+                  {t.rent > 0 ? formatMoney(t.rent) : <span className="font-normal text-slate-400">—</span>}
+                </td>
+                <td className="whitespace-nowrap px-5 py-3.5">
+                  <ContractCell tenant={t} />
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400 font-mono text-xs">
                   {t.user.phone ?? t.user.email ?? "—"}
@@ -399,7 +430,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-5 py-6">
+                <td colSpan={8} className="px-5 py-6">
                   {tenants.length === 0 ? (
                     <EmptyState
                       icon={<UsersRound className="h-5 w-5" />}
@@ -595,4 +626,25 @@ const LEGAL_FORM_SHORT: [RegExp, string][] = [
 function shortCompanyName(name: string): string {
   for (const [re, short] of LEGAL_FORM_SHORT) if (re.test(name)) return name.replace(re, short).trim()
   return name
+}
+
+// Срок договора: истёк / кончается в 60 дней / действует
+function contractState(end: string | null): "none" | "expired" | "soon" | "ok" {
+  if (!end) return "none"
+  const days = (new Date(end).getTime() - Date.now()) / 86_400_000
+  if (days < 0) return "expired"
+  if (days <= 60) return "soon"
+  return "ok"
+}
+
+function ContractCell({ tenant }: { tenant: TenantRow }) {
+  if (!tenant.hasSignedContract) {
+    return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">нет подписанного</span>
+  }
+  const state = contractState(tenant.contractEnd)
+  if (state === "none") return <span className="text-xs text-slate-400 dark:text-slate-500">без срока</span>
+  const d = new Date(tenant.contractEnd!).toLocaleDateString("ru-RU")
+  if (state === "expired") return <span className="text-xs font-medium text-red-600 dark:text-red-400">истёк {d}</span>
+  if (state === "soon") return <span className="text-xs font-medium text-amber-600 dark:text-amber-400">{d}</span>
+  return <span className="text-xs text-slate-600 dark:text-slate-300">{d}</span>
 }

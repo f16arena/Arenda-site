@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 // сигнатуры вызова со страницы /admin/tenants).
 type Space = { id: string; number: string; floorName: string; buildingName?: string; area: number; isObject?: boolean }
 
-export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingId?: string | null }) {
+export function TenantDialog({ buildingId, label = "Добавить арендатора", variant }: { vacantSpaces?: Space[]; buildingId?: string | null; label?: string; variant?: "outline" }) {
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -31,9 +31,11 @@ export function TenantDialog({ buildingId }: { vacantSpaces?: Space[]; buildingI
     <>
       <Button
         onClick={() => setOpen(true)}
+        variant={variant}
         leftIcon={<Plus className="h-4 w-4" />}
+        title="Создать карточку с реквизитами и контактами, без помещения и договора"
       >
-        Добавить арендатора
+        {label}
       </Button>
 
       <Dialog
