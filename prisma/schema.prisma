@@ -152,7 +152,7 @@ model Organization {
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  plan          Plan?          @relation(fields: [planId], references: [id])
+  plan          Plan?          @relation(fields: [planId], references: [id], onDelete: Restrict)
   buildings     Building[]
   users         User[]
   subscriptions Subscription[]
@@ -476,6 +476,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+  @@index([userId, isRead, createdAt])
   @@map("notifications")
 }
 
@@ -641,6 +642,7 @@ model Floor {
 
   @@index([buildingId, number])
   @@index([fullFloorTenantId])
+  @@index([buildingId, kind])
   @@map("floors")
 }
 
@@ -789,6 +791,7 @@ model Tenant {
   @@index([createdAt(sort: Desc)])
   @@index([deletedAt])
   @@index([buildingId])
+  @@index([buildingId, deletedAt])
   @@map("tenants")
 }
 
@@ -1139,6 +1142,7 @@ model Task {
   @@index([buildingId, status, dueDate])
   @@index([assignedToId, status, dueDate])
   @@index([createdById, createdAt])
+  @@index([status, dueDate])
   @@map("tasks")
 }
 
@@ -1340,6 +1344,7 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([action, createdAt])
   @@index([createdAt])
+  @@index([entity, entityId, createdAt])
   @@map("audit_logs")
 }
 
@@ -1505,6 +1510,7 @@ model GeneratedDocument {
   @@index([organizationId, tenantId])
   @@index([deletedAt])
   @@index([contractId])
+  @@index([organizationId, documentType, number])
   @@map("generated_documents")
 }
 

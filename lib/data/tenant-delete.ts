@@ -42,9 +42,16 @@ export async function softDeleteTenantRecords(
         ]
       : []),
     db.contract.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
+    // Документы и файлы арендатора тоже уходят из списков: раньше они
+    // оставались «живыми» в «Документах» и «Хранилище» после удаления.
+    db.generatedDocument.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
+    db.storedFile.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
+    // Рассрочка перестаёт учитываться крон-задачей по пеням.
+    db.debtInstallmentPlan.updateMany({ where: { tenantId, status: "ACTIVE" }, data: { status: "CANCELLED" } }),
     db.payment.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
     db.charge.updateMany({ where: { tenantId, deletedAt: null }, data: { deletedAt: now } }),
     db.tenant.update({ where: { id: tenantId }, data: { deletedAt: now, spaceId: null } }),
-    db.user.update({ where: { id: tenant.userId }, data: { isActive: false } }),
+    // Пользователь: и выключен, и скрыт из /admin/users (там фильтр по deletedAt).
+    db.user.update({ where: { id: tenant.userId }, data: { isActive: false, deletedAt: now } }),
   ])
 }
