@@ -59,7 +59,16 @@ const RENTAL_TERMS_FIELDS = [
   "moveInDate", "indexationPct", "nextIndexationAt",
 ] as const
 
-export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: WizardSpace[]; initialSpaceId?: string }) {
+export function TenantWizard({
+  vacantSpaces,
+  initialSpaceId,
+  onClose,
+}: {
+  vacantSpaces: WizardSpace[]
+  initialSpaceId?: string
+  /** Задан — мастер открыт в окне: есть кнопка «Закрыть», без заголовка страницы */
+  onClose?: () => void
+}) {
   const formRef = useRef<HTMLFormElement>(null)
   const [step, setStep] = useState(0)
   const [pending, startTransition] = useTransition()
@@ -214,6 +223,7 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
 
   return (
     <div className="space-y-5">
+      {!onClose && (
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
           <UserPlus className="h-6 w-6 text-slate-400" />
@@ -223,6 +233,7 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
           Три шага: контакты → помещение и условия → договор. Без повторного ввода данных.
         </p>
       </div>
+      )}
 
       {/* Прогресс */}
       <div className="flex items-center gap-2">
@@ -438,14 +449,21 @@ export function TenantWizard({ vacantSpaces, initialSpaceId }: { vacantSpaces: W
 
         {/* Навигация */}
         <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4 dark:border-slate-800">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0 || pending}
-          >
-            <ChevronLeft className="h-4 w-4" /> Назад
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setStep((s) => Math.max(0, s - 1))}
+              disabled={step === 0 || pending}
+            >
+              <ChevronLeft className="h-4 w-4" /> Назад
+            </Button>
+            {onClose && (
+              <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
+                Закрыть
+              </Button>
+            )}
+          </div>
           {step < 2 ? (
             <Button type="button" onClick={next}>
               Далее <ChevronRight className="h-4 w-4" />

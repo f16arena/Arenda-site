@@ -161,3 +161,35 @@
 .tabular-nums, table td, .font-mono {
   font-variant-numeric: tabular-nums;
 }
+
+/* Отклик на нажатие — по всему проекту: кнопка «проминается» под пальцем и
+   мышью. Раньше половина кнопок никак не реагировала на клик, и было
+   непонятно, нажалось или нет. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href][class*="rounded"],
+  summary {
+    transition: transform 70ms ease, background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  }
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active,
+  a[href][class*="rounded"]:active,
+  summary:active {
+    transform: scale(0.97);
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+  /* Кольцо фокуса с клавиатуры — видно, где ты находишься */
+  :where(button, a[href], summary, [role="button"]):focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--primary) 70%, transparent);
+    outline-offset: 2px;
+  }
+}

@@ -128,14 +128,14 @@ export function CompanyForm({
         initialRate={ratePerSqm}
         monthlyRent={monthlyRent}
       />
-      <div className="col-span-2 flex justify-end">
-        <Button
-          type="submit"
-          size="lg"
-          disabled={!canEditCompany}
-          className="font-medium"
-        >
-          Сохранить
+      {/* Одна кнопка на всю вкладку: она сохраняет поля компании выше.
+          Счета и документы сохраняются каждый в своём окне. */}
+      <div className="col-span-2 sticky bottom-0 -mx-5 -mb-5 mt-2 flex items-center justify-between gap-3 border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Изменения полей компании сохраняются этой кнопкой
+        </p>
+        <Button type="submit" size="lg" disabled={!canEditCompany} className="font-medium">
+          Сохранить данные компании
         </Button>
       </div>
       </fieldset>

@@ -9,14 +9,15 @@ import {
   deleteTenantBankAccount,
   setPrimaryTenantBankAccount,
   updateTenantBankAccount,
-  updateTenantRequisites,
 } from "@/app/actions/tenant"
 import { validateRequisites } from "@/lib/kz-validators"
 import { findBankByBik, findBankByName, findSingleBankSuggestion, isKnownBankName, KZ_BANKS } from "@/lib/kz-banks"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Input } from "@/components/ui/input"
+import { ActionMenu } from "@/components/ui/action-menu"
+import { ModalShell } from "@/components/ui/modal"
+import { askConfirm } from "@/components/ui/dialog-host"
 
 type BankAccount = {
   id: string
@@ -245,48 +246,17 @@ function BankFields({
   )
 }
 
-function ExistingAccount({ account }: { account: BankAccount }) {
+/** Одна строка счёта: название, банк, ИИК и меню действий. */
+function AccountRow({ account }: { account: BankAccount }) {
   const router = useRouter()
-  const [label, setLabel] = useState(account.label ?? "")
-  const [bankName, setBankName] = useState(account.bankName)
-  const [iik, setIik] = useState(account.iik)
-  const [bik, setBik] = useState(account.bik)
+  const [editing, setEditing] = useState(false)
   const [pending, startTransition] = useTransition()
-  const inputError = useMemo(() => getBankInputError(bankName, bik, iik), [bankName, bik, iik])
-
-  const save = () => {
-    if (inputError) {
-      toast.error(inputError)
-      return
-    }
-    const formData = new FormData()
-    formData.set("label", label)
-    formData.set("bankName", bankName)
-    formData.set("iik", iik)
-    formData.set("bik", bik)
-    startTransition(async () => {
-      try {
-        const result = await updateTenantBankAccount(account.id, formData)
-        if (!result.ok) {
-          showActionError(result, "Не удалось сохранить счёт")
-          return
-        }
-        router.refresh()
-        toast.success("Счёт сохранён")
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить счёт")
-      }
-    })
-  }
 
   const makePrimary = () => {
     startTransition(async () => {
       try {
         const result = await setPrimaryTenantBankAccount(account.id)
-        if (!result.ok) {
-          showActionError(result, "Не удалось выбрать основной счёт")
-          return
-        }
+        if (!result.ok) { showActionError(result, "Не удалось выбрать основной счёт"); return }
         router.refresh()
         toast.success("Основной счёт обновлён")
       } catch (error) {
@@ -299,10 +269,7 @@ function ExistingAccount({ account }: { account: BankAccount }) {
     startTransition(async () => {
       try {
         const result = await deleteTenantBankAccount(account.id)
-        if (!result.ok) {
-          showActionError(result, "Не удалось удалить счёт")
-          return
-        }
+        if (!result.ok) { showActionError(result, "Не удалось удалить счёт"); return }
         router.refresh()
         toast.success("Счёт удалён")
       } catch (error) {
@@ -312,306 +279,172 @@ function ExistingAccount({ account }: { account: BankAccount }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            {label || account.label || "Банковский счёт"}
+    <>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-800">
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
+            {account.label || account.bankName}
+            {account.isPrimary && (
+              <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                <Star className="h-3 w-3 fill-current" /> основной
+              </Badge>
+            )}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">{account.iik}</p>
+          <p className="truncate font-mono text-xs text-slate-500 dark:text-slate-400">
+            {account.iik} · {account.bankName} · {account.bik}
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {account.isPrimary ? (
-            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-              <Star className="h-3.5 w-3.5 fill-current" /> Основной
-            </Badge>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onClick={makePrimary}
-            >
-              <Star className="h-3.5 w-3.5" /> Сделать основным
-            </Button>
-          )}
-          <ConfirmDialog
-            variant="danger"
-            title="Удалить этот банковский счёт арендатора?"
-            confirmLabel="Удалить"
-            onConfirm={remove}
-            trigger={
-              <button
-                type="button"
-                disabled={pending}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10 disabled:opacity-60 dark:text-red-400"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> Удалить
-              </button>
-            }
-          />
-        </div>
+        <ActionMenu
+          tone="icon"
+          label="⋯"
+          ariaLabel="Действия со счётом"
+          align="end"
+          width="w-56"
+          items={[
+            { label: "Изменить", icon: <Save className="h-4 w-4 text-slate-400" />, onSelect: () => setEditing(true), disabled: pending },
+            ...(account.isPrimary ? [] : [{ label: "Сделать основным", icon: <Star className="h-4 w-4 text-slate-400" />, onSelect: makePrimary, disabled: pending }]),
+            {
+              label: "Удалить счёт",
+              icon: <Trash2 className="h-4 w-4" />,
+              danger: true,
+              separatorBefore: true,
+              disabled: pending,
+              onSelect: () => {
+                void (async () => {
+                  if (!(await askConfirm({ title: "Удалить этот счёт?", description: "Он пропадёт из договоров и счетов.", confirmLabel: "Удалить", danger: true }))) return
+                  remove()
+                })()
+              },
+            },
+          ]}
+        />
       </div>
-
-      <BankFields
-        label={label}
-        setLabel={setLabel}
-        bankName={bankName}
-        setBankName={setBankName}
-        iik={iik}
-        setIik={setIik}
-        bik={bik}
-        setBik={setBik}
-        initialBankName={account.bankName}
-      />
-
-      <div className="mt-4 flex justify-end">
-        <div className="flex flex-col items-end gap-1">
-          {inputError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{inputError}</p>}
-          <Button
-            type="button"
-            disabled={pending || !!inputError}
-            onClick={save}
-            title={inputError ?? undefined}
-          >
-            <Save className="h-4 w-4" />
-            {pending ? "Сохранение..." : "Сохранить счёт"}
-          </Button>
-        </div>
-      </div>
-    </div>
+      {editing && (
+        <AccountDialog
+          title="Счёт арендатора"
+          initial={account}
+          onClose={() => setEditing(false)}
+          onSave={async (fd) => {
+            const result = await updateTenantBankAccount(account.id, fd)
+            if (!result.ok) { showActionError(result, "Не удалось сохранить счёт"); return false }
+            toast.success("Счёт сохранён")
+            router.refresh()
+            return true
+          }}
+        />
+      )}
+    </>
   )
 }
 
-function AddAccountForm({ tenantId }: { tenantId: string }) {
-  const router = useRouter()
-  // Свёрнутая форма по умолчанию — показываем только ссылку «+ Добавить счёт»
-  // (требование владельца 2026-05-27). При клике форма раскрывается.
-  // После успешного добавления — снова сворачиваем (см. submit()).
-  const [expanded, setExpanded] = useState(false)
-  const [label, setLabel] = useState("")
-  const [bankName, setBankName] = useState("")
-  const [iik, setIik] = useState("")
-  const [bik, setBik] = useState("")
+/** Окно добавления/правки счёта — поля те же, сохранение одно. */
+function AccountDialog({
+  title,
+  initial,
+  withPrimary,
+  onClose,
+  onSave,
+}: {
+  title: string
+  initial?: Partial<BankAccount>
+  withPrimary?: boolean
+  onClose: () => void
+  onSave: (fd: FormData) => Promise<boolean>
+}) {
+  const [label, setLabel] = useState(initial?.label ?? "")
+  const [bankName, setBankName] = useState(initial?.bankName ?? "")
+  const [iik, setIik] = useState(initial?.iik ?? "")
+  const [bik, setBik] = useState(initial?.bik ?? "")
   const [isPrimary, setIsPrimary] = useState(false)
   const [pending, startTransition] = useTransition()
   const inputError = useMemo(() => getBankInputError(bankName, bik, iik), [bankName, bik, iik])
 
   const submit = () => {
-    if (inputError) {
-      toast.error(inputError)
-      return
-    }
-    const formData = new FormData()
-    formData.set("label", label)
-    formData.set("bankName", bankName)
-    formData.set("iik", iik)
-    formData.set("bik", bik)
-    if (isPrimary) formData.set("isPrimary", "on")
-
+    if (inputError) { toast.error(inputError); return }
+    const fd = new FormData()
+    fd.set("label", label)
+    fd.set("bankName", bankName)
+    fd.set("iik", iik)
+    fd.set("bik", bik)
+    if (withPrimary && isPrimary) fd.set("isPrimary", "on")
     startTransition(async () => {
       try {
-        const result = await createTenantBankAccount(tenantId, formData)
-        if (!result.ok) {
-          showActionError(result, "Не удалось добавить счёт")
-          return
-        }
-        router.refresh()
-        setLabel("")
-        setBankName("")
-        setIik("")
-        setBik("")
-        setIsPrimary(false)
-        setExpanded(false) // после успешного добавления — снова сворачиваем
-        toast.success("Счёт добавлен")
+        if (await onSave(fd)) onClose()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось добавить счёт")
+        toast.error(error instanceof Error ? error.message : "Не удалось сохранить счёт")
       }
     })
   }
 
-  // Свёрнутый вид — просто кнопка-ссылка «+ Добавить счёт»
-  if (!expanded) {
-    return (
-      <button
-        type="button"
-        onClick={() => setExpanded(true)}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-      >
-        <Plus className="h-4 w-4" />
-        Добавить счёт
-      </button>
-    )
-  }
-
-  // Раскрытый вид — полная форма
   return (
-    <div className="rounded-xl border border-dashed border-slate-300 p-4 dark:border-slate-700">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Добавить банковский счёт</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Можно хранить несколько счетов арендатора.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={isPrimary}
-              onChange={(event) => setIsPrimary(event.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600"
-            />
-            Основной
+    <ModalShell open onClose={onClose} title={title} className="w-full max-w-lg rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+      <div className="space-y-4 p-5">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+        <BankFields
+          label={label}
+          setLabel={setLabel}
+          bankName={bankName}
+          setBankName={setBankName}
+          iik={iik}
+          setIik={setIik}
+          bik={bik}
+          setBik={setBik}
+          initialBankName={initial?.bankName ?? ""}
+        />
+        {withPrimary && (
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+            <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} />
+            Сделать основным — он подставляется в договоры и счета
           </label>
-          <button
-            type="button"
-            onClick={() => {
-              setExpanded(false)
-              setLabel("")
-              setBankName("")
-              setIik("")
-              setBik("")
-              setIsPrimary(false)
-            }}
-            className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-          >
-            Отмена
-          </button>
-        </div>
-      </div>
-
-      <BankFields
-        label={label}
-        setLabel={setLabel}
-        bankName={bankName}
-        setBankName={setBankName}
-        iik={iik}
-        setIik={setIik}
-        bik={bik}
-        setBik={setBik}
-      />
-
-      <div className="mt-4 flex justify-end">
-        <div className="flex flex-col items-end gap-1">
-          {inputError && <p className="text-[11px] text-amber-600 dark:text-amber-400">{inputError}</p>}
-          <Button
-            type="button"
-            disabled={pending || !!inputError}
-            onClick={submit}
-            title={inputError ?? undefined}
-          >
-            <Plus className="h-4 w-4" />
-            {pending ? "Добавление..." : "Добавить счёт"}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function TaxIdentityForm({ tenantId, initial, isIin }: Props) {
-  const router = useRouter()
-  const [taxId, setTaxId] = useState(isIin ? initial.iin ?? initial.bin ?? "" : initial.bin ?? "")
-  const [pending, startTransition] = useTransition()
-
-  const checks = useMemo(() => {
-    return validateRequisites({
-      bin: !isIin ? taxId : undefined,
-      iin: isIin ? taxId : undefined,
-    })
-  }, [taxId, isIin])
-
-  const save = () => {
-    const formData = new FormData()
-    formData.set(isIin ? "iin" : "bin", taxId)
-    formData.set(isIin ? "bin" : "iin", "")
-
-    startTransition(async () => {
-      try {
-        const result = await updateTenantRequisites(tenantId, formData)
-        if (!result.ok) {
-          showActionError(result, "Не удалось сохранить данные")
-          return
-        }
-        router.refresh()
-        toast.success("Налоговые данные сохранены")
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить данные")
-      }
-    })
-  }
-
-  const taxCheck = isIin ? checks.iin : checks.bin
-
-  return (
-    <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
-      <div className="mb-1.5 flex items-center justify-between">
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-          {isIin ? "ИИН" : "БИН"} <span className="text-slate-400">12 цифр</span>
-        </label>
-        {taxId && <StatusIcon ok={taxCheck?.ok ?? null} />}
-      </div>
-      <Input
-        name={isIin ? "iin" : "bin"}
-        value={taxId}
-        onChange={(event) => setTaxId(event.target.value.replace(/[^0-9]/g, "").slice(0, 12))}
-        placeholder="123456789012"
-        pattern="\d{12}"
-        maxLength={12}
-        inputMode="numeric"
-        className={`font-mono ${
-          !taxId
-            ? ""
-            : taxCheck?.ok
-              ? "border-emerald-300 dark:border-emerald-500/40"
-              : "border-red-300 dark:border-red-500/40"
-        }`}
-      />
-      {!taxId && (
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">12 цифр без пробелов</p>
-      )}
-      {taxId && taxCheck?.warning && (
-        <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{taxCheck.warning}</p>
-      )}
-      <div className="mt-4 flex justify-end">
-        <Button type="button" disabled={pending} onClick={save}>
-          {pending ? "Сохранение..." : "Сохранить"}
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-export function RequisitesForm({ tenantId, initial, isIin }: Props) {
-  return (
-    <div className="space-y-4 p-5">
-      <TaxIdentityForm tenantId={tenantId} initial={initial} isIin={isIin} />
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские счета</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Основной счёт используется в договорах, счетах и старых шаблонах.
-            </p>
-          </div>
-          <Badge variant="secondary">
-            {initial.bankAccounts.length}
-          </Badge>
-        </div>
-
-        {initial.bankAccounts.length === 0 ? (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-            Банковские счета не добавлены. Добавьте хотя бы один счёт, чтобы реквизиты подставлялись в документы.
-          </div>
-        ) : (
-          initial.bankAccounts.map((account) => (
-            <ExistingAccount key={account.id} account={account} />
-          ))
         )}
-
-        <AddAccountForm tenantId={tenantId} />
+        {inputError && <p className="text-xs text-amber-600 dark:text-amber-400">{inputError}</p>}
+        <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <Button type="button" variant="outline" onClick={onClose}>Отмена</Button>
+          <Button type="button" onClick={submit} loading={pending} disabled={!!inputError}>Сохранить счёт</Button>
+        </div>
       </div>
+    </ModalShell>
+  )
+}
+
+/**
+ * Банковские счета арендатора. Раньше на этой вкладке было три кнопки
+ * «Сохранить» (компания, БИН/ИИН, счёт) и дубль поля ИИН — теперь ИИН и
+ * данные компании сохраняются одной кнопкой формы компании, а счета живут
+ * отдельным списком с окном правки.
+ */
+export function RequisitesForm({ tenantId, initial }: Props) {
+  const router = useRouter()
+  const [adding, setAdding] = useState(false)
+
+  return (
+    <div className="space-y-3 p-5">
+      {initial.bankAccounts.length === 0 ? (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
+          Счетов нет. Без них реквизиты не подставятся в договор и счёт на оплату.
+        </p>
+      ) : (
+        initial.bankAccounts.map((account) => <AccountRow key={account.id} account={account} />)
+      )}
+
+      <Button type="button" variant="outline" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
+        Добавить счёт
+      </Button>
+
+      {adding && (
+        <AccountDialog
+          title="Новый счёт"
+          withPrimary
+          onClose={() => setAdding(false)}
+          onSave={async (fd) => {
+            const result = await createTenantBankAccount(tenantId, fd)
+            if (!result.ok) { showActionError(result, "Не удалось добавить счёт"); return false }
+            toast.success("Счёт добавлен")
+            router.refresh()
+            return true
+          }}
+        />
+      )}
     </div>
   )
 }

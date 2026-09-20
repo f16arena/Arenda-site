@@ -573,15 +573,16 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <div className="border-t border-slate-100 dark:border-slate-800">
               <div className="px-5 pt-5 pb-2 flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Банковские реквизиты</h3>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Счета в банке</h3>
                 <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
-                  {tenant.bankAccounts.length > 0 ? `${tenant.bankAccounts.length} сч.` : "не заполнены"}
+                  {tenant.bankAccounts.length > 0
+                    ? `${tenant.bankAccounts.length} шт. · основной подставляется в договоры и счета`
+                    : "не добавлены"}
                 </span>
               </div>
               {canEditCompany ? (
                 <RequisitesFormLoader
                   tenantId={tenant.id}
-                  isIin={tenant.legalType === "IP" || tenant.legalType === "CHSI" || tenant.legalType === "PHYSICAL"}
                   initial={{
                     bankName: tenant.bankName,
                     iik: tenant.iik,

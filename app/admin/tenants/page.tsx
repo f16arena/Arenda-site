@@ -8,6 +8,7 @@ import { Wand2, Users, Wallet, CalendarClock, FileWarning } from "lucide-react"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatMoney } from "@/lib/utils"
 import { PageHeader, StatGrid, StatCard } from "@/components/ui/page"
+import { MoveInTenantButton } from "./move-in-button"
 import { TenantDialog } from "./tenant-dialog"
 import { BulkNotifyButton } from "./bulk-notify-button"
 import { TenantsTable, type TenantRow } from "./tenants-table"
@@ -169,7 +170,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
       number: true,
       area: true,
       kind: true,
-      floor: { select: { name: true, kind: true, building: { select: { name: true } } } },
+      floor: { select: { name: true, kind: true, ratePerSqm: true, building: { select: { id: true, name: true } } } },
     },
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
@@ -209,14 +210,19 @@ export default async function TenantsPage(props: TenantsPageProps) {
               <BulkNotifyButton available={bulkNotificationsAvailable} totalTenants={totalTenants} />
             )}
             {allowedCapabilities.has("tenants.create") && (
-              <Link
-                href="/admin/tenants/new"
-                className="order-last inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                title="Заселение за 3 шага: контакты → помещение и условия → договор"
-              >
-                <Wand2 className="h-4 w-4" />
-                Заселить арендатора
-              </Link>
+              <MoveInTenantButton
+                vacantSpaces={vacantSpaces
+                  .filter((sp) => sp.kind === "RENTABLE")
+                  .map((sp) => ({
+                    id: sp.id,
+                    number: sp.number,
+                    area: sp.area,
+                    floorName: sp.floor.name,
+                    ratePerSqm: sp.floor.ratePerSqm,
+                    buildingId: sp.floor.building.id,
+                    buildingName: sp.floor.building.name,
+                  }))}
+              />
             )}
             {allowedCapabilities.has("tenants.create") && (
               <TenantDialog
