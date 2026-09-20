@@ -87,7 +87,12 @@ export default async function TenantsPage(props: TenantsPageProps) {
         customRate: true,
         fixedMonthlyRent: true,
         rentSchedule: true,
-        contracts: { where: { status: "SIGNED", deletedAt: null }, select: { id: true }, take: 1 },
+        contracts: {
+          where: { deletedAt: null, type: { not: "ADDENDUM" }, status: { in: ["SIGNED", "SENT", "SIGNED_BY_TENANT", "DRAFT"] } },
+          select: { status: true },
+          orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
+          take: 1,
+        },
         user: { select: { name: true, phone: true, email: true } },
         space: {
           select: {
@@ -195,7 +200,10 @@ export default async function TenantsPage(props: TenantsPageProps) {
     debt: debtMap.get(t.id) ?? 0,
     rent: calculateTenantMonthlyRent(t),
     contractEnd: t.contractEnd ? t.contractEnd.toISOString() : null,
-    hasSignedContract: t.contracts.length > 0,
+    hasSignedContract: t.contracts[0]?.status === "SIGNED",
+    // Договор может быть уже отправлен и ждать подписи — это не то же самое,
+    // что «договора нет»: второй создавать не нужно.
+    contractStatus: t.contracts[0]?.status ?? null,
   }))
 
   return (

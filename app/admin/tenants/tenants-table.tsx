@@ -39,6 +39,7 @@ export interface TenantRow {
   /** Окончание договора (ISO) */
   contractEnd: string | null
   hasSignedContract: boolean
+  contractStatus: string | null
 }
 
 type SortKey = "companyName" | "legalType" | "space" | "area" | "debt" | "phone" | "rent" | "contractEnd"
@@ -629,7 +630,14 @@ function contractState(end: string | null): "none" | "expired" | "soon" | "ok" {
 
 function ContractCell({ tenant }: { tenant: TenantRow }) {
   if (!tenant.hasSignedContract) {
-    return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">нет подписанного</span>
+    const waiting = tenant.contractStatus === "SENT"
+      ? "ждёт подписи арендатора"
+      : tenant.contractStatus === "SIGNED_BY_TENANT"
+        ? "ждёт вашей подписи"
+        : tenant.contractStatus === "DRAFT"
+          ? "черновик"
+          : "договора нет"
+    return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{waiting}</span>
   }
   const state = contractState(tenant.contractEnd)
   if (state === "none") return <span className="text-xs text-slate-400 dark:text-slate-500">без срока</span>

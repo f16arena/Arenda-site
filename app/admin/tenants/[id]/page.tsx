@@ -343,6 +343,53 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const hasContact = Boolean((tenant.user.phone ?? "").trim() || (tenant.user.email ?? "").trim())
   const hasBankDetails = tenant.bankAccounts.length > 0 || Boolean((tenant.bankName ?? "").trim() && (tenant.iik ?? "").trim() && (tenant.bik ?? "").trim())
   const hasSignedContract = signedContractsCount > 0
+  /**
+   * Состояние договора одной фразой. Раньше карточка одновременно показывала
+   * «Договор до 19 сентября 2027» и «нет подписанного договора», а кнопка
+   * предлагала создать ещё один — хотя договор уже отправлен и ждёт подписи
+   * арендатора. Теперь видно, на каком он шаге.
+   */
+  const contractState: { value: string; ok: boolean; action: TenantPrimaryAction | null } = hasSignedContract
+    ? { value: "подписан", ok: true, action: null }
+    : activeContract
+      ? activeContract.status === "SENT"
+        ? {
+            value: `№${activeContract.number} ждёт подписи арендатора`,
+            ok: false,
+            action: {
+              label: "Открыть договор",
+              description: `Договор №${activeContract.number} отправлен арендатору — ждём его подпись. Второй договор создавать не нужно.`,
+              href: "/admin/documents",
+            },
+          }
+        : activeContract.status === "SIGNED_BY_TENANT"
+          ? {
+              value: `№${activeContract.number} ждёт вашей подписи`,
+              ok: false,
+              action: {
+                label: "Подписать договор",
+                description: `Арендатор подписал договор №${activeContract.number} — осталась ваша подпись.`,
+                href: "/admin/documents",
+              },
+            }
+          : {
+              value: `№${activeContract.number} — черновик`,
+              ok: false,
+              action: {
+                label: "Дооформить договор",
+                description: `Договор №${activeContract.number} создан, но не отправлен арендатору.`,
+                href: "/admin/documents",
+              },
+            }
+      : {
+          value: "не создан",
+          ok: false,
+          action: {
+            label: "Создать договор",
+            description: "У арендатора нет договора в системе.",
+            href: `/admin/documents?create=contract&tenantId=${tenant.id}`,
+          },
+        }
   // Депозит: требуемая сумма (0 = отключён, null = 1 мес. аренды) против оплаченных
   // DEPOSIT-начислений за вычетом возвратов (DEPOSIT_REFUND).
   const depositRequired = tenant.depositAmount === 0 ? 0 : (tenant.depositAmount ?? monthlyRent)
@@ -371,9 +418,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     },
     {
       label: "Договор",
-      value: hasSignedContract ? "подписан" : "нет подписанного",
-      ok: hasSignedContract,
-      href: `/admin/documents?create=contract&tenantId=${tenant.id}`,
+      value: contractState.value,
+      ok: contractState.ok,
+      href: contractState.action?.href ?? "/admin/documents",
     },
     {
       label: "Депозит",
@@ -412,12 +459,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           description: "Без помещения нельзя корректно формировать договоры и начисления.",
           href: "#tenant-placement",
         }
-      : !hasSignedContract
-        ? {
-            label: "Создать договор",
-            description: "У арендатора нет подписанного договора в системе.",
-            href: `/admin/documents?create=contract&tenantId=${tenant.id}`,
-          }
+      : contractState.action
+        ? contractState.action
         : !hasBankDetails
           ? {
               label: "Заполнить реквизиты",
