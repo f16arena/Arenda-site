@@ -10,14 +10,11 @@ import { ORGANIZATION_REQUISITES_SELECT, organizationToRequisites } from "@/lib/
 import { suggestDocumentNumber } from "@/lib/document-numbering"
 import { nextDocumentNumber } from "@/lib/document-number"
 import { resolveMonthRange } from "@/lib/period-range"
-import { buildLegalEntityFullName } from "@/lib/full-name"
-import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { Document, Packer } from "docx"
 import {
   p, center, row, fmtMoney, fmtDate, numberToWords,
   Paragraph, TextRun, AlignmentType, WidthType, Table, tableThin,
 } from "@/lib/docx-helpers"
-import { renderDocx, renderXlsx } from "@/lib/template-engine"
 
 export const dynamic = "force-dynamic"
 
@@ -100,19 +97,6 @@ export async function GET(req: Request) {
   const totalDebit = entries.reduce((s, e) => s + e.debit, 0)
   const totalCredit = entries.reduce((s, e) => s + e.credit, 0)
   const balance = totalDebit - totalCredit
-  // Расчётная месячная аренда (для справки в шапке — клиент может сравнить
-  // фактически начисленное с тем что должно быть по договору).
-  // calculateTenantMonthlyRent требует space.floor.ratePerSqm — подгружаем.
-  const tenantWithRent = await db.tenant.findUnique({
-    where: { id: tenant.id },
-    include: {
-      space: { include: { floor: { select: { ratePerSqm: true } } } },
-      tenantSpaces: { include: { space: { include: { floor: { select: { ratePerSqm: true } } } } } },
-      fullFloors: true,
-    },
-  })
-  const monthlyRentEstimate = tenantWithRent ? calculateTenantMonthlyRent(tenantWithRent) : 0
-
   const building = await db.building.findFirst({ where: { organizationId: orgId } })
   // Если в настройках задан стартовый номер актов сверки (продолжение из 1С) —
   // обычная порядковая нумерация организации, как у АВР и счетов.
@@ -166,63 +150,10 @@ export async function GET(req: Request) {
     }],
   })
 
-  const customTemplate = await db.documentTemplate.findFirst({
-    where: { organizationId: orgId, documentType: "RECONCILIATION", isActive: true },
-    orderBy: { uploadedAt: "desc" },
-  }).catch(() => null)
-
-  let buffer: Buffer
-  let format: "DOCX" | "XLSX" = "DOCX"
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  let fileName = `Акт_сверки_${reconciliationNumber}_${safeTenant}_${from}_${to}.docx`
+  const fileName = `Акт_сверки_${reconciliationNumber}_${safeTenant}_${from}_${to}.docx`
 
-  if (customTemplate && customTemplate.format !== "PDF") {
-    const templateData = {
-      reconciliation_number: reconciliationNumber,
-      period_start: periodStart,
-      period_end: periodEnd,
-      landlord_name: landlord.fullName,
-      landlord_full_name: landlord.fullName,
-      landlord_bin: landlord.bin || landlord.taxId,
-      tenant_name: tenant.companyName,
-      tenant_full_name: buildLegalEntityFullName({
-        legalType: tenant.legalType,
-        companyName: tenant.companyName,
-        directorName: tenant.directorName ?? tenant.user?.name,
-      }),
-      tenant_bin: tenant.bin || tenant.iin || "",
-      total_debit: fmtMoney(totalDebit),
-      total_credit: fmtMoney(totalCredit),
-      balance: fmtMoney(balance),
-      // Справочно: расчётная месячная аренда по договору (для верификации).
-      monthly_rent_estimate: fmtMoney(monthlyRentEstimate),
-      balance_in_words: numberToWords(Math.abs(balance)),
-      // Реестр для цикла {#entries}…{/entries}
-      entries: entries.map((e) => ({
-        date: e.date,
-        doc: e.doc,
-        our_debit: e.debit ? fmtMoney(e.debit) : "",
-        our_credit: e.credit ? fmtMoney(e.credit) : "",
-        their_debit: "",
-        their_credit: "",
-      })),
-    }
-    try {
-      const tplBuf = Buffer.from(customTemplate.fileBytes)
-      if (customTemplate.format === "DOCX") {
-        buffer = renderDocx(tplBuf, templateData)
-      } else {
-        buffer = await renderXlsx(tplBuf, templateData)
-        format = "XLSX"
-        fileName = fileName.replace(/\.docx$/, ".xlsx")
-      }
-    } catch (e) {
-      console.error("[reconciliation template render error]", e)
-      buffer = await Packer.toBuffer(doc)
-    }
-  } else {
-    buffer = await Packer.toBuffer(doc)
-  }
+  const buffer = await Packer.toBuffer(doc)
 
   await db.generatedDocument.create({
     data: {
@@ -237,9 +168,8 @@ export async function GET(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fileBytes: buffer as any,
       fileSize: buffer.length,
-      format,
+      format: "DOCX",
       generatedById: session.user.id,
-      templateUsedId: customTemplate?.id ?? null,
     },
   }).then(() => {
     // Инвалидируем /admin/documents, иначе акт сверки появится в списке
@@ -250,9 +180,7 @@ export async function GET(req: Request) {
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
-      "Content-Type": format === "XLSX"
-        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     },
   })

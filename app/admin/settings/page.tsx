@@ -10,7 +10,6 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { CollapsibleCard } from "@/components/settings/collapsible-card"
-import { DocumentNumberingSection } from "@/components/settings/document-numbering-section"
 import { DocNumberStartSection } from "@/components/settings/doc-number-start-section"
 import { getDocNumberingState } from "@/lib/document-number"
 import { VatSection } from "@/components/settings/vat-section"
@@ -396,27 +395,6 @@ export default async function SettingsPage() {
       {canEditOrg && <DocNumberStartSection orgId={orgId} rows={await getDocNumberingState(orgId)} />}
 
       {/* Document numbering */}
-      {canEditOrg && <DocumentNumberingSection building={building} />}
-
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Шаблоны документов</h2>
-        </div>
-        <div className="p-5 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">DOCX/XLSX для договора, счёта, АВР и акта сверки</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Настраиваются один раз и используются при создании документов.</p>
-          </div>
-          <a
-            href="/admin/settings/document-templates"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            Открыть
-            <ArrowRight className="h-4 w-4" />
-          </a>
-        </div>
-      </div>
 
       {/* Tariffs */}
       {canEditOrg && (

@@ -74,7 +74,6 @@ type SignatureRequestListRow = Prisma.DocumentSignatureRequestGetPayload<{ selec
 const DEFAULT_SAMPLE_LIMIT = 8
 const SCAN_LIMIT = 120
 const DAY_MS = 24 * 60 * 60 * 1000
-const REQUIRED_TEMPLATE_TYPES = ["CONTRACT", "INVOICE", "ACT", "RECONCILIATION"] as const
 
 const CONTOUR_META: Record<RelationshipContour, { label: string; description: string }> = {
   subscription: {
@@ -195,9 +194,6 @@ export async function getRelationshipIntegrityOverview({
     metersOnVacantSpaces,
     meterTariffScanRows,
     activeTariffs,
-    activeTemplateRows,
-    generatedWithoutTemplateCount,
-    generatedWithoutTemplate,
     expiredSignatureRequestsCount,
     expiredSignatureRequests,
     signedRequestsWithoutSignatureCount,
@@ -500,23 +496,6 @@ export async function getRelationshipIntegrityOverview({
       where: { building: buildingScope, isActive: true },
       select: { buildingId: true, type: true },
     }),
-    db.documentTemplate.findMany({
-      where: { organizationId: orgId, isActive: true, documentType: { in: [...REQUIRED_TEMPLATE_TYPES] } },
-      select: { documentType: true },
-    }),
-    db.generatedDocument.count({ where: { organizationId: orgId, templateUsedId: null } }),
-    db.generatedDocument.findMany({
-      where: { organizationId: orgId, templateUsedId: null },
-      select: {
-        id: true,
-        documentType: true,
-        number: true,
-        tenantName: true,
-        generatedAt: true,
-      },
-      take: sampleLimit,
-      orderBy: { generatedAt: "desc" },
-    }),
     db.documentSignatureRequest.count({ where: { organizationId: orgId, status: "PENDING", expiresAt: { lt: now } } }),
     db.documentSignatureRequest.findMany({
       where: { organizationId: orgId, status: "PENDING", expiresAt: { lt: now } },
@@ -574,8 +553,6 @@ export async function getRelationshipIntegrityOverview({
     && user.buildingAccess.length === 0
     && user.administeredBuildings.length === 0
   ))
-  const activeTemplateTypes = new Set(activeTemplateRows.map((template) => template.documentType))
-  const missingTemplates = REQUIRED_TEMPLATE_TYPES.filter((type) => !activeTemplateTypes.has(type))
   const tariffKeys = new Set(activeTariffs.map((tariff) => `${tariff.buildingId}:${tariff.type}`))
   const meterRowsWithoutTariff = meterTariffScanRows
     .filter((meter) => !tariffKeys.has(`${meter.space.floor.building.id}:${meter.type}`))
@@ -877,40 +854,6 @@ export async function getRelationshipIntegrityOverview({
     actionLabel: "Настроить тарифы",
     href: "/admin/meters",
     items: meterRowsWithoutTariff.map((meter) => meterItem(meter, `нет тарифа ${meter.type}`)),
-  })
-
-  addIssue(issues, {
-    key: "missing-document-templates",
-    title: "Не хватает ключевых шаблонов документов",
-    description: "Договор, счет, АВР и акт сверки должны формироваться из активных шаблонов организации, а не из статичного текста в коде.",
-    severity: "critical",
-    contour: "documents",
-    count: missingTemplates.length,
-    actionLabel: "Открыть шаблоны",
-    href: "/admin/settings/document-templates",
-    items: missingTemplates.map((type) => ({
-      id: type,
-      label: `Шаблон ${type}`,
-      meta: "Активный шаблон не найден",
-      href: "/admin/settings/document-templates",
-    })),
-  })
-
-  addIssue(issues, {
-    key: "generated-document-without-template",
-    title: "Документы сформированы без ссылки на шаблон",
-    description: "Для аудита важно знать, по какому шаблону создан документ. Старые документы без templateUsedId стоит постепенно пересоздать или пометить.",
-    severity: "info",
-    contour: "documents",
-    count: generatedWithoutTemplateCount,
-    actionLabel: "Открыть документы",
-    href: "/admin/documents",
-    items: generatedWithoutTemplate.map((document) => ({
-      id: document.id,
-      label: `${document.documentType} ${document.number ?? ""}`.trim(),
-      meta: `${document.tenantName} · ${formatDate(document.generatedAt)} · templateUsedId пустой`,
-      href: "/admin/documents",
-    })),
   })
 
   addIssue(issues, {

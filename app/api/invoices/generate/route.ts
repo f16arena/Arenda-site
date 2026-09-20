@@ -12,9 +12,7 @@ import {
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"
-import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
-import { buildLegalEntityFullName } from "@/lib/full-name"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 
 export const dynamic = "force-dynamic"
@@ -75,7 +73,6 @@ export async function GET(req: Request) {
   const contract = tenant.contracts[0]
   const withVat = !!organization?.isVatPayer
   const vatRate = coerceKzVatRate(organization?.vatRate, DEFAULT_KZ_VAT_RATE)
-  const tenantVatRate = coerceKzVatRate(tenant.vatRate, DEFAULT_KZ_VAT_RATE)
   const tenantBankAccounts = tenant.bankAccounts ?? []
   const tenantPrimaryBank = tenantBankAccounts.find((account) => account.isPrimary) ?? tenantBankAccounts[0] ?? null
   // См. AUDIT_2026-05-26.md: legacy tenant.bankName/iik/bik больше не fallback,
@@ -247,87 +244,11 @@ export async function GET(req: Request) {
   })
 
   // Если есть активный кастомный шаблон — используем его
-  const customTemplate = await db.documentTemplate.findFirst({
-    where: { organizationId: orgId, documentType: "INVOICE", isActive: true },
-    orderBy: { uploadedAt: "desc" },
-  }).catch(() => null)
 
-  let buffer: Buffer
-  let format: "DOCX" | "XLSX" = "DOCX"
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  let fileName = `Счет_на_оплату_${invoiceNumber}_${safeTenant}_${period}.docx`
+  const fileName = `Счет_на_оплату_${invoiceNumber}_${safeTenant}_${period}.docx`
 
-  if (customTemplate && customTemplate.format !== "PDF") {
-    // Подготовим данные для подстановки
-    const templateData = {
-      invoice_number: invoiceNumber,
-      invoice_date: fmtDate(today),
-      due_date: fmtDate(dueDate),
-      period: periodLabel(period),
-      tenant_name: tenant.companyName,
-      // Полное имя с автопрефиксом ИП/ТОО/ЧСИ — без дублирования, если префикс
-      // уже есть в companyName/directorName.
-      tenant_full_name: buildLegalEntityFullName({
-        legalType: tenant.legalType,
-        companyName: tenant.companyName,
-        directorName: tenant.directorName ?? tenant.user?.name,
-      }),
-      tenant_bin: tenant.bin || tenant.iin || "",
-      tenant_address: tenant.legalAddress || "",
-      tenant_iik: tenantIik,
-      tenant_bik: tenantBik,
-      tenant_bank: tenantBankName,
-      tenant_bank_accounts: tenantBankAccountsText,
-      tenant_is_vat_payer: tenant.isVatPayer ? "да" : "нет",
-      tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
-      tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
-      landlord_name: landlord.fullName,
-      landlord_full_name: landlord.fullName, // landlord.fullName уже включает префикс
-      landlord_bin: landlord.bin || landlord.taxId,
-      landlord_iin: landlord.iin,
-      landlord_iik: landlord.iik,
-      landlord_bik: landlord.bik,
-      landlord_bank: landlord.bank,
-      landlord_second_iik: landlord.secondIik,
-      landlord_second_bik: landlord.secondBik,
-      landlord_second_bank: landlord.secondBank,
-      kbe: landlord.kbe,
-      knp: landlord.knp,
-      landlord_director: landlord.directorShort,
-      subtotal: fmtMoney(subtotal),
-      vat_rate: withVat ? `${vatRate}` : "",
-      vat_amount: withVat ? fmtMoney(vatAmount) : "",
-      total: fmtMoney(total),
-      total_in_words: numberToWords(total),
-      contract_number: contract?.number || "",
-      purpose: `Оплата за аренду по счёту № ${invoiceNumber} от ${fmtDate(today)}${contract ? `, договор № ${contract.number}` : ""}`,
-      items: items.map((it) => ({
-        name: it.name,
-        qty: it.qty,
-        unit: it.unit,
-        price: fmtMoney(it.price),
-        tariff: fmtMoney(it.price), // алиас: в шаблонах используется {tariff}
-        amount: fmtMoney(it.amount),
-      })),
-    }
-
-    try {
-      const tplBuf = Buffer.from(customTemplate.fileBytes)
-      if (customTemplate.format === "DOCX") {
-        buffer = renderDocx(tplBuf, templateData)
-      } else {
-        buffer = await renderXlsx(tplBuf, templateData)
-        format = "XLSX"
-        fileName = fileName.replace(/\.docx$/, ".xlsx")
-      }
-    } catch (e) {
-      console.error("[invoice template render error]", e)
-      // Fallback на стандартный
-      buffer = await Packer.toBuffer(doc)
-    }
-  } else {
-    buffer = await Packer.toBuffer(doc)
-  }
+  const buffer = await Packer.toBuffer(doc)
 
   // Сохраняем копию в архив + инвалидируем /admin/documents,
   // чтобы новый документ появился в списке без перезагрузки страницы
@@ -345,9 +266,8 @@ export async function GET(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fileBytes: buffer as any,
       fileSize: buffer.length,
-      format,
+      format: "DOCX",
       generatedById: session.user.id,
-      templateUsedId: customTemplate?.id ?? null,
     },
   }).then(() => {
     revalidatePath("/admin/documents")
@@ -356,9 +276,7 @@ export async function GET(req: Request) {
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
-      "Content-Type": format === "XLSX"
-        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     },
   })

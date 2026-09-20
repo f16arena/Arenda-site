@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
+import { nextContractNumber } from "@/lib/document-number"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { Prisma } from "@/app/generated/prisma/client"
 import { tenantScope, contractScope } from "@/lib/tenant-scope"
@@ -87,7 +88,6 @@ export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: bo
       id = created.id
     }
 
-    revalidatePath("/admin/settings/document-templates")
     revalidatePath("/admin/documents")
     return { ok: true, id }
   } catch (e) {
@@ -127,7 +127,6 @@ export async function deleteContractDraft(id: string): Promise<{ ok: boolean }> 
     where: { id, organizationId: orgId, deletedAt: null },
     data: { deletedAt: new Date() },
   })
-  revalidatePath("/admin/settings/document-templates")
   revalidatePath("/admin/documents")
   return { ok: true }
 }
@@ -407,22 +406,13 @@ export async function prefillFromTenant(
  * нулями до 3 знаков (001, 002, …). Учитываются только чисто числовые номера —
  * ручные/нестандартные («Б/Н», «2026/14») в подсчёте не участвуют.
  */
-async function computeNextContractNumber(orgId: string): Promise<string> {
-  const rows = await db.contract.findMany({ where: { tenant: tenantScope(orgId) }, select: { number: true } })
-  let max = 0
-  for (const r of rows) {
-    const t = (r.number ?? "").trim()
-    if (/^\d+$/.test(t)) { const n = parseInt(t, 10); if (n > max) max = n }
-  }
-  return String(max + 1).padStart(3, "0")
-}
 
 /** Возвращает следующий свободный номер договора (для предпросмотра автонумерации). */
 export async function getNextContractNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
-    return { ok: true, number: await computeNextContractNumber(orgId) }
+    return { ok: true, number: await nextContractNumber(orgId) }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить номер" }
   }
@@ -479,7 +469,7 @@ export async function createContractFromBuilder(
     // Автонумерация считается на момент создания (атомарнее, чем клиентский предпросмотр).
     let number: string
     if (opts?.autoNumber) {
-      number = await computeNextContractNumber(orgId)
+      number = await nextContractNumber(orgId)
     } else {
       const rawNum = (builderState.meta.contractNumber || "").trim()
       number = rawNum && rawNum !== "___" ? rawNum : "Б/Н"

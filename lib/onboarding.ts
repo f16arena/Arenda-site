@@ -36,7 +36,7 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/onboarding", orgId })
 
-  const [organization, buildings, activeTemplates] = await Promise.all([
+  const [organization, buildings] = await Promise.all([
     safe(
       "onboarding.organization",
       db.organization.findUnique({
@@ -101,20 +101,11 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
         actPrefix: string | null
       }>,
     ),
-    safe(
-      "onboarding.activeTemplates",
-      db.documentTemplate.findMany({
-        where: { organizationId: orgId, isActive: true },
-        select: { documentType: true, format: true },
-      }),
-      [] as Array<{ documentType: string; format: string }>,
-    ),
   ])
 
   const buildingIds = buildings.map((building) => building.id)
   const buildingScope = { buildingId: { in: buildingIds } }
   const tenantOrgScope = { user: { organizationId: orgId } }
-  const activeTemplateTypes = new Set(activeTemplates.map((template) => template.documentType))
 
   const [
     floorCount,
@@ -203,8 +194,6 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
   const buildingsWithNumbering = buildings.filter((building) =>
     !!building.contractPrefix || !!building.invoicePrefix || !!building.actPrefix
   ).length
-  const hasContractTemplate = activeTemplateTypes.has("CONTRACT")
-  const hasAnyDocumentTemplate = activeTemplateTypes.size > 0
 
   const steps: OnboardingStep[] = [
     {
@@ -350,18 +339,6 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
       actionLabel: "Сформировать начисление",
       outcome: "Владелец увидит ожидаемый доход, а арендатор - сумму к оплате.",
       countLabel: chargeCount > 0 ? `${chargeCount} начисл.` : "обязательно",
-    },
-    {
-      key: "templates",
-      title: "Проверить шаблоны документов",
-      description: "Можно оставить стандартные шаблоны, но для продаж SaaS лучше загрузить свой договор, счет, АВР и акт сверки с метками.",
-      href: "/admin/settings/document-templates",
-      category: "legal",
-      done: hasContractTemplate || hasAnyDocumentTemplate,
-      required: false,
-      actionLabel: "Открыть шаблоны",
-      outcome: "Документы будут выглядеть как документы владельца, а не как черновики системы.",
-      countLabel: hasAnyDocumentTemplate ? `${activeTemplateTypes.size} шабл.` : "можно позже",
     },
     {
       key: "tariffs",

@@ -46,8 +46,12 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
   const handleRevoke = (id: string) => {
     startTransition(async () => {
       const r = await revokeApiKey(id)
-      if (r.ok) { toast.success("Ключ отозван"); router.refresh() }
-      else toast.error(r.error ?? "Ошибка")
+      if (!r.ok) { toast.error(r.error ?? "Ошибка"); return }
+      // Отозванный ключ больше не нужен — убираем и жёлтый блок с токеном,
+      // иначе он продолжал висеть над таблицей, где ключ уже «Отозван».
+      setNewToken(null)
+      toast.success("Ключ отозван")
+      router.refresh()
     })
   }
 

@@ -4,8 +4,7 @@ import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { db } from "@/lib/db"
-import { RouteTabs } from "@/components/ui/route-tabs"
-import { IMPORT_TABS } from "@/lib/hub-tabs"
+import { ImportPage } from "@/components/import/import-page"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { ImportClient } from "./import-client"
@@ -13,7 +12,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 
-export default async function ImportPage() {
+export default async function BankImportPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
 
@@ -39,16 +38,17 @@ export default async function ImportPage() {
   })
 
   return (
-    <div className="space-y-5">
-      <RouteTabs items={IMPORT_TABS} className="mb-2" />
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Импорт банковской выписки</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Загрузите CSV из Kaspi Business / Halyk Online — система автоматически сопоставит платежи с арендаторами по БИН/ИИН в назначении платежа
-        </p>
-      </div>
-
+    <ImportPage
+      title="Платежи из банковской выписки"
+      subtitle="CSV из Kaspi Business или Halyk Online. Платёж находит арендатора по БИН/ИИН в назначении."
+      columns={
+        <>
+          <p><b>Дата</b>, <b>сумма</b> и <b>назначение платежа</b> — как в выгрузке банка, менять ничего не нужно.</p>
+          <p>Если БИН/ИИН в назначении нет, платёж останется без арендатора — привяжете вручную в списке.</p>
+        </>
+      }
+    >
       <ImportClient tenants={tenants} canApply={canApply} />
-    </div>
+    </ImportPage>
   )
 }

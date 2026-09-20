@@ -12,18 +12,12 @@ import {
   Table, TableRow, TableCell, Paragraph, TextRun, AlignmentType, WidthType,
   tableThin, tableNoBorders,
 } from "@/lib/docx-helpers"
-import { renderDocx, renderXlsx } from "@/lib/template-engine"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import { buildLegalEntityFullName, buildSignerIntro } from "@/lib/full-name"
 import { shortenFio } from "@/lib/declension"
 
 export const dynamic = "force-dynamic"
-
-// «01 января 2026 г.» — длинная дата для метки {contract_date_long}
-function fmtDateLong(d: Date): string {
-  return `${d.toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })} г.`
-}
 
 // GET /api/acts/generate?tenantId=xxx&period=2026-04&number=001
 export async function GET(req: Request) {
@@ -76,7 +70,6 @@ export async function GET(req: Request) {
   const contract = tenant.contracts[0]
   const withVat = !!organization?.isVatPayer
   const vatRate = coerceKzVatRate(organization?.vatRate, DEFAULT_KZ_VAT_RATE)
-  const tenantVatRate = coerceKzVatRate(tenant.vatRate, DEFAULT_KZ_VAT_RATE)
   const [py, pm] = period.split("-").map(Number)
   const periodStart = new Date(py, pm - 1, 1)
   const periodEnd = new Date(py, pm, 0)
@@ -235,77 +228,10 @@ export async function GET(req: Request) {
     }],
   })
 
-  const customTemplate = await db.documentTemplate.findFirst({
-    where: { organizationId: orgId, documentType: "ACT", isActive: true },
-    orderBy: { uploadedAt: "desc" },
-  }).catch(() => null)
-
-  let buffer: Buffer
-  let format: "DOCX" | "XLSX" = "DOCX"
   const safeTenant = tenant.companyName.replace(/[^a-zA-Zа-яА-Я0-9_-]/g, "_")
-  let fileName = `Акт_${actNumber}_${safeTenant}_${period}.docx`
+  const fileName = `Акт_${actNumber}_${safeTenant}_${period}.docx`
 
-  if (customTemplate && customTemplate.format !== "PDF") {
-    const templateData = {
-      act_number: actNumber,
-      act_date: fmtDate(today),
-      period_start: fmtDate(periodStart),
-      period_end: fmtDate(periodEnd),
-      tenant_name: tenant.companyName,
-      tenant_full_name: buildLegalEntityFullName({
-        legalType: tenant.legalType,
-        companyName: tenant.companyName,
-        directorName: tenant.directorName ?? tenant.user.name,
-      }),
-      tenant_bin: tenant.bin || tenant.iin || "",
-      tenant_director: tenant.directorName || tenant.user.name,
-      tenant_position: tenant.directorPosition || "",
-      tenant_address: tenant.legalAddress || "",
-      tenant_phone: tenant.user.phone || "",
-      tenant_email: tenant.user.email || "",
-      tenant_is_vat_payer: tenant.isVatPayer ? "да" : "нет",
-      tenant_vat_rate: tenant.isVatPayer ? `${tenantVatRate}` : "",
-      tenant_vat_status: tenant.isVatPayer ? `плательщик НДС, ставка ${tenantVatRate}%` : "не является плательщиком НДС",
-      landlord_name: landlord.fullName,
-      landlord_full_name: landlord.fullName,
-      landlord_address: landlord.legalAddress || "",
-      landlord_bin: landlord.bin || landlord.taxId,
-      landlord_iin: landlord.iin,
-      landlord_director: landlord.directorShort,
-      subtotal: fmtMoney(subtotal),
-      vat_rate: withVat ? `${vatRate}` : "",
-      vat_amount: withVat ? fmtMoney(vatAmount) : "",
-      total: fmtMoney(total),
-      total_in_words: numberToWords(total),
-      monthly_rent_num: fmtMoney(monthlyRent),
-      contract_number: contract?.number || "",
-      contract_date_long: contract?.startDate ? fmtDateLong(contract.startDate) : "",
-      // date — дата оказания услуги (конец периода); index подставляет {@index}
-      items: items.map((it) => ({
-        name: it.name,
-        qty: String(it.qty),
-        unit: it.unit,
-        tariff: fmtMoney(it.tariff),
-        amount: fmtMoney(it.amount),
-        date: it.date,
-      })),
-    }
-    try {
-      const tplBuf = Buffer.from(customTemplate.fileBytes)
-      if (customTemplate.format === "DOCX") {
-        buffer = renderDocx(tplBuf, templateData)
-      } else {
-        buffer = await renderXlsx(tplBuf, templateData)
-        format = "XLSX"
-        fileName = fileName.replace(/\.docx$/, ".xlsx")
-      }
-    } catch (e) {
-      console.error("[act template render error]", e)
-      buffer = await Packer.toBuffer(doc)
-    }
-  } else {
-    buffer = await Packer.toBuffer(doc)
-  }
+  const buffer = await Packer.toBuffer(doc)
 
   // Сохраняем копию + инвалидируем /admin/documents,
   // иначе новый акт появится в списке только после ручной перезагрузки.
@@ -322,9 +248,8 @@ export async function GET(req: Request) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       fileBytes: buffer as any,
       fileSize: buffer.length,
-      format,
+      format: "DOCX",
       generatedById: session.user.id,
-      templateUsedId: customTemplate?.id ?? null,
     },
   }).then(() => {
     revalidatePath("/admin/documents")
@@ -333,9 +258,7 @@ export async function GET(req: Request) {
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {
-      "Content-Type": format === "XLSX"
-        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
     },
   })

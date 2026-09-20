@@ -15,17 +15,23 @@ import { db } from "@/lib/db"
  */
 
 /** Документы с порядковой нумерацией организации. */
-export const NUMBERED_DOC_TYPES = ["ACT", "INVOICE", "RECONCILIATION"] as const
+export const NUMBERED_DOC_TYPES = ["CONTRACT", "ACT", "INVOICE", "RECONCILIATION"] as const
 export type NumberedDocType = (typeof NUMBERED_DOC_TYPES)[number]
 
 const pad = (n: number) => String(n).padStart(3, "0")
 
 /** Последний выданный номер по факту — максимум среди существующих документов. */
 async function maxIssued(orgId: string, documentType: string): Promise<number> {
-  const rows = await db.generatedDocument.findMany({
-    where: { organizationId: orgId, documentType },
-    select: { number: true },
-  })
+  // Договоры живут в своей таблице (Contract), остальные — в архиве документов.
+  const rows = documentType === "CONTRACT"
+    ? await db.contract.findMany({
+        where: { tenant: { user: { organizationId: orgId } }, deletedAt: null },
+        select: { number: true },
+      })
+    : await db.generatedDocument.findMany({
+        where: { organizationId: orgId, documentType },
+        select: { number: true },
+      })
   let max = 0
   for (const r of rows) {
     const t = (r.number ?? "").trim()
@@ -100,4 +106,13 @@ export async function applyDocNumberStart(orgId: string, documentType: string, s
     update: { nextNumber: floor },
     create: { organizationId: orgId, documentType, nextNumber: floor },
   })
+}
+
+/**
+ * Следующий номер договора. Раньше номера выдавались тремя разными способами:
+ * конструктор — «максимум + 1», старые действия — через префикс здания
+ * (F16-2026-001), а настройки показывали третий вариант. Теперь один счётчик.
+ */
+export async function nextContractNumber(orgId: string): Promise<string> {
+  return nextDocumentNumber(orgId, "CONTRACT")
 }

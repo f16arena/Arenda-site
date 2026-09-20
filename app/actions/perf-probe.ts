@@ -56,7 +56,6 @@ const PROBE_ROUTES = [
   "/admin/requests",
   "/admin/roles",
   "/admin/settings",
-  "/admin/settings/document-templates",
   "/admin/spaces",
   "/admin/staff",
   "/admin/storage",

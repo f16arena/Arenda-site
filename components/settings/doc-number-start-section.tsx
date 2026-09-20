@@ -4,9 +4,10 @@ import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updateDocNumberStart } from "@/app/actions/organization-settings"
 import { Button } from "@/components/ui/button"
 
-type Row = { type: "ACT" | "INVOICE" | "RECONCILIATION"; start: number | null; last: number | null; next: string }
+type Row = { type: "CONTRACT" | "ACT" | "INVOICE" | "RECONCILIATION"; start: number | null; last: number | null; next: string }
 
 const LABEL: Record<Row["type"], string> = {
+  CONTRACT: "Договор аренды",
   ACT: "АВР (акт выполненных работ)",
   INVOICE: "Счёт на оплату",
   RECONCILIATION: "Акт сверки",

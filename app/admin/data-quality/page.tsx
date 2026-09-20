@@ -134,7 +134,6 @@ export default async function DataQualityPage() {
   today.setHours(0, 0, 0, 0)
   const stalePaymentReportDate = new Date(today)
   stalePaymentReportDate.setDate(today.getDate() - 2)
-  const requiredTemplateTypes = ["CONTRACT", "INVOICE", "ACT"] as const
 
   const building = buildingId
     ? await db.building.findUnique({
@@ -305,7 +304,6 @@ export default async function DataQualityPage() {
     floorWithoutPricingCount,
     floorWithoutPricingItems,
     activeCashAccountsCount,
-    activeTemplateRows,
     accessUsers,
     roleCapabilityRows,
     relationshipIntegrity,
@@ -418,10 +416,6 @@ export default async function DataQualityPage() {
       orderBy: [{ building: { createdAt: "asc" } }, { number: "asc" }],
     }),
     db.cashAccount.count({ where: { organizationId: orgId, isActive: true } }),
-    db.documentTemplate.findMany({
-      where: { organizationId: orgId, isActive: true, documentType: { in: [...requiredTemplateTypes] } },
-      select: { documentType: true },
-    }),
     db.user.findMany({
       where: { organizationId: orgId, isActive: true },
       select: {
@@ -447,8 +441,6 @@ export default async function DataQualityPage() {
       reasons: invalidContactReasons(tenant),
     }))
     .filter((item) => item.reasons.length > 0)
-  const activeTemplateTypes = new Set(activeTemplateRows.map((template) => template.documentType))
-  const missingTemplateTypes = requiredTemplateTypes.filter((type) => !activeTemplateTypes.has(type))
   const accessUserByOverrideRole = new Map(accessUsers.map((user) => [userCapabilityRole(user.id), user]))
   const staffWithoutBuildingAccessItems = accessUsers
     .filter((user) => (
@@ -745,21 +737,6 @@ export default async function DataQualityPage() {
         label: floor.name,
         meta: `${floor.building.name} · ставка ${formatMoney(floor.ratePerSqm)}/м²`,
         href: "/admin/buildings",
-      })),
-    },
-    {
-      key: "document-templates",
-      title: "Не настроены ключевые шаблоны документов",
-      description: "Для стабильной работы нужны активные шаблоны договора, счета и акта. Без них администратор будет упираться в ручные документы.",
-      severity: "info",
-      count: missingTemplateTypes.length,
-      actionLabel: "Открыть шаблоны",
-      href: "/admin/settings/document-templates",
-      items: missingTemplateTypes.map((type) => ({
-        id: type,
-        label: `Шаблон ${type}`,
-        meta: "Активный шаблон не найден",
-        href: "/admin/settings/document-templates",
       })),
     },
     {
