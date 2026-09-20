@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { money } from "@/lib/money"
 import { db } from "@/lib/db"
 import { notifyUser } from "@/lib/notify"
 import { authorizeCronRequest } from "@/lib/cron-auth"
@@ -82,16 +83,15 @@ export async function GET(req: Request) {
     for (const t of dueIndexation) {
       const pct = t.indexationPct ?? 0
       const factor = 1 + pct / 100
-      const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
       const data: { customRate?: number; fixedMonthlyRent?: number; nextIndexationAt: Date } = {
         nextIndexationAt: new Date(new Date(t.nextIndexationAt!).setFullYear(t.nextIndexationAt!.getFullYear() + 1)),
       }
       let summary = ""
       if (typeof t.fixedMonthlyRent === "number" && t.fixedMonthlyRent > 0) {
-        data.fixedMonthlyRent = round2(t.fixedMonthlyRent * factor)
+        data.fixedMonthlyRent = money(t.fixedMonthlyRent * factor)
         summary = `аренда ${t.fixedMonthlyRent.toLocaleString("ru-RU")} → ${data.fixedMonthlyRent.toLocaleString("ru-RU")} ₸/мес`
       } else if (typeof t.customRate === "number" && t.customRate > 0) {
-        data.customRate = round2(t.customRate * factor)
+        data.customRate = money(t.customRate * factor)
         summary = `ставка ${t.customRate.toLocaleString("ru-RU")} → ${data.customRate.toLocaleString("ru-RU")} ₸/м²`
       } else {
         // Аренда по ставке этажа — повышать нечего у арендатора. Сообщаем владельцу

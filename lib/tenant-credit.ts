@@ -1,7 +1,6 @@
+import { money } from "@/lib/money"
 import "server-only"
 import { db } from "@/lib/db"
-
-const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
 
 /**
  * Аванс (переплата) арендатора: сумма нераспределённых остатков платежей.
@@ -12,7 +11,7 @@ export async function getTenantCredit(tenantId: string): Promise<number> {
     where: { tenantId, deletedAt: null, unappliedAmount: { gt: 0 } },
     _sum: { unappliedAmount: true },
   })
-  return round2(agg._sum.unappliedAmount ?? 0)
+  return money(agg._sum.unappliedAmount ?? 0)
 }
 
 /**
@@ -29,7 +28,7 @@ export async function applyTenantCreditToCharges(tenantId: string): Promise<numb
         orderBy: { paymentDate: "asc" },
         select: { id: true, unappliedAmount: true },
       })
-      let pool = round2(credits.reduce((s, p) => s + p.unappliedAmount, 0))
+      let pool = money(credits.reduce((s, p) => s + p.unappliedAmount, 0))
       if (pool <= 0.01) return 0
 
       const unpaid = await tx.charge.findMany({
@@ -43,8 +42,8 @@ export async function applyTenantCreditToCharges(tenantId: string): Promise<numb
       for (const c of unpaid) {
         if (pool + 0.01 < c.amount) break
         await tx.charge.update({ where: { id: c.id }, data: { isPaid: true } })
-        pool = round2(pool - c.amount)
-        consumed = round2(consumed + c.amount)
+        pool = money(pool - c.amount)
+        consumed = money(consumed + c.amount)
         covered++
       }
       if (covered === 0) return 0
@@ -56,9 +55,9 @@ export async function applyTenantCreditToCharges(tenantId: string): Promise<numb
         const take = Math.min(p.unappliedAmount, toConsume)
         await tx.payment.update({
           where: { id: p.id },
-          data: { unappliedAmount: round2(p.unappliedAmount - take) },
+          data: { unappliedAmount: money(p.unappliedAmount - take) },
         })
-        toConsume = round2(toConsume - take)
+        toConsume = money(toConsume - take)
       }
       return covered
     })

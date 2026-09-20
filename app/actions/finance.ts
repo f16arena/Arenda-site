@@ -1,4 +1,5 @@
 "use server"
+import { money } from "@/lib/money"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
@@ -106,7 +107,6 @@ export async function recordPayment(formData: FormData) {
   // Остаток платежа НЕ теряется: хранится в Payment.unappliedAmount как аванс
   // и зачитывается в следующие начисления (аудит 2026-06-10, п.5). В пул
   // гашения включается и ранее накопленный аванс.
-  const round2 = (v: number) => Math.round((v + Number.EPSILON) * 100) / 100
   const autoDistributed: { ids: string[]; periods: string[] } = { ids: [], periods: [] }
   let finalNote = note ?? null
   let newUnapplied = 0
@@ -119,7 +119,7 @@ export async function recordPayment(formData: FormData) {
       orderBy: { paymentDate: "asc" },
       select: { id: true, unappliedAmount: true },
     })
-    const priorCreditSum = round2(priorCredits.reduce((s, p) => s + p.unappliedAmount, 0))
+    const priorCreditSum = money(priorCredits.reduce((s, p) => s + p.unappliedAmount, 0))
 
     const unpaidCharges = await db.charge.findMany({
       where: {
@@ -132,18 +132,18 @@ export async function recordPayment(formData: FormData) {
       select: { id: true, amount: true, period: true },
     })
 
-    let remaining = round2(amount + priorCreditSum)
+    let remaining = money(amount + priorCreditSum)
     for (const c of unpaidCharges) {
       if (remaining + 0.01 < c.amount) break // нельзя частично — целиком или ничего
       autoDistributed.ids.push(c.id)
       autoDistributed.periods.push(c.period)
-      remaining = round2(remaining - c.amount)
+      remaining = money(remaining - c.amount)
     }
 
     // Сколько из покрытия пришлось на новый платёж, а сколько — на прошлый аванс.
-    const coveredTotal = round2(amount + priorCreditSum - remaining)
-    creditConsumed = Math.max(0, round2(coveredTotal - amount))
-    newUnapplied = Math.max(0, round2(amount - coveredTotal))
+    const coveredTotal = money(amount + priorCreditSum - remaining)
+    creditConsumed = Math.max(0, money(coveredTotal - amount))
+    newUnapplied = Math.max(0, money(amount - coveredTotal))
 
     if (autoDistributed.ids.length > 0) {
       // Дописываем в payment.note информацию о покрытых начислениях.
@@ -183,8 +183,8 @@ export async function recordPayment(formData: FormData) {
     }
     chargeIdsToMark = validIds
     // Переплата сверх выбранных начислений — тоже аванс.
-    const selectedSum = round2(validCharges.reduce((s, c) => s + c.amount, 0))
-    newUnapplied = Math.max(0, round2(amount - selectedSum))
+    const selectedSum = money(validCharges.reduce((s, c) => s + c.amount, 0))
+    newUnapplied = Math.max(0, money(amount - selectedSum))
   } else if (autoDistributed.ids.length > 0) {
     // FIFO авто-распределение: помечаем выбранные charges оплаченными.
     chargeIdsToMark = autoDistributed.ids
@@ -215,9 +215,9 @@ export async function recordPayment(formData: FormData) {
         const take = Math.min(p.unappliedAmount, toConsume)
         await tx.payment.update({
           where: { id: p.id },
-          data: { unappliedAmount: round2(p.unappliedAmount - take) },
+          data: { unappliedAmount: money(p.unappliedAmount - take) },
         })
-        toConsume = round2(toConsume - take)
+        toConsume = money(toConsume - take)
       }
     }
 

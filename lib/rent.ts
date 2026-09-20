@@ -1,3 +1,4 @@
+import { money as roundMoney } from "@/lib/money"
 type TenantRentInput = {
   fixedMonthlyRent?: number | null
   customRate?: number | null
@@ -322,9 +323,6 @@ function addDays(date: Date, days: number) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days)
 }
 
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100
-}
 
 function toLocalDate(value: Date | string | null | undefined) {
   if (!value) return null
