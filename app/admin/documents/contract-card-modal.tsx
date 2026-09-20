@@ -7,8 +7,17 @@ import { toast } from "sonner"
 import { FileText, Loader2, ShieldCheck, Download, ExternalLink, X } from "lucide-react"
 import { getContractCard, setContractSignatureManual, type ContractCardData } from "@/app/actions/contract-card"
 import { formatMoney } from "@/lib/utils"
+import { ModalShell } from "@/components/ui/modal"
 
-/** Кнопка «Карточка» договора → модалка с ключевыми условиями и статусом подписи. */
+/**
+ * Кнопка «Карточка» договора → окно с условиями и статусом подписи.
+ *
+ * Окно — общая оболочка ModalShell (портал в <body>, Esc, фокус внутри).
+ * Своё «fixed inset-0» здесь не работало: кнопка живёт внутри меню «⋯», а у
+ * выпадающего меню есть transform — из-за него fixed считался не от экрана, а
+ * от меню шириной 208 px, и окно сплющивалось у правого края, а подписи
+ * наезжали друг на друга.
+ */
 export function ContractCardButton({ contractId }: { contractId: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -52,86 +61,87 @@ export function ContractCardButton({ contractId }: { contractId: string }) {
         <FileText className="h-3.5 w-3.5" /> Карточка
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setOpen(false)}>
-          <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-xl bg-white shadow-xl dark:bg-slate-900" onClick={(e) => e.stopPropagation()}>
-            <div className="flex shrink-0 items-start justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  Договор {data?.number ?? ""}
-                </h3>
-                <p className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
-                  {data?.isExternal ? "Внешний договор (PDF, подписан офлайн)" : "Договор Commrent"}
-                </p>
-              </div>
-              <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 space-y-4 overflow-y-auto p-6">
-              {loading || !data ? (
-                <div className="flex items-center justify-center py-10 text-slate-400">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                    <Row label="Арендатор" value={data.tenantName} full />
-                    <Row label="Срок аренды" value={data.startDate ? `${data.startDate} – ${data.endDate ?? "…"}` : "—"} full />
-                    <Row label="Сумма аренды" value={rentText} />
-                    <Row label="Депозит" value={data.deposit ? `${formatMoney(data.deposit)} ₸` : "нет"} />
-                    <Row label="Эксплуатационные расходы" value={data.serviceFeeExempt ? "не начисляются" : "начисляются"} />
-                    <Row label="День оплаты" value={data.paymentDueDay ? `${data.paymentDueDay} число` : "—"} />
-                    <Row label="Пеня" value={data.penaltyPercent ? `${data.penaltyPercent}%/день` : "нет"} />
-                    <Row label="Индексация" value={data.indexationPct ? `${data.indexationPct}%/год` : "нет"} />
-                    <Row label="Помещение / этаж" value={data.spaces.length ? data.spaces.join(", ") : "не назначено"} full />
-                    {data.signedAt && <Row label="Дата подписания" value={data.signedAt} full />}
-                  </div>
-
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
-                    <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
-                      <ShieldCheck className="h-4 w-4 text-emerald-500" /> Статус подписи
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      <SignRow label="Арендодатель" signed={data.signedByLandlord} canManage={data.canManage} disabled={pending} onToggle={(v) => setSign(v, data.signedByTenant)} />
-                      <SignRow label="Арендатор" signed={data.signedByTenant} canManage={data.canManage} disabled={pending} onToggle={(v) => setSign(data.signedByLandlord, v)} />
-                    </div>
-                    {data.canManage && !(data.signedByLandlord && data.signedByTenant) && (
-                      <button
-                        type="button"
-                        onClick={() => setSign(true, true)}
-                        disabled={pending}
-                        className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
-                      >
-                        {pending ? "Сохранение…" : "Отметить подписан обеими сторонами"}
-                      </button>
-                    )}
-                    {!data.canManage && (
-                      <p className="mt-2 text-[11px] text-slate-400">Менять статус подписи может владелец или администратор.</p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    {data.isExternal && data.attachmentFileId ? (
-                      <a href={`/api/storage/${data.attachmentFileId}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                        <Download className="h-4 w-4" /> Скачать PDF
-                      </a>
-                    ) : (
-                      <Link href={`/admin/contracts/${data.id}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                        <ExternalLink className="h-4 w-4" /> Открыть договор
-                      </Link>
-                    )}
-                    <Link href={`/admin/tenants/${data.tenantId}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-                      Карточка арендатора
-                    </Link>
-                  </div>
-                </>
-              )}
-            </div>
+      <ModalShell
+        open={open}
+        onClose={() => setOpen(false)}
+        title={`Договор ${data?.number ?? ""}`}
+        className="flex w-full max-w-lg flex-col rounded-xl bg-white shadow-xl dark:bg-slate-900"
+      >
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Договор {data?.number ?? ""}
+            </h3>
+            <p className="mt-0.5 text-[11.5px] text-slate-500 dark:text-slate-400">
+              {data?.isExternal ? "Внешний договор (PDF, подписан офлайн)" : "Договор Commrent"}
+            </p>
           </div>
+          <button type="button" onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+            <X className="h-4 w-4" />
+          </button>
         </div>
-      )}
+
+        <div className="flex-1 space-y-4 overflow-y-auto p-6">
+          {loading || !data ? (
+            <div className="flex items-center justify-center py-10 text-slate-400">
+              <Loader2 className="h-5 w-5 animate-spin" />
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                <Row label="Арендатор" value={data.tenantName} full />
+                <Row label="Срок аренды" value={data.startDate ? `${data.startDate} – ${data.endDate ?? "…"}` : "—"} full />
+                <Row label="Сумма аренды" value={rentText} />
+                <Row label="Депозит" value={data.deposit ? `${formatMoney(data.deposit)} ₸` : "нет"} />
+                <Row label="Эксплуатационные расходы" value={data.serviceFeeExempt ? "не начисляются" : "начисляются"} />
+                <Row label="День оплаты" value={data.paymentDueDay ? `${data.paymentDueDay} число` : "—"} />
+                <Row label="Пеня" value={data.penaltyPercent ? `${data.penaltyPercent}%/день` : "нет"} />
+                <Row label="Индексация" value={data.indexationPct ? `${data.indexationPct}%/год` : "нет"} />
+                <Row label="Помещение / этаж" value={data.spaces.length ? data.spaces.join(", ") : "не назначено"} full />
+                {data.signedAt && <Row label="Дата подписания" value={data.signedAt} full />}
+              </div>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40">
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  <ShieldCheck className="h-4 w-4 text-emerald-500" /> Статус подписи
+                </p>
+                <div className="mt-3 space-y-2">
+                  <SignRow label="Арендодатель" signed={data.signedByLandlord} canManage={data.canManage} disabled={pending} onToggle={(v) => setSign(v, data.signedByTenant)} />
+                  <SignRow label="Арендатор" signed={data.signedByTenant} canManage={data.canManage} disabled={pending} onToggle={(v) => setSign(data.signedByLandlord, v)} />
+                </div>
+                {data.canManage && !(data.signedByLandlord && data.signedByTenant) && (
+                  <button
+                    type="button"
+                    onClick={() => setSign(true, true)}
+                    disabled={pending}
+                    className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    {pending ? "Сохранение…" : "Отметить подписан обеими сторонами"}
+                  </button>
+                )}
+                {!data.canManage && (
+                  <p className="mt-2 text-[11px] text-slate-400">Менять статус подписи может владелец или администратор.</p>
+                )}
+              </div>
+
+              <div className="flex gap-2">
+                {data.isExternal && data.attachmentFileId ? (
+                  <a href={`/api/storage/${data.attachmentFileId}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                    <Download className="h-4 w-4" /> Скачать PDF
+                  </a>
+                ) : (
+                  <Link href={`/admin/contracts/${data.id}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                    <ExternalLink className="h-4 w-4" /> Открыть договор
+                  </Link>
+                )}
+                <Link href={`/admin/tenants/${data.tenantId}`} className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
+                  Карточка арендатора
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      </ModalShell>
     </>
   )
 }
