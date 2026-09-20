@@ -169,6 +169,7 @@ model Organization {
   addons        OrganizationAddon[]
   services      OrganizationService[]
   esfConfig     OrgEsfConfig?
+  rolePermissions RolePermission[]
 
   @@index([approvalStatus, createdAt])
   @@index([isActive, approvalStatus])
@@ -1398,13 +1399,19 @@ model EmailLog {
 
 model RolePermission {
   id        String   @id @default(cuid())
+  // Права ролей — свои у каждой организации. Раньше таблица была общей на всю
+  // платформу: владелец одной организации менял права всем (аудит 20.09.2026).
+  organizationId String @map("organization_id")
   role      String // OWNER | ADMIN | ACCOUNTANT | FACILITY_MANAGER | TENANT
   section   String // dashboard | buildings | spaces | tenants | finances | meters | contracts | requests | tasks | staff | complaints | messages | analytics | settings | roles | users | documents
   canView   Boolean  @default(false) @map("can_view")
   canEdit   Boolean  @default(false) @map("can_edit")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@unique([role, section])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, role, section])
+  @@index([organizationId, role])
   @@map("role_permissions")
 }
 

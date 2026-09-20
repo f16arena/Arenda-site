@@ -233,7 +233,7 @@ export async function deleteUserAdmin(userId: string) {
   if (tenant) await softDeleteTenantRecords(tenant.id)
 
   await db.staff.deleteMany({ where: { userId } })
-  await db.rolePermission.deleteMany({ where: { role: userCapabilityRole(userId) } })
+  await db.rolePermission.deleteMany({ where: { organizationId: orgId, role: userCapabilityRole(userId) } })
 
   // Удаление: deletedAt скрывает из /admin/users навсегда (запись цела — FK/аудит/
   // подписи не ломаются). isActive=false дополнительно блокирует вход.

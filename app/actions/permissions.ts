@@ -21,19 +21,6 @@ import {
   makeOrgRoleCode,
 } from "@/lib/role-capabilities"
 
-// Права встроенных ролей (ADMIN, ACCOUNTANT, …) хранятся одной записью на всю
-// платформу (RolePermission без organizationId): правка из одной организации
-// меняла их всем организациям. Пока права не разделены по организациям —
-// встроенные роли меняет только владелец платформы; организация настраивает
-// свои должности (org:<id>:…).
-async function assertCanEditRoleRights(role: string) {
-  if (!isSystemRole(role)) return
-  const session = await auth()
-  if (!session?.user?.isPlatformOwner) {
-    throw new Error("Права встроенных ролей общие для платформы. Создайте свою должность и настройте её права.")
-  }
-}
-
 async function assertRoleBuilderEnabled(orgId: string) {
   await requireOrgFeature(orgId, "roleBuilder")
 }
@@ -46,7 +33,6 @@ export async function setPermission(role: string, section: string, canView: bool
   if (!canManageRoleInOrg(role, orgId)) {
     throw new Error("Эту должность нельзя менять в текущей организации")
   }
-  await assertCanEditRoleRights(role)
 
   if (!SECTIONS.includes(section as (typeof SECTIONS)[number])) {
     throw new Error("Некорректный раздел прав")
@@ -59,9 +45,9 @@ export async function setPermission(role: string, section: string, canView: bool
   if (canEdit && !canView) canEdit = false
 
   await db.rolePermission.upsert({
-    where: { role_section: { role, section } },
+    where: { organizationId_role_section: { organizationId: orgId, role, section } },
     update: { canView, canEdit },
-    create: { role, section, canView, canEdit },
+    create: { organizationId: orgId, role, section, canView, canEdit },
   })
 
   await audit({
@@ -71,7 +57,7 @@ export async function setPermission(role: string, section: string, canView: bool
     details: { scope: "role_permission", section, canView, canEdit, orgId },
   })
 
-  invalidateAclCache()
+  invalidateAclCache(orgId)
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/roles", "layout")
 }
@@ -84,7 +70,6 @@ export async function setCapability(role: string, capabilityKey: string, enabled
   if (!canManageRoleInOrg(role, orgId)) {
     throw new Error("Эту должность нельзя менять в текущей организации")
   }
-  await assertCanEditRoleRights(role)
 
   if (isOwnerRole(role)) {
     throw new Error("Владелец всегда имеет полный доступ")
@@ -97,9 +82,9 @@ export async function setCapability(role: string, capabilityKey: string, enabled
 
   const section = capabilityPermissionKey(capabilityKey)
   await db.rolePermission.upsert({
-    where: { role_section: { role, section } },
+    where: { organizationId_role_section: { organizationId: orgId, role, section } },
     update: { canView: enabled, canEdit: enabled },
-    create: { role, section, canView: enabled, canEdit: enabled },
+    create: { organizationId: orgId, role, section, canView: enabled, canEdit: enabled },
   })
 
   await audit({
@@ -115,7 +100,7 @@ export async function setCapability(role: string, capabilityKey: string, enabled
     },
   })
 
-  invalidateAclCache()
+  invalidateAclCache(orgId)
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/roles", "layout")
 }
@@ -145,13 +130,13 @@ export async function setUserCapabilityOverride(
   const section = capabilityPermissionKey(capabilityKey)
 
   if (mode === "INHERIT") {
-    await db.rolePermission.deleteMany({ where: { role, section } })
+    await db.rolePermission.deleteMany({ where: { organizationId: orgId, role, section } })
   } else {
     const enabled = mode === "ALLOW"
     await db.rolePermission.upsert({
-      where: { role_section: { role, section } },
+      where: { organizationId_role_section: { organizationId: orgId, role, section } },
       update: { canView: enabled, canEdit: enabled },
-      create: { role, section, canView: enabled, canEdit: enabled },
+      create: { organizationId: orgId, role, section, canView: enabled, canEdit: enabled },
     })
   }
 
@@ -169,7 +154,7 @@ export async function setUserCapabilityOverride(
     },
   })
 
-  invalidateAclCache()
+  invalidateAclCache(orgId)
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/users")
   revalidatePath("/admin/roles")
@@ -184,12 +169,12 @@ export async function createRole(formData: FormData) {
   const sourceRole = String(formData.get("sourceRole") ?? "").trim()
   const role = makeOrgRoleCode(orgId, label)
 
-  const existing = await db.rolePermission.findFirst({ where: { role }, select: { id: true } })
+  const existing = await db.rolePermission.findFirst({ where: { organizationId: orgId, role }, select: { id: true } })
   if (existing) throw new Error("Такая должность уже есть")
 
   const sourceRows = sourceRole && canManageRoleInOrg(sourceRole, orgId)
     ? await db.rolePermission.findMany({
-        where: { role: sourceRole },
+        where: { organizationId: orgId, role: sourceRole },
         select: { section: true, canView: true, canEdit: true },
       })
     : []
@@ -203,6 +188,7 @@ export async function createRole(formData: FormData) {
 
   await db.rolePermission.createMany({
     data: rows.map((row) => ({
+      organizationId: orgId,
       role,
       section: row.section,
       canView: row.canView,
@@ -218,7 +204,7 @@ export async function createRole(formData: FormData) {
     details: { scope: "role", label, sourceRole: sourceRole || null, orgId },
   })
 
-  invalidateAclCache()
+  invalidateAclCache(orgId)
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/roles")
   revalidatePath("/admin/users")
@@ -237,7 +223,7 @@ export async function deleteRole(role: string) {
     throw new Error(`Нельзя удалить должность: она назначена ${users} пользовател${users === 1 ? "ю" : "ям"}`)
   }
 
-  await db.rolePermission.deleteMany({ where: { role } })
+  await db.rolePermission.deleteMany({ where: { organizationId: orgId, role } })
 
   await audit({
     action: "DELETE",
@@ -246,7 +232,7 @@ export async function deleteRole(role: string) {
     details: { scope: "role", orgId },
   })
 
-  invalidateAclCache()
+  invalidateAclCache(orgId)
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   revalidatePath("/admin/roles")
   revalidatePath("/admin/users")

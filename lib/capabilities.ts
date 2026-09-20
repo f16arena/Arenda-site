@@ -162,28 +162,46 @@ type PermissionRow = {
   canEdit: boolean
 }
 
-export async function canPerformCapability(role: string, capabilityKey: string, isPlatformOwner = false, userId?: string | null) {
+export async function canPerformCapability(
+  role: string,
+  capabilityKey: string,
+  isPlatformOwner = false,
+  userId?: string | null,
+  orgId?: string | null,
+) {
   if (role === "OWNER" || isPlatformOwner) return true
   const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
   if (!capability) return false
 
+  // Права — свои у каждой организации (миграция 20260920140000).
+  const organizationId = orgId ?? (await auth())?.user?.organizationId ?? null
+  if (!organizationId) return false
+
   if (userId) {
     const userExplicit = await db.rolePermission.findUnique({
-      where: { role_section: { role: userCapabilityRole(userId), section: capabilityPermissionKey(capabilityKey) } },
+      where: {
+        organizationId_role_section: {
+          organizationId,
+          role: userCapabilityRole(userId),
+          section: capabilityPermissionKey(capabilityKey),
+        },
+      },
       select: { canView: true, canEdit: true },
     })
     if (userExplicit) return userExplicit.canView || userExplicit.canEdit
   }
 
   const explicit = await db.rolePermission.findUnique({
-    where: { role_section: { role, section: capabilityPermissionKey(capabilityKey) } },
+    where: {
+      organizationId_role_section: { organizationId, role, section: capabilityPermissionKey(capabilityKey) },
+    },
     select: { canView: true, canEdit: true },
   })
   if (explicit) return explicit.canView || explicit.canEdit
 
   return capability.level === "view"
-    ? canView(role, capability.section)
-    : canEdit(role, capability.section)
+    ? canView(role, capability.section, organizationId)
+    : canEdit(role, capability.section, organizationId)
 }
 
 export async function requireCapability(capabilityKey: string) {
@@ -195,6 +213,7 @@ export async function requireCapability(capabilityKey: string) {
     capabilityKey,
     session.user.isPlatformOwner,
     session.user.id,
+    session.user.organizationId ?? null,
   )
   if (!allowed) {
     const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
@@ -244,17 +263,20 @@ export async function getAllowedSectionsForUser({
   userId,
   role,
   isPlatformOwner = false,
+  orgId,
 }: {
   userId: string
   role: string
   isPlatformOwner?: boolean
+  orgId?: string | null
 }) {
   if (role === "OWNER" || isPlatformOwner) return [...SECTIONS]
 
-  const sections = new Set(await getAllowedSections(role))
+  const organizationId = orgId ?? (await auth())?.user?.organizationId ?? null
+  const sections = new Set(await getAllowedSections(role, organizationId))
   const userRole = userCapabilityRole(userId)
   const overrides = await db.rolePermission.findMany({
-    where: { role: userRole },
+    where: { organizationId: organizationId ?? "__none__", role: userRole },
     select: { section: true, canView: true, canEdit: true },
   }).catch(() => [] as Array<{ section: string; canView: boolean; canEdit: boolean }>)
 
@@ -311,11 +333,13 @@ async function resolveActionCapabilities({
   role,
   isPlatformOwner,
   planFeatures,
+  orgId,
 }: {
   userId: string
   role: string
   isPlatformOwner: boolean
   planFeatures?: string | null
+  orgId?: string | null
 }): Promise<ResolvedActionCapability[]> {
   if (role === "OWNER" || isPlatformOwner) {
     return ACTION_CAPABILITIES.map((capability) => ({
@@ -327,8 +351,9 @@ async function resolveActionCapabilities({
   }
 
   const userRole = userCapabilityRole(userId)
+  const organizationId = orgId ?? (await auth())?.user?.organizationId ?? null
   const rows = await db.rolePermission.findMany({
-    where: { role: { in: [role, userRole] } },
+    where: { organizationId: organizationId ?? "__none__", role: { in: [role, userRole] } },
     select: { role: true, section: true, canView: true, canEdit: true },
   }).catch(() => [] as PermissionRow[])
 

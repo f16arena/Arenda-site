@@ -52,16 +52,26 @@ const DEFAULT_EDIT_PERMS: Record<string, Set<Section>> = {
   TENANT: new Set<Section>(),
 }
 
-// Кеш на запрос — права меняются редко
-let cache: { permissions: Record<string, Record<string, { canView: boolean; canEdit: boolean }>>; ts: number } | null = null
+// Кеш прав на организацию — права меняются редко.
+// Раньше кеш был один на всю платформу вместе с самой таблицей прав.
+const cache = new Map<string, { permissions: Record<string, Record<string, { canView: boolean; canEdit: boolean }>>; ts: number }>()
 const CACHE_TTL_MS = 30_000
 
-async function loadPermissions() {
-  if (cache && Date.now() - cache.ts < CACHE_TTL_MS) return cache.permissions
+/** Организация текущего пользователя — права читаются только её. */
+async function currentOrgId(): Promise<string | null> {
+  const session = await auth()
+  return session?.user?.organizationId ?? null
+}
+
+async function loadPermissions(orgId: string | null) {
+  if (!orgId) return {} as Record<string, Record<string, { canView: boolean; canEdit: boolean }>>
+  const hit = cache.get(orgId)
+  if (hit && Date.now() - hit.ts < CACHE_TTL_MS) return hit.permissions
 
   let rows: { role: string; section: string; canView: boolean; canEdit: boolean }[] = []
   try {
     rows = await db.rolePermission.findMany({
+      where: { organizationId: orgId },
       select: { role: true, section: true, canView: true, canEdit: true },
     })
   } catch {
@@ -74,27 +84,29 @@ async function loadPermissions() {
     if (!permissions[r.role]) permissions[r.role] = {}
     permissions[r.role][r.section] = { canView: r.canView, canEdit: r.canEdit }
   }
-  cache = { permissions, ts: Date.now() }
+  cache.set(orgId, { permissions, ts: Date.now() })
   return permissions
 }
 
-export function invalidateAclCache() {
-  cache = null
+/** Сбросить кеш прав: одной организации или всех. */
+export function invalidateAclCache(orgId?: string) {
+  if (orgId) cache.delete(orgId)
+  else cache.clear()
 }
 
 // OWNER всегда может всё (даже если в БД не настроено)
-export async function canView(role: string, section: Section): Promise<boolean> {
+export async function canView(role: string, section: Section, orgId?: string | null): Promise<boolean> {
   if (role === "OWNER") return true
-  const all = await loadPermissions()
+  const all = await loadPermissions(orgId ?? (await currentOrgId()))
   const fromDb = all[role]?.[section]?.canView
   if (fromDb !== undefined) return fromDb
   // Fallback на дефолты если в БД ничего нет
   return DEFAULT_PERMS[role]?.has(section) ?? false
 }
 
-export async function canEdit(role: string, section: Section): Promise<boolean> {
+export async function canEdit(role: string, section: Section, orgId?: string | null): Promise<boolean> {
   if (role === "OWNER") return true
-  const all = await loadPermissions()
+  const all = await loadPermissions(orgId ?? (await currentOrgId()))
   const fromDb = all[role]?.[section]?.canEdit
   if (fromDb !== undefined) return fromDb
   // Fallback: ADMIN может редактировать всё что видит, остальные только в своих секциях
@@ -106,18 +118,19 @@ export async function requireSection(section: Section, action: "view" | "edit" =
   if (!session?.user) redirect("/login")
 
   const role = session.user.role
+  const orgId = session.user.organizationId ?? null
   const ok = action === "edit"
-    ? await canEdit(role, section)
-    : await canView(role, section)
+    ? await canEdit(role, section, orgId)
+    : await canView(role, section, orgId)
 
   if (!ok) redirect("/admin")
   return session
 }
 
 // Возвращает все разрешённые секции для роли — для фильтрации сайдбара
-export async function getAllowedSections(role: string): Promise<Set<Section>> {
+export async function getAllowedSections(role: string, orgId?: string | null): Promise<Set<Section>> {
   if (role === "OWNER") return new Set(SECTIONS)
-  const all = await loadPermissions()
+  const all = await loadPermissions(orgId ?? (await currentOrgId()))
   const hasAnyInDb = !!all[role] && Object.keys(all[role]).length > 0
 
   if (hasAnyInDb) {

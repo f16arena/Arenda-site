@@ -435,7 +435,7 @@ export default async function DataQualityPage() {
       orderBy: { createdAt: "asc" },
     }),
     db.rolePermission.findMany({
-      where: { section: { startsWith: CAPABILITY_PERMISSION_PREFIX } },
+      where: { organizationId: orgId, section: { startsWith: CAPABILITY_PERMISSION_PREFIX } },
       select: { role: true, section: true, canView: true, canEdit: true },
     }).catch(() => [] as Array<{ role: string; section: string; canView: boolean; canEdit: boolean }>),
     relationshipIntegrityPromise,

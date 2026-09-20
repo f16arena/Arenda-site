@@ -94,6 +94,7 @@ export default async function UsersPage() {
     }),
     safeServerValue(
       db.rolePermission.findMany({
+        where: { organizationId: orgId },
         select: { role: true },
         distinct: ["role"],
       }),
@@ -116,6 +117,7 @@ export default async function UsersPage() {
   const overrideRows = overrideRoles.length > 0
     ? await db.rolePermission.findMany({
         where: {
+          organizationId: orgId,
           role: { in: overrideRoles },
           section: { startsWith: CAPABILITY_PERMISSION_PREFIX },
         },
@@ -170,7 +172,7 @@ export default async function UsersPage() {
   ]
   const permissionRows = await safeServerValue(
     db.rolePermission.findMany({
-      where: { role: { in: permissionRoleCodes } },
+      where: { organizationId: orgId, role: { in: permissionRoleCodes } },
       select: { role: true, section: true, canView: true, canEdit: true },
     }),
     [] as Array<{ role: string; section: string; canView: boolean; canEdit: boolean }>,

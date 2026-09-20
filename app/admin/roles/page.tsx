@@ -52,6 +52,7 @@ export default async function RolesPage() {
   let migrationMissing = false
   try {
     rows = await db.rolePermission.findMany({
+      where: { organizationId: orgId },
       select: { role: true, section: true, canView: true, canEdit: true },
     })
   } catch {
