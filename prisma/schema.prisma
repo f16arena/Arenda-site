@@ -172,6 +172,7 @@ model Organization {
 
   @@index([approvalStatus, createdAt])
   @@index([isActive, approvalStatus])
+  @@index([planId])
   @@map("organizations")
 }
 
@@ -387,6 +388,7 @@ model Subscription {
   plan         Plan         @relation(fields: [planId], references: [id])
 
   @@index([organizationId])
+  @@index([planId])
   @@map("subscriptions")
 }
 
@@ -555,6 +557,7 @@ model Building {
   @@index([organizationId, isActive])
   @@index([organizationId, addressCity])
   @@index([organizationId, addressStreet])
+  @@index([administratorUserId])
   @@map("buildings")
 }
 
@@ -1006,6 +1009,7 @@ model Payment {
 
   @@index([tenantId, paymentDate])
   @@index([deletedAt])
+  @@index([receiptConfirmedById])
   @@map("payments")
 }
 
@@ -1039,6 +1043,8 @@ model PaymentReport {
   @@index([userId])
   @@index([status, createdAt])
   @@index([receiptFileId])
+  @@index([paymentId])
+  @@index([reviewedById])
   @@map("payment_reports")
 }
 
@@ -1102,6 +1108,8 @@ model RequestComment {
 
   request Request @relation(fields: [requestId], references: [id])
   author  User    @relation(fields: [authorId], references: [id])
+  @@index([requestId])
+  @@index([authorId])
 
   @@map("request_comments")
 }
@@ -1222,6 +1230,7 @@ model SalaryPayment {
   createdAt DateTime  @default(now()) @map("created_at")
 
   staff Staff @relation(fields: [staffId], references: [id])
+  @@index([staffId])
 
   @@map("salary_payments")
 }
@@ -1278,6 +1287,8 @@ model StoredFile {
   @@index([organizationId, category, createdAt])
   @@index([organizationId, createdAt])
   @@index([uploadedById])
+  @@index([buildingId])
+  @@index([tenantId])
   @@map("stored_files")
 }
 
@@ -1307,6 +1318,7 @@ model EmergencyContact {
   category   String
 
   building Building @relation(fields: [buildingId], references: [id])
+  @@index([buildingId])
 
   @@map("emergency_contacts")
 }
@@ -1401,6 +1413,7 @@ model Complaint {
   createdAt DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id])
+  @@index([userId])
 
   @@map("complaints")
 }
