@@ -129,7 +129,7 @@ export default async function SettingsPage({
 
   if (!building) {
     return (
-      <div className="max-w-4xl space-y-5">
+      <div className="max-w-6xl space-y-5">
         <PageHeader icon={SettingsIcon} title="Настройки" subtitle="Реквизиты организации и параметры объектов" />
         {organization && canEditRequisites && (
           <section id="organization-requisites">
@@ -145,7 +145,7 @@ export default async function SettingsPage({
   }
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="max-w-6xl space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Настройки</h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">

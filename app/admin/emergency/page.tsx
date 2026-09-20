@@ -69,7 +69,7 @@ export default async function EmergencyPage() {
   const contacts = building?.emergencyContacts ?? []
 
   return (
-    <div className="max-w-3xl space-y-5">
+    <div className="max-w-6xl space-y-5">
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Аварийные службы</h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">

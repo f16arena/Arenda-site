@@ -103,7 +103,7 @@ export default async function AuditPage({
   const now = new Date()
 
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="max-w-6xl space-y-5">
       <RouteTabs items={HISTORY_TABS} className="mb-2" />
 
       <div>

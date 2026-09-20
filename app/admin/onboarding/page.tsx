@@ -94,7 +94,7 @@ export default async function OnboardingPage() {
   const requiredOpen = onboarding.requiredCount - onboarding.doneRequiredCount
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="max-w-6xl space-y-5">
       <RouteTabs items={HEALTH_TABS} className="mb-2" />
 
       <div>

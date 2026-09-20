@@ -31,7 +31,7 @@ export function ImportPage({
   children: React.ReactNode
 }) {
   return (
-    <div className="max-w-4xl space-y-5">
+    <div className="max-w-6xl space-y-5">
       <RouteTabs items={IMPORT_TABS} className="mb-2" />
 
       <div>
