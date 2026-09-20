@@ -6,7 +6,7 @@
 import type { Floor } from "@/types/builder"
 import { floorRooms, type FloorRoom } from "@/lib/builder/rooms"
 import { labelPoint } from "./floor-drawing"
-import { pointInPolygon, type Vec2 } from "@/core/geometry/math"
+import { pointInPolygon, segmentIntersection, type Vec2 } from "@/core/geometry/math"
 import { roomUse } from "@/lib/builder/room-use"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 
@@ -116,17 +116,94 @@ export function buildEvacuation(floor: Floor): EvacuationPlan {
     }
   }
 
-  // путь внутри помещения — по прямым углам, как на чертеже: из двух вариантов
-  // Г-образного хода берём тот, что целиком лежит внутри помещения
-  const corner = (a: Vec2, b: Vec2, poly: Vec2[] | undefined): Vec2 | null => {
-    if (!poly) return null
-    const c1 = { x: a.x, y: b.y }
-    const c2 = { x: b.x, y: a.y }
-    if (pointInPolygon(c1, poly)) return c1
-    if (pointInPolygon(c2, poly)) return c2
-    return null
+  // Путь внутри помещения. Раньше: если Г-образный ход не помещался, линия шла
+  // напрямую и резала стены (L-образные коридоры, обход лестничной клетки).
+  // Теперь: 1) прямая, если она внутри; 2) Г-образный ход; 3) обход по углам
+  // помещения (кратчайший путь внутри многоугольника).
+  const roomById = new Map(rooms.map((r) => [r.id, r]))
+  const insideAt = (p: Vec2, room: FloorRoom) =>
+    pointInPolygon(p, room.polygon) && !(room.holes ?? []).some((h) => pointInPolygon(p, h))
+  /** Отрезок целиком внутри помещения (не пересекает стены и не идёт через вырез). */
+  const segInside = (a: Vec2, b: Vec2, room: FloorRoom): boolean => {
+    const rings = [room.polygon, ...(room.holes ?? [])]
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length; i++) {
+        const p = ring[i]
+        const q = ring[(i + 1) % ring.length]
+        if (segmentIntersection(a, b, p, q)) return false
+      }
+    }
+    // середина и четверти — отсекает ход «снаружи вдоль стены» и через вырез
+    for (const t of [0.25, 0.5, 0.75]) {
+      const m = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+      if (!insideAt(m, room)) return false
+    }
+    return true
   }
-  const polyOf = (id: string | undefined) => rooms.find((x) => x.id === id)?.polygon
+  /** Углы помещения, сдвинутые внутрь — точки обхода. */
+  const cornerNodes = (room: FloorRoom): Vec2[] => {
+    const out: Vec2[] = []
+    const rings = [room.polygon, ...(room.holes ?? [])]
+    for (const ring of rings) {
+      for (let i = 0; i < ring.length; i++) {
+        const prevP = ring[(i - 1 + ring.length) % ring.length]
+        const p = ring[i]
+        const nextP = ring[(i + 1) % ring.length]
+        const d1 = { x: p.x - prevP.x, y: p.y - prevP.y }
+        const d2 = { x: nextP.x - p.x, y: nextP.y - p.y }
+        const l1 = Math.hypot(d1.x, d1.y) || 1
+        const l2 = Math.hypot(d2.x, d2.y) || 1
+        // биссектриса внутрь: пробуем обе стороны, берём ту, что внутри
+        const bx = d1.x / l1 - d2.x / l2
+        const by = d1.y / l1 - d2.y / l2
+        const bl = Math.hypot(bx, by) || 1
+        for (const sgn of [1, -1]) {
+          const c = { x: p.x + (bx / bl) * 700 * sgn, y: p.y + (by / bl) * 700 * sgn }
+          if (insideAt(c, room)) { out.push(c); break }
+        }
+      }
+    }
+    return out
+  }
+  /** Кратчайший путь a→b внутри помещения по углам (без точки a). */
+  const pathInside = (a: Vec2, b: Vec2, room: FloorRoom | undefined): Vec2[] => {
+    if (!room) return [b]
+    if (segInside(a, b, room)) {
+      // предпочитаем ход под прямым углом — так читается на чертеже
+      for (const k of [{ x: a.x, y: b.y }, { x: b.x, y: a.y }]) {
+        if (insideAt(k, room) && segInside(a, k, room) && segInside(k, b, room)) return [k, b]
+      }
+      return [b]
+    }
+    for (const k of [{ x: a.x, y: b.y }, { x: b.x, y: a.y }]) {
+      if (insideAt(k, room) && segInside(a, k, room) && segInside(k, b, room)) return [k, b]
+    }
+    // обход по углам: Дейкстра на видимых точках
+    const nodes: Vec2[] = [a, b, ...cornerNodes(room)]
+    const N = nodes.length
+    const vis = (i: number, j: number) => segInside(nodes[i], nodes[j], room)
+    const dst = new Array<number>(N).fill(Infinity)
+    const from = new Array<number>(N).fill(-1)
+    const used = new Array<boolean>(N).fill(false)
+    dst[0] = 0
+    for (let step = 0; step < N; step++) {
+      let cur = -1
+      for (let i = 0; i < N; i++) if (!used[i] && dst[i] < (cur === -1 ? Infinity : dst[cur])) cur = i
+      if (cur === -1) break
+      used[cur] = true
+      if (cur === 1) break
+      for (let j = 0; j < N; j++) {
+        if (used[j] || !vis(cur, j)) continue
+        const w = Math.hypot(nodes[j].x - nodes[cur].x, nodes[j].y - nodes[cur].y)
+        if (dst[cur] + w < dst[j]) { dst[j] = dst[cur] + w; from[j] = cur }
+      }
+    }
+    if (!Number.isFinite(dst[1])) return [b] // пути нет — оставляем прямую
+    const chain: Vec2[] = []
+    for (let i = 1; i !== 0 && i !== -1; i = from[i]) chain.push(nodes[i])
+    return chain.reverse()
+  }
+  const polyOf = (id: string | undefined) => roomById.get(id ?? "")
   const routes: Vec2[][] = []
   const isolated: string[] = []
   for (const r of rooms) {
@@ -136,9 +213,7 @@ export function buildEvacuation(floor: Floor): EvacuationPlan {
     const path: Vec2[] = [c]
     const go = (to: Vec2, roomId: string) => {
       const from = path[path.length - 1]
-      const k = corner(from, to, polyOf(roomId))
-      if (k) path.push(k)
-      path.push(to)
+      for (const p of pathInside(from, to, polyOf(roomId))) path.push(p)
     }
     let cur = r.id
     for (let guard = 0; guard < rooms.length + 2; guard++) {

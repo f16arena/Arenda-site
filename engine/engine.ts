@@ -916,6 +916,9 @@ export class BuilderEngine {
     // крыши (плоская → двускатная) мачта висела бы в воздухе.
     for (const isl of f.islands ?? []) {
       let item = isl
+      // Крыши нет — ставим на плиту перекрытия этажа, иначе антенна висела
+      // в воздухе на высоте снятой крыши.
+      if (!roof && isRoofPlace(isl)) item = { ...isl, mountHeight: f.height }
       if (roof && isRoofPlace(isl)) {
         const ray = new Ray(new Vector3(b.origin.x * S + isl.position.x * S, (f.elevation + f.height) * S + 40, b.origin.y * S + isl.position.y * S), new Vector3(0, -1, 0), 200)
         const hit = roof.intersects(ray, false)
@@ -1029,6 +1032,9 @@ export class BuilderEngine {
     if (ctx.displayMode === "active") {
       const on = f.id === active.id
       setVis(on ? 1 : 0, on)
+      // Режим «Этаж»: крыша этого этажа закрывала сам этаж сверху. Показываем
+      // её только когда выбран уровень «Кровля».
+      if (roof && on && ctx.activeLevelId !== "roof") roof.setEnabled(false)
       return
     }
     if (ctx.displayMode === "cutaway") {
