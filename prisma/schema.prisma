@@ -490,6 +490,7 @@ model Notification {
   link      String?
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -559,6 +560,7 @@ model Building {
   // Пусто = все услуги выставляются отдельно. Добавлено 2026-05-27.
   utilitiesInServiceFee   String? @map("utilities_in_service_fee")
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
 
   organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   administrator     User?                @relation("BuildingAdmin", fields: [administratorUserId], references: [id], onDelete: SetNull)
@@ -660,6 +662,7 @@ model Floor {
   spaces          Space[]
   fullFloorTenant Tenant?  @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
 
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
   @@index([buildingId, number])
   @@index([fullFloorTenantId])
   @@index([buildingId, kind])
@@ -693,6 +696,7 @@ model Space {
   tenantSpaces TenantSpace[]
   meters       Meter[]
 
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
   @@index([floorId, status])
   @@index([floorId, kind])
   @@unique([floorId, number])
@@ -904,6 +908,7 @@ model Contract {
   // которые не принимают нашу редакцию). Подписан офлайн, конструктор/ЭЦП не нужны.
   attachmentFileId   String?   @unique @map("attachment_file_id")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
   deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   tenant         Tenant     @relation(fields: [tenantId], references: [id])
@@ -937,6 +942,7 @@ model Charge {
   isPaid      Boolean   @default(false) @map("is_paid")
   dueDate     DateTime? @map("due_date") @db.Timestamptz(3)
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
   // Пеня по этому начислению отменена вручную админом (см. waivePenalty). Cron
   // check-deadlines пропускает такие начисления и больше не капает по ним пеню —
@@ -1027,6 +1033,7 @@ model Payment {
   receiptConfirmedAt   DateTime? @map("receipt_confirmed_at") @db.Timestamptz(3)
   receiptConfirmedById String?   @map("receipt_confirmed_by_id")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   tenant            Tenant          @relation(fields: [tenantId], references: [id])
