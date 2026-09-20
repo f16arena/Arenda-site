@@ -439,14 +439,55 @@ export function LevelPanel({
       >
         <Plus className="h-3.5 w-3.5" /> Добавить этаж
       </button>
-      <button
-        type="button"
-        onClick={duplicateActive}
-        className="rounded-lg py-1.5 text-[11px] font-medium"
-        style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
-      >
-        Дублировать этаж
-      </button>
+      {activeFloor && (
+        <div className="mt-1 rounded-xl p-1.5" style={{ background: "rgba(148,163,184,0.08)" }}>
+          <label
+            className="flex items-center justify-between gap-2 px-0.5 pb-1 text-[11px]"
+            style={{ color: TOKENS.muted }}
+            title="Отметка пола относительно земли. Минус — ниже земли. Этажи выше сдвигаются вместе с этим"
+          >
+            Отметка пола, м
+            <input
+              id="builder-floor-elevation"
+              type="number"
+              step="0.05"
+              key={`el${activeFloor.id}${activeFloor.elevation}`}
+              defaultValue={(activeFloor.elevation / 1000).toFixed(2)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") (ev.target as HTMLInputElement).blur()
+              }}
+              onBlur={(ev) => {
+                const v = Number(ev.target.value.replace(",", "."))
+                if (!Number.isFinite(v)) return
+                const mm = Math.round(v * 1000)
+                if (mm !== activeFloor.elevation) useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, mm))
+              }}
+              className="w-16 rounded-md bg-white/5 px-1.5 py-0.5 text-right text-[11px] tabular-nums"
+              style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
+            />
+          </label>
+          {activeFloor.level === 0 && building.floors.some((f) => f.level >= 1) && activeFloor.elevation !== -activeFloor.height && (
+            <button
+              type="button"
+              onClick={() => useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, -activeFloor.height))}
+              title="Цокольный этаж целиком в земле, 1 этаж — с уровня земли; этажи выше сдвинутся вместе с ним"
+              className="mb-1.5 w-full rounded-md py-1 text-[11px] font-medium"
+              style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}
+            >
+              Цоколь в землю, 1 этаж — с земли
+            </button>
+          )}
+          <p className="px-0.5 pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Крыша · {activeFloor.name}</p>
+          <div className="grid grid-cols-3 gap-1">
+            {ROOFS.map((r) => {
+              const on = r.t === "none" ? !activeFloor.roof : activeFloor.roof?.type === r.t
+              return (
+                <button key={r.t} type="button" onClick={() => setRoof(r.t)} className="rounded-md py-1 text-[10px] font-medium" style={{ background: on ? TOKENS.accent : "rgba(148,163,184,0.12)", color: on ? "#0b1220" : TOKENS.text }}>{r.l}</button>
+              )
+            })}
+          </div>
+        </div>
+      )}
       {buildingId && activeLevelId && activeLevelId !== "site" && (
         <a
           href={`/admin/builder/${buildingId}/sheet?floor=${activeLevelId}`}
@@ -460,6 +501,20 @@ export function LevelPanel({
         </a>
       )}
       <CheckBlock />
+      {/* Редко нужное и опасное — под «Ещё», чтобы не мешало каждый день */}
+      <details className="group rounded-xl" style={{ background: "rgba(148,163,184,0.06)" }}>
+        <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] font-medium [&::-webkit-details-marker]:hidden" style={{ color: TOKENS.muted }}>
+          Ещё ▾
+        </summary>
+        <div className="flex flex-col gap-1 p-1.5 pt-0">
+      <button
+        type="button"
+        onClick={duplicateActive}
+        className="rounded-lg py-1.5 text-[11px] font-medium"
+        style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}
+      >
+        Дублировать этаж
+      </button>
       {activeFloor && <ReplanBlock floor={activeFloor} buildingId={buildingId} />}
       {activeLevelId && activeLevelId !== "site" && (
         <div className="flex gap-1">
@@ -518,55 +573,17 @@ export function LevelPanel({
       >
         ⛏ Подвал (вниз)
       </button>
-      {activeFloor && (
-        <div className="mt-1 rounded-xl p-1.5" style={{ background: "rgba(148,163,184,0.08)" }}>
-          <label
-            className="flex items-center justify-between gap-2 px-0.5 pb-1 text-[11px]"
-            style={{ color: TOKENS.muted }}
-            title="Отметка пола относительно земли. Минус — ниже земли. Этажи выше сдвигаются вместе с этим"
-          >
-            Отметка пола, м
-            <input
-              id="builder-floor-elevation"
-              type="number"
-              step="0.05"
-              key={`el${activeFloor.id}${activeFloor.elevation}`}
-              defaultValue={(activeFloor.elevation / 1000).toFixed(2)}
-              onKeyDown={(ev) => {
-                if (ev.key === "Enter") (ev.target as HTMLInputElement).blur()
-              }}
-              onBlur={(ev) => {
-                const v = Number(ev.target.value.replace(",", "."))
-                if (!Number.isFinite(v)) return
-                const mm = Math.round(v * 1000)
-                if (mm !== activeFloor.elevation) useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, mm))
-              }}
-              className="w-16 rounded-md bg-white/5 px-1.5 py-0.5 text-right text-[11px] tabular-nums"
-              style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
-            />
-          </label>
-          {activeFloor.level === 0 && building.floors.some((f) => f.level >= 1) && activeFloor.elevation !== -activeFloor.height && (
-            <button
-              type="button"
-              onClick={() => useDocumentStore.getState().execute(new SetFloorElevationCommand(activeFloor.id, -activeFloor.height))}
-              title="Цокольный этаж целиком в земле, 1 этаж — с уровня земли; этажи выше сдвинутся вместе с ним"
-              className="mb-1.5 w-full rounded-md py-1 text-[11px] font-medium"
-              style={{ background: "rgba(56,189,248,0.14)", color: TOKENS.text }}
-            >
-              Цоколь в землю, 1 этаж — с земли
-            </button>
-          )}
-          <p className="px-0.5 pb-1 text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>Крыша · {activeFloor.name}</p>
-          <div className="grid grid-cols-3 gap-1">
-            {ROOFS.map((r) => {
-              const on = r.t === "none" ? !activeFloor.roof : activeFloor.roof?.type === r.t
-              return (
-                <button key={r.t} type="button" onClick={() => setRoof(r.t)} className="rounded-md py-1 text-[10px] font-medium" style={{ background: on ? TOKENS.accent : "rgba(148,163,184,0.12)", color: on ? "#0b1220" : TOKENS.text }}>{r.l}</button>
-              )
-            })}
-          </div>
+      <button
+        type="button"
+        onClick={toggleWallsDown}
+        title="Опускать ближние стены (как в Sims) — Фаза 2"
+        className="mt-0.5 rounded-xl py-1.5 text-[11px] transition-all"
+        style={{ background: wallsDown ? "rgba(167,139,250,0.18)" : "rgba(148,163,184,0.08)", color: wallsDown ? TOKENS.accent2 : TOKENS.muted }}
+      >
+        Стены вниз {wallsDown ? "✓" : ""}
+      </button>
         </div>
-      )}
+      </details>
       {/* уровень «Кровля»: тип крыши и сводка по местам на ней */}
       {activeLevelId === "roof" && topFloor && (
         <div className="flex flex-col gap-1 rounded-lg p-1.5" style={{ border: `1px solid ${TOKENS.panelBorder}` }}>
@@ -590,15 +607,6 @@ export function LevelPanel({
           })()}
         </div>
       )}
-      <button
-        type="button"
-        onClick={toggleWallsDown}
-        title="Опускать ближние стены (как в Sims) — Фаза 2"
-        className="mt-0.5 rounded-xl py-1.5 text-[11px] transition-all"
-        style={{ background: wallsDown ? "rgba(167,139,250,0.18)" : "rgba(148,163,184,0.08)", color: wallsDown ? TOKENS.accent2 : TOKENS.muted }}
-      >
-        Стены вниз {wallsDown ? "✓" : ""}
-      </button>
       <UnderlayPanel pending={measure} onConsumed={onMeasureConsumed} />
     </div>
   )
