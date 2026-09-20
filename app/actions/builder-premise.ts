@@ -17,6 +17,7 @@
 // и возвращаем {ok:true} (мягкий приём, без выдуманных миграций).
 
 import { notifyRentalInquiry } from "@/lib/rental-inquiry"
+import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 import { shareLinkValid } from "@/lib/builder/share-link"
 import { requireOrgAccess } from "@/lib/org"
@@ -312,5 +313,35 @@ export async function assignTenantToPlace(tenantId: string, spaceId: string): Pr
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Не удалось посадить арендатора" }
+  }
+}
+
+/**
+ * Площадь карточки места = габариты объекта в модели. Поменяли размер киоска
+ * в 3D — площадь в «Помещениях» и эксплуатационный сбор пересчитываются.
+ * Возвращаем обновлённую строку для стора конструктора.
+ */
+export async function syncIslandPremiseArea(spaceId: string, areaM2: number): Promise<BuildingPremise | null> {
+  const { orgId } = await requireOrgAccess()
+  const space = await db.space.findFirst({
+    where: { id: spaceId, floor: { building: { organizationId: orgId } } },
+    select: { id: true, number: true, area: true, status: true, kind: true, floor: { select: { buildingId: true, number: true, kind: true } } },
+  })
+  if (!space) return null
+  await assertBuildingAccess(space.floor.buildingId, orgId)
+  const area = Math.max(0.1, Math.round(areaM2 * 100) / 100)
+  if (Math.abs(area - space.area) < 0.01) return null
+  await db.space.update({ where: { id: space.id }, data: { area } })
+  revalidatePath("/admin/spaces")
+  revalidatePath("/admin/finances")
+  return {
+    id: space.id,
+    number: space.number,
+    floorNumber: space.floor.number,
+    floorLabel: floorLabelOf(space.floor),
+    status: space.status === "OCCUPIED" ? "occupied" : "free",
+    tenantName: null,
+    areaM2: area,
+    debt: 0,
   }
 }

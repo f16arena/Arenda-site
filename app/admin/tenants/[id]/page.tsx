@@ -2,6 +2,7 @@
 // без 60-секундной задержки кэша Next.js (см. AUDIT_2026-05-26.md).
 export const dynamic = "force-dynamic"
 
+import { ActionMenu } from "@/components/ui/action-menu"
 import { assertTenantBuildingAccess } from "@/lib/building-access"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
@@ -20,7 +21,7 @@ import {
 import { formatMoney, formatDate, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
-  Calendar as CalendarIcon, Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
+  Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
   FileSignature, CheckCircle2, AlertTriangle,
   History as HistoryIcon, Layers, ShieldCheck,
 } from "lucide-react"
@@ -483,107 +484,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      {/* Quick stats + actions */}
-      <Card className="block p-0">
-        <div className="grid grid-cols-1 divide-y divide-slate-100 dark:divide-slate-800 md:grid-cols-3 md:divide-x md:divide-y-0">
-          <QuickStat
-            icon={Wallet}
-            label="Текущий долг"
-            value={totalDebt > 0 ? formatMoney(totalDebt) : "Нет"}
-            valueClass={totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}
-            sub={totalDebt > 0
-              ? `${debtCount} начислений${unpaidDepositAmount > 0 ? ` · в т.ч. депозит ${formatMoney(unpaidDepositAmount)}` : ""}${tenantCredit > 0 ? ` · аванс ${formatMoney(tenantCredit)}` : ""}`
-              : tenantCredit > 0 ? `Аванс ${formatMoney(tenantCredit)}` : "Все оплачено"}
-          />
-          <QuickStat
-            icon={Building2}
-            label="Помещение"
-            value={assignedSpaces.length > 1 ? `${assignedSpaces.length} помещ.` : assignedSpaces[0] ? `Каб. ${assignedSpaces[0].number}` : myFullFloors.length > 1 ? `${myFullFloors.length} этажей` : myFullFloors[0] ? myFullFloors[0].name : "—"}
-            valueClass="text-slate-900 dark:text-slate-100"
-            sub={assignedSpaces.length > 0 ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : myFullFloors.length > 0 ? `${fullFloorArea} м²` : "Не назначено"}
-          />
-          <QuickStat
-            icon={CalendarIcon}
-            label="До конца договора"
-            value={daysToContractEnd === null ? "—" : daysToContractEnd < 0 ? "Истёк" : `${daysToContractEnd} дн.`}
-            valueClass={
-              daysToContractEnd === null ? "text-slate-500 dark:text-slate-400"
-                : daysToContractEnd < 0 ? "text-red-600 dark:text-red-400"
-                : daysToContractEnd < 30 ? "text-amber-600 dark:text-amber-400"
-                : "text-slate-900 dark:text-slate-100"
-            }
-            sub={effectiveContractEnd ? formatDate(effectiveContractEnd) : "Договор не создан"}
-          />
-        </div>
-
-        {/* Action bar */}
-        <div className="flex flex-wrap gap-2 px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          {canCreateInvoice && (
-          <Link
-            href={`/admin/documents?create=invoice&tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white"
-          >
-            <Receipt className="h-3.5 w-3.5" />
-            Создать счёт
-          </Link>
-          )}
-          {canRecordPayment && (
-          <Link
-            href={`/admin/finances?tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white"
-          >
-            <Wallet className="h-3.5 w-3.5" />
-            Принять оплату
-          </Link>
-          )}
-          {canCreateDocuments && (
-          <>
-          <Link
-            href={`/admin/documents?create=contract&tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
-          >
-            <FileSignature className="h-3.5 w-3.5" />
-            Создать договор
-          </Link>
-          <Link
-            href={`/admin/documents?create=avr&tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-1.5 text-xs font-medium text-white"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Создать акт услуг
-          </Link>
-          <Link
-            href={`/admin/documents?create=reconciliation&tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
-          >
-            <TrendingDown className="h-3.5 w-3.5" />
-            Акт сверки
-          </Link>
-          </>
-          )}
-          {canSendMessages && (
-          <Link
-            href={`/admin/messages?to=${tenant.userId}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            Написать
-          </Link>
-          )}
-          <Link
-            href={`/admin/requests?tenantId=${tenant.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
-          >
-            <ClipboardList className="h-3.5 w-3.5" />
-            Заявки
-          </Link>
-        </div>
-      </Card>
-
-      <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
-
-      <TenantNotes tenantId={tenant.id} initial={tenant.internalNotes ?? ""} />
-
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="order-2 space-y-5 lg:order-1">
       <TenantLazySectionsProvider
         tenantId={tenant.id}
         legalType={tenant.legalType}
@@ -951,11 +853,105 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </Tab>
       </Tabs>
       </TenantLazySectionsProvider>
+      </div>
+
+      {/* Справа — коротко о главном, что сделать, действия и заметки */}
+      <aside className="order-1 space-y-4 lg:order-2 lg:sticky lg:top-20">
+        <Card className="block p-0">
+          <dl className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
+            <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+              <dt className="text-slate-500 dark:text-slate-400">Долг</dt>
+              <dd className={`text-right font-semibold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                {totalDebt > 0 ? formatMoney(totalDebt) : "нет"}
+                {totalDebt > 0 && (
+                  <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">
+                    {debtCount} начислений{unpaidDepositAmount > 0 ? ` · депозит ${formatMoney(unpaidDepositAmount)}` : ""}
+                  </span>
+                )}
+                {tenantCredit > 0 && <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">аванс {formatMoney(tenantCredit)}</span>}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+              <dt className="text-slate-500 dark:text-slate-400">Аренда в месяц</dt>
+              <dd className="text-right font-semibold text-slate-900 dark:text-slate-100">{formatMoney(monthlyRent)}</dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+              <dt className="text-slate-500 dark:text-slate-400">Помещение</dt>
+              <dd className="min-w-0 text-right font-medium text-slate-900 dark:text-slate-100">
+                {assignedSpaces.length > 1
+                  ? `${assignedSpaces.length} помещ.`
+                  : assignedSpaces[0]
+                    ? `№ ${assignedSpaces[0].number}`
+                    : myFullFloors.length > 1
+                      ? `${myFullFloors.length} этажа целиком`
+                      : myFullFloors[0]
+                        ? myFullFloors[0].name
+                        : "не назначено"}
+                <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">
+                  {assignedSpaces.length > 0
+                    ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²`
+                    : myFullFloors.length > 0
+                      ? `${fullFloorArea} м²`
+                      : ""}
+                </span>
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+              <dt className="text-slate-500 dark:text-slate-400">Договор до</dt>
+              <dd className="text-right font-medium text-slate-900 dark:text-slate-100">
+                {effectiveContractEnd ? formatDate(effectiveContractEnd) : "не создан"}
+                {daysToContractEnd !== null && (
+                  <span className={`block text-xs font-normal ${daysToContractEnd < 0 ? "text-red-500" : daysToContractEnd < 30 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`}>
+                    {daysToContractEnd < 0 ? "истёк" : `осталось ${daysToContractEnd} дн.`}
+                  </span>
+                )}
+              </dd>
+            </div>
+          </dl>
+        </Card>
+
+        <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
+
+        <Card title="Действия" className="block">
+          <div className="flex flex-col gap-2">
+            {canCreateInvoice && (
+              <Link href={`/admin/documents?create=invoice&tenantId=${tenant.id}`} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                <Receipt className="h-4 w-4" /> Создать счёт
+              </Link>
+            )}
+            {canRecordPayment && (
+              <Link href={`/admin/finances?tenantId=${tenant.id}`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                <Wallet className="h-4 w-4" /> Принять оплату
+              </Link>
+            )}
+            <ActionMenu
+              label="Другие действия"
+              tone="outline"
+              align="start"
+              width="w-64"
+              items={[
+                ...(canCreateDocuments ? [
+                  { label: "Создать договор", icon: <FileSignature className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=contract&tenantId=${tenant.id}` },
+                  { label: "Акт выполненных работ", icon: <FileText className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=avr&tenantId=${tenant.id}` },
+                  { label: "Акт сверки", icon: <TrendingDown className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=reconciliation&tenantId=${tenant.id}` },
+                ] : []),
+                ...(canSendMessages ? [{ label: "Написать арендатору", icon: <MessageSquare className="h-4 w-4 text-slate-400" />, href: `/admin/messages?to=${tenant.userId}`, separatorBefore: true }] : []),
+                { label: "Заявки арендатора", icon: <ClipboardList className="h-4 w-4 text-slate-400" />, href: `/admin/requests?tenantId=${tenant.id}` },
+              ]}
+            />
+          </div>
+        </Card>
+
+        <TenantNotes tenantId={tenant.id} initial={tenant.internalNotes ?? ""} />
+      </aside>
+      </div>
     </div>
   )
   })
 }
 
+// Сводка проблем карточки — в правой колонке. Показываем только то, что
+// мешает работать: зелёные «всё в порядке» не занимают место.
 function TenantHealthPanel({
   items,
   primaryAction,
@@ -963,82 +959,51 @@ function TenantHealthPanel({
   items: TenantHealthItem[]
   primaryAction: TenantPrimaryAction
 }) {
-  const issueCount = items.filter((item) => !item.ok).length
+  const issues = items.filter((item) => !item.ok)
+
+  if (issues.length === 0 && !primaryAction) {
+    return (
+      <Card className="block p-4">
+        <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
+          <CheckCircle2 className="h-4 w-4" /> Карточка заполнена
+        </p>
+      </Card>
+    )
+  }
 
   return (
     <Card className="block p-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            {issueCount === 0 ? (
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            ) : (
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-            )}
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {issueCount === 0 ? "Карточка арендатора готова" : `Требует внимания: ${issueCount}`}
-            </h2>
-          </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Быстрая проверка данных, которые влияют на начисления, документы и связь с арендатором.
-          </p>
-        </div>
-        {primaryAction && (
-          <Link
-            href={primaryAction.href}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700"
-          >
-            {primaryAction.label}
-          </Link>
-        )}
-      </div>
+      <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        <AlertTriangle className="h-4 w-4 text-amber-500" />
+        {issues.length > 0 ? `Требует внимания: ${issues.length}` : "Следующий шаг"}
+      </p>
       {primaryAction?.description && (
-        <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-          {primaryAction.description}
-        </p>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{primaryAction.description}</p>
       )}
-      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-        {items.map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="rounded-lg border border-slate-200 px-3 py-2 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-800 dark:hover:border-blue-500/40 dark:hover:bg-blue-500/10"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{item.label}</span>
-              {item.ok ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-              ) : (
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-              )}
-            </div>
-            <p className={`mt-1 text-sm font-semibold ${item.ok ? "text-slate-900 dark:text-slate-100" : "text-amber-700 dark:text-amber-300"}`}>
-              {item.value}
-            </p>
-          </Link>
-        ))}
-      </div>
+      {issues.length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {issues.map((item) => (
+            <li key={item.label}>
+              <Link
+                href={item.href}
+                className="flex items-baseline justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              >
+                <span className="text-slate-500 dark:text-slate-400">{item.label}</span>
+                <span className="text-right font-medium text-amber-700 dark:text-amber-300">{item.value}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      {primaryAction && (
+        <Link
+          href={primaryAction.href}
+          className="mt-3 inline-flex w-full items-center justify-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+        >
+          {primaryAction.label}
+        </Link>
+      )}
     </Card>
   )
 }
 
-function QuickStat({
-  icon: Icon, label, value, valueClass, sub,
-}: {
-  icon: React.ElementType
-  label: string
-  value: string
-  valueClass?: string
-  sub?: string
-}) {
-  return (
-    <div className="px-5 py-4">
-      <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <p className={`text-lg font-bold ${valueClass ?? "text-slate-900 dark:text-slate-100"}`}>{value}</p>
-      {sub && <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">{sub}</p>}
-    </div>
-  )
-}

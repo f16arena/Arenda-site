@@ -13,7 +13,7 @@ import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "@/lib/bui
 import { autoAssignGroups, calcPanels, groupKindOf } from "@/lib/builder/mep/panel-calc"
 import { roomExplication } from "@/lib/builder/drawing/schedules"
 import { usePremiseStore } from "@/store/premise-store"
-import { createIslandPremise } from "@/app/actions/builder-premise"
+import { createIslandPremise, syncIslandPremiseArea } from "@/app/actions/builder-premise"
 import { PremisePicker, premiseItems } from "./PremisePicker"
 import { IslandTenantPicker } from "./IslandTenantPicker"
 import { uid } from "@/core/id"
@@ -580,7 +580,23 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
             <label key={key} className="flex items-center justify-between gap-2 text-xs" style={{ color: TOKENS.muted }}>
               {label}
               <input id={`island-${key}`} type="number" step="50" min="200" max="12000" defaultValue={value} key={`i${key}${iid}${value}`}
-                onBlur={(ev) => { const v = Math.round(num(ev.target.value)); if (Number.isFinite(v) && v >= 200 && v !== value) execute(new SetIslandCommand(islandTarget, iid, { [key]: Math.min(12000, v) })) }}
+                onBlur={(ev) => {
+                  const v = Math.round(num(ev.target.value))
+                  if (!Number.isFinite(v) || v < 200 || v === value) return
+                  const next = Math.min(12000, v)
+                  execute(new SetIslandCommand(islandTarget, iid, { [key]: next }))
+                  // Площадь карточки места = габариты объекта: меняем размер
+                  // здесь — меняется площадь в «Помещениях» и эксп. сбор.
+                  if (islPremise && (key === "width" || key === "depth")) {
+                    const w = key === "width" ? next : isl.width
+                    const d = key === "depth" ? next : isl.depth
+                    void syncIslandPremiseArea(islPremise.id, (w * d) / 1_000_000).then((row) => {
+                      if (!row) return
+                      const st = usePremiseStore.getState()
+                      st.setRows([...Array.from(st.byId.values()).filter((x) => x.id !== row.id), { ...row, tenantName: islPremise.tenantName }])
+                    }).catch(() => {})
+                  }
+                }}
                 className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-xs" style={inputStyle} />
             </label>
           ))}
