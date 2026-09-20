@@ -171,6 +171,21 @@ model Organization {
   esfConfig     OrgEsfConfig?
   rolePermissions RolePermission[]
   documentCounters DocumentCounter[]
+  generatedDocuments GeneratedDocument[]
+  documentTemplates DocumentTemplate[]
+  documentSignatures DocumentSignature[]
+  documentSignatureRequests DocumentSignatureRequest[]
+  contractDrafts ContractDraft[]
+  builderProjects BuilderProject[]
+  listingDrafts ListingDraft[]
+  buildingNotices BuildingNotice[]
+  pushDevices PushDevice[]
+  mobileSessions MobileSession[]
+  auditLogs AuditLog[]
+  emailLogs EmailLog[]
+  tasks Task[]
+  notifications Notification[]
+  complaints Complaint[]
 
   @@index([approvalStatus, createdAt])
   @@index([isActive, approvalStatus])
@@ -467,6 +482,7 @@ model FoundersProgramState {
 
 model Notification {
   id        String   @id @default(cuid())
+  organizationId String? @map("organization_id")
   userId    String   @map("user_id")
   type      String // CONTRACT_EXPIRING | PAYMENT_DUE | NEW_REQUEST | NEW_COMPLAINT | INFO
   title     String
@@ -476,9 +492,11 @@ model Notification {
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, isRead, createdAt])
+  @@index([organizationId])
   @@map("notifications")
 }
 
@@ -638,7 +656,7 @@ model Floor {
   fixedMonthlyRent  Float?  @map("fixed_monthly_rent")
   fullFloorTenantId String? @map("full_floor_tenant_id")
 
-  building        Building @relation(fields: [buildingId], references: [id])
+  building        Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   spaces          Space[]
   fullFloorTenant Tenant?  @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
 
@@ -670,7 +688,7 @@ model Space {
   // Поворот объекта зоны (градусы вокруг вертикали) для 3D. NULL = 0°.
   posRot      Float?  @map("pos_rot")
 
-  floor        Floor         @relation(fields: [floorId], references: [id])
+  floor        Floor         @relation(fields: [floorId], references: [id], onDelete: Cascade)
   tenant       Tenant?
   tenantSpaces TenantSpace[]
   meters       Meter[]
@@ -1062,7 +1080,7 @@ model Meter {
   type    String
   number  String
 
-  space    Space          @relation(fields: [spaceId], references: [id])
+  space    Space          @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   readings MeterReading[]
 
   @@index([spaceId, type])
@@ -1077,7 +1095,7 @@ model MeterReading {
   previous  Float    @default(0)
   createdAt DateTime @default(now()) @map("created_at")
 
-  meter Meter @relation(fields: [meterId], references: [id])
+  meter Meter @relation(fields: [meterId], references: [id], onDelete: Cascade)
 
   @@index([meterId, period])
   @@index([period, createdAt])
@@ -1125,6 +1143,7 @@ model RequestComment {
 
 model Task {
   id            String    @id @default(cuid())
+  organizationId String? @map("organization_id")
   buildingId    String?   @map("building_id")
   title         String
   description   String?
@@ -1144,11 +1163,13 @@ model Task {
   building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
   createdBy  User      @relation("TaskCreator", fields: [createdById], references: [id])
   assignedTo User?     @relation("TaskAssignee", fields: [assignedToId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([buildingId, status, dueDate])
   @@index([assignedToId, status, dueDate])
   @@index([createdById, createdAt])
   @@index([status, dueDate])
+  @@index([organizationId])
   @@map("tasks")
 }
 
@@ -1168,7 +1189,7 @@ model Expense {
   // расходов не блокируются).
   recurringExpenseId String? @map("recurring_expense_id")
 
-  building         Building          @relation(fields: [buildingId], references: [id])
+  building         Building          @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   recurringExpense RecurringExpense? @relation(fields: [recurringExpenseId], references: [id], onDelete: SetNull)
 
   @@unique([recurringExpenseId, period])
@@ -1327,7 +1348,7 @@ model EmergencyContact {
   phone      String
   category   String
 
-  building Building @relation(fields: [buildingId], references: [id])
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   @@index([buildingId])
 
   @@map("emergency_contacts")
@@ -1335,6 +1356,7 @@ model EmergencyContact {
 
 model AuditLog {
   id        String   @id @default(cuid())
+  organizationId String? @map("organization_id")
   userId    String?  @map("user_id")
   userName  String?  @map("user_name")
   userRole  String?  @map("user_role")
@@ -1344,6 +1366,7 @@ model AuditLog {
   details   String? // JSON с deltaмiBefore/After
   ip        String?
   createdAt DateTime @default(now()) @map("created_at")
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([entity, entityId])
   @@index([userId])
@@ -1351,6 +1374,7 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([createdAt])
   @@index([entity, entityId, createdAt])
+  @@index([organizationId])
   @@map("audit_logs")
 }
 
@@ -1382,6 +1406,7 @@ model Lead {
 
 model EmailLog {
   id         String    @id @default(cuid())
+  organizationId String? @map("organization_id")
   recipient  String
   subject    String
   type       String // INVOICE | ACT | CONTRACT | NOTIFICATION | OTHER
@@ -1393,12 +1418,14 @@ model EmailLog {
   openedAt   DateTime? @map("opened_at")
   openCount  Int       @default(0) @map("open_count")
   sentAt     DateTime  @default(now()) @map("sent_at")
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([userId])
   @@index([sentAt])
   @@index([status, sentAt])
   @@index([type, sentAt])
+  @@index([organizationId])
   @@map("email_logs")
 }
 
@@ -1422,6 +1449,7 @@ model RolePermission {
 
 model Complaint {
   id        String   @id @default(cuid())
+  organizationId String? @map("organization_id")
   userId    String?  @map("user_id")
   name      String?
   text      String
@@ -1430,7 +1458,9 @@ model Complaint {
   createdAt DateTime @default(now()) @map("created_at")
 
   user User? @relation(fields: [userId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   @@index([userId])
+  @@index([organizationId])
 
   @@map("complaints")
 }
@@ -1468,6 +1498,7 @@ model DocumentTemplate {
   uploadedById   String?  @map("uploaded_by_id")
   uploadedAt     DateTime @default(now()) @map("uploaded_at")
   notes          String?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, documentType, isActive])
   @@map("document_templates")
@@ -1509,6 +1540,7 @@ model GeneratedDocument {
   reconStatus       String?   @map("recon_status")
   reconRespondedAt  DateTime? @map("recon_responded_at")
   reconResponseNote String?   @map("recon_response_note")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, documentType])
   @@index([organizationId, documentType, generatedAt])
@@ -1549,6 +1581,7 @@ model DocumentSignature {
   tspGenTime     DateTime? @map("tsp_gen_time")
   tspSerial      String?   @map("tsp_serial")
   signedAt       DateTime  @default(now()) @map("signed_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([documentType, documentId])
@@ -1588,6 +1621,7 @@ model PushDevice {
   revokedAt      DateTime? @map("revoked_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([provider, token])
   @@index([userId, isActive])
@@ -1613,6 +1647,7 @@ model MobileSession {
   lastUsedAt       DateTime  @default(now()) @map("last_used_at")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
   @@index([organizationId, revokedAt])
@@ -1634,6 +1669,7 @@ model BuildingNotice {
   sentAt         DateTime? @map("sent_at")
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, buildingId, createdAt])
   @@index([buildingId, startsAt, endsAt])
@@ -1668,6 +1704,7 @@ model DocumentSignatureRequest {
   metadata        Json?
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, createdAt])
   @@index([recipientUserId, status, createdAt])
@@ -1691,6 +1728,7 @@ model ContractDraft {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   deletedAt      DateTime? @map("deleted_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, updatedAt])
   @@index([organizationId, tenantId])
@@ -1711,6 +1749,7 @@ model BuilderProject {
   createdById    String?  @map("created_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, updatedAt])
   @@map("builder_projects")
@@ -1748,6 +1787,7 @@ model ListingDraft {
   createdById    String?  @map("created_by_id")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status])
   @@index([spaceId])

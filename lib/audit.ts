@@ -35,6 +35,8 @@ export async function audit(opts: {
 
     await db.auditLog.create({
       data: {
+        // Организация автора: без неё «журнал по моей организации» не собрать.
+        organizationId: session?.user?.organizationId ?? null,
         userId: session?.user?.id ?? null,
         userName: session?.user?.name ?? null,
         userRole: session?.user?.role ?? null,

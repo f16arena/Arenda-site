@@ -67,6 +67,7 @@ export async function createTask(formData: FormData) {
 
   await db.task.create({
     data: {
+      organizationId: orgId,
       buildingId: buildingId ?? null,
       title,
       description: description || null,

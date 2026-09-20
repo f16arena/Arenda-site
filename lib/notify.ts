@@ -60,6 +60,7 @@ export async function notifyUser(opts: NotifyOpts) {
     where: { id: opts.userId },
     select: {
       telegramChatId: true, email: true, phone: true, name: true,
+      organizationId: true,
       notifyEmail: true, notifyTelegram: true, notifySms: true,
       notifyInApp: true, notifyMutedTypes: true,
     },
@@ -70,6 +71,7 @@ export async function notifyUser(opts: NotifyOpts) {
     try {
       await db.notification.create({
         data: {
+          organizationId: user?.organizationId ?? null,
           userId: opts.userId,
           type: opts.type,
           title: opts.title,
@@ -142,6 +144,7 @@ export async function notifyUser(opts: NotifyOpts) {
       try {
         await db.emailLog.create({
           data: {
+            organizationId: user.organizationId ?? null,
             recipient: user.email,
             subject,
             type: opts.type,

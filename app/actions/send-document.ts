@@ -122,7 +122,7 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
     let logId = ""
     try {
       const log = await db.emailLog.create({
-        data: { recipient, subject, type: params.type, tenantId: tenant.id, userId: tenant.user.id, status: "QUEUED" },
+        data: { organizationId: orgId, recipient, subject, type: params.type, tenantId: tenant.id, userId: tenant.user.id, status: "QUEUED" },
         select: { id: true },
       })
       logId = log.id
