@@ -7,7 +7,9 @@ import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { emailLogScope } from "@/lib/tenant-scope"
 import { PaginationControls } from "@/components/ui/pagination-controls"
-import { PageHeader } from "@/components/ui/page"
+import { RouteTabs } from "@/components/ui/route-tabs"
+import { HISTORY_TABS } from "@/lib/hub-tabs"
+import { auditWhen } from "@/lib/audit-humanize"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import {
   Mail, CheckCircle, XCircle, Clock, Eye,
@@ -22,10 +24,10 @@ const TYPE_LABELS: Record<string, string> = {
   CONTRACT: "Договор",
   HANDOVER: "Передача",
   NOTIFICATION: "Уведомление",
-  WELCOME: "Welcome",
+  WELCOME: "Доступ в кабинет",
   PASSWORD_RESET: "Сброс пароля",
-  EMAIL_VERIFY: "Подтверждение email",
-  EMAIL_CHANGE: "Смена email",
+  EMAIL_VERIFY: "Подтверждение почты",
+  EMAIL_CHANGE: "Смена почты",
   OTHER: "Прочее",
 }
 
@@ -90,23 +92,22 @@ export default async function EmailLogsPage({
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        icon={Mail}
-        title="Журнал email-отправок"
-        subtitle={
-          <>
-            {total} писем · {sentCount} доставлено · {openedCount} открыто
-            {failedCount > 0 && <span className="text-red-600 dark:text-red-400"> · {failedCount} с ошибкой</span>}
-          </>
-        }
-      />
+      <RouteTabs items={HISTORY_TABS} className="mb-2" />
+
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Что ушло арендаторам</h1>
+        <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+          {total} писем · {sentCount} дошло · {openedCount} открыли
+          {failedCount > 0 && <span className="text-red-600 dark:text-red-400"> · {failedCount} не дошло</span>}
+        </p>
+      </div>
 
       {/* Фильтры */}
       <div className="flex flex-wrap gap-2">
         <FilterChip label="Все" href="/admin/email-logs" active={!status && !type} />
-        <FilterChip label="Доставлено" href="/admin/email-logs?status=SENT" active={status === "SENT"} />
-        <FilterChip label="С ошибкой" href="/admin/email-logs?status=FAILED" active={status === "FAILED"} />
-        <FilterChip label="Открыто" href="/admin/email-logs?status=opened" active={status === "opened"} />
+        <FilterChip label="Дошло" href="/admin/email-logs?status=SENT" active={status === "SENT"} />
+        <FilterChip label="Не дошло" href="/admin/email-logs?status=FAILED" active={status === "FAILED"} />
+        <FilterChip label="Открыли" href="/admin/email-logs?status=opened" active={status === "opened"} />
         <span className="border-l border-slate-200 dark:border-slate-800 mx-2" />
         {Object.entries(TYPE_LABELS).map(([key, label]) => (
           <FilterChip key={key} label={label} href={`/admin/email-logs?type=${key}`} active={type === key} />
@@ -120,19 +121,19 @@ export default async function EmailLogsPage({
             <Mail className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
             <p className="text-sm text-slate-500 dark:text-slate-400">Пока нет отправок</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              Отправленные письма (счета, акты, уведомления) будут логироваться здесь
+              Счета, акты и напоминания об оплате появятся здесь после отправки
             </p>
           </div>
         ) : (
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Получатель</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Когда</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Кому</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тема</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тип</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Что отправили</th>
                 <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
-                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Открытий</th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Открыли</th>
               </tr>
             </thead>
             <tbody>
@@ -142,10 +143,7 @@ export default async function EmailLogsPage({
                 return (
                   <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                      {new Date(log.sentAt).toLocaleString("ru-RU", {
-                        day: "2-digit", month: "2-digit",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
+                      {auditWhen(log.sentAt)}
                     </td>
                     <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
                       {log.tenantId ? (

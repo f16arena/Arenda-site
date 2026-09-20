@@ -8,11 +8,10 @@ import {
   FileText, ClipboardList, CheckSquare,
   MessageSquare, Phone, BarChart3,
   Package, Settings as SettingsIcon,
-  Mail, History,
   LogOut, Building,
   CalendarDays, ChevronDown,
   Menu, X, Rocket, CircleHelp, HardDrive,
-  PanelLeftClose, PanelLeftOpen, Megaphone, Box, Upload, KeyRound,
+  PanelLeftClose, PanelLeftOpen, Megaphone, Box, Upload, KeyRound, History,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -126,11 +125,11 @@ const nav: NavSection[] = [
       // Хаб: сотрудники + доступы/здания + роли — вкладки внутри (lib/hub-tabs).
       { href: "/admin/staff", label: "Команда и доступы", icon: Users, section: "staff" },
       { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
-      { href: "/admin/import", label: "Импорт данных", icon: Upload, section: "settings" },
-      { href: "/admin/api-keys", label: "API-ключи", icon: KeyRound, section: "settings" },
+      { href: "/admin/import/tenants", label: "Импорт данных", icon: Upload, section: "settings", alsoActive: ["/admin/import/contracts", "/admin/import/charges", "/admin/finances/import"] },
       { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
-      { href: "/admin/email-logs", label: "Журнал email", icon: Mail, section: "settings" },
-      { href: "/admin/audit", label: "Журнал операций", icon: History, section: "settings" },
+      // Хаб: действия сотрудников + письма арендаторам (lib/hub-tabs).
+      { href: "/admin/audit", label: "История", icon: History, section: "settings", alsoActive: ["/admin/email-logs"] },
+      { href: "/admin/api-keys", label: "Доступ по API", icon: KeyRound, section: "settings" },
     ],
   },
 ]

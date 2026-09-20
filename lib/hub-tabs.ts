@@ -26,6 +26,13 @@ export const IMPORT_TABS = [
   { href: "/admin/finances/import", label: "Платежи из банка" },
 ]
 
+// История: что делали люди и что ушло арендаторам на почту. Раньше это были
+// два отдельных пункта меню — «Журнал операций» и «Журнал email».
+export const HISTORY_TABS = [
+  { href: "/admin/audit", label: "Действия" },
+  { href: "/admin/email-logs", label: "Письма" },
+]
+
 export const SERVICE_TABS = [
   { href: "/admin/requests", label: "Заявки" },
   { href: "/admin/complaints", label: "Жалобы и предложения" },
