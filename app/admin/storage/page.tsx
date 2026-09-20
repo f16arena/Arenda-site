@@ -4,8 +4,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { auth } from "@/auth"
-import { deleteStoredFile } from "@/app/actions/storage"
-import { DeleteAction } from "@/components/ui/delete-action"
+import { FileRowActions, UploadFileButton } from "./storage-actions"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { requireSection } from "@/lib/acl"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
@@ -19,16 +18,11 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { PageHeader, StatCard, Card } from "@/components/ui/page"
 import {
   Archive,
-  Building2,
-  Download,
-  Eye,
   FileArchive,
   FileText,
-  Filter,
   HardDrive,
   Receipt,
   Search,
-  ShieldCheck,
   Trash2,
   Users,
 } from "lucide-react"
@@ -75,6 +69,7 @@ export default async function StoragePage({
     orgId,
   }))
   const canDeleteFiles = caps.has("storage.delete")
+  const canUpload = caps.has("storage.upload")
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/storage", orgId, userId: session.user.id })
   const resolved = await searchParams
@@ -221,34 +216,77 @@ export default async function StoragePage({
     deleted: showDeleted ? "1" : null,
   }
 
+  const deletedCount = await safe(
+    "admin.storage.deletedCount",
+    db.storedFile.count({ where: { AND: [{ organizationId: orgId }, { deletedAt: { not: null } }, ...(scopeWhere ? [scopeWhere] : [])] } }),
+    0,
+  )
+  const unlinkedCount = await safe(
+    "admin.storage.unlinked",
+    db.storedFile.count({ where: { AND: [baseWhere, { tenantId: null }, { buildingId: null }] } }),
+    0,
+  )
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         icon={HardDrive}
         tone="slate"
         title="Хранилище"
-        subtitle="Файлы этой организации: документы арендаторов, чеки оплат и будущие архивы. Доступ разделён по SaaS-организации и зданиям."
-        actions={
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-200">
-            <div className="flex items-center gap-2 font-semibold">
-              <ShieldCheck className="h-4 w-4" />
-              Изоляция включена
-            </div>
-            <p className="mt-1 text-xs">
-              Владелец видит только свою организацию, сотрудники - только доступные здания.
-            </p>
-          </div>
-        }
+        subtitle="Все файлы: документы арендаторов, чеки оплат, шаблоны и готовые документы"
+        actions={canUpload ? <UploadFileButton tenants={tenantOptions.map((t) => ({ id: t.id, name: t.companyName }))} buildings={buildingOptions} /> : undefined}
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={HardDrive} label="Файлов" value={String(stats._count._all)} tone="blue" />
-        <StatCard icon={Archive} label="Исходный размер" value={formatBytes(stats._sum.originalSize ?? 0)} tone="blue" />
-        <StatCard icon={FileArchive} label="В БД после сжатия" value={formatBytes(stats._sum.compressedSize ?? 0)} tone="blue" />
-        <StatCard icon={Building2} label="Зданий в доступе" value={String(buildingOptions.length)} tone="blue" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard icon={FileText} label="Файлов" value={String(stats._count._all)} tone="blue" />
+        <StatCard icon={HardDrive} label="Занимают места" value={formatBytes(stats._sum.compressedSize ?? 0)} sub={`до сжатия ${formatBytes(stats._sum.originalSize ?? 0)}`} tone="slate" />
+        <StatCard
+          icon={Users}
+          label="Без привязки"
+          value={String(unlinkedCount)}
+          sub={unlinkedCount > 0 ? "не видно в карточках — стоит привязать" : "все файлы на месте"}
+          tone={unlinkedCount > 0 ? "amber" : "emerald"}
+        />
+        <StatCard
+          icon={Trash2}
+          label="В корзине"
+          value={String(deletedCount)}
+          sub={deletedCount > 0 ? "можно вернуть" : "пусто"}
+          tone="slate"
+          href={deletedCount > 0 ? hrefFor({ ...queryParams, deleted: showDeleted ? null : "1", page: null }) : undefined}
+        />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Поиск и фильтр по арендатору */}
+      <form action="/admin/storage" className="flex flex-wrap items-end gap-2">
+        <label className="relative min-w-[240px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            name="q"
+            defaultValue={search}
+            placeholder="Поиск: имя файла, арендатор, кто загрузил"
+            className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+          />
+        </label>
+        <select
+          name="tenantId"
+          defaultValue={selectedTenantId || "all"}
+          className="h-10 w-56 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-blue-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
+        >
+          <option value="all">Все арендаторы</option>
+          {tenantOptions.map((tenant) => (
+            <option key={tenant.id} value={tenant.id}>{tenant.companyName}</option>
+          ))}
+        </select>
+        <input type="hidden" name="category" value={selectedCategory} />
+        {showDeleted && <input type="hidden" name="deleted" value="1" />}
+        <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500">
+          Найти
+        </button>
+      </form>
+
+      {/* Вид файлов */}
+      <div className="flex flex-wrap items-center gap-2">
         {["ALL", "TENANT_DOCUMENT", "PAYMENT_RECEIPT", "DOCUMENT_TEMPLATE", "GENERATED_DOCUMENT", "OTHER"].map((category) => {
           const count = category === "ALL"
             ? stats._count._all
@@ -258,88 +296,39 @@ export default async function StoragePage({
             <Link
               key={category}
               href={hrefFor({ ...queryParams, category, page: null })}
-              className={[
-                "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition",
+              className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
                 active
                   ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400/50 dark:bg-blue-500/10 dark:text-blue-200"
-                  : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50",
-              ].join(" ")}
+                  : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
+              }`}
             >
               {CATEGORY_LABELS[category]}
-              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                {count}
-              </span>
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">{count}</span>
             </Link>
           )
         })}
         <Link
           href={hrefFor({ ...queryParams, deleted: showDeleted ? null : "1", page: null })}
-          className={[
-            "inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition",
+          className={`ml-auto inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
             showDeleted
               ? "border-red-500 bg-red-50 text-red-700 dark:border-red-400/50 dark:bg-red-500/10 dark:text-red-200"
-              : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50",
-          ].join(" ")}
+              : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
+          }`}
         >
           <Trash2 className="h-3.5 w-3.5" />
-          Корзина
+          {showDeleted ? "Показать рабочие файлы" : `Корзина${deletedCount > 0 ? ` · ${deletedCount}` : ""}`}
         </Link>
       </div>
-
-      <form action="/admin/storage" className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <div className="grid gap-3 lg:grid-cols-[1fr_220px_260px_auto]">
-          <label className="relative block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              name="q"
-              defaultValue={search}
-              placeholder="Поиск по имени файла, арендатору или загрузившему"
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-500/10"
-            />
-          </label>
-          <label className="relative block">
-            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <select
-              name="category"
-              defaultValue={selectedCategory}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-500/10"
-            >
-              {Object.entries(CATEGORY_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </select>
-          </label>
-          <label className="relative block">
-            <Users className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <select
-              name="tenantId"
-              defaultValue={selectedTenantId || "all"}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-blue-500/10"
-            >
-              <option value="all">Все арендаторы</option>
-              {tenantOptions.map((tenant) => (
-                <option key={tenant.id} value={tenant.id}>{tenant.companyName}</option>
-              ))}
-            </select>
-          </label>
-          {showDeleted && <input type="hidden" name="deleted" value="1" />}
-          <button className="h-10 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500">
-            Показать
-          </button>
-        </div>
-      </form>
 
       <Card padded={false}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100 text-sm dark:divide-slate-800">
-            <thead className="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
+            <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500 dark:bg-slate-800/50 dark:text-slate-400">
               <tr>
                 <th className="px-5 py-3">Файл</th>
-                <th className="px-5 py-3">Тип</th>
-                <th className="px-5 py-3">Арендатор</th>
-                <th className="px-5 py-3">Здание</th>
-                <th className="px-5 py-3">Размер</th>
-                <th className="px-5 py-3">Загружен</th>
+                <th className="px-5 py-3">К кому относится</th>
+                <th className="px-5 py-3">Загрузил</th>
+                <th className="px-5 py-3 text-right">Размер</th>
                 <th className="px-5 py-3 text-right">Действия</th>
               </tr>
             </thead>
@@ -355,83 +344,38 @@ export default async function StoragePage({
                           <Icon className="h-4 w-4" />
                         </div>
                         <div className="min-w-0">
-                          <p className="max-w-[360px] truncate font-medium text-slate-900 dark:text-slate-100">
-                            {file.fileName}
-                          </p>
+                          <p className="max-w-[360px] truncate font-medium text-slate-900 dark:text-slate-100">{file.fileName}</p>
                           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                            {file.mimeType}
-                            {file.compression === "GZIP" && " · сжато"}
+                            {CATEGORY_LABELS[file.category] ?? file.category}
+                            {file.visibility === "TENANT_VISIBLE" ? " · виден арендатору" : ""}
+                            {linked ? " · связан с документом" : ""}
                           </p>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-slate-700 dark:text-slate-200">
-                        {CATEGORY_LABELS[file.category] ?? file.category}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        {file.visibility === "TENANT_VISIBLE" ? "видит арендатор" : "только админ"}
-                      </p>
                     </td>
                     <td className="px-5 py-3">
                       {file.tenant ? (
                         <Link href={`/admin/tenants/${file.tenant.id}`} className="text-blue-600 hover:underline dark:text-blue-400">
                           {file.tenant.companyName}
                         </Link>
+                      ) : file.building ? (
+                        <span className="text-slate-600 dark:text-slate-300">{file.building.name}</span>
                       ) : (
-                        <span className="text-slate-400">-</span>
+                        <span className="text-amber-600 dark:text-amber-400">не привязан</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-slate-600 dark:text-slate-300">
-                      {file.building?.name ?? <span className="text-slate-400">не определено</span>}
-                    </td>
                     <td className="px-5 py-3">
-                      <p className="text-slate-700 dark:text-slate-200">{formatBytes(file.originalSize)}</p>
-                      <p className="text-xs text-slate-400">{formatBytes(file.compressedSize)} в БД</p>
+                      <p className="text-slate-700 dark:text-slate-200">{file.uploadedBy?.name ?? file.uploadedBy?.email ?? "система"}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {showDeleted && file.deletedAt
+                          ? `удалён ${file.deletedAt.toLocaleDateString("ru-RU")}`
+                          : file.createdAt.toLocaleDateString("ru-RU")}
+                      </p>
                     </td>
+                    <td className="px-5 py-3 text-right tabular-nums text-slate-700 dark:text-slate-200">{formatBytes(file.originalSize)}</td>
                     <td className="px-5 py-3">
-                      <p className="text-slate-700 dark:text-slate-200">{file.createdAt.toLocaleDateString("ru-RU")}</p>
-                      <p className="text-xs text-slate-400">{file.uploadedBy?.name ?? file.uploadedBy?.email ?? "система"}</p>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center justify-end gap-3">
-                        {!showDeleted && (
-                          <>
-                            <a
-                              href={`/api/storage/${file.id}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
-                              title="Открыть"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </a>
-                            <a
-                              href={`/api/storage/${file.id}?download=1`}
-                              className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400"
-                              title="Скачать"
-                            >
-                              <Download className="h-4 w-4" />
-                            </a>
-                            {linked ? (
-                              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                                связан
-                              </span>
-                            ) : canDeleteFiles ? (
-                              <DeleteAction
-                                action={deleteStoredFile.bind(null, file.id)}
-                                entity="файл"
-                                description="Файл будет перенесён в корзину. Если он связан с документом или оплатой, система заблокирует удаление."
-                                successMessage="Файл перенесён в корзину"
-                              />
-                            ) : null}
-                          </>
-                        )}
-                        {showDeleted && (
-                          <span className="text-xs text-slate-400">
-                            удалён {file.deletedAt?.toLocaleDateString("ru-RU")}
-                          </span>
-                        )}
+                      <div className="flex justify-end">
+                        <FileRowActions fileId={file.id} deleted={showDeleted} canDelete={canDeleteFiles} linked={linked} />
                       </div>
                     </td>
                   </tr>
@@ -439,8 +383,8 @@ export default async function StoragePage({
               })}
               {files.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
-                    Файлов по выбранным условиям нет.
+                  <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                    {showDeleted ? "Корзина пуста." : "Файлов по выбранным условиям нет."}
                   </td>
                 </tr>
               )}
