@@ -8,6 +8,7 @@ import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { applyDocNumberStart } from "@/lib/document-number"
 
 // Возвращаем ошибку вместо throw: в проде Next затирает текст брошенных из
 // server action ошибок («…omitted in production…» + digest), а возвращённые
@@ -308,6 +309,10 @@ export async function updateDocNumberStart(orgId: string, formData: FormData) {
       next[type] = n
     }
     await db.organization.update({ where: { id: orgId }, data: { docNumberStart: next } })
+    // Счётчик номеров двигаем сразу: он и выдаёт номера документам.
+    for (const [type, n] of Object.entries(next)) {
+      await applyDocNumberStart(orgId, type, n)
+    }
 
     revalidatePath("/admin/settings")
     revalidatePath("/admin/documents")

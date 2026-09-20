@@ -170,6 +170,7 @@ model Organization {
   services      OrganizationService[]
   esfConfig     OrgEsfConfig?
   rolePermissions RolePermission[]
+  documentCounters DocumentCounter[]
 
   @@index([approvalStatus, createdAt])
   @@index([isActive, approvalStatus])
@@ -644,6 +645,7 @@ model Floor {
   @@index([buildingId, number])
   @@index([fullFloorTenantId])
   @@index([buildingId, kind])
+  @@unique([buildingId, number])
   @@map("floors")
 }
 
@@ -675,6 +677,7 @@ model Space {
 
   @@index([floorId, status])
   @@index([floorId, kind])
+  @@unique([floorId, number])
   @@map("spaces")
 }
 
@@ -983,6 +986,7 @@ model DebtInstallment {
 
   @@index([planId, seq])
   @@index([isPaid, dueDate])
+  @@unique([planId, seq])
   @@map("debt_installments")
 }
 
@@ -1077,6 +1081,7 @@ model MeterReading {
 
   @@index([meterId, period])
   @@index([period, createdAt])
+  @@unique([meterId, period])
   @@map("meter_readings")
 }
 
@@ -1778,4 +1783,20 @@ model BuilderShareView {
   @@index([token, openedAt])
   @@index([projectId, openedAt])
   @@map("builder_share_views")
+}
+
+/// Выдача номеров документов по организации: номер берётся атомарно
+/// (UPDATE ... RETURNING), иначе два одновременных документа получали
+/// одинаковый номер — для ЭСФ это недопустимо.
+model DocumentCounter {
+  organizationId String   @map("organization_id")
+  documentType   String   @map("document_type")
+  /// следующий свободный номер
+  nextNumber     Int      @default(1) @map("next_number")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, documentType])
+  @@map("document_counters")
 }
