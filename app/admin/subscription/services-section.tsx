@@ -74,7 +74,7 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-          <Briefcase className="h-4 w-4 text-purple-400" />
+          <Briefcase className="h-4 w-4 text-slate-400" />
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разовые услуги под ваш тариф</h2>
         </div>
         {catalog.length === 0 ? (
@@ -97,7 +97,7 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
                   <button
                     onClick={() => order(item.code, item.label)}
                     disabled={pending}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                   >
                     {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
                     Заказать

@@ -75,11 +75,11 @@ const nav: NavSection[] = [
       { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
       { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
       // Эксплуатационный сбор настраивается в карточке здания (/buildings/[id]/service-fee)
-      { href: "/admin/builder/projects", label: "3D-конструктор", icon: Box, section: "buildings" },
+      { href: "/admin/builder/projects", label: "3D-модель", icon: Box, section: "buildings" },
     ],
   },
   {
-    title: "АРЕНДА И КЛИЕНТЫ",
+    title: "АРЕНДАТОРЫ",
     items: [
       { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
       { href: "/admin/listings", label: "Объявления", icon: Megaphone, section: "leads" },
@@ -92,14 +92,14 @@ const nav: NavSection[] = [
       // Показания счётчиков превращаются в начисления за свет и воду — это деньги
       { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
       // Хаб: аналитика + фин.дашборд + отчётность — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/analytics", label: "Аналитика и отчёты", icon: BarChart3, section: "analytics" },
+      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
     ],
   },
   {
     title: "ДОКУМЕНТЫ",
     items: [
       // Хаб: все документы + договоры — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/documents", label: "Документы и договоры", icon: FileText, section: "documents", counter: "documents" },
+      { href: "/admin/documents", label: "Документы", icon: FileText, section: "documents", counter: "documents" },
       { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
     ],
   },
@@ -107,10 +107,10 @@ const nav: NavSection[] = [
     title: "ОБСЛУЖИВАНИЕ",
     items: [
       // Хаб: заявки + жалобы и предложения — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/requests", label: "Заявки и жалобы", icon: ClipboardList, section: "requests", counter: ["requests", "complaints"], alsoActive: ["/admin/complaints"] },
+      { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests", counter: ["requests", "complaints"], alsoActive: ["/admin/complaints"] },
       { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks", counter: "tasks" },
       { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages", counter: "messages" },
-      { href: "/admin/faq", label: "FAQ и помощь", icon: CircleHelp },
+      { href: "/admin/faq", label: "Помощь", icon: CircleHelp },
     ],
   },
   // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию. Только конфигурация и служебное.
@@ -119,14 +119,14 @@ const nav: NavSection[] = [
     ownerOnly: true,
     collapsible: true,
     items: [
-      { href: "/admin/settings", label: "Настройки организации", icon: SettingsIcon, section: "settings" },
+      { href: "/admin/settings", label: "Настройки", icon: SettingsIcon, section: "settings" },
       // Хаб: запуск платформы + качество данных + проверка системы (lib/hub-tabs).
-      { href: "/admin/onboarding", label: "Здоровье платформы", icon: Rocket, section: "dashboard", alsoActive: ["/admin/data-quality", "/admin/system-health"] },
+      { href: "/admin/onboarding", label: "Запуск и проверки", icon: Rocket, section: "dashboard", alsoActive: ["/admin/data-quality", "/admin/system-health"] },
       // Хаб: сотрудники + доступы/здания + роли — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/staff", label: "Команда и доступы", icon: Users, section: "staff" },
-      { href: "/admin/subscription", label: "Подписка и тариф", icon: Package, section: "settings" },
-      { href: "/admin/import/tenants", label: "Импорт данных", icon: Upload, section: "settings", alsoActive: ["/admin/import/contracts", "/admin/import/charges", "/admin/finances/import"] },
-      { href: "/admin/emergency", label: "Экстренные контакты", icon: Phone, section: "settings" },
+      { href: "/admin/staff", label: "Команда", icon: Users, section: "staff" },
+      { href: "/admin/subscription", label: "Подписка", icon: Package, section: "settings" },
+      { href: "/admin/import/tenants", label: "Импорт", icon: Upload, section: "settings", alsoActive: ["/admin/import/contracts", "/admin/import/charges", "/admin/finances/import"] },
+      { href: "/admin/emergency", label: "Экстренные службы", icon: Phone, section: "settings" },
       // Хаб: действия сотрудников + письма арендаторам (lib/hub-tabs).
       { href: "/admin/audit", label: "История", icon: History, section: "settings", alsoActive: ["/admin/email-logs"] },
       { href: "/admin/api-keys", label: "Доступ по API", icon: KeyRound, section: "settings" },
@@ -288,7 +288,7 @@ export function AdminSidebar({
         "transition-[width,transform] duration-300 ease-out",
         // Десктоп: всегда виден слева; ширина зависит от режима рейки
         "lg:relative lg:translate-x-0",
-        rail ? "lg:w-[72px]" : "lg:w-60",
+        rail ? "lg:w-[72px]" : "lg:w-64",
         // Мобиль: фиксированный drawer (всегда полная ширина)
         "fixed top-0 left-0 w-64 -translate-x-full",
         mobileOpen && "translate-x-0"

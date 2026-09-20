@@ -108,7 +108,7 @@ async function renderAdminLayout(children: React.ReactNode) {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <CommandPaletteLoader />
-      <Suspense fallback={<aside className="hidden lg:block w-60 shrink-0 bg-slate-900" />}>
+      <Suspense fallback={<aside className="hidden lg:block w-64 shrink-0 bg-slate-900" />}>
         <SidebarChrome
           userId={session.user.id}
           userName={session.user.name}

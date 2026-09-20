@@ -107,7 +107,7 @@ export default async function SubscriptionPage() {
     <div className="max-w-6xl space-y-5">
       <PageHeader
         icon={Package}
-        tone="violet"
+        tone="slate"
         title="Подписка и возможности"
         subtitle={org.name}
         actions={
@@ -119,8 +119,8 @@ export default async function SubscriptionPage() {
       />
 
       {isSuspended && (
-        <div className="rounded-xl border-2 border-red-500/50 bg-red-500/20 px-5 py-4 text-sm">
-          <p className="font-semibold text-red-50 text-base">Подписка приостановлена</p>
+        <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-sm">
+          <p className="text-base font-semibold text-red-700 dark:text-red-300">Подписка приостановлена</p>
           <p className="mt-1 text-red-700 dark:text-red-200">
             Доступ к остальным разделам ограничен до продления. На этой странице вы можете
             оформить продление — свяжитесь с супер-админом, он активирует доступ после оплаты.
@@ -128,20 +128,20 @@ export default async function SubscriptionPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-5 py-4 text-sm text-blue-700 dark:text-blue-100">
-        <p className="font-medium text-blue-50">Хотите продлить, сменить тариф или подключить аддоны?</p>
-        <p className="mt-1 text-blue-700 dark:text-blue-200">
+      <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm dark:border-slate-800 dark:bg-slate-900">
+        <p className="font-medium text-slate-900 dark:text-slate-100">Как продлить или сменить тариф</p>
+        <p className="mt-1 text-slate-600 dark:text-slate-400">
           Свяжитесь с супер-админом платформы — он оформит продление, апгрейд или подключит дополнительные опции (здания, арендаторы, ГБ хранилища, брендирование и т.д.). Онлайн-оплата пока не подключена, всё оформляется вручную.
         </p>
       </div>
 
       <div className={cn(
-        "rounded-2xl border p-6",
+        "rounded-2xl border bg-white p-6 dark:bg-slate-900",
         expired
-          ? "border-red-500/30 bg-red-500/10"
+          ? "border-red-500/40"
           : daysLeft !== null && daysLeft <= 7
-            ? "border-amber-500/30 bg-amber-500/10"
-            : "border-purple-500/30 bg-purple-500/10",
+            ? "border-amber-500/40"
+            : "border-slate-200 dark:border-slate-800",
       )}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -155,7 +155,7 @@ export default async function SubscriptionPage() {
             {planFeatures.highlights.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-2">
                 {planFeatures.highlights.map((item) => (
-                  <span key={item} className="inline-flex items-center gap-1 rounded-full border border-purple-500/30 bg-purple-500/10 px-3 py-1 text-xs text-purple-700 dark:text-purple-200">
+                  <span key={item} className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-600 dark:border-slate-800 dark:text-slate-300">
                     <Star className="h-3.5 w-3.5" />
                     {item}
                   </span>
@@ -180,7 +180,7 @@ export default async function SubscriptionPage() {
           </div>
         </div>
         {org.isFoundersMember && (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-100">
+          <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
             <Sparkles className="h-3.5 w-3.5" />
             Founding Member #{org.foundersSlotNumber ?? "?"} · −{org.foundersLockedPct ?? 40}% lifetime
           </div>
@@ -229,30 +229,23 @@ export default async function SubscriptionPage() {
                   return (
                     <div
                       key={capability.key}
-                      className={cn(
-                        "flex items-start gap-3 rounded-lg border p-3",
-                        enabled
-                          ? "border-emerald-500/30 bg-emerald-500/10"
-                          : planned
-                            ? "border-amber-500/30 bg-amber-500/10"
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40",
-                      )}
+                      className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-800"
                     >
                       {enabled ? (
                         <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-300" />
                       ) : planned ? (
-                        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
                       ) : (
-                        <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
+                        <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" />
                       )}
                       <div>
                         <p className={cn(
                           "text-sm font-medium",
-                          enabled ? "text-emerald-700 dark:text-emerald-100" : planned ? "text-amber-700 dark:text-amber-100" : "text-slate-400",
+                          enabled ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500",
                         )}>
                           {capability.label}
                           {planned && !enabled && (
-                            <span className="ml-2 inline-flex items-center rounded-md bg-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-200">
+                            <span className="ml-2 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                               готовится — {planned}
                             </span>
                           )}
@@ -277,7 +270,7 @@ export default async function SubscriptionPage() {
         </div>
         <table className="w-full min-w-[480px] text-sm">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50">
+            <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
               <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
               <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Период</th>
               <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Сумма</th>
@@ -287,12 +280,12 @@ export default async function SubscriptionPage() {
             {org.subscriptions.length === 0 ? (
               <tr><td colSpan={3} className="px-5 py-6 text-center text-sm text-slate-500">Нет записей</td></tr>
             ) : org.subscriptions.map((subscription) => (
-              <tr key={subscription.id} className="border-b border-slate-800/70">
+              <tr key={subscription.id} className="border-b border-slate-100 dark:border-slate-800">
                 <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300">{subscription.plan.name}</td>
                 <td className="px-5 py-2.5 text-xs text-slate-500">
                   {new Date(subscription.startedAt).toLocaleDateString("ru-RU")} → {new Date(subscription.expiresAt).toLocaleDateString("ru-RU")}
                 </td>
-                <td className="px-5 py-2.5 text-right font-medium text-emerald-400">
+                <td className="px-5 py-2.5 text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">
                   {subscription.paidAmount.toLocaleString("ru-RU")} ₸
                 </td>
               </tr>

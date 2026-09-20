@@ -37,7 +37,7 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
       {active.length > 0 && (
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
-            <Package className="h-4 w-4 text-purple-400" />
+            <Package className="h-4 w-4 text-slate-400" />
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ваши аддоны</h2>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
