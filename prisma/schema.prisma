@@ -16,21 +16,21 @@ model User {
   role                    String    @default("TENANT")
   isActive                Boolean   @default(true) @map("is_active")
   // Удаление пользователя из /admin/users (soft): запись цела (FK/аудит), но скрыта.
-  deletedAt               DateTime? @map("deleted_at")
+  deletedAt               DateTime? @map("deleted_at") @db.Timestamptz(3)
   approvalStatus          String    @default("APPROVED") @map("approval_status")
-  approvalRequestedAt     DateTime? @map("approval_requested_at")
-  approvedAt              DateTime? @map("approved_at")
+  approvalRequestedAt     DateTime? @map("approval_requested_at") @db.Timestamptz(3)
+  approvedAt              DateTime? @map("approved_at") @db.Timestamptz(3)
   approvedById            String?   @map("approved_by_id")
   rejectionReason         String?   @map("rejection_reason")
   telegramChatId          String?   @map("telegram_chat_id")
   organizationId          String?   @map("organization_id") // null только для PLATFORM_OWNER
   isPlatformOwner         Boolean   @default(false) @map("is_platform_owner")
-  emailVerifiedAt         DateTime? @map("email_verified_at")
-  phoneVerifiedAt         DateTime? @map("phone_verified_at")
+  emailVerifiedAt         DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  phoneVerifiedAt         DateTime? @map("phone_verified_at") @db.Timestamptz(3)
   // Принудительная смена пароля при первом входе. true — пользователь не сможет
   // работать в системе, пока не задаст собственный пароль.
   mustChangePassword      Boolean   @default(false) @map("must_change_password")
-  passwordChangedAt       DateTime? @map("password_changed_at")
+  passwordChangedAt       DateTime? @map("password_changed_at") @db.Timestamptz(3)
   // Настройки каналов уведомлений (true = включён, по умолчанию всё включено)
   notifyEmail             Boolean   @default(true) @map("notify_email")
   notifyTelegram          Boolean   @default(true) @map("notify_telegram")
@@ -44,11 +44,11 @@ model User {
   notifyMutedTypes        Json?     @map("notify_muted_types")
   // 2FA (TOTP) — base32 secret для Google Authenticator. enabledAt = когда включена.
   totpSecret              String?   @map("totp_secret")
-  totpEnabledAt           DateTime? @map("totp_enabled_at")
+  totpEnabledAt           DateTime? @map("totp_enabled_at") @db.Timestamptz(3)
   // Резервные коды для входа без приложения (хешированные)
   totpBackupCodes         Json?     @map("totp_backup_codes")
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization           Organization?        @relation(fields: [organizationId], references: [id])
   tenant                 Tenant?
@@ -84,11 +84,11 @@ model ApiKey {
   keyHash        String    @unique @map("key_hash") // bcrypt хеш токена
   keyPrefix      String    @map("key_prefix") // первые 8 символов для отображения
   scope          String    @default("READ") // READ | WRITE
-  expiresAt      DateTime? @map("expires_at")
-  lastUsedAt     DateTime? @map("last_used_at")
-  revokedAt      DateTime? @map("revoked_at")
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(3)
+  lastUsedAt     DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
   createdById    String?   @map("created_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -126,16 +126,16 @@ model Organization {
   isActive            Boolean   @default(true) @map("is_active")
   isSuspended         Boolean   @default(false) @map("is_suspended")
   approvalStatus      String    @default("APPROVED") @map("approval_status")
-  approvalRequestedAt DateTime? @map("approval_requested_at")
-  approvedAt          DateTime? @map("approved_at")
+  approvalRequestedAt DateTime? @map("approval_requested_at") @db.Timestamptz(3)
+  approvedAt          DateTime? @map("approved_at") @db.Timestamptz(3)
   approvedById        String?   @map("approved_by_id")
   rejectionReason     String?   @map("rejection_reason")
   ownerUserId         String?   @map("owner_user_id")
   planId              String?   @map("plan_id")
-  planExpiresAt       DateTime? @map("plan_expires_at")
+  planExpiresAt       DateTime? @map("plan_expires_at") @db.Timestamptz(3)
   isFoundersMember    Boolean   @default(false) @map("is_founders_member")
   foundersLockedPct   Int?      @default(0) @map("founders_locked_pct")
-  foundersJoinedAt    DateTime? @map("founders_joined_at")
+  foundersJoinedAt    DateTime? @map("founders_joined_at") @db.Timestamptz(3)
   foundersSlotNumber  Int?      @map("founders_slot_number")
   // НДС: для арендодателя — выставляются ли документы с НДС
   isVatPayer          Boolean   @default(false) @map("is_vat_payer")
@@ -149,8 +149,8 @@ model Organization {
   penaltyGraceDays    Int       @default(1) @map("penalty_grace_days")
   // Org-level флаги, переключаемые владельцем (JSON). Напр. additionalChargesDisabled.
   features            String    @default("{}")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   plan          Plan?          @relation(fields: [planId], references: [id], onDelete: Restrict)
   buildings     Building[]
@@ -218,8 +218,8 @@ model OrgEsfConfig {
   // ключ байтами). Контейнер сам по себе защищён PIN-ом.
   certDataEnc    String?  @map("cert_data_enc")
   certFileName   String?  @map("cert_file_name")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -242,8 +242,8 @@ model AddressCache {
   source      String   @default("PHOTON")
   sourceId    String?  @map("source_id")
   raw         Json?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@unique([source, sourceId])
   @@index([countryCode, queryKey])
@@ -263,7 +263,7 @@ model WebVitalMetric {
   path           String?
   url            String?
   userAgent      String?  @map("user_agent")
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([organizationId, name, createdAt])
   @@index([name, createdAt])
@@ -281,7 +281,7 @@ model ServerPerformanceLog {
   durationMs     Int      @map("duration_ms")
   status         String   @default("ok")
   error          String?
-  createdAt      DateTime @default(now()) @map("created_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([organizationId, route, createdAt])
   @@index([route, createdAt])
@@ -307,8 +307,8 @@ model FaqArticle {
   hrefLabel      String?  @map("href_label")
   sortOrder      Int      @default(0) @map("sort_order")
   isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -326,8 +326,8 @@ model CashAccount {
   currency       String   @default("KZT")
   notes          String?
   isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   transactions CashTransaction[]
@@ -343,12 +343,12 @@ model CashTransaction {
   amount      Float // Положительное = приход, отрицательное = расход
   type        String // DEPOSIT | WITHDRAW | ADJUSTMENT | TRANSFER_OUT | TRANSFER_IN
   description String?
-  date        DateTime @default(now())
+  date        DateTime @default(now()) @db.Timestamptz(3)
   createdById String?  @map("created_by_id")
   // Опциональная связь с другими сущностями
   paymentId   String?  @map("payment_id")
   expenseId   String?  @map("expense_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   account CashAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
@@ -374,7 +374,7 @@ model Plan {
   features            String   @default("{}") // JSON
   isActive            Boolean  @default(true) @map("is_active")
   sortOrder           Int      @default(0) @map("sort_order")
-  createdAt           DateTime @default(now()) @map("created_at")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organizations Organization[]
   subscriptions Subscription[]
@@ -386,8 +386,8 @@ model Subscription {
   id                 String    @id @default(cuid())
   organizationId     String    @map("organization_id")
   planId             String    @map("plan_id")
-  startedAt          DateTime  @default(now()) @map("started_at")
-  expiresAt          DateTime  @map("expires_at")
+  startedAt          DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz(3)
   status             String    @default("ACTIVE")
   paidAmount         Float     @default(0) @map("paid_amount")
   paymentMethod      String?   @map("payment_method")
@@ -398,8 +398,8 @@ model Subscription {
   pricePerMonthPaid  Float?    @map("price_per_month_paid")
   discountBreakdown  String?   @map("discount_breakdown") // JSON
   autoRenew          Boolean   @default(false) @map("auto_renew")
-  reminderSentAt     DateTime? @map("reminder_sent_at")
-  createdAt          DateTime  @default(now()) @map("created_at")
+  reminderSentAt     DateTime? @map("reminder_sent_at") @db.Timestamptz(3)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   plan         Plan         @relation(fields: [planId], references: [id])
@@ -431,11 +431,11 @@ model OrganizationAddon {
   quantity       Int       @default(1)
   priceMonthly   Float     @default(0) @map("price_monthly")
   isActive       Boolean   @default(true) @map("is_active")
-  startedAt      DateTime  @default(now()) @map("started_at")
-  expiresAt      DateTime? @map("expires_at")
+  startedAt      DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(3)
   notes          String?
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -452,12 +452,12 @@ model OrganizationService {
   serviceName    String    @map("service_name")
   price          Float
   status         String    @default("PENDING") // PENDING | PAID | DELIVERED | CANCELLED
-  paidAt         DateTime? @map("paid_at")
-  deliveredAt    DateTime? @map("delivered_at")
+  paidAt         DateTime? @map("paid_at") @db.Timestamptz(3)
+  deliveredAt    DateTime? @map("delivered_at") @db.Timestamptz(3)
   paymentMethod  String?   @map("payment_method")
   notes          String?
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -472,10 +472,10 @@ model FoundersProgramState {
   totalSlots  Int       @default(15) @map("total_slots")
   takenSlots  Int       @default(0) @map("taken_slots")
   discountPct Int       @default(40) @map("discount_pct")
-  endsAt      DateTime? @map("ends_at")
+  endsAt      DateTime? @map("ends_at") @db.Timestamptz(3)
   isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("founders_program_state")
 }
@@ -489,7 +489,7 @@ model Notification {
   message   String
   link      String?
   isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -552,13 +552,13 @@ model Building {
   // Процент годовой индексации (по умолчанию 10). Применяется в cron-задаче
   // ежедневно: если now ≥ serviceFeeLastIndexedAt + 1 год — ставки ×(1+pct/100).
   serviceFeeIndexationPct Float?  @default(10) @map("service_fee_indexation_pct")
-  serviceFeeLastIndexedAt DateTime? @map("service_fee_last_indexed_at")
+  serviceFeeLastIndexedAt DateTime? @map("service_fee_last_indexed_at") @db.Timestamptz(3)
   // Какие коммунальные услуги УЖЕ включены в эксплуатационный сбор —
   // не выставляются арендатору отдельной строкой и скрываются из формы
   // «Доп. начисления». JSON-массив строк: ["ELECTRICITY","WATER","GARBAGE"...].
   // Пусто = все услуги выставляются отдельно. Добавлено 2026-05-27.
   utilitiesInServiceFee   String? @map("utilities_in_service_fee")
-  createdAt             DateTime @default(now()) @map("created_at")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization      Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   administrator     User?                @relation("BuildingAdmin", fields: [administratorUserId], references: [id], onDelete: SetNull)
@@ -601,7 +601,7 @@ model BuildingDecor {
   modelUrl   String?  @map("model_url")
   // Устаревшее: true — на крыше (мигрировано в level="roof").
   onRoof     Boolean  @default(false) @map("on_roof")
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
@@ -613,7 +613,7 @@ model UserBuildingAccess {
   id         String   @id @default(cuid())
   userId     String   @map("user_id")
   buildingId String   @map("building_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
@@ -632,8 +632,8 @@ model Tariff {
   unit        String   @default("ед.")
   description String?
   isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
@@ -734,12 +734,12 @@ model Tenant {
   // Если задан — переопределяет fixedMonthlyRent/customRate помесячно: движок берёт
   // сумму ступени, активной на расчётный период (см. lib/rent.ts). Пусто — единая ставка.
   rentSchedule     String?   @map("rent_schedule")
-  contractStart    DateTime? @map("contract_start")
-  contractEnd      DateTime? @map("contract_end")
+  contractStart    DateTime? @map("contract_start") @db.Timestamptz(3)
+  contractEnd      DateTime? @map("contract_end") @db.Timestamptz(3)
   // Фактическая дата заселения. Может отличаться от contractStart: договор
   // подписан 1 апреля, заехал 1 мая. Если NULL — = contractStart.
   // Используется как точка отсчёта каникул и proration. Добавлено 2026-05-27.
-  moveInDate       DateTime? @map("move_in_date")
+  moveInDate       DateTime? @map("move_in_date") @db.Timestamptz(3)
   // Арендные каникулы — N месяцев после moveInDate без начисления аренды
   // (ремонт, заселение). Cron check-deadlines пропускает создание Charge
   // для этих периодов. По умолчанию 0.
@@ -766,8 +766,8 @@ model Tenant {
   // нет БИН/устава, основание в договоре — паспортные данные. Добавлено 2026-06-17.
   idDocNumber      String?   @map("id_doc_number")
   idDocIssuedBy    String?   @map("id_doc_issued_by")
-  idDocIssuedAt    DateTime? @map("id_doc_issued_at")
-  idDocExpiresAt   DateTime? @map("id_doc_expires_at")
+  idDocIssuedAt    DateTime? @map("id_doc_issued_at") @db.Timestamptz(3)
+  idDocExpiresAt   DateTime? @map("id_doc_expires_at") @db.Timestamptz(3)
   // Является ли арендатор плательщиком НДС (для будущей ЭСФ)
   isVatPayer       Boolean   @default(false) @map("is_vat_payer")
   vatRate          Float     @default(16) @map("vat_rate")
@@ -780,7 +780,7 @@ model Tenant {
   esfEnabled       Boolean   @default(true) @map("esf_enabled")
   // Чёрный список: причина и время попадания. Если != null — нельзя завести
   // нового арендатора с таким БИН/ИИН (предупреждение администратору).
-  blacklistedAt    DateTime? @map("blacklisted_at")
+  blacklistedAt    DateTime? @map("blacklisted_at") @db.Timestamptz(3)
   blacklistReason  String?   @map("blacklist_reason")
   // Внутренние заметки владельца/админа («позвонил 5-го, обещал оплатить»).
   // Арендатору НЕ видны нигде.
@@ -789,9 +789,9 @@ model Tenant {
   // Cron в дату nextIndexationAt повышает customRate/fixedMonthlyRent на
   // indexationPct и сдвигает дату на год вперёд. NULL — индексации нет.
   indexationPct    Float?    @map("indexation_pct")
-  nextIndexationAt DateTime? @map("next_indexation_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  deletedAt        DateTime? @map("deleted_at")
+  nextIndexationAt DateTime? @map("next_indexation_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   user           User                @relation(fields: [userId], references: [id])
   space          Space?              @relation(fields: [spaceId], references: [id])
@@ -825,8 +825,8 @@ model TenantBankAccount {
   iik       String
   bik       String
   isPrimary Boolean  @default(false) @map("is_primary")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
@@ -840,7 +840,7 @@ model TenantSpace {
   tenantId  String   @map("tenant_id")
   spaceId   String   @map("space_id")
   isPrimary Boolean  @default(false) @map("is_primary")
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   space  Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
@@ -856,7 +856,7 @@ model Staff {
   userId   String   @unique @map("user_id")
   position String
   salary   Float    @default(0)
-  hireDate DateTime @default(now()) @map("hire_date")
+  hireDate DateTime @default(now()) @map("hire_date") @db.Timestamptz(3)
 
   user           User            @relation(fields: [userId], references: [id])
   salaryPayments SalaryPayment[]
@@ -877,23 +877,23 @@ model Contract {
   // DRAFT → SENT → VIEWED → SIGNED_BY_TENANT → SIGNED (обе стороны)
   // или альтернативные: REJECTED, EXPIRED
   status             String    @default("DRAFT")
-  signedAt           DateTime? @map("signed_at")
-  startDate          DateTime? @map("start_date")
-  endDate            DateTime? @map("end_date")
+  signedAt           DateTime? @map("signed_at") @db.Timestamptz(3)
+  startDate          DateTime? @map("start_date") @db.Timestamptz(3)
+  endDate            DateTime? @map("end_date") @db.Timestamptz(3)
   // Workflow подписания:
   signToken          String?   @unique @map("sign_token") // токен для уникальной ссылки tenant'у
-  sentAt             DateTime? @map("sent_at") // когда отправлено арендатору
-  viewedAt           DateTime? @map("viewed_at") // когда арендатор открыл ссылку
-  signedByTenantAt   DateTime? @map("signed_by_tenant_at")
+  sentAt             DateTime? @map("sent_at") // когда отправлено арендатору @db.Timestamptz(3)
+  viewedAt           DateTime? @map("viewed_at") // когда арендатор открыл ссылку @db.Timestamptz(3)
+  signedByTenantAt   DateTime? @map("signed_by_tenant_at") @db.Timestamptz(3)
   signedByTenantName String?   @map("signed_by_tenant_name") // ФИО подписавшего
-  signedByLandlordAt DateTime? @map("signed_by_landlord_at")
-  rejectedAt         DateTime? @map("rejected_at")
+  signedByLandlordAt DateTime? @map("signed_by_landlord_at") @db.Timestamptz(3)
+  rejectedAt         DateTime? @map("rejected_at") @db.Timestamptz(3)
   rejectionReason    String?   @map("rejection_reason")
   parentContractId   String?   @map("parent_contract_id")
   changeKind         String?   @map("change_kind")
   changePayload      Json?     @map("change_payload")
-  effectiveDate      DateTime? @map("effective_date")
-  appliedAt          DateTime? @map("applied_at")
+  effectiveDate      DateTime? @map("effective_date") @db.Timestamptz(3)
+  appliedAt          DateTime? @map("applied_at") @db.Timestamptz(3)
   // Версионирование: при создании новой версии контракт-предок переходит в ARCHIVED,
   // а на новой записи version = parent.version + 1, parentVersionId указывает на источник.
   version            Int       @default(1)
@@ -903,8 +903,8 @@ model Contract {
   // Внешний договор (type=EXTERNAL): загруженный PDF контрагента (вышки/камеры,
   // которые не принимают нашу редакцию). Подписан офлайн, конструктор/ЭЦП не нужны.
   attachmentFileId   String?   @unique @map("attachment_file_id")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  deletedAt          DateTime? @map("deleted_at")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   tenant         Tenant     @relation(fields: [tenantId], references: [id])
   attachmentFile StoredFile? @relation("ContractAttachment", fields: [attachmentFileId], references: [id], onDelete: SetNull)
@@ -935,9 +935,9 @@ model Charge {
   amount      Float
   description String?
   isPaid      Boolean   @default(false) @map("is_paid")
-  dueDate     DateTime? @map("due_date")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  deletedAt   DateTime? @map("deleted_at")
+  dueDate     DateTime? @map("due_date") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
   // Пеня по этому начислению отменена вручную админом (см. waivePenalty). Cron
   // check-deadlines пропускает такие начисления и больше не капает по ним пеню —
   // полезно пока нет онлайн-оплаты и загрузки подтверждения платежа.
@@ -977,8 +977,8 @@ model DebtInstallmentPlan {
   // ACTIVE | COMPLETED | BROKEN | CANCELLED
   status      String   @default("ACTIVE")
   note        String?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   installments DebtInstallment[]
@@ -992,13 +992,13 @@ model DebtInstallment {
   id        String    @id @default(cuid())
   planId    String    @map("plan_id")
   seq       Int // порядковый номер платежа 1..N
-  dueDate   DateTime  @map("due_date")
+  dueDate   DateTime  @map("due_date") @db.Timestamptz(3)
   amount    Float
   isPaid    Boolean   @default(false) @map("is_paid")
-  paidAt    DateTime? @map("paid_at")
+  paidAt    DateTime? @map("paid_at") @db.Timestamptz(3)
   // Платёж, которым закрыт взнос (для трассировки). Не FK — как в cash_transactions.
   paymentId String?   @map("payment_id")
-  createdAt DateTime  @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   plan DebtInstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
@@ -1012,7 +1012,7 @@ model Payment {
   id          String    @id @default(cuid())
   tenantId    String    @map("tenant_id")
   amount      Float
-  paymentDate DateTime  @map("payment_date")
+  paymentDate DateTime  @map("payment_date") @db.Timestamptz(3)
   method      String    @default("TRANSFER")
   note        String?
   // Нераспределённый остаток платежа (аванс/переплата): FIFO гасит начисления только
@@ -1024,10 +1024,10 @@ model Payment {
   externalRef String?   @unique @map("external_ref")
   // Подтверждение квитанции о приёме наличных администратором (миграция 026).
   // Квитанция действительна (печатается) только после подтверждения.
-  receiptConfirmedAt   DateTime? @map("receipt_confirmed_at")
+  receiptConfirmedAt   DateTime? @map("receipt_confirmed_at") @db.Timestamptz(3)
   receiptConfirmedById String?   @map("receipt_confirmed_by_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  deletedAt   DateTime? @map("deleted_at")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   tenant            Tenant          @relation(fields: [tenantId], references: [id])
   reports           PaymentReport[]
@@ -1044,7 +1044,7 @@ model PaymentReport {
   tenantId       String    @map("tenant_id")
   userId         String    @map("user_id")
   amount         Float
-  paymentDate    DateTime  @map("payment_date")
+  paymentDate    DateTime  @map("payment_date") @db.Timestamptz(3)
   method         String    @default("TRANSFER")
   status         String    @default("PENDING")
   paymentPurpose String?   @map("payment_purpose")
@@ -1054,10 +1054,10 @@ model PaymentReport {
   receiptDataUrl String?   @map("receipt_data_url")
   receiptFileId  String?   @map("receipt_file_id")
   reviewedById   String?   @map("reviewed_by_id")
-  reviewedAt     DateTime? @map("reviewed_at")
+  reviewedAt     DateTime? @map("reviewed_at") @db.Timestamptz(3)
   paymentId      String?   @map("payment_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user        User        @relation("PaymentReportUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -1093,7 +1093,7 @@ model MeterReading {
   period    String
   value     Float
   previous  Float    @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   meter Meter @relation(fields: [meterId], references: [id], onDelete: Cascade)
 
@@ -1113,8 +1113,8 @@ model Request {
   priority    String   @default("MEDIUM")
   status      String   @default("NEW")
   assigneeId  String?  @map("assignee_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   tenant   Tenant           @relation(fields: [tenantId], references: [id])
   user     User             @relation(fields: [userId], references: [id])
@@ -1131,7 +1131,7 @@ model RequestComment {
   requestId String   @map("request_id")
   authorId  String   @map("author_id")
   text      String
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   request Request @relation(fields: [requestId], references: [id])
   author  User    @relation(fields: [authorId], references: [id])
@@ -1152,13 +1152,13 @@ model Task {
   spaceNumber   String?   @map("space_number")
   estimatedCost Float?    @map("estimated_cost")
   actualCost    Float?    @map("actual_cost")
-  dueDate       DateTime? @map("due_date")
+  dueDate       DateTime? @map("due_date") @db.Timestamptz(3)
   status        String    @default("NEW")
   priority      String    @default("MEDIUM")
   createdById   String    @map("created_by_id")
   assignedToId  String?   @map("assigned_to_id")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   building   Building? @relation(fields: [buildingId], references: [id], onDelete: SetNull)
   createdBy  User      @relation("TaskCreator", fields: [createdById], references: [id])
@@ -1180,8 +1180,8 @@ model Expense {
   amount      Float
   period      String
   description String?
-  date        DateTime
-  createdAt   DateTime @default(now()) @map("created_at")
+  date        DateTime @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   // Если расход создан из шаблона постоянного расхода (автоповтор) — ссылка
   // на него. Уникальность (recurringExpenseId, period) гарантирует, что cron
   // и ручная генерация не задвоят один и тот же расход за месяц. Для разовых
@@ -1218,8 +1218,8 @@ model RecurringExpense {
   // сумма при генерации расхода. null = просто фиксировать расход без списания.
   cashAccountId String?  @map("cash_account_id")
   isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   building Building  @relation(fields: [buildingId], references: [id], onDelete: Cascade)
   expenses Expense[]
@@ -1244,7 +1244,7 @@ model MarketRentStat {
   perSqmMin    Float?   @map("per_sqm_min")
   perSqmMax    Float?   @map("per_sqm_max")
   sampleCount  Int      @map("sample_count")
-  collectedAt  DateTime @default(now()) @map("collected_at")
+  collectedAt  DateTime @default(now()) @map("collected_at") @db.Timestamptz(3)
 
   @@index([city, district, propertyType, collectedAt])
   @@index([collectedAt])
@@ -1256,9 +1256,9 @@ model SalaryPayment {
   staffId   String    @map("staff_id")
   amount    Float
   period    String
-  paidAt    DateTime? @map("paid_at")
+  paidAt    DateTime? @map("paid_at") @db.Timestamptz(3)
   status    String    @default("PENDING")
-  createdAt DateTime  @default(now()) @map("created_at")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   staff Staff @relation(fields: [staffId], references: [id])
   @@index([staffId])
@@ -1273,7 +1273,7 @@ model TenantDocument {
   name          String
   fileUrl       String?  @map("file_url")
   storageFileId String?  @unique @map("storage_file_id")
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   tenant      Tenant      @relation(fields: [tenantId], references: [id])
   storageFile StoredFile? @relation("TenantDocumentStorage", fields: [storageFileId], references: [id], onDelete: SetNull)
@@ -1301,8 +1301,8 @@ model StoredFile {
   sha256         String
   data           Bytes
   uploadedById   String?   @map("uploaded_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   building       Building?       @relation(fields: [buildingId], references: [id], onDelete: SetNull)
@@ -1331,7 +1331,7 @@ model Message {
   body          String
   isRead        Boolean  @default(false) @map("is_read")
   attachmentUrl String?  @map("attachment_url")
-  createdAt     DateTime @default(now()) @map("created_at")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   from User @relation("MessageSender", fields: [fromId], references: [id])
   to   User @relation("MessageReceiver", fields: [toId], references: [id])
@@ -1365,7 +1365,7 @@ model AuditLog {
   entityId  String?  @map("entity_id")
   details   String? // JSON с deltaмiBefore/After
   ip        String?
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([entity, entityId])
@@ -1392,9 +1392,9 @@ model Lead {
   source      String    @default("OTHER") // SITE | KRISHA | OLX | WORD_OF_MOUTH | OTHER
   status      String    @default("NEW") // NEW | SHOWN | NEGOTIATION | SIGNED | LOST
   notes       String?
-  bookedUntil DateTime? @map("booked_until")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  bookedUntil DateTime? @map("booked_until") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
 
@@ -1415,9 +1415,9 @@ model EmailLog {
   externalId String?   @map("external_id")
   status     String    @default("SENT")
   error      String?
-  openedAt   DateTime? @map("opened_at")
+  openedAt   DateTime? @map("opened_at") @db.Timestamptz(3)
   openCount  Int       @default(0) @map("open_count")
-  sentAt     DateTime  @default(now()) @map("sent_at")
+  sentAt     DateTime  @default(now()) @map("sent_at") @db.Timestamptz(3)
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -1438,7 +1438,7 @@ model RolePermission {
   section   String // dashboard | buildings | spaces | tenants | finances | meters | contracts | requests | tasks | staff | complaints | messages | analytics | settings | roles | users | documents
   canView   Boolean  @default(false) @map("can_view")
   canEdit   Boolean  @default(false) @map("can_edit")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1455,7 +1455,7 @@ model Complaint {
   text      String
   status    String   @default("NEW")
   response  String?
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   user User? @relation(fields: [userId], references: [id])
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -1478,7 +1478,7 @@ model SiteImage {
   mime      String
   fileName  String?  @map("file_name")
   data      Bytes
-  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   @@map("site_images")
 }
@@ -1496,7 +1496,7 @@ model DocumentTemplate {
   fileSize       Int      @map("file_size")
   isActive       Boolean  @default(true) @map("is_active")
   uploadedById   String?  @map("uploaded_by_id")
-  uploadedAt     DateTime @default(now()) @map("uploaded_at")
+  uploadedAt     DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(3)
   notes          String?
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1519,12 +1519,12 @@ model GeneratedDocument {
   fileSize       Int      @map("file_size")
   format         String   @default("DOCX")
   generatedById  String?   @map("generated_by_id")
-  generatedAt    DateTime  @default(now()) @map("generated_at")
+  generatedAt    DateTime  @default(now()) @map("generated_at") @db.Timestamptz(3)
   templateUsedId String?   @map("template_used_id")
   // Исходное состояние конструктора (InvoiceState/AvrState/...) — чтобы пересобрать
   // подписанную версию с QR и штампами ЭЦП при скачивании (как у договора).
   sourceState    Json?     @map("source_state")
-  deletedAt      DateTime? @map("deleted_at")
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
   // Договор-источник: счёт/АВР/сверка выписаны по нему (номер, дата, суммы).
   // Жёсткая связь для «дерева документов» арендатора и ссылок ЭСФ.
   contractId     String?   @map("contract_id")
@@ -1532,13 +1532,13 @@ model GeneratedDocument {
   esfId          String?   @map("esf_id")
   esfRegNumber   String?   @map("esf_reg_number")
   esfStatus      String?   @map("esf_status") // SENT | DELIVERED | CONFIRMED | DECLINED | CANCELED | FAILED
-  esfSentAt      DateTime? @map("esf_sent_at")
+  esfSentAt      DateTime? @map("esf_sent_at") @db.Timestamptz(3)
   esfError       String?   @map("esf_error")
   // Сверка взаиморасчётов: статус подтверждения контрагентом (только для
   // documentType = RECONCILIATION). SENT — отправлен арендатору на сверку,
   // AGREED — арендатор подтвердил, DISPUTED — заявил расхождение (с комментарием).
   reconStatus       String?   @map("recon_status")
-  reconRespondedAt  DateTime? @map("recon_responded_at")
+  reconRespondedAt  DateTime? @map("recon_responded_at") @db.Timestamptz(3)
   reconResponseNote String?   @map("recon_response_note")
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1573,14 +1573,14 @@ model DocumentSignature {
   signedHashB64  String    @map("signed_hash_b64")
   signatureB64   String    @map("signature_b64")
   certPemB64     String    @map("cert_pem_b64")
-  validFrom      DateTime? @map("valid_from")
-  validTo        DateTime? @map("valid_to")
+  validFrom      DateTime? @map("valid_from") @db.Timestamptz(3)
+  validTo        DateTime? @map("valid_to") @db.Timestamptz(3)
   algorithm      String    @default("RSA-SHA256") @map("algorithm")
   // Метка доверенного времени (TSP, RFC 3161) от TSA НУЦ РК — извлекается из CMS
   // при верификации через NCANode. Доказывает момент подписания независимо от часов клиента.
-  tspGenTime     DateTime? @map("tsp_gen_time")
+  tspGenTime     DateTime? @map("tsp_gen_time") @db.Timestamptz(3)
   tspSerial      String?   @map("tsp_serial")
-  signedAt       DateTime  @default(now()) @map("signed_at")
+  signedAt       DateTime  @default(now()) @map("signed_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
@@ -1596,9 +1596,9 @@ model VerificationToken {
   type      String // EMAIL_VERIFY | PHONE_VERIFY | PASSWORD_RESET | EMAIL_CHANGE | PHONE_CHANGE
   target    String // email или телефон
   token     String    @unique
-  expiresAt DateTime  @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([userId, type])
   @@index([token])
@@ -1617,10 +1617,10 @@ model PushDevice {
   locale         String?
   timezone       String?
   isActive       Boolean   @default(true) @map("is_active")
-  lastSeenAt     DateTime  @default(now()) @map("last_seen_at")
-  revokedAt      DateTime? @map("revoked_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  lastSeenAt     DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz(3)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([provider, token])
@@ -1641,12 +1641,12 @@ model MobileSession {
   appVersion       String?   @map("app_version")
   userAgent        String?   @map("user_agent")
   ip               String?
-  expiresAt        DateTime  @map("expires_at")
-  refreshExpiresAt DateTime  @map("refresh_expires_at")
-  revokedAt        DateTime? @map("revoked_at")
-  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  refreshExpiresAt DateTime  @map("refresh_expires_at") @db.Timestamptz(3)
+  revokedAt        DateTime? @map("revoked_at") @db.Timestamptz(3)
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
@@ -1664,11 +1664,11 @@ model BuildingNotice {
   severity       String    @default("INFO")
   title          String
   message        String
-  startsAt       DateTime? @map("starts_at")
-  endsAt         DateTime? @map("ends_at")
-  sentAt         DateTime? @map("sent_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  startsAt       DateTime? @map("starts_at") @db.Timestamptz(3)
+  endsAt         DateTime? @map("ends_at") @db.Timestamptz(3)
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, buildingId, createdAt])
@@ -1691,19 +1691,19 @@ model DocumentSignatureRequest {
   allowedMethods  Json?     @map("allowed_methods")
   preferredMethod String?   @map("preferred_method")
   signToken       String?   @unique @map("sign_token")
-  expiresAt       DateTime? @map("expires_at")
-  viewedAt        DateTime? @map("viewed_at")
-  signedAt        DateTime? @map("signed_at")
-  rejectedAt      DateTime? @map("rejected_at")
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(3)
+  viewedAt        DateTime? @map("viewed_at") @db.Timestamptz(3)
+  signedAt        DateTime? @map("signed_at") @db.Timestamptz(3)
+  rejectedAt      DateTime? @map("rejected_at") @db.Timestamptz(3)
   rejectionReason String?   @map("rejection_reason")
   signatureId     String?   @map("signature_id")
   smsPhoneMasked  String?   @map("sms_phone_masked")
   otpHash         String?   @map("otp_hash")
-  otpExpiresAt    DateTime? @map("otp_expires_at")
-  otpVerifiedAt   DateTime? @map("otp_verified_at")
+  otpExpiresAt    DateTime? @map("otp_expires_at") @db.Timestamptz(3)
+  otpVerifiedAt   DateTime? @map("otp_verified_at") @db.Timestamptz(3)
   metadata        Json?
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, createdAt])
@@ -1725,9 +1725,9 @@ model ContractDraft {
   tenantId       String?   @map("tenant_id")
   status         String    @default("DRAFT")
   createdById    String?   @map("created_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status, updatedAt])
@@ -1747,8 +1747,8 @@ model BuilderProject {
   schemaVersion  Int      @default(1) @map("schema_version")
   revision       Int      @default(0)
   createdById    String?  @map("created_by_id")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, updatedAt])
@@ -1763,7 +1763,7 @@ model BuilderSnapshot {
   revision  Int
   doc       Json
   note      String?
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([projectId, createdAt(sort: Desc)])
   @@map("builder_snapshots")
@@ -1785,8 +1785,8 @@ model ListingDraft {
   status         String   @default("DRAFT") // DRAFT|COPIED|PUBLISHED|ARCHIVED
   externalUrl    String?  @map("external_url")
   createdById    String?  @map("created_by_id")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status])
@@ -1798,10 +1798,10 @@ model ListingDraft {
 model BuilderShare {
   token       String    @id
   projectId   String    @map("project_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   // срок действия ссылки и отзыв: публичная витрина не должна жить вечно
-  expiresAt   DateTime? @map("expires_at")
-  revokedAt   DateTime? @map("revoked_at")
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(3)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(3)
   createdById String?   @map("created_by_id")
 
   @@index([projectId])
@@ -1816,7 +1816,7 @@ model BuilderShareView {
   id        String   @id @default(cuid())
   token     String
   projectId String   @map("project_id")
-  openedAt  DateTime @default(now()) @map("opened_at")
+  openedAt  DateTime @default(now()) @map("opened_at") @db.Timestamptz(3)
   visitor   String?
   userAgent String?  @map("user_agent")
 
@@ -1833,7 +1833,7 @@ model DocumentCounter {
   documentType   String   @map("document_type")
   /// следующий свободный номер
   nextNumber     Int      @default(1) @map("next_number")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
