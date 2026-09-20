@@ -88,7 +88,12 @@ async function wipeDemoData(orgId: string) {
   await step("floors", () => db.floor.deleteMany({ where: { id: { in: floorIds } } }))
   await step("buildings", () => db.building.deleteMany({ where: { id: { in: buildingIds } } }))
   // Пользователи-арендаторы демо удаляются; владелец демо остаётся (upsert при seed).
-  await step("tenantUsers", () => db.user.deleteMany({ where: { organizationId: orgId, email: { not: DEMO_EMAIL } } }))
+  // ВАЖНО: у демо-арендаторов email пустой, а условие `email != DEMO_EMAIL`
+  // в SQL не выбирает NULL — поэтому старые демо-пользователи копились
+  // (612 строк за три месяца). Берём всех, кроме владельца демо, явно.
+  await step("tenantUsers", () => db.user.deleteMany({
+    where: { organizationId: orgId, OR: [{ email: null }, { email: { not: DEMO_EMAIL } }] },
+  }))
 }
 
 /** Случайный «казахстанский» телефон — телефоны уникальны в БД, а старые могли остаться soft-deleted. */
