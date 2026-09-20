@@ -602,6 +602,7 @@ export function PropertyPanel({ buildingId }: { buildingId?: string } = {}) {
               buildingId={buildingId}
               premiseId={islPremise?.id ?? null}
               currentTenant={islPremise?.tenantName ?? null}
+              linkPremise={(spaceId) => execute(new LinkPremiseCommand(islandTarget, iid, spaceId))}
               ensurePremise={async () => {
                 const row = await createIslandPremise({ floorId: f?.sourceFloorId ?? null, buildingId, areaM2: islandArea(isl), name: islandLabel(isl) })
                 if (!row) return null

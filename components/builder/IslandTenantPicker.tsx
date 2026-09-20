@@ -16,11 +16,14 @@ export function IslandTenantPicker({
   premiseId,
   currentTenant,
   ensurePremise,
+  linkPremise,
 }: {
   buildingId: string
   premiseId: string | null
   currentTenant: string | null
   ensurePremise: () => Promise<string | null>
+  /** Привязать объект к уже существующей карточке места */
+  linkPremise: (spaceId: string) => void
 }) {
   const [tenants, setTenants] = useState<BuilderTenantOption[]>([])
   const [busy, setBusy] = useState(false)
@@ -39,7 +42,14 @@ export function IslandTenantPicker({
     setBusy(true)
     setError(null)
     try {
-      const spaceId = premiseId ?? (await ensurePremise())
+      // Если у арендатора уже есть место — привязываем объект к нему, а не
+      // заводим вторую карточку (у MTA так появились «Киоск» и «М-4»).
+      const name = tenants.find((t) => t.id === tenantId)?.name
+      const already = premiseId
+        ? null
+        : [...usePremiseStore.getState().byId.values()].find((p) => !!name && p.tenantName === name)
+      if (already) linkPremise(already.id)
+      const spaceId = premiseId ?? already?.id ?? (await ensurePremise())
       if (!spaceId) throw new Error("Не удалось завести карточку места")
       const res = await assignTenantToPlace(tenantId, spaceId)
       if (!res.ok) throw new Error(res.error)

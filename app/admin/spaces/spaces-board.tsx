@@ -109,7 +109,10 @@ function SpaceTile({ row: r, isZone }: { row: SpaceRow; isZone: boolean }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-lg font-bold text-slate-900 dark:text-slate-100" title={r.description ?? undefined}>{r.number}</p>
-          {!isZone && <p className="text-xs text-slate-500 dark:text-slate-400">{area(r.area)}</p>}
+          {/* Описание места («Контейнер 20 футов») — номер «М-4» сам по себе ничего не говорит */}
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            {[r.description?.trim() || null, isZone ? null : area(r.area)].filter(Boolean).join(" · ")}
+          </p>
         </div>
         {vacant ? (
           <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white">Свободно</span>
