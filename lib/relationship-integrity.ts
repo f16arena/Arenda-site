@@ -569,14 +569,14 @@ export async function getRelationshipIntegrityOverview({
     contour: "subscription",
     count: activeSubscription ? 0 : 1,
     actionLabel: "Открыть подписку",
-    href: "/admin/settings",
+    href: "/admin/subscription",
     items: activeSubscription ? [] : [{
       id: "subscription",
       label: organization?.name ?? "Организация",
       meta: latestSubscription
         ? `Последняя подписка: ${latestSubscription.status}, до ${formatDate(latestSubscription.expiresAt)}`
         : "Подписка еще не заведена",
-      href: "/admin/settings",
+      href: "/admin/subscription",
     }],
   })
 
