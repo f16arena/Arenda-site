@@ -138,9 +138,41 @@ export async function setContractSignatureManual(
 
     const c = await db.contract.findFirst({
       where: { AND: [contractScope(orgId), { id: contractId }] },
-      select: { id: true, signedByLandlordAt: true, signedByTenantAt: true, tenant: { select: { id: true } } },
+      select: {
+        id: true,
+        number: true,
+        status: true,
+        signedByLandlordAt: true,
+        signedByTenantAt: true,
+        tenant: { select: { id: true } },
+      },
     })
     if (!c) return { ok: false, error: "Договор не найден" }
+
+    // Подпись ЭЦП — криптографический факт, галочкой её не отменить.
+    const ecpSignatures = await db.documentSignature.count({
+      where: {
+        organizationId: orgId,
+        documentType: "CONTRACT",
+        OR: [{ documentId: c.id }, ...(c.number ? [{ documentRef: c.number }] : [])],
+      },
+    })
+    if (ecpSignatures > 0 && (!landlord || !tenant)) {
+      return { ok: false, error: "Договор подписан ЭЦП — снять отметку вручную нельзя" }
+    }
+
+    /**
+     * Статус идёт за отметками, а не живёт отдельно. Раньше он «не понижался»:
+     * стоило по ошибке отметить подпись обеих сторон и снять её обратно —
+     * договор оставался SIGNED и висел в «Активных», хотя подписи уже не было.
+     */
+    const status = landlord && tenant
+      ? "SIGNED"
+      : tenant
+        ? "SIGNED_BY_TENANT"
+        : c.status === "DRAFT"
+          ? "DRAFT"
+          : "SENT"
 
     const now = new Date()
     await db.contract.update({
@@ -148,8 +180,8 @@ export async function setContractSignatureManual(
       data: {
         signedByLandlordAt: landlord ? c.signedByLandlordAt ?? now : null,
         signedByTenantAt: tenant ? c.signedByTenantAt ?? now : null,
-        // Обе стороны → договор полностью подписан. Иначе статус не понижаем.
-        ...(landlord && tenant ? { status: "SIGNED" } : {}),
+        signedAt: landlord && tenant ? undefined : null,
+        status,
       },
     })
     revalidatePath("/admin/documents")
