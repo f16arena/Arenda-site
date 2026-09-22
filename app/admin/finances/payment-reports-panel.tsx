@@ -8,7 +8,9 @@ import { confirmPaymentReport, markPaymentReportDisputed, rejectPaymentReport } 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { CHARGE_TYPES, PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 
 type CashAccount = {
   id: string
@@ -50,6 +52,7 @@ type Props = {
 }
 
 export function PaymentReportsPanel({ reports, cashAccounts }: Props) {
+  const { t, tp } = useT()
   const [open, setOpen] = useState(true)
 
   if (reports.length === 0) return null
@@ -67,15 +70,15 @@ export function PaymentReportsPanel({ reports, cashAccounts }: Props) {
           </div>
           <div>
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              Арендаторы сообщили об оплате
+              {t("adminFinance.reports.title")}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {reports.length} платежей ждут проверки и проведения.
+              {tp("adminFinance.reports.subtitle", reports.length)}
             </p>
           </div>
         </div>
         <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
-          {open ? "Свернуть" : "Показать"}
+          {open ? t("adminFinance.reports.collapse") : t("adminFinance.reports.expand")}
         </Badge>
       </button>
 
@@ -97,18 +100,31 @@ function ReportCard({
   report: PaymentReport
   cashAccounts: CashAccount[]
 }) {
+  const { t } = useT()
+  const locale = useLocale()
   const [pending, startTransition] = useTransition()
   const [rejecting, setRejecting] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState(report.method || "TRANSFER")
   const [selectedAccountId, setSelectedAccountId] = useState(() => defaultAccountForMethod(report.method, cashAccounts))
   const isDisputed = report.status === "DISPUTED"
   const defaultChargeIds = getDefaultChargeIds(report.amount, report.tenant.charges)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const methodLabel = (method: string) => {
+    const key = `domain.paymentMethods.${method}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? method : label
+  }
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
 
   function submitConfirm(formData: FormData) {
     startTransition(async () => {
       const result = await confirmPaymentReport(formData)
-      if (result.ok) toast.success(result.message ?? "Платеж проведен")
-      else toast.error(result.error ?? "Не удалось провести платеж")
+      if (result.ok) toast.success(result.message ?? t("adminFinance.reports.confirmed"))
+      else toast.error(result.error ?? t("adminFinance.reports.confirmFailed"))
     })
   }
 
@@ -116,16 +132,20 @@ function ReportCard({
     startTransition(async () => {
       const result = await rejectPaymentReport(formData)
       if (result.ok) {
-        toast.success(result.message ?? "Заявка отклонена")
+        toast.success(result.message ?? t("adminFinance.reports.rejected"))
         setRejecting(false)
       } else {
-        toast.error(result.error ?? "Не удалось отклонить")
+        toast.error(result.error ?? t("adminFinance.reports.rejectFailed"))
       }
     })
   }
 
   async function submitDispute() {
-    const reason = await askText({ title: "Что нужно уточнить по оплате?", label: "Вопрос арендатору", confirmLabel: "Отправить" })
+    const reason = await askText({
+      title: t("adminFinance.reports.disputeTitle"),
+      label: t("adminFinance.reports.disputeLabel"),
+      confirmLabel: t("adminFinance.reports.disputeSend"),
+    })
     if (!reason?.trim()) return
     const formData = new FormData()
     formData.set("reportId", report.id)
@@ -133,8 +153,8 @@ function ReportCard({
 
     startTransition(async () => {
       const result = await markPaymentReportDisputed(formData)
-      if (result.ok) toast.success(result.message ?? "Оплата помечена как спорная")
-      else toast.error(result.error ?? "Не удалось пометить оплату как спорную")
+      if (result.ok) toast.success(result.message ?? t("adminFinance.reports.disputedDone"))
+      else toast.error(result.error ?? t("adminFinance.reports.disputeFailed"))
     })
   }
 
@@ -148,28 +168,30 @@ function ReportCard({
                 {report.tenant.companyName}
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Сообщил {new Date(report.createdAt).toLocaleString("ru-RU", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
+                {t("adminFinance.reports.reportedAt", {
+                  datetime: new Date(report.createdAt).toLocaleString(INTL_LOCALE[locale], {
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
                 })}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatMoney(report.amount)}</p>
+              <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{money(report.amount)}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {new Date(report.paymentDate).toLocaleDateString("ru-RU")}
+                {formatDateShortL(locale, report.paymentDate)}
               </p>
               <Badge className="mt-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                {PAYMENT_METHOD_LABELS[report.method] ?? report.method}
+                {methodLabel(report.method)}
               </Badge>
               <Badge className={`mt-1 ${
                 isDisputed
                   ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
                   : "bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
               }`}>
-                {isDisputed ? "Спорная" : "Ждет проверки"}
+                {isDisputed ? t("adminFinance.reports.disputed") : t("adminFinance.reports.checking")}
               </Badge>
             </div>
           </div>
@@ -193,12 +215,12 @@ function ReportCard({
               className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <Eye className="h-4 w-4" />
-              Открыть чек
+              {t("adminFinance.reports.openReceipt")}
             </a>
           ) : (
             <div className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-500 dark:bg-slate-800 dark:text-slate-400">
               <FileText className="h-4 w-4" />
-              Чек не приложен
+              {t("adminFinance.reports.noReceipt")}
             </div>
           )}
         </div>
@@ -208,11 +230,11 @@ function ReportCard({
             <form action={submitReject} className="space-y-3">
               <input type="hidden" name="reportId" value={report.id} />
               <label className="block">
-                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Причина отклонения</span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.reports.rejectReason")}</span>
                 <Textarea
                   name="reason"
                   rows={3}
-                  placeholder="Например: сумма не поступила на счет"
+                  placeholder={t("adminFinance.reports.rejectPlaceholder")}
                   className="mt-1 resize-none"
                 />
               </label>
@@ -223,7 +245,7 @@ function ReportCard({
                   onClick={() => setRejecting(false)}
                   className="flex-1"
                 >
-                  Назад
+                  {t("common.actions.back")}
                 </Button>
                 <Button
                   type="submit"
@@ -231,7 +253,7 @@ function ReportCard({
                   disabled={pending}
                   className="flex-1"
                 >
-                  Отклонить
+                  {t("adminFinance.reports.reject")}
                 </Button>
               </div>
             </form>
@@ -240,7 +262,7 @@ function ReportCard({
               <input type="hidden" name="reportId" value={report.id} />
               <div className="grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Метод</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.reports.method")}</span>
                   <select
                     name="method"
                     value={selectedMethod}
@@ -251,21 +273,21 @@ function ReportCard({
                     }}
                     className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
-                    <option value="TRANSFER">Перевод</option>
-                    <option value="KASPI">Kaspi</option>
-                    <option value="CASH">Наличные</option>
-                    <option value="CARD">Карта</option>
+                    <option value="TRANSFER">{t("domain.paymentMethods.TRANSFER")}</option>
+                    <option value="KASPI">{t("domain.paymentMethods.KASPI")}</option>
+                    <option value="CASH">{t("domain.paymentMethods.CASH")}</option>
+                    <option value="CARD">{t("domain.paymentMethods.CARD")}</option>
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Счет</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.reports.account")}</span>
                   <select
                     name="cashAccountId"
                     value={selectedAccountId}
                     onChange={(event) => setSelectedAccountId(event.target.value)}
                     className="mt-1 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
                   >
-                    <option value="">Не зачислять</option>
+                    <option value="">{t("adminFinance.reports.accountNone")}</option>
                     {cashAccounts.map((account) => (
                       <option key={account.id} value={account.id}>
                         {account.name}
@@ -277,16 +299,16 @@ function ReportCard({
 
               {report.tenant.charges.length > 0 && (
                 <div>
-                  <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">Закрыть начисления</p>
+                  <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.reports.closeCharges")}</p>
                   <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">
-                    Система заранее отмечает старые начисления, которые помещаются в сумму платежа. Нельзя закрыть долгов больше, чем поступило денег.
+                    {t("adminFinance.reports.closeChargesHint")}
                   </p>
                   <div className="max-h-28 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2 dark:border-slate-700">
                     {report.tenant.charges.map((charge) => (
                       <label key={charge.id} className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
                         <input type="checkbox" name="chargeIds" value={charge.id} defaultChecked={defaultChargeIds.has(charge.id)} className="mt-0.5 rounded" />
                         <span>
-                          {CHARGE_TYPES[charge.type] ?? charge.type} · {charge.period} · {formatMoney(charge.amount)}
+                          {chargeTypeLabel(charge.type)} · {charge.period} · {money(charge.amount)}
                         </span>
                       </label>
                     ))}
@@ -301,7 +323,7 @@ function ReportCard({
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
                 >
                   <XCircle className="h-4 w-4" />
-                  Отклонить
+                  {t("adminFinance.reports.reject")}
                 </button>
                 <button
                   type="button"
@@ -310,7 +332,7 @@ function ReportCard({
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-60 dark:border-amber-500/30 dark:text-amber-300 dark:hover:bg-amber-500/10"
                 >
                   <AlertTriangle className="h-4 w-4" />
-                  Спорная
+                  {t("adminFinance.reports.dispute")}
                 </button>
                 <button
                   type="submit"
@@ -318,7 +340,7 @@ function ReportCard({
                   className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-60"
                 >
                   <CheckCircle2 className="h-4 w-4" />
-                  Провести
+                  {t("adminFinance.reports.confirm")}
                 </button>
               </div>
             </form>

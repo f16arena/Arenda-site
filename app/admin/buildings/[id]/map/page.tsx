@@ -12,6 +12,7 @@ import { assertBuildingAccess } from "@/lib/building-access"
 import { classifyCategory } from "@/lib/indoor-map/category"
 import type { SpaceLite } from "@/lib/indoor-map/model"
 import { IndoorMapApp, type FloorData } from "@/components/indoor-map/indoor-map-app"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Indoor-карта здания: план этажа с арендаторами и статусами, лента этажей.
@@ -20,6 +21,7 @@ import { IndoorMapApp, type FloorData } from "@/components/indoor-map/indoor-map
 export default async function BuildingMapPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   const { id } = await params
 
@@ -125,7 +127,7 @@ export default async function BuildingMapPage({ params }: { params: Promise<{ id
           href="/admin/buildings"
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
         >
-          <ArrowLeft className="h-4 w-4" /> Здания
+          <ArrowLeft className="h-4 w-4" /> {t("adminObjects.map.back")}
         </Link>
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-500/10">
@@ -133,7 +135,7 @@ export default async function BuildingMapPage({ params }: { params: Promise<{ id
           </div>
           <div>
             <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {building.name} — карта
+              {t("adminObjects.map.title", { building: building.name })}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400">{building.address}</p>
           </div>

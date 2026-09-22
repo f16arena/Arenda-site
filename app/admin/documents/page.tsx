@@ -20,6 +20,10 @@ import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { DOCUMENTS_TABS } from "@/lib/hub-tabs"
 import { FileText, FilePlus2 } from "lucide-react"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
+import { I18nProvider } from "@/lib/i18n/client"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 
 // Грузим расширенный набор — фильтрация/поиск/пагинация делаются на клиенте.
 const DOCUMENT_SOURCE_LIMIT = 200
@@ -32,6 +36,9 @@ export default async function DocumentsPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const day = (value: Date) => formatDateShortL(locale, value)
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/documents", orgId, userId: session.user.id })
   const currentBuildingId = await getCurrentBuildingId()
@@ -219,13 +226,13 @@ export default async function DocumentsPage({
     return {
       id: `c-${c.id}`,
       type: "CONTRACT",
-      typeLabel: c.type === "ADDENDUM" ? "Допсоглашение" : undefined,
+      typeLabel: c.type === "ADDENDUM" ? t("adminDocs.table.typeAddendum") : undefined,
       number: c.number,
       tenantName: c.tenant.companyName,
       tenantId: c.tenant.id,
       // У договора «Период» = срок аренды, «Сумма» = месячная аренда (из конструктора).
       period: c.startDate
-        ? `${c.startDate.toLocaleDateString("ru-RU")} – ${c.endDate ? c.endDate.toLocaleDateString("ru-RU") : "…"}`
+        ? `${day(c.startDate)} – ${c.endDate ? day(c.endDate) : "…"}`
         : null,
       totalAmount: (() => {
         const bs = c.builderState as { financials?: { monthlyRent?: number } } | null
@@ -359,7 +366,7 @@ export default async function DocumentsPage({
     return {
       id: `d-${d.id}`,
       type: "CONTRACT",
-      typeLabel: "Черновик договора",
+      typeLabel: t("adminDocs.table.typeDraft"),
       number: bs?.meta?.contractNumber || "",
       tenantName: bs?.tenant?.name || d.name,
       tenantId: d.tenantId,
@@ -369,7 +376,7 @@ export default async function DocumentsPage({
       source: "contract",
       downloadHref: null,
       viewHref: `/admin/documents?create=contract&draft=${d.id}`,
-      viewLabel: "Продолжить",
+      viewLabel: t("adminDocs.table.continueDraft"),
       draftId: d.id,
       category: "draft",
       canDelete: false,
@@ -384,44 +391,51 @@ export default async function DocumentsPage({
 
   // Создание документа — отдельный экран: свой заголовок и «назад», без вкладок
   // списка (раньше было три этажа вкладок: хаб → «Документы | Создать» → вид).
+  // Словарь для клиентских частей страницы (таблица, фильтры, кнопки).
+  const messages = pickNamespaces(dictionaries[locale], ["common", "domain", "adminDocs"])
+
   if (wantsCreate && canCreateDocuments) {
     return (
-      <div className="space-y-5">
-        <PageHeader
-          icon={FilePlus2}
-          title="Новый документ"
-          subtitle="Выберите вид и арендатора — реквизиты, помещение и суммы подставятся сами"
-          backHref="/admin/documents"
-        />
-        <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} initialDraftId={createDraftId} />
-      </div>
+      <I18nProvider locale={locale} messages={messages}>
+        <div className="space-y-5">
+          <PageHeader
+            icon={FilePlus2}
+            title={t("adminDocs.list.newTitle")}
+            subtitle={t("adminDocs.list.newSubtitle")}
+            backHref="/admin/documents"
+          />
+          <DocumentCreate key={currentBuildingId ?? "all"} initialTab={createTab} initialTenantId={createTenantId} initialDraftId={createDraftId} />
+        </div>
+      </I18nProvider>
     )
   }
 
   return (
-    <div className="space-y-5">
-      <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
-      <PageHeader
-        icon={FileText}
-        title="Документы"
-        subtitle="Договоры, счета, акты — всё, что создано и подписано"
-        actions={
-          <>
-            {canGenerateBulk && <BackfillDocumentsButton />}
-            {canCreateDocuments && <CreateDocumentMenu />}
-          </>
-        }
-      />
+    <I18nProvider locale={locale} messages={messages}>
+      <div className="space-y-5">
+        <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
+        <PageHeader
+          icon={FileText}
+          title={t("adminDocs.list.title")}
+          subtitle={t("adminDocs.list.subtitle")}
+          actions={
+            <>
+              {canGenerateBulk && <BackfillDocumentsButton />}
+              {canCreateDocuments && <CreateDocumentMenu />}
+            </>
+          }
+        />
 
-      <DocumentsBrowser
-        rows={allRows}
-        initialType={(type ?? "ALL").toUpperCase()}
-        initialSearch={q?.trim() ?? ""}
-        initialPeriod={period ?? ""}
-        canSign={canSignDocuments}
-        canExportZip={canExportZip}
-        canEsf={canEsf}
-      />
-    </div>
+        <DocumentsBrowser
+          rows={allRows}
+          initialType={(type ?? "ALL").toUpperCase()}
+          initialSearch={q?.trim() ?? ""}
+          initialPeriod={period ?? ""}
+          canSign={canSignDocuments}
+          canExportZip={canExportZip}
+          canEsf={canEsf}
+        />
+      </div>
+    </I18nProvider>
   )
 }

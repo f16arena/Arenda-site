@@ -6,7 +6,8 @@ import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
-import { formatMoney } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 import {
   Wallet, Banknote, CreditCard, ArrowLeft,
 } from "lucide-react"
@@ -20,6 +21,9 @@ export default async function BalancePage() {
     redirect("/admin")
   }
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
 
   const accounts = await db.cashAccount.findMany({
     where: { organizationId: orgId, isActive: true },
@@ -52,10 +56,10 @@ export default async function BalancePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Wallet className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-            Баланс счетов
+            {t("adminFinance.balance.title")}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Сколько денег где находится
+            {t("adminFinance.balance.subtitle")}
           </p>
         </div>
       </div>
@@ -64,27 +68,27 @@ export default async function BalancePage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <SummaryCard
           icon={Wallet}
-          label="Всего"
-          value={formatMoney(total)}
+          label={t("adminFinance.balance.total")}
+          value={money(total)}
           color="slate"
           big
         />
         <SummaryCard
           icon={Banknote}
-          label="На счетах в банке"
-          value={formatMoney(totalByType.BANK ?? 0)}
+          label={t("adminFinance.balance.inBank")}
+          value={money(totalByType.BANK ?? 0)}
           color="blue"
         />
         <SummaryCard
           icon={Wallet}
-          label="Наличными"
-          value={formatMoney(totalByType.CASH ?? 0)}
+          label={t("adminFinance.balance.inCash")}
+          value={money(totalByType.CASH ?? 0)}
           color="emerald"
         />
         <SummaryCard
           icon={CreditCard}
-          label="Картами"
-          value={formatMoney(totalByType.CARD ?? 0)}
+          label={t("adminFinance.balance.onCards")}
+          value={money(totalByType.CARD ?? 0)}
           color="purple"
         />
       </div>

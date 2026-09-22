@@ -7,7 +7,9 @@
 import { useState, type ReactNode } from "react"
 import Link from "next/link"
 import { Settings2 } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 
 export type SpaceRow = {
   id: string
@@ -34,10 +36,11 @@ export type FloorGroup = {
   isZone?: boolean
 }
 
-const area = (v: number) => `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(v)} м²`
-const date = (iso: string) => new Date(iso).toLocaleDateString("ru-RU")
+const area = (locale: Locale, v: number) =>
+  `${new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 1 }).format(v)} м²`
 
 export function SpacesBoard({ floors, rows }: { floors: FloorGroup[]; rows: SpaceRow[] }) {
+  const { t } = useT()
   const [onlyVacant, setOnlyVacant] = useState(false)
   const vacantCount = rows.filter((r) => r.status !== "OCCUPIED").length
 
@@ -45,8 +48,8 @@ export function SpacesBoard({ floors, rows }: { floors: FloorGroup[]; rows: Spac
     <div className="space-y-6">
       <div className="inline-flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
         {[
-          { v: false, label: `Все · ${rows.length}` },
-          { v: true, label: `Только свободные · ${vacantCount}` },
+          { v: false, label: t("adminObjects.spaces.allTab", { count: rows.length }) },
+          { v: true, label: t("adminObjects.spaces.vacantTab", { count: vacantCount }) },
         ].map((t) => (
           <button
             key={String(t.v)}
@@ -73,16 +76,16 @@ export function SpacesBoard({ floors, rows }: { floors: FloorGroup[]; rows: Spac
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{floor.name}</h2>
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                {floor.note} · занято {occupied} из {all.length}
+                {t("adminObjects.spaces.floorOccupied", { note: floor.note, occupied, total: all.length })}
               </span>
               <Link href={`/admin/floors/${floor.id}`} className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400">
-                <Settings2 className="h-3.5 w-3.5" /> Этаж
+                <Settings2 className="h-3.5 w-3.5" /> {t("adminObjects.spaces.floorLink")}
               </Link>
             </div>
             {floor.wholeFloor}
             {shown.length === 0 ? (
               <p className="rounded-xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400 dark:border-slate-800 dark:text-slate-500">
-                Здесь пока нет помещений
+                {t("adminObjects.spaces.emptyFloor")}
               </p>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
@@ -97,6 +100,8 @@ export function SpacesBoard({ floors, rows }: { floors: FloorGroup[]; rows: Spac
 }
 
 function SpaceTile({ row: r, isZone }: { row: SpaceRow; isZone: boolean }) {
+  const { t } = useT()
+  const locale = useLocale()
   const vacant = r.status !== "OCCUPIED"
   return (
     <div
@@ -111,13 +116,13 @@ function SpaceTile({ row: r, isZone }: { row: SpaceRow; isZone: boolean }) {
           <p className="truncate text-lg font-bold text-slate-900 dark:text-slate-100" title={r.description ?? undefined}>{r.number}</p>
           {/* Описание места («Контейнер 20 футов») — номер «М-4» сам по себе ничего не говорит */}
           <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-            {[r.description?.trim() || null, isZone ? null : area(r.area)].filter(Boolean).join(" · ")}
+            {[r.description?.trim() || null, isZone ? null : area(locale, r.area)].filter(Boolean).join(" · ")}
           </p>
         </div>
         {vacant ? (
-          <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white">Свободно</span>
+          <span className="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-white">{t("adminObjects.spaces.badgeVacant")}</span>
         ) : r.status === "MAINTENANCE" ? (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">Ремонт</span>
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">{t("adminObjects.spaces.badgeMaintenance")}</span>
         ) : null}
       </div>
 
@@ -128,12 +133,16 @@ function SpaceTile({ row: r, isZone }: { row: SpaceRow; isZone: boolean }) {
               {r.tenant.name}
             </Link>
             <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">
-              {r.tenant.wholeFloor ? "этаж целиком" : r.tenant.contractEnd ? `договор до ${date(r.tenant.contractEnd)}` : "без срока договора"}
+              {r.tenant.wholeFloor
+                ? t("adminObjects.spaces.tileWholeFloor")
+                : r.tenant.contractEnd
+                  ? t("adminObjects.spaces.tileContractUntil", { date: formatDateShortL(locale, r.tenant.contractEnd) })
+                  : t("adminObjects.spaces.tileNoContract")}
             </p>
           </>
         ) : (
           <p className="text-sm text-emerald-700 dark:text-emerald-300">
-            {isZone ? "Можно сдать" : `≈ ${formatMoney(r.rent)} в месяц`}
+            {isZone ? t("adminObjects.spaces.tileCanRent") : t("adminObjects.spaces.tilePerMonth", { amount: formatMoneyL(locale, r.rent) })}
             {r.marketHint && <span className="block text-[11px] text-emerald-600/80 dark:text-emerald-400/80">{r.marketHint}</span>}
           </p>
         )}
@@ -142,7 +151,7 @@ function SpaceTile({ row: r, isZone }: { row: SpaceRow; isZone: boolean }) {
       <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
         {r.tenant ? (
           <span className="text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100">
-            {formatMoney(r.rent)}
+            {formatMoneyL(locale, r.rent)}
             {r.rentNote && <span className="ml-1 text-[11px] font-normal text-slate-400">{r.rentNote}</span>}
           </span>
         ) : <span />}

@@ -7,7 +7,8 @@ import {
   ArrowDown, ArrowUp, ArrowRightLeft, Settings, Plus, X,
   Banknote, Wallet, CreditCard,
 } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import {
   createCashAccount, depositToAccount, withdrawFromAccount,
   transferBetweenAccounts, adjustAccountBalance,
@@ -34,18 +35,10 @@ interface Account {
   recentTransactions: Transaction[]
 }
 
-const TYPE_META: Record<string, { label: string; icon: React.ElementType }> = {
-  BANK: { label: "Банк", icon: Banknote },
-  CASH: { label: "Наличка", icon: Wallet },
-  CARD: { label: "Карта", icon: CreditCard },
-}
-
-const TX_TYPE_META: Record<string, { label: string; color: string }> = {
-  DEPOSIT: { label: "Пополнение", color: "text-emerald-600 dark:text-emerald-400" },
-  WITHDRAW: { label: "Списание", color: "text-red-600 dark:text-red-400" },
-  ADJUSTMENT: { label: "Корректировка", color: "text-amber-600 dark:text-amber-400" },
-  TRANSFER_IN: { label: "Перевод (вход)", color: "text-blue-600 dark:text-blue-400" },
-  TRANSFER_OUT: { label: "Перевод (исход)", color: "text-purple-600 dark:text-purple-400" },
+const TYPE_ICONS: Record<string, React.ElementType> = {
+  BANK: Banknote,
+  CASH: Wallet,
+  CARD: CreditCard,
 }
 
 type DialogMode =
@@ -57,8 +50,21 @@ type DialogMode =
   | null
 
 export function BalanceClient({ accounts }: { accounts: Account[] }) {
+  const { t } = useT()
+  const locale = useLocale()
   const [dialog, setDialog] = useState<DialogMode>(null)
   const [pending, startTransition] = useTransition()
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const typeLabel = (type: string) => {
+    const key = `adminFinance.accountTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
+  const txTypeLabel = (type: string) => {
+    const key = `adminFinance.balance.txTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
 
   function close() { setDialog(null) }
 
@@ -72,18 +78,18 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
           disabled={accounts.length < 2}
         >
           <ArrowRightLeft className="h-4 w-4" />
-          Перевод между счетами
+          {t("adminFinance.balance.transfer")}
         </Button>
         <Button onClick={() => setDialog({ kind: "create" })}>
           <Plus className="h-4 w-4" />
-          Добавить счёт
+          {t("adminFinance.balance.addAccount")}
         </Button>
       </div>
 
       {/* Карточки счетов */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {accounts.map((acc) => {
-          const TypeIcon = TYPE_META[acc.type]?.icon ?? Wallet
+          const TypeIcon = TYPE_ICONS[acc.type] ?? Wallet
           return (
             <Card key={acc.id} className="block py-0">
               <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between">
@@ -94,13 +100,13 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
                   <div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{acc.name}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {TYPE_META[acc.type]?.label ?? acc.type}
+                      {typeLabel(acc.type)}
                       {acc.notes && ` · ${acc.notes}`}
                     </p>
                   </div>
                 </div>
                 <p className={`text-xl font-bold ${acc.balance < 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}>
-                  {formatMoney(acc.balance)}
+                  {money(acc.balance)}
                 </p>
               </div>
 
@@ -132,26 +138,28 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
               <div className="max-h-64 overflow-y-auto">
                 {acc.recentTransactions.length === 0 ? (
                   <p className="px-5 py-6 text-xs text-slate-400 dark:text-slate-500 text-center">
-                    Транзакций пока нет
+                    {t("adminFinance.balance.noTransactions")}
                   </p>
                 ) : (
-                  acc.recentTransactions.map((t) => {
-                    const meta = TX_TYPE_META[t.type] ?? { label: t.type, color: "text-slate-600" }
+                  // Переменная транзакции названа tx, а не t: иначе она
+                  // перекрывает переводчик t из useT().
+                  acc.recentTransactions.map((tx) => {
+                    const label = txTypeLabel(tx.type)
                     return (
                       <div
-                        key={t.id}
+                        key={tx.id}
                         className="px-5 py-2.5 border-b border-slate-50 dark:border-slate-800 last:border-b-0 flex items-center justify-between"
                       >
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
-                            {t.description ?? meta.label}
+                            {tx.description ?? label}
                           </p>
                           <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                            {meta.label} · {new Date(t.date).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                            {label} · {formatDateShortL(locale, tx.date)}
                           </p>
                         </div>
-                        <p className={`text-sm font-semibold ${t.amount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                          {t.amount > 0 ? "+" : ""}{formatMoney(t.amount)}
+                        <p className={`text-sm font-semibold ${tx.amount > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                          {tx.amount > 0 ? "+" : ""}{money(tx.amount)}
                         </p>
                       </div>
                     )
@@ -223,7 +231,7 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
             className="space-y-4"
           >
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Текущий баланс: <span className="font-semibold">{formatMoney(dialog.current)}</span>.
+              Текущий баланс: <span className="font-semibold">{money(dialog.current)}</span>.
               Введите фактическую сумму — разница будет записана как корректировка.
             </p>
             <Field label="Новый баланс (₸)" name="newBalance" type="number" step="0.01" defaultValue={String(dialog.current)} />
@@ -245,12 +253,12 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
           >
             <Select label="Откуда" name="fromId" required>
               {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name} · {formatMoney(a.balance)}</option>
+                <option key={a.id} value={a.id}>{a.name} · {money(a.balance)}</option>
               ))}
             </Select>
             <Select label="Куда" name="toId" required>
               {accounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name} · {formatMoney(a.balance)}</option>
+                <option key={a.id} value={a.id}>{a.name} · {money(a.balance)}</option>
               ))}
             </Select>
             <Field label="Сумма (₸)" name="amount" type="number" step="0.01" required min="0.01" />

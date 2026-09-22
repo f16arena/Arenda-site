@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { formatMoney, formatPeriod, CHARGE_TYPES, expenseCategoryLabel } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL, formatPeriodL } from "@/lib/i18n/format"
 import { FileSpreadsheet, Wallet, CircleCheck, TrendingDown } from "lucide-react"
 // PenaltyButton удалён: пени теперь начисляются только автоматическим cron-ом
 // (app/api/cron/check-deadlines/route.ts) с единой формулой и PENALTY_GRACE_DAYS.
@@ -50,21 +51,17 @@ type FinancesPageProps = {
   }>
 }
 
-const CHARGE_TYPE_FILTERS: { value: string; label: string }[] = [
-  { value: "", label: "Все типы" },
-  { value: "RENT", label: "Аренда" },
-  { value: "DEPOSIT", label: "Депозит" },
-  { value: "ELECTRICITY", label: "Электричество" },
-  { value: "WATER", label: "Вода" },
-  { value: "HEATING", label: "Отопление" },
-  { value: "PARKING", label: "Парковка" },
-  { value: "PENALTY", label: "Пени" },
-  { value: "OTHER", label: "Прочее" },
-]
-const CHARGE_STATUS_FILTERS: { value: string; label: string }[] = [
-  { value: "", label: "Все" },
-  { value: "paid", label: "Оплачено" },
-  { value: "unpaid", label: "Не оплачено" },
+// Виды начислений для фильтра: подписи берём из словаря (domain.chargeTypes),
+// здесь — только сами значения и их порядок.
+const CHARGE_TYPE_FILTERS = [
+  "RENT",
+  "DEPOSIT",
+  "ELECTRICITY",
+  "WATER",
+  "HEATING",
+  "PARKING",
+  "PENALTY",
+  "OTHER",
 ]
 
 export default async function FinancesPage(props: FinancesPageProps) {
@@ -75,6 +72,20 @@ async function renderFinancesPage({
   searchParams,
 }: FinancesPageProps) {
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const chargeTypeLabel = (type: string) => {
+    if (type === "PARKING") return t("adminFinance.page.charges.parking")
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
+  const expenseCategoryLabel = (category: string) => {
+    const key = `adminFinance.expenseCategories.${category}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? category : label
+  }
   // Гранулярные права: каждая кнопка показывается только при наличии своего права.
   // OWNER/платформенный админ получают все права (минус заблокированные тарифом).
   const session = await auth()
@@ -93,7 +104,7 @@ async function renderFinancesPage({
   const expensesPage = normalizePage(resolvedSearchParams?.expensesPage)
   const selectedTenantId = readSearchParam(resolvedSearchParams?.tenantId)
   const rawChargeType = readSearchParam(resolvedSearchParams?.chargeType).toUpperCase()
-  const validChargeTypes = new Set(CHARGE_TYPE_FILTERS.map((f) => f.value).filter(Boolean))
+  const validChargeTypes = new Set(CHARGE_TYPE_FILTERS)
   const selectedChargeType = validChargeTypes.has(rawChargeType) ? rawChargeType : ""
   const rawChargeStatus = readSearchParam(resolvedSearchParams?.chargeStatus).toLowerCase()
   const selectedChargeStatus = ["paid", "unpaid"].includes(rawChargeStatus) ? rawChargeStatus : ""
@@ -365,7 +376,6 @@ async function renderFinancesPage({
   const prevVarMap = new Map(prevVarRows.map((r) => [r.category, r._sum.amount ?? 0]))
   const variableExpenseItems = variableCats.map((cat) => ({
     category: cat,
-    label: expenseCategoryLabel(cat),
     entered: enteredVarCats.has(cat),
     lastAmount: prevVarMap.get(cat) ?? null,
   }))
@@ -392,8 +402,8 @@ async function renderFinancesPage({
       <RouteTabs items={FINANCE_TABS} className="mb-2" />
       <PageHeader
         icon={Wallet}
-        title="Финансы"
-        subtitle={`${formatPeriod(currentPeriod)} · кто сколько должен, что пришло, что потрачено`}
+        title={t("adminFinance.page.title")}
+        subtitle={t("adminFinance.page.subtitle", { period: formatPeriodL(locale, currentPeriod) })}
         actions={
           <>
             <FinancesPeriodPicker period={currentPeriod} />
@@ -407,7 +417,7 @@ async function renderFinancesPage({
             {caps.has("finance.recordPayment") && (
               <PaymentDialog
                 tenants={dialogTenantOptions}
-                unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: CHARGE_TYPES[c.type] ?? c.type, amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
+                unpaidCharges={dialogCharges.map((c) => ({ id: c.id, tenantId: c.tenantId, type: chargeTypeLabel(c.type), amount: c.amount, description: c.description, period: c.period, isPaid: c.isPaid }))}
                 cashAccounts={cashAccounts}
                 initialTenantId={selectedPaymentTenant?.id}
                 autoOpen={Boolean(selectedPaymentTenant)}
@@ -421,22 +431,34 @@ async function renderFinancesPage({
 
       {/* Summary cards */}
       <StatGrid>
-        <StatCard icon={FileSpreadsheet} label="Начислено" value={formatMoney(totalCharges)} sub="арендаторы должны за месяц" tone="blue" />
+        <StatCard
+          icon={FileSpreadsheet}
+          label={t("adminFinance.page.stats.accrued")}
+          value={money(totalCharges)}
+          sub={t("adminFinance.page.stats.accruedSub")}
+          tone="blue"
+        />
         <StatCard
           icon={CircleCheck}
-          label="Оплачено"
-          value={formatMoney(paidCharges)}
-          sub={`${collectionRate}% от начисленного`}
+          label={t("adminFinance.page.stats.paid")}
+          value={money(paidCharges)}
+          sub={t("adminFinance.page.stats.paidSub", { percent: collectionRate })}
           tone="emerald"
         />
         <StatCard
           icon={Wallet}
-          label="Долг"
-          value={formatMoney(unpaidCharges)}
-          sub="начислено, но ещё не оплачено"
+          label={t("adminFinance.page.stats.debt")}
+          value={money(unpaidCharges)}
+          sub={t("adminFinance.page.stats.debtSub")}
           tone={unpaidCharges > 0 ? "red" : "slate"}
         />
-        <StatCard icon={TrendingDown} label="Расходы" value={formatMoney(totalExpenses)} sub="вы потратили в этом месяце" tone="amber" />
+        <StatCard
+          icon={TrendingDown}
+          label={t("adminFinance.page.stats.expenses")}
+          value={money(totalExpenses)}
+          sub={t("adminFinance.page.stats.expensesSub")}
+          tone="amber"
+        />
       </StatGrid>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -444,7 +466,9 @@ async function renderFinancesPage({
         <Card padded={false}>
           <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Начисления за {formatPeriod(currentPeriod)}</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {t("adminFinance.page.charges.title", { period: formatPeriodL(locale, currentPeriod) })}
+              </h2>
               {caps.has("finance.createInvoice") && (
                 <div className="flex flex-wrap items-center gap-2">
                   <GenerateChargesButton period={currentPeriod} />
@@ -455,23 +479,26 @@ async function renderFinancesPage({
             <form className="flex flex-wrap items-center gap-2" action="/admin/finances">
               <input type="hidden" name="period" value={currentPeriod} />
               {selectedTenantId && <input type="hidden" name="tenantId" value={selectedTenantId} />}
-              <select name="chargeType" defaultValue={selectedChargeType} aria-label="Что начислено" className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {CHARGE_TYPE_FILTERS.map((f) => <option key={f.value || "all"} value={f.value}>{f.value ? f.label : "Всё начисленное"}</option>)}
+              <select name="chargeType" defaultValue={selectedChargeType} aria-label={t("adminFinance.page.charges.typeLabel")} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <option value="">{t("adminFinance.page.charges.typeAll")}</option>
+                {CHARGE_TYPE_FILTERS.map((type) => <option key={type} value={type}>{chargeTypeLabel(type)}</option>)}
               </select>
-              <select name="chargeStatus" defaultValue={selectedChargeStatus} aria-label="Оплата" className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                {CHARGE_STATUS_FILTERS.map((f) => <option key={f.value || "all"} value={f.value}>{f.value ? f.label : "Оплаченные и нет"}</option>)}
+              <select name="chargeStatus" defaultValue={selectedChargeStatus} aria-label={t("adminFinance.page.charges.statusLabel")} className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                <option value="">{t("adminFinance.page.charges.statusAll")}</option>
+                <option value="paid">{t("adminFinance.page.charges.statusPaid")}</option>
+                <option value="unpaid">{t("adminFinance.page.charges.statusUnpaid")}</option>
               </select>
-              <button type="submit" className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">Показать</button>
+              <button type="submit" className="h-8 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">{t("adminFinance.page.charges.apply")}</button>
             </form>
           </div>
           {charges.length === 0 ? (
             <EmptyState
               icon={<FileSpreadsheet className="h-5 w-5" />}
-              title="Начислений за месяц ещё нет"
-              description="Нажмите «Начислить» вверху этого блока: система посчитает аренду, эксплуатационные и услуги каждому арендатору по его условиям. Потом — «Выставить счета»."
+              title={t("adminFinance.page.charges.emptyTitle")}
+              description={t("adminFinance.page.charges.emptyText")}
               actions={[
-                { href: "/admin/tenants", label: "Проверить арендаторов" },
-                { href: "/admin/data-quality", label: "Качество данных", variant: "secondary" },
+                { href: "/admin/tenants", label: t("adminFinance.page.charges.emptyTenants") },
+                { href: "/admin/data-quality", label: t("adminFinance.page.charges.emptyQuality"), variant: "secondary" },
               ]}
             />
           ) : (
@@ -503,15 +530,15 @@ async function renderFinancesPage({
         </Card>
 
         {/* Payments */}
-        <Card padded={false} title="Последние оплаты">
+        <Card padded={false} title={t("adminFinance.page.payments.title")}>
           {payments.length === 0 ? (
             <EmptyState
               icon={<Wallet className="h-5 w-5" />}
-              title="Оплат пока нет"
-              description="Оплата появится после ручного внесения администратором или после подтверждения сообщения арендатора “Я оплатил”."
+              title={t("adminFinance.page.payments.emptyTitle")}
+              description={t("adminFinance.page.payments.emptyText")}
               actions={[
-                { href: "/admin/finances/balance", label: "Проверить счета" },
-                { href: "/admin/faq", label: "Инструкция арендатора", variant: "secondary" },
+                { href: "/admin/finances/balance", label: t("adminFinance.page.payments.emptyBalance") },
+                { href: "/admin/faq", label: t("adminFinance.page.payments.emptyFaq"), variant: "secondary" },
               ]}
             />
           ) : (
@@ -532,7 +559,7 @@ async function renderFinancesPage({
       {/* Expenses */}
       <Card
         padded={false}
-        title="Расходы"
+        title={t("adminFinance.page.expenses.title")}
         actions={caps.has("finance.manageExpenses") ? <ExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} /> : undefined}
       >
         <div className="border-b border-slate-100 p-4 empty:hidden dark:border-slate-800">
@@ -547,11 +574,11 @@ async function renderFinancesPage({
         <DataTable density="compact" className="min-w-[640px]">
           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
             <tr className="border-b border-slate-100 dark:border-slate-800">
-              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Категория</th>
-              {!currentBuildingId && <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>}
-              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Описание</th>
-              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
-              <th className="text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.page.expenses.category")}</th>
+              {!currentBuildingId && <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.page.expenses.building")}</th>}
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.page.expenses.description")}</th>
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.page.expenses.date")}</th>
+              <th className="text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.page.expenses.amount")}</th>
               <th />
             </tr>
           </thead>
@@ -563,13 +590,13 @@ async function renderFinancesPage({
                   <td className="text-slate-500 dark:text-slate-400">{e.building.name}</td>
                 )}
                 <td className="text-slate-500 dark:text-slate-400">{e.description ?? "—"}</td>
-                <td className="text-slate-500 dark:text-slate-400">{e.date.toLocaleDateString("ru-RU")}</td>
-                <td className="text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(e.amount)}</td>
+                <td className="text-slate-500 dark:text-slate-400">{formatDateShortL(locale, e.date)}</td>
+                <td className="text-right font-medium text-orange-600 dark:text-orange-400">{money(e.amount)}</td>
                 <td className="text-right">
                   <DeleteAction
                     action={deleteExpense.bind(null, e.id)}
-                    entity="расход"
-                    successMessage="Расход удалён"
+                    entity={t("adminFinance.page.expenses.entity")}
+                    successMessage={t("adminFinance.page.expenses.deleted")}
                   />
                 </td>
               </tr>
@@ -579,11 +606,11 @@ async function renderFinancesPage({
                 <td colSpan={currentBuildingId ? 5 : 6} className="px-5 py-6">
                   <EmptyState
                     icon={<Wallet className="h-5 w-5" />}
-                    title="Расходы не добавлены"
-                    description="Фиксируйте коммунальные платежи, ремонт, зарплаты и другие расходы по конкретному зданию, чтобы видеть прибыль по каждой точке."
+                    title={t("adminFinance.page.expenses.emptyTitle")}
+                    description={t("adminFinance.page.expenses.emptyText")}
                     actions={[
-                      { href: "/admin/analytics", label: "Открыть аналитику" },
-                      { href: "/admin/finances/balance", label: "Баланс счетов", variant: "secondary" },
+                      { href: "/admin/analytics", label: t("adminFinance.page.expenses.emptyAnalytics") },
+                      { href: "/admin/finances/balance", label: t("adminFinance.page.expenses.emptyBalance"), variant: "secondary" },
                     ]}
                   />
                 </td>

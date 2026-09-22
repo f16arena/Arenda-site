@@ -2,14 +2,16 @@
 
 import { useRouter } from "next/navigation"
 import { CalendarClock } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
 /** Выбор месяца для страницы финансов (?period=YYYY-MM). */
 export function FinancesPeriodPicker({ period }: { period: string }) {
   const router = useRouter()
+  const { t } = useT()
   return (
     <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900">
       <CalendarClock className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-      <span className="text-xs text-slate-500 dark:text-slate-400">Период</span>
+      <span className="text-xs text-slate-500 dark:text-slate-400">{t("adminFinance.periodPicker.label")}</span>
       <input
         type="month"
         value={period}

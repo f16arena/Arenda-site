@@ -2,7 +2,9 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
-import { formatMoney } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL, formatNumberL } from "@/lib/i18n/format"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 import { Building2, Box, UserPlus, DoorOpen, DoorClosed, Wallet, Map as MapIcon } from "lucide-react"
 import { isObjectSpace, isZoneFloor } from "@/lib/zone-kinds"
 import { shortCompanyName } from "@/lib/company-name"
@@ -85,6 +87,9 @@ type SelectedBuildingInfo = {
 
 export default async function SpacesPage() {
   return measureServerRoute("/admin/spaces", async () => {
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
   const { orgId } = await requireOrgAccess()
   const session = await auth()
   const allowedCapabilities = session?.user
@@ -108,22 +113,21 @@ export default async function SpacesPage() {
     if (accessibleBuildingIds.length === 0) {
       return (
         <div className="space-y-5">
-          <PageHeader icon={Building2} title="Помещения" subtitle="Кабинеты и помещения в зданиях" />
+          <PageHeader icon={Building2} title={t("adminObjects.spaces.title")} subtitle={t("adminObjects.spaces.subtitle")} />
           <div className="rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/5 p-8 text-center">
             <Building2 className="h-10 w-10 text-amber-500 mx-auto mb-3" />
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
-              Сначала создайте здание
+              {t("adminObjects.spaces.noBuildingTitle")}
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 max-w-md mx-auto">
-              Помещения существуют внутри зданий. Создайте первое здание (адрес,
-              количество этажей, площадь) — потом сможете добавлять помещения.
+              {t("adminObjects.spaces.noBuildingText")}
             </p>
             <Link
               href="/admin/buildings"
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
             >
               <Building2 className="h-4 w-4" />
-              К списку зданий →
+              {t("adminObjects.spaces.noBuildingLink")}
             </Link>
           </div>
         </div>
@@ -208,22 +212,22 @@ export default async function SpacesPage() {
       <div className="space-y-5">
         <PageHeader
           icon={Building2}
-          title="Помещения"
-          subtitle={`Все доступные здания · ${buildings.length} ${buildings.length === 1 ? "здание" : "зданий"}`}
+          title={t("adminObjects.spaces.title")}
+          subtitle={tp("adminObjects.spaces.allBuildings", buildings.length)}
         />
 
         <StatGrid>
-          <StatCard label="Зданий" value={buildings.length} />
-          <StatCard label="Помещений" value={rentableSpacesCount} />
-          <StatCard label="Занято" value={occupied} tone="blue" />
-          <StatCard label="Свободно" value={vacant} tone="emerald" />
+          <StatCard label={t("adminObjects.spaces.statBuildings")} value={buildings.length} />
+          <StatCard label={t("adminObjects.spaces.statSpaces")} value={rentableSpacesCount} />
+          <StatCard label={t("adminObjects.spaces.statOccupied")} value={occupied} tone="blue" />
+          <StatCard label={t("adminObjects.spaces.statVacant")} value={vacant} tone="emerald" />
         </StatGrid>
 
         <Card className="block rounded-2xl p-4">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Общая арендопригодная площадь</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{totalArea.toFixed(1)} м²</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminObjects.spaces.rentableArea")}</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{formatNumberL(locale, totalArea, 1)} м²</p>
           <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-            Для добавления или редактирования помещений выберите конкретное здание в переключателе сверху.
+            {t("adminObjects.spaces.rentableAreaHint")}
           </p>
         </Card>
 
@@ -242,26 +246,26 @@ export default async function SpacesPage() {
                   }}
                 >
                   <Button type="submit" variant="outline" size="sm" className="font-medium">
-                    Открыть
+                    {t("adminObjects.spaces.open")}
                   </Button>
                 </form>
               </div>
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                   <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{building.floorsCount}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">этажей</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminObjects.spaces.shortFloors")}</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                   <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{building.totalSpaces}</p>
-                  <p className="text-[10px] text-slate-500 dark:text-slate-400">помещ.</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminObjects.spaces.shortSpaces")}</p>
                 </div>
                 <div className="rounded-lg bg-blue-50 p-2 dark:bg-blue-500/10">
                   <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{building.occupied}</p>
-                  <p className="text-[10px] text-blue-700 dark:text-blue-300">занято</p>
+                  <p className="text-[10px] text-blue-700 dark:text-blue-300">{t("adminObjects.spaces.shortOccupied")}</p>
                 </div>
                 <div className="rounded-lg bg-emerald-50 p-2 dark:bg-emerald-500/10">
                   <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{building.vacant}</p>
-                  <p className="text-[10px] text-emerald-700 dark:text-emerald-300">своб.</p>
+                  <p className="text-[10px] text-emerald-700 dark:text-emerald-300">{t("adminObjects.spaces.shortVacant")}</p>
                 </div>
               </div>
               <div className="mt-4 space-y-2">
@@ -269,17 +273,17 @@ export default async function SpacesPage() {
                   <div key={floor.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-100 px-3 py-2 text-xs dark:border-slate-800">
                     <div className="min-w-0">
                       <p className="truncate font-medium text-slate-800 dark:text-slate-200">{floor.name}</p>
-                      <p className="text-slate-400 dark:text-slate-500">{formatMoney(floor.ratePerSqm)}/м²</p>
+                      <p className="text-slate-400 dark:text-slate-500">{money(floor.ratePerSqm)}/м²</p>
                     </div>
                     <div className="text-right text-slate-500 dark:text-slate-400">
-                      <p>{floor.totalSpaces} помещ. · {floor.area.toFixed(1)} м²</p>
-                      <p>{floor.occupied} занято · {floor.vacant} свободно</p>
+                      <p>{t("adminObjects.spaces.floorLine", { count: floor.totalSpaces, area: formatNumberL(locale, floor.area, 1) })}</p>
+                      <p>{t("adminObjects.spaces.floorOccupancy", { occupied: floor.occupied, vacant: floor.vacant })}</p>
                     </div>
                   </div>
                 ))}
                 {building.floorSummaries.length > 6 && (
                   <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Еще {building.floorSummaries.length - 6} этажей. Выберите здание сверху, чтобы увидеть все помещения.
+                    {tp("adminObjects.spaces.moreFloors", building.floorSummaries.length - 6)}
                   </p>
                 )}
               </div>
@@ -345,13 +349,13 @@ export default async function SpacesPage() {
     const occupancyTenant = tenant
       ? { id: tenant.id, companyName: tenant.companyName }
       : fullFloorTenant
-        ? { id: fullFloorTenant.id, companyName: `${fullFloorTenant.companyName} (этаж целиком)` }
+        ? { id: fullFloorTenant.id, companyName: t("adminObjects.spaces.wholeFloorSuffix", { name: fullFloorTenant.companyName }) }
         : null
     return (
       <>
         {space.status === "VACANT" && !displayTenant && canAssignSpaces && (
           <Link href={`/admin/tenants/new?space=${space.id}`} className="inline-flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-blue-700">
-            <UserPlus className="h-3.5 w-3.5" /> Заселить
+            <UserPlus className="h-3.5 w-3.5" /> {t("adminObjects.spaces.moveIn")}
           </Link>
         )}
         {space.status === "VACANT" && !displayTenant && canEditSpaces && <KrishaListingButton spaceId={space.id} />}
@@ -383,8 +387,12 @@ export default async function SpacesPage() {
         ? { id: shown.id, name: shortCompanyName(shown.companyName), contractEnd: shown.contractEnd ? new Date(shown.contractEnd).toISOString() : null, wholeFloor: !tenant }
         : null,
       rent: tr ? tr.rent : space.area * floor.ratePerSqm,
-      rentNote: tr && tr.spaces > 1 ? `общая за ${tr.spaces} пом.` : !shown ? "по ставке этажа" : null,
-      marketHint: vacant && marketPerSqm ? `рынок ~${marketPerSqm.toLocaleString("ru-RU")} ₸/м²` : null,
+      rentNote: tr && tr.spaces > 1
+        ? tp("adminObjects.spaces.rentNoteShared", tr.spaces)
+        : !shown ? t("adminObjects.spaces.rentNoteFloorRate") : null,
+      marketHint: vacant && marketPerSqm
+        ? t("adminObjects.spaces.marketHint", { amount: formatNumberL(locale, marketPerSqm) })
+        : null,
       actions: actionsFor(space, tenant, fullFloorTenant),
     }
   }
@@ -405,24 +413,25 @@ export default async function SpacesPage() {
   const wholeFloorNote = (floor: SelectedFloorInfo) => floor.fullFloorTenant ? (
     <div className="flex flex-wrap items-center gap-3 rounded-xl bg-violet-50 px-4 py-2.5 text-sm dark:bg-violet-500/10">
       <span className="text-violet-900 dark:text-violet-200">
-        Этаж сдан целиком: <Link href={`/admin/tenants/${floor.fullFloorTenant.id}`} className="font-medium underline hover:no-underline">{floor.fullFloorTenant.companyName}</Link>
-        {floor.fullFloorTenant.contractEnd && <> · до {new Date(floor.fullFloorTenant.contractEnd).toLocaleDateString("ru-RU")}</>}
+        {t("adminObjects.spaces.wholeFloorRented")} <Link href={`/admin/tenants/${floor.fullFloorTenant.id}`} className="font-medium underline hover:no-underline">{floor.fullFloorTenant.companyName}</Link>
+        {floor.fullFloorTenant.contractEnd && <>{t("adminObjects.spaces.wholeFloorUntil", { date: formatDateShortL(locale, floor.fullFloorTenant.contractEnd) })}</>}
       </span>
       {canAssignSpaces && <UnassignFloorButton floorId={floor.id} floorName={floor.name} tenantName={floor.fullFloorTenant.companyName} />}
     </div>
   ) : null
-  const floorName = (name: string) => (/^-?\d+$/.test(name.trim()) ? `${name.trim()} этаж` : name)
+  const floorName = (name: string) =>
+    /^-?\d+$/.test(name.trim()) ? t("adminObjects.floors.numberedName", { number: name.trim() }) : name
   const floorGroups: FloorGroup[] = [
     ...roomFloors.map((floor) => ({
       id: floor.id,
       name: floorName(floor.name),
-      note: `аренда ${formatMoney(floor.ratePerSqm)} за м²`,
+      note: t("adminObjects.spaces.floorRateNote", { rate: money(floor.ratePerSqm) }),
       wholeFloor: wholeFloorNote(floor),
     })),
     ...zoneFloors.filter((f) => isZoneFloor(f.kind)).map((floor) => ({
       id: floor.id,
       name: floor.name,
-      note: "места за фиксированную сумму",
+      note: t("adminObjects.spaces.zoneNote"),
       wholeFloor: null,
       isZone: true,
     })),
@@ -434,15 +443,29 @@ export default async function SpacesPage() {
     <div className="space-y-5">
       <PageHeader
         icon={Building2}
-        title="Помещения"
+        title={t("adminObjects.spaces.title")}
         subtitle={`${building?.name} · ${building?.address}`}
         actions={canEditSpaces && <AddSpaceDialog floors={floorOptions} />}
       />
 
       <StatGrid cols={3}>
-        <StatCard icon={DoorOpen} tone="emerald" label="Свободно" value={vacantRows.length} sub={vacantRows.length > 0 ? `${fmtArea(vacantArea)} · ≈ ${formatMoney(idleLoss)} в месяц можно получать` : "всё сдано"} />
-        <StatCard icon={DoorClosed} tone="blue" label="Занято" value={`${occupancyByArea}%`} sub={`${occupiedRows.length} из ${roomRows.length} помещений`} />
-        <StatCard icon={Wallet} tone="violet" label="Доход в месяц" value={formatMoney(income)} sub="с арендаторов здания" />
+        <StatCard
+          icon={DoorOpen}
+          tone="emerald"
+          label={t("adminObjects.spaces.statVacant")}
+          value={vacantRows.length}
+          sub={vacantRows.length > 0
+            ? t("adminObjects.spaces.vacantSub", { area: fmtArea(locale, vacantArea), amount: money(idleLoss) })
+            : t("adminObjects.spaces.allRented")}
+        />
+        <StatCard
+          icon={DoorClosed}
+          tone="blue"
+          label={t("adminObjects.spaces.occupancyLabel")}
+          value={`${occupancyByArea}%`}
+          sub={t("adminObjects.spaces.occupancySub", { occupied: occupiedRows.length, total: roomRows.length })}
+        />
+        <StatCard icon={Wallet} tone="violet" label={t("adminObjects.spaces.incomeLabel")} value={money(income)} sub={t("adminObjects.spaces.incomeSub")} />
       </StatGrid>
 
       <SpacesBoard floors={floorGroups} rows={boardRows} />
@@ -452,17 +475,17 @@ export default async function SpacesPage() {
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-dashed border-slate-200 px-5 py-4 text-sm dark:border-slate-800">
           <div className="flex flex-wrap items-center gap-4">
             <Link href={`/admin/buildings/${building.id}/map`} className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:underline dark:text-blue-400">
-              <MapIcon className="h-4 w-4" /> План с арендаторами
+              <MapIcon className="h-4 w-4" /> {t("adminObjects.buildings.mapLink")}
             </Link>
             {hasFloorEditor && (
               <Link href={`/admin/builder/${building.id}`} className="inline-flex items-center gap-1.5 font-medium text-blue-600 hover:underline dark:text-blue-400">
-                <Box className="h-4 w-4" /> 3D-модель
+                <Box className="h-4 w-4" /> {t("adminObjects.buildings.modelLink")}
               </Link>
             )}
           </div>
           {canDeleteSpaces && allSpaces.length > 0 && (
             <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400 dark:text-slate-500">Опасная зона:</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500">{t("adminObjects.spaces.dangerZone")}</span>
               <WipeAllSpacesButton buildingId={building.id} buildingName={building.name} spacesCount={allSpaces.length} />
             </div>
           )}
@@ -721,6 +744,7 @@ function normalizeLegacyTenant(
   }
 }
 
-function fmtArea(v: number): string {
-  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(v)} м²`
+function fmtArea(locale: Locale, v: number): string {
+  // Дробная часть только когда она есть: «30 м²», но «30,5 м²».
+  return `${new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 1 }).format(v)} м²`
 }

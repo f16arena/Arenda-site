@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Trash2, CheckCircle2, X, Loader2 } from "lucide-react"
-import { CHARGE_TYPES, formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -34,8 +35,15 @@ export function ChargesBulkActions({
   canDelete?: boolean
 }) {
   const router = useRouter()
+  const { t, tp } = useT()
+  const locale = useLocale()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pending, startTransition] = useTransition()
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
 
   const allSelected = charges.length > 0 && charges.every((c) => selectedIds.has(c.id))
   const someSelected = selectedIds.size > 0 && !allSelected
@@ -64,7 +72,7 @@ export function ChargesBulkActions({
         toast.error(result.error)
         return
       }
-      toast.success(`Отмечено оплаченными: ${result.updated}`)
+      toast.success(t("adminFinance.chargesList.markedPaid", { count: result.updated }))
       setSelectedIds(new Set())
       router.refresh()
     })
@@ -82,17 +90,17 @@ export function ChargesBulkActions({
       const deletedIds = result.deleted
       setSelectedIds(new Set())
       router.refresh()
-      toast.success(`Удалено начислений: ${deletedIds.length}`, {
+      toast.success(t("adminFinance.chargesList.deleted", { count: deletedIds.length }), {
         action: {
-          label: "Отменить",
+          label: t("adminFinance.chargesList.undo"),
           onClick: async () => {
             const errors: string[] = []
             for (const id of deletedIds) {
               const r = await restoreCharge(id)
               if (!r.ok) errors.push(r.error)
             }
-            if (errors.length > 0) toast.error(errors[0] ?? "Не удалось восстановить часть записей")
-            else toast.success("Восстановлено")
+            if (errors.length > 0) toast.error(errors[0] ?? t("adminFinance.chargesList.restoreFailed"))
+            else toast.success(t("adminFinance.chargesList.restored"))
             router.refresh()
           },
         },
@@ -109,13 +117,13 @@ export function ChargesBulkActions({
         return
       }
       router.refresh()
-      toast.success("Пеня отменена", {
+      toast.success(t("adminFinance.chargesList.penaltyWaived"), {
         action: {
-          label: "Вернуть",
+          label: t("adminFinance.chargesList.penaltyBack"),
           onClick: async () => {
             const u = await unwaivePenalty(id)
             if (!u.ok) toast.error(u.error)
-            else toast.success("Пеня возвращена")
+            else toast.success(t("adminFinance.chargesList.penaltyRestored"))
             router.refresh()
           },
         },
@@ -129,20 +137,20 @@ export function ChargesBulkActions({
       try {
         await deleteCharge(id)
         router.refresh()
-        toast.success("Начисление удалено", {
+        toast.success(t("adminFinance.chargesList.deletedOne"), {
           action: {
-            label: "Отменить",
+            label: t("adminFinance.chargesList.undo"),
             onClick: async () => {
               const r = await restoreCharge(id)
               if (!r.ok) toast.error(r.error)
-              else toast.success("Восстановлено")
+              else toast.success(t("adminFinance.chargesList.restored"))
               router.refresh()
             },
           },
           duration: 6000,
         })
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось удалить")
+        toast.error(e instanceof Error ? e.message : t("adminFinance.chargesList.deleteFailed"))
       }
     })
   }
@@ -152,7 +160,7 @@ export function ChargesBulkActions({
       {selectedIds.size > 0 && (
         <div className="sticky top-0 z-20 mx-5 my-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 dark:border-blue-500/30 dark:bg-blue-500/10">
           <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
-            Выбрано: {selectedIds.size}
+            {t("adminFinance.chargesList.selected", { count: selectedIds.size })}
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {canMarkPaid && (
@@ -163,15 +171,15 @@ export function ChargesBulkActions({
               disabled={pending}
               leftIcon={pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
             >
-              Отметить оплаченными
+              {t("adminFinance.chargesList.markPaid")}
             </Button>
             )}
             {canDelete && (
             <ConfirmDialog
               variant="danger"
-              title={`Удалить ${selectedIds.size} ${pluralizeCharges(selectedIds.size)}?`}
-              description="Записи будут помещены в корзину. Сразу после действия можно отменить."
-              confirmLabel="Удалить"
+              title={tp("adminFinance.chargesList.deleteTitle", selectedIds.size)}
+              description={t("adminFinance.chargesList.deleteText")}
+              confirmLabel={t("common.actions.delete")}
               onConfirm={handleBulkDelete}
               trigger={
                 <Button
@@ -180,7 +188,7 @@ export function ChargesBulkActions({
                   disabled={pending}
                   leftIcon={<Trash2 className="h-3.5 w-3.5" />}
                 >
-                  Удалить
+                  {t("common.actions.delete")}
                 </Button>
               }
             />
@@ -192,7 +200,7 @@ export function ChargesBulkActions({
               disabled={pending}
               leftIcon={<X className="h-3.5 w-3.5" />}
             >
-              Отмена
+              {t("common.actions.cancel")}
             </Button>
           </div>
         </div>
@@ -202,7 +210,7 @@ export function ChargesBulkActions({
         <div className="flex items-center gap-2 px-5 py-2 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
           <input
             type="checkbox"
-            aria-label="Выделить все"
+            aria-label={t("adminFinance.chargesList.selectAll")}
             checked={allSelected}
             ref={(el) => {
               if (el) el.indeterminate = someSelected
@@ -210,7 +218,7 @@ export function ChargesBulkActions({
             onChange={toggleAll}
             className="cursor-pointer"
           />
-          <span>{allSelected ? "Снять выделение" : someSelected ? "Выделить все на странице" : "Выделить все на странице"}</span>
+          <span>{allSelected ? t("adminFinance.chargesList.unselectAll") : t("adminFinance.chargesList.selectAllOnPage")}</span>
         </div>
       )}
 
@@ -226,7 +234,7 @@ export function ChargesBulkActions({
             >
               <input
                 type="checkbox"
-                aria-label={`Выбрать начисление ${c.tenantName}`}
+                aria-label={t("adminFinance.chargesList.selectOne", { name: c.tenantName })}
                 checked={checked}
                 onChange={() => toggleOne(c.id)}
                 className="cursor-pointer"
@@ -234,22 +242,22 @@ export function ChargesBulkActions({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{c.tenantName}</p>
                 <p className="truncate text-xs text-slate-400 dark:text-slate-500">
-                  {CHARGE_TYPES[c.type] ?? c.type}
+                  {chargeTypeLabel(c.type)}
                 </p>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(c.amount)}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoneyL(locale, c.amount)}</p>
                   <span className={`text-xs ${c.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
-                    {c.isPaid ? "Оплачено" : "Не оплачено"}
+                    {c.isPaid ? t("adminFinance.chargesList.paid") : t("adminFinance.chargesList.unpaid")}
                   </span>
                 </div>
                 {canDelete && (c.type === "PENALTY" ? (
                   <ConfirmDialog
                     variant="danger"
-                    title="Отменить пеню?"
-                    description="Пеня будет списана, и по этому начислению она больше не будет начисляться автоматически. Сразу после действия можно вернуть."
-                    confirmLabel="Отменить пеню"
+                    title={t("adminFinance.chargesList.waivePenaltyTitle")}
+                    description={t("adminFinance.chargesList.waivePenaltyText")}
+                    confirmLabel={t("adminFinance.chargesList.waivePenalty")}
                     onConfirm={() => handleWaivePenalty(c.id)}
                     trigger={
                       <button
@@ -257,22 +265,22 @@ export function ChargesBulkActions({
                         disabled={pending}
                         className="rounded-md border border-amber-300 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
                       >
-                        Отменить пеню
+                        {t("adminFinance.chargesList.waivePenalty")}
                       </button>
                     }
                   />
                 ) : (
                   <ConfirmDialog
                     variant="danger"
-                    title="Удалить начисление?"
-                    description="Запись будет помещена в корзину. Сразу после действия можно отменить."
-                    confirmLabel="Удалить"
+                    title={t("adminFinance.chargesList.deleteOneTitle")}
+                    description={t("adminFinance.chargesList.deleteOneText")}
+                    confirmLabel={t("common.actions.delete")}
                     onConfirm={() => handleSingleDelete(c.id)}
                     trigger={
                       <button
                         type="button"
                         disabled={pending}
-                        aria-label="Удалить начисление"
+                        aria-label={t("adminFinance.chargesList.deleteOne")}
                         className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -287,13 +295,4 @@ export function ChargesBulkActions({
       </div>
     </div>
   )
-}
-
-function pluralizeCharges(n: number) {
-  const lastTwo = n % 100
-  if (lastTwo >= 11 && lastTwo <= 14) return "начислений"
-  const last = n % 10
-  if (last === 1) return "начисление"
-  if (last >= 2 && last <= 4) return "начисления"
-  return "начислений"
 }

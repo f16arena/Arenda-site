@@ -6,23 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DocumentsTable } from "./documents-table"
 import type { DocRow } from "./documents-table"
+import { useT } from "@/lib/i18n/client"
 
-const TYPES = [
-  { value: "ALL", label: "Все" },
-  { value: "CONTRACT", label: "Договоры" },
-  { value: "INVOICE", label: "Счета" },
-  { value: "ACT", label: "Акты услуг" },
-  { value: "RECONCILIATION", label: "Акты сверки" },
-  { value: "HANDOVER", label: "Приём-передача" },
-]
-
-const TYPE_LABELS: Record<string, string> = {
-  CONTRACT: "Договор",
-  INVOICE: "Счёт на оплату",
-  ACT: "АВР",
-  RECONCILIATION: "Акт сверки",
-  HANDOVER: "Акт приёма-передачи",
-}
+const TYPES = ["ALL", "CONTRACT", "INVOICE", "ACT", "RECONCILIATION", "HANDOVER"] as const
 
 const PAGE_SIZE = 30
 
@@ -50,6 +36,7 @@ export function DocumentsBrowser({
   /** Право скачивать ZIP-архив документов. */
   canExportZip?: boolean
 }) {
+  const { t, tp } = useT()
   const [type, setType] = useState(initialType.toUpperCase())
   const [q, setQ] = useState(initialSearch)
   const [period, setPeriod] = useState(initialPeriod)
@@ -92,31 +79,38 @@ export function DocumentsBrowser({
 
   const hasFilters = type !== "ALL" || !!q || !!period
   const emptyHint = hasFilters
-    ? "По вашим фильтрам ничего не найдено"
-    : "Документы ещё не созданы. Нажмите «Создать документ» и выберите тип."
+    ? t("adminDocs.browser.emptyFiltered")
+    : t("adminDocs.browser.emptyAll")
+
+  // Название вида документа в строке-подсказке: общее из domain.docTypes.
+  const typeName = (value: string) => {
+    const key = `domain.docTypes.${value}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? value : label
+  }
 
   return (
     <div className="space-y-5">
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        {total} {total === 1 ? "документ" : "документов"}
-        {type !== "ALL" ? ` · тип «${TYPE_LABELS[type] ?? type}»` : ""}
-        {period ? ` · период ${period}` : ""}
+        {tp("adminDocs.browser.count", total)}
+        {type !== "ALL" ? t("adminDocs.browser.ofType", { type: typeName(type) }) : ""}
+        {period ? t("adminDocs.browser.ofPeriod", { period }) : ""}
       </p>
 
       {/* Фильтры */}
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
-          {TYPES.map((t) => (
+          {TYPES.map((value) => (
             <button
-              key={t.value}
-              onClick={() => changeType(t.value)}
+              key={value}
+              onClick={() => changeType(value)}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                type === t.value
+                type === value
                   ? "bg-slate-900 text-white"
                   : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
               }`}
             >
-              {t.label}
+              {t(`adminDocs.browser.types.${value}`)}
             </button>
           ))}
         </div>
@@ -128,7 +122,7 @@ export function DocumentsBrowser({
               type="text"
               value={q}
               onChange={(e) => changeSearch(e.target.value)}
-              placeholder="Поиск по контрагенту или номеру..."
+              placeholder={t("adminDocs.browser.searchPlaceholder")}
               className="pl-9"
             />
           </div>
@@ -140,7 +134,7 @@ export function DocumentsBrowser({
           />
           {(q || period) && (
             <Button variant="outline" onClick={reset}>
-              Сбросить
+              {t("adminDocs.browser.reset")}
             </Button>
           )}
         </div>
@@ -151,7 +145,7 @@ export function DocumentsBrowser({
       {pages > 1 && (
         <div className="flex flex-col gap-3 border-t border-slate-100 px-1 py-3 text-sm dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Показано {from}-{to} из {total}
+            {t("adminDocs.browser.shown", { from, to, total })}
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -160,7 +154,7 @@ export function DocumentsBrowser({
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={current <= 1}
             >
-              Назад
+              {t("common.actions.back")}
             </Button>
             <span className="px-2 text-xs text-slate-500 dark:text-slate-400">
               {current} / {pages}
@@ -171,7 +165,7 @@ export function DocumentsBrowser({
               onClick={() => setPage((p) => Math.min(pages, p + 1))}
               disabled={current >= pages}
             >
-              Далее
+              {t("adminDocs.browser.next")}
             </Button>
           </div>
         </div>

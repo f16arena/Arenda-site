@@ -23,38 +23,50 @@ import { ContractEcpSign } from "@/components/contract-ecp-sign"
 import { SignedPdfButton } from "@/components/contract-constructor/signed-pdf-button"
 import { SendForSignatureButton } from "@/components/contract-constructor/send-for-signature-button"
 import { AddendumActions } from "@/components/contract-constructor/addendum-actions"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  DRAFT:             { label: "Черновик",       color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" },
-  SENT:              { label: "Отправлен",      color: "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300" },
-  VIEWED:            { label: "Просмотрен",     color: "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300" },
-  SIGNED_BY_TENANT:  { label: "Подписал арендатор", color: "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
-  SIGNED:            { label: "Подписан",       color: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
-  ACTIVE:            { label: "Действующий",    color: "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
-  ARCHIVED:          { label: "Архивирован",    color: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
-  REJECTED:          { label: "Отклонён",       color: "bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300" },
-  EXPIRED:           { label: "Истёк",          color: "bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300" },
+// Цвет бейджа статуса; подпись берём из словаря (domain.statuses).
+const STATUS_COLORS: Record<string, string> = {
+  DRAFT:             "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300",
+  SENT:              "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  VIEWED:            "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  SIGNED_BY_TENANT:  "bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  SIGNED:            "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  ACTIVE:            "bg-emerald-100 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  ARCHIVED:          "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
+  REJECTED:          "bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300",
+  EXPIRED:           "bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300",
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  STANDARD: "Стандартный договор",
-  ADDENDUM: "Дополнительное соглашение",
-}
-
-const CHANGE_KIND_LABELS: Record<string, string> = {
-  RENTAL_TERMS: "Изменение условий аренды",
-  PROLONGATION: "Пролонгация",
-  TERMINATION: "Расторжение",
-  OTHER: "Прочие изменения",
-}
-
-const fmtDate = (d: Date | null) => (d ? d.toLocaleDateString("ru-RU") : "—")
+const FALLBACK_STATUS_COLOR = "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
 
 export default async function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
   const { id } = await params
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const fmtDate = (d: Date | null) => (d ? formatDateShortL(locale, d) : "—")
+
+  // Подпись статуса: общая из domain.statuses, «Действующий» — только здесь.
+  const statusLabel = (status: string) => {
+    if (status === "ACTIVE") return t("adminDocs.contract.statusActive")
+    const key = `domain.statuses.${status}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? status : label
+  }
+  // Вид договора: «Стандартный договор» / «Дополнительное соглашение».
+  const typeLabel = (type: string) =>
+    type === "STANDARD" ? t("adminDocs.contract.typeStandard")
+      : type === "ADDENDUM" ? t("domain.docTypes.ADDENDUM")
+        : type
+  const changeKindLabel = (kind: string) => {
+    const key = `adminDocs.contract.changeKinds.${kind}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? kind : label
+  }
 
   try {
     await assertContractInOrg(id, orgId)
@@ -90,7 +102,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   if (!contract) notFound()
   try { await assertTenantBuildingAccess(contract.tenant.id, orgId) } catch { notFound() }
 
-  const statusMeta = STATUS_LABELS[contract.status] ?? { label: contract.status, color: "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" }
+  const statusColor = STATUS_COLORS[contract.status] ?? FALLBACK_STATUS_COLOR
   const isAddendum = contract.type === "ADDENDUM"
   // Полный текст с приложениями — из снимка конструктора (для старых договоров,
   // где приложений нет в сохранённом content). Иначе — content как есть.
@@ -112,20 +124,20 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     : null
 
   const steps = [
-    { label: "Создан", date: contract.createdAt },
-    { label: "Отправлен", date: contract.sentAt },
-    { label: "Открыт", date: contract.viewedAt },
-    { label: "Подписан арендатором", date: contract.signedByTenantAt, hint: contract.signedByTenantName ?? undefined },
-    { label: "Подписан арендодателем", date: contract.signedByLandlordAt },
-    { label: "Готов — обе стороны", date: contract.signedAt },
+    { key: "created", label: t("adminDocs.contract.steps.created"), date: contract.createdAt },
+    { key: "sent", label: t("adminDocs.contract.steps.sent"), date: contract.sentAt },
+    { key: "viewed", label: t("adminDocs.contract.steps.viewed"), date: contract.viewedAt },
+    { key: "signedByTenant", label: t("adminDocs.contract.steps.signedByTenant"), date: contract.signedByTenantAt, hint: contract.signedByTenantName ?? undefined },
+    { key: "signedByLandlord", label: t("adminDocs.contract.steps.signedByLandlord"), date: contract.signedByLandlordAt },
+    { key: "done", label: t("adminDocs.contract.steps.done"), date: contract.signedAt },
   ]
 
   return (
     <div className="space-y-4">
       <Breadcrumbs
         items={[
-          { label: "Главная", href: "/admin" },
-          { label: "Договоры", href: "/admin/contracts" },
+          { label: t("adminDocs.contract.breadcrumbHome"), href: "/admin" },
+          { label: t("adminDocs.contract.breadcrumbList"), href: "/admin/contracts" },
           { label: `№ ${contract.number}` },
         ]}
       />
@@ -133,40 +145,40 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       {/* Шапка-карточка */}
       <Card className="block p-5">
         <Link href="/admin/contracts" className="mb-3 inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">
-          <ArrowLeft className="h-3.5 w-3.5" /> К списку договоров
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("adminDocs.contract.backToList")}
         </Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
-                {TYPE_LABELS[contract.type] ?? contract.type} № {contract.number}
+                {typeLabel(contract.type)} № {contract.number}
               </h1>
-              <Badge className={statusMeta.color}>{statusMeta.label}</Badge>
+              <Badge className={statusColor}>{statusLabel(contract.status)}</Badge>
               {contract.placementType && !isAddendum && (
                 <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
                   {contractTypeShort(contract.placementType)}
                 </Badge>
               )}
               {contract.version > 1 && (
-                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">Версия {contract.version}</Badge>
+                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300">{t("adminDocs.contract.version", { version: contract.version })}</Badge>
               )}
             </div>
             <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-              Арендатор:{" "}
+              {t("adminDocs.contract.tenantLine")}{" "}
               <Link href={`/admin/tenants/${contract.tenant.id}`} className="font-medium text-blue-600 hover:underline dark:text-blue-400">
                 {contract.tenant.companyName}
               </Link>
-              {" · создан "}{fmtDate(contract.createdAt)}
+              {t("adminDocs.contract.createdAt", { date: fmtDate(contract.createdAt) })}
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:items-end">
             {contract.builderState ? (
               <SignedPdfButton contractId={contract.id} />
             ) : (
-              <p className="max-w-[14rem] text-[11px] text-slate-400 dark:text-slate-500">PDF доступен для договоров из конструктора.</p>
+              <p className="max-w-[14rem] text-[11px] text-slate-400 dark:text-slate-500">{t("adminDocs.contract.pdfOnlyBuilder")}</p>
             )}
             {landlordPayloadB64 && (
-              <ContractEcpSign payloadB64={landlordPayloadB64} mode="landlord" contractId={contract.id} label="Подписать ЭЦП (арендодатель)" />
+              <ContractEcpSign payloadB64={landlordPayloadB64} mode="landlord" contractId={contract.id} label={t("adminDocs.contract.signAsLandlord")} />
             )}
             {contract.status !== "SIGNED" && contract.status !== "REJECTED" && contract.status !== "ARCHIVED" && (
               <SendForSignatureButton contractId={contract.id} alreadySent={!!contract.sentAt} />
@@ -179,18 +191,18 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {/* Таймлайн подписания */}
-          <Section title="Подписание" icon={Clock}>
+          <Section title={t("adminDocs.contract.signing")} icon={Clock}>
             <ol className="flex flex-wrap items-start gap-x-2 gap-y-4">
               {steps.map((s, i) => {
-                const done = s.date !== null || s.label === "Создан"
+                const done = s.date !== null || s.key === "created"
                 return (
-                  <li key={s.label} className="flex items-center">
+                  <li key={s.key} className="flex items-center">
                     <div className="flex w-24 flex-col items-center text-center">
                       <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${done ? "bg-emerald-500 text-white" : "bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500"}`}>
                         {done ? "✓" : i + 1}
                       </span>
                       <span className={`mt-1.5 text-[11px] leading-tight ${done ? "text-slate-700 dark:text-slate-200" : "text-slate-400 dark:text-slate-500"}`}>{s.label}</span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.date ? s.date.toLocaleDateString("ru-RU") : "—"}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{fmtDate(s.date)}</span>
                       {s.hint && <span className="text-[10px] text-slate-400 dark:text-slate-500">{s.hint}</span>}
                     </div>
                     {i < steps.length - 1 && <span className="mx-1 hidden h-px w-4 bg-slate-200 dark:bg-slate-700 sm:block" />}
@@ -200,15 +212,17 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
             </ol>
             {contract.rejectedAt && (
               <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-500/10 dark:text-red-300">
-                Отклонён {contract.rejectedAt.toLocaleDateString("ru-RU")}{contract.rejectionReason ? ` · ${contract.rejectionReason}` : ""}
+                {contract.rejectionReason
+                  ? t("adminDocs.contract.rejectedWithReason", { date: fmtDate(contract.rejectedAt), reason: contract.rejectionReason })
+                  : t("adminDocs.contract.rejected", { date: fmtDate(contract.rejectedAt) })}
               </div>
             )}
           </Section>
 
           {/* Доп. соглашения — действия */}
           {contract.status === "SIGNED" && !isAddendum && (
-            <Section title="Дополнительные соглашения" icon={ShieldCheck}>
-              <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">Продлите срок или расторгните договор — ДС уйдёт арендатору на подпись.</p>
+            <Section title={t("adminDocs.contract.addenda")} icon={ShieldCheck}>
+              <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">{t("adminDocs.contract.addendaHint")}</p>
               <AddendumActions contractId={contract.id} />
             </Section>
           )}
@@ -217,14 +231,14 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           <details className="group overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:text-slate-100">
               <FileText className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              Текст договора
+              {t("adminDocs.contract.text")}
               <ChevronDown className="ml-auto h-4 w-4 text-slate-400 transition group-open:rotate-180" />
             </summary>
             <div className="max-h-[600px] overflow-y-auto border-t border-slate-100 px-5 py-4 dark:border-slate-800">
               {contract.builderState ? (
                 <ContractDocumentView state={contract.builderState as unknown as ContractState} />
               ) : (
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700 dark:text-slate-300">{fullContractText || "(пусто)"}</pre>
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700 dark:text-slate-300">{fullContractText || t("adminDocs.contract.textEmpty")}</pre>
               )}
             </div>
           </details>
@@ -232,31 +246,31 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
 
         {/* Правая колонка */}
         <div className="space-y-4">
-          <Section title="Сводка" icon={Calendar}>
+          <Section title={t("adminDocs.contract.summary")} icon={Calendar}>
             <dl className="space-y-2.5 text-sm">
-              <Row label="Начало" value={fmtDate(contract.startDate)} />
-              <Row label="Окончание" value={fmtDate(contract.endDate)} />
+              <Row label={t("adminDocs.contract.start")} value={fmtDate(contract.startDate)} />
+              <Row label={t("adminDocs.contract.end")} value={fmtDate(contract.endDate)} />
               {isAddendum && contract.effectiveDate && (
-                <Row label="Вступает в силу" value={`${fmtDate(contract.effectiveDate)}${contract.appliedAt ? " ✓" : ""}`} />
+                <Row label={t("adminDocs.contract.effective")} value={`${fmtDate(contract.effectiveDate)}${contract.appliedAt ? " ✓" : ""}`} />
               )}
-              <Row label="Начислений" value={String(contract._count.charges)} icon={Receipt} />
-              <Row label="Арендатор" value={contract.tenant.companyName} href={`/admin/tenants/${contract.tenant.id}`} icon={Users} />
+              <Row label={t("adminDocs.contract.charges")} value={String(contract._count.charges)} icon={Receipt} />
+              <Row label={t("adminDocs.card.tenant")} value={contract.tenant.companyName} href={`/admin/tenants/${contract.tenant.id}`} icon={Users} />
             </dl>
           </Section>
 
           {(contract.parentContract || contract.parentVersion) && (
-            <Section title="Связи" icon={Users}>
+            <Section title={t("adminDocs.contract.links")} icon={Users}>
               {contract.parentContract && (
                 <div className="text-sm">
-                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">Основной договор</p>
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">{t("adminDocs.contract.parentContract")}</p>
                   <Link href={`/admin/contracts/${contract.parentContract.id}`} className="text-blue-600 hover:underline dark:text-blue-400">
-                    № {contract.parentContract.number} ({TYPE_LABELS[contract.parentContract.type] ?? contract.parentContract.type})
+                    № {contract.parentContract.number} ({typeLabel(contract.parentContract.type)})
                   </Link>
                 </div>
               )}
               {contract.parentVersion && (
                 <div className="mt-3 text-sm">
-                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">Предыдущая версия</p>
+                  <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">{t("adminDocs.contract.parentVersion")}</p>
                   <Link href={`/admin/contracts/${contract.parentVersion.id}`} className="text-blue-600 hover:underline dark:text-blue-400">
                     № {contract.parentVersion.number} (v{contract.parentVersion.version})
                   </Link>
@@ -266,13 +280,13 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           )}
 
           {contract.versions.length > 0 && (
-            <Section title={`Версии (${contract.versions.length})`} icon={HistoryIcon}>
+            <Section title={t("adminDocs.contract.versions", { count: contract.versions.length })} icon={HistoryIcon}>
               <ul className="space-y-2 text-sm">
                 {contract.versions.map((v) => (
                   <li key={v.id}>
                     <Link href={`/admin/contracts/${v.id}`} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:border-slate-800 dark:hover:bg-blue-500/10">
                       <span><span className="font-medium text-slate-900 dark:text-slate-100">v{v.version}</span><span className="ml-2 text-xs text-slate-400 dark:text-slate-500">{fmtDate(v.createdAt)}</span></span>
-                      <Badge className={`px-1.5 font-normal ${STATUS_LABELS[v.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[v.status]?.label ?? v.status}</Badge>
+                      <Badge className={`px-1.5 font-normal ${STATUS_COLORS[v.status] ?? "bg-slate-100"}`}>{statusLabel(v.status)}</Badge>
                     </Link>
                   </li>
                 ))}
@@ -281,16 +295,16 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
           )}
 
           {contract.addenda.length > 0 && (
-            <Section title={`Доп. соглашения (${contract.addenda.length})`} icon={ShieldCheck}>
+            <Section title={t("adminDocs.contract.addendaList", { count: contract.addenda.length })} icon={ShieldCheck}>
               <ul className="space-y-2 text-sm">
                 {contract.addenda.map((a) => (
                   <li key={a.id}>
                     <Link href={`/admin/contracts/${a.id}`} className="flex flex-col gap-1 rounded-lg border border-slate-200 px-3 py-2 hover:border-blue-300 hover:bg-blue-50/30 dark:border-slate-800 dark:hover:bg-blue-500/10">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-slate-900 dark:text-slate-100">ДС № {a.number}</span>
-                        <Badge className={`px-1.5 font-normal ${STATUS_LABELS[a.status]?.color ?? "bg-slate-100"}`}>{STATUS_LABELS[a.status]?.label ?? a.status}</Badge>
+                        <Badge className={`px-1.5 font-normal ${STATUS_COLORS[a.status] ?? "bg-slate-100"}`}>{statusLabel(a.status)}</Badge>
                       </div>
-                      {a.changeKind && <span className="text-xs text-slate-500 dark:text-slate-400">{CHANGE_KIND_LABELS[a.changeKind] ?? a.changeKind}</span>}
+                      {a.changeKind && <span className="text-xs text-slate-500 dark:text-slate-400">{changeKindLabel(a.changeKind)}</span>}
                       <span className="text-xs text-slate-400 dark:text-slate-500">{fmtDate(a.createdAt)}</span>
                     </Link>
                   </li>

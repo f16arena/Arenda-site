@@ -9,18 +9,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { generateListingDraft, setListingStatus, type GeneratedListing } from "@/app/actions/krisha-listing"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatNumberL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
 
-function money(v: number | null): string {
-  return v && v > 0 ? `${Math.round(v).toLocaleString("ru-RU")} ₸` : "—"
-}
-
-async function copy(text: string, label: string) {
-  try {
-    await navigator.clipboard.writeText(text)
-    toast.success(`${label} скопировано`)
-  } catch {
-    toast.error("Не удалось скопировать")
-  }
+function money(locale: Locale, v: number | null): string {
+  return v && v > 0 ? `${formatNumberL(locale, Math.round(v))} ₸` : "—"
 }
 
 function downloadDataUrl(dataUrl: string, name: string) {
@@ -33,6 +27,16 @@ function downloadDataUrl(dataUrl: string, name: string) {
 }
 
 export function KrishaListingButton({ spaceId }: { spaceId: string }) {
+  const { t } = useT()
+  const locale = useLocale()
+  const copy = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(t("adminObjects.krisha.copied", { label }))
+    } catch {
+      toast.error(t("adminObjects.krisha.copyFailed"))
+    }
+  }
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [data, setData] = useState<GeneratedListing | null>(null)
@@ -68,7 +72,7 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
         return
       }
       setMarked(true)
-      toast.success("Отмечено как опубликованное")
+      toast.success(t("adminObjects.krisha.markedToast"))
     })
   }
 
@@ -78,34 +82,33 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
         type="button"
         onClick={prepare}
         disabled={pending}
-        title="Подготовить объявление для Krisha"
+        title={t("adminObjects.krisha.buttonHint")}
         className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50 dark:text-emerald-400"
       >
         <Megaphone className="h-3.5 w-3.5" />
-        {pending && !open ? "…" : "Krisha"}
+        {pending && !open ? "…" : t("adminObjects.krisha.button")}
       </button>
 
       {data && (
       <ModalShell open={open} onClose={() => setOpen(false)} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Объявление для Krisha</h2>
-              <button type="button" onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <h2 className="text-base font-semibold">{t("adminObjects.krisha.title")}</h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label={t("common.actions.close")} className="text-slate-400 hover:text-slate-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="space-y-4 px-6 py-4 text-sm">
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
-                Полуавтомат: текст и фото готовы. Откройте Krisha, войдите в аккаунт и опубликуйте — вставьте текст и
-                загрузите фото (krisha требует вход, SMS и модерацию, прямого API публикации у них нет).
+                {t("adminObjects.krisha.note")}
               </p>
 
               {/* Заголовок */}
               <div>
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-500">Заголовок</span>
-                  <button type="button" onClick={() => copy(data.title, "Заголовок")} className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                    <Copy className="h-3 w-3" /> Копировать
+                  <span className="text-xs font-medium text-slate-500">{t("adminObjects.krisha.headline")}</span>
+                  <button type="button" onClick={() => copy(data.title, t("adminObjects.krisha.headline"))} className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                    <Copy className="h-3 w-3" /> {t("adminObjects.krisha.copy")}
                   </button>
                 </div>
                 <div className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">{data.title}</div>
@@ -114,17 +117,17 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
               {/* Цена */}
               <div className="flex flex-wrap gap-4 text-xs">
                 <div>
-                  <span className="text-slate-500">Цена/мес: </span>
-                  <span className="font-medium">{money(data.priceMonthly)}</span>
+                  <span className="text-slate-500">{t("adminObjects.krisha.pricePerMonth")}</span>
+                  <span className="font-medium">{money(locale, data.priceMonthly)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500">₸/м²: </span>
-                  <span className="font-medium">{money(data.pricePerSqm)}</span>
+                  <span className="text-slate-500">{t("adminObjects.krisha.pricePerSqm")}</span>
+                  <span className="font-medium">{money(locale, data.pricePerSqm)}</span>
                 </div>
                 {data.marketPerSqm ? (
                   <div>
-                    <span className="text-slate-500">Рынок ₸/м²: </span>
-                    <span className="font-medium">~{Math.round(data.marketPerSqm).toLocaleString("ru-RU")}</span>
+                    <span className="text-slate-500">{t("adminObjects.krisha.marketPerSqm")}</span>
+                    <span className="font-medium">~{formatNumberL(locale, Math.round(data.marketPerSqm))}</span>
                   </div>
                 ) : null}
               </div>
@@ -132,9 +135,9 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
               {/* Описание */}
               <div>
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-xs font-medium text-slate-500">Описание</span>
-                  <button type="button" onClick={() => copy(data.description, "Описание")} className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
-                    <Copy className="h-3 w-3" /> Копировать
+                  <span className="text-xs font-medium text-slate-500">{t("adminObjects.krisha.description")}</span>
+                  <button type="button" onClick={() => copy(data.description, t("adminObjects.krisha.description"))} className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400">
+                    <Copy className="h-3 w-3" /> {t("adminObjects.krisha.copy")}
                   </button>
                 </div>
                 <Textarea
@@ -149,13 +152,13 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
               {data.photos.length > 0 && (
                 <div>
                   <div className="mb-1 flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-500">Фото ({data.photos.length})</span>
+                    <span className="text-xs font-medium text-slate-500">{t("adminObjects.krisha.photos", { count: data.photos.length })}</span>
                     <button
                       type="button"
                       onClick={() => data.photos.forEach((p, i) => downloadDataUrl(p, `krisha-${spaceId}-${i + 1}.jpg`))}
                       className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400"
                     >
-                      <Download className="h-3 w-3" /> Скачать все
+                      <Download className="h-3 w-3" /> {t("adminObjects.krisha.downloadAll")}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -164,8 +167,8 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
                       <img
                         key={i}
                         src={p}
-                        alt={`фото ${i + 1}`}
-                        title="Скачать"
+                        alt={t("adminObjects.krisha.photoAlt", { index: i + 1 })}
+                        title={t("adminObjects.krisha.downloadHint")}
                         onClick={() => downloadDataUrl(p, `krisha-${spaceId}-${i + 1}.jpg`)}
                         className="h-16 w-16 cursor-pointer rounded-lg border border-slate-200 object-cover dark:border-slate-700"
                       />
@@ -177,10 +180,10 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
               {/* Действия */}
               <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                 <Button onClick={openKrisha} leftIcon={<ExternalLink className="h-4 w-4" />}>
-                  Открыть Krisha
+                  {t("adminObjects.krisha.openKrisha")}
                 </Button>
-                <Button variant="secondary" onClick={() => copy(`${data.title}\n\n${data.description}`, "Объявление")} leftIcon={<Copy className="h-4 w-4" />}>
-                  Копировать всё
+                <Button variant="secondary" onClick={() => copy(`${data.title}\n\n${data.description}`, t("adminObjects.krisha.listing"))} leftIcon={<Copy className="h-4 w-4" />}>
+                  {t("adminObjects.krisha.copyAll")}
                 </Button>
               </div>
 
@@ -190,7 +193,7 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
                   type="url"
                   value={publishedUrl}
                   onChange={(e) => setPublishedUrl(e.target.value)}
-                  placeholder="Ссылка на объявление (необяз.)"
+                  placeholder={t("adminObjects.krisha.publishedUrl")}
                   className="min-w-0 flex-1"
                 />
                 <button
@@ -200,7 +203,7 @@ export function KrishaListingButton({ spaceId }: { spaceId: string }) {
                   className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 font-medium text-white disabled:opacity-50"
                 >
                   {marked ? <Check className="h-3.5 w-3.5" /> : null}
-                  {marked ? "Отмечено" : "Опубликовано"}
+                  {marked ? t("adminObjects.krisha.marked") : t("adminObjects.krisha.markPublished")}
                 </button>
               </div>
             </div>

@@ -7,7 +7,9 @@ import { redirect } from "next/navigation"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import Link from "next/link"
 import { Building2, MapPin, Layers, Users, Check, Box, DoorClosed, DoorOpen, Map as MapIcon, User, Phone, Mail } from "lucide-react"
-import { cn, formatMoney } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { isZoneFloor } from "@/lib/zone-kinds"
 import { CreateBuildingButton, BuildingActions, FloorsList } from "./building-actions"
 import { BuildingAdminAssign } from "./admin-assign"
@@ -78,6 +80,9 @@ type LegacyBuildingListItem = {
 export default async function BuildingsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
   const { orgId } = await requireOrgAccess()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/buildings", orgId, userId: session.user.id })
@@ -288,16 +293,19 @@ export default async function BuildingsPage() {
     <div className="space-y-5">
       <PageHeader
         icon={Building2}
-        title="Здания"
-        subtitle={`${active.length} активных${inactive.length > 0 ? ` · ${inactive.length} неактивных` : ""}`}
+        title={t("adminObjects.buildings.title")}
+        subtitle={
+          t("adminObjects.buildings.activeCount", { count: active.length })
+          + (inactive.length > 0 ? ` · ${t("adminObjects.buildings.inactiveCount", { count: inactive.length })}` : "")
+        }
         actions={canCreateBuildings && <CreateBuildingButton />}
       />
 
       {buildings.length === 0 && (
         <Card className="block py-16 text-center">
           <Building2 className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">Нет зданий</p>
-          {canCreateBuildings && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Нажмите «Добавить» чтобы создать первое</p>}
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminObjects.buildings.empty")}</p>
+          {canCreateBuildings && <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{t("adminObjects.buildings.emptyHint")}</p>}
         </Card>
       )}
 
@@ -321,12 +329,12 @@ export default async function BuildingsPage() {
                     {isCurrent && (
                       <Badge className="bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
                         <Check className="h-3 w-3" />
-                        Выбрано
+                        {t("adminObjects.buildings.current")}
                       </Badge>
                     )}
                     {!b.isActive && (
                       <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                        Неактивно
+                        {t("adminObjects.buildings.inactive")}
                       </Badge>
                     )}
                   </div>
@@ -340,7 +348,7 @@ export default async function BuildingsPage() {
                   <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-[auto_1fr]">
                     {canEditBuildings && (
                       <>
-                        <dt className="self-center text-slate-400 dark:text-slate-500" title="Сотрудник, который ведёт здание в системе: получает заявки и уведомления">Администратор в системе</dt>
+                        <dt className="self-center text-slate-400 dark:text-slate-500" title={t("adminObjects.buildings.adminHint")}>{t("adminObjects.buildings.adminLabel")}</dt>
                         <dd>
                           <BuildingAdminAssign buildingId={b.id} current={b.administrator} candidates={adminCandidates} />
                         </dd>
@@ -348,7 +356,7 @@ export default async function BuildingsPage() {
                     )}
                     {(b.responsible || b.phone || b.email) && (
                       <>
-                        <dt className="text-slate-400 dark:text-slate-500" title="Контакт здания для арендаторов и документов">Контакт здания</dt>
+                        <dt className="text-slate-400 dark:text-slate-500" title={t("adminObjects.buildings.contactHint")}>{t("adminObjects.buildings.contactLabel")}</dt>
                         <dd className="flex flex-wrap gap-x-3 gap-y-1 text-slate-600 dark:text-slate-300">
                           {b.responsible && <span className="inline-flex items-center gap-1"><User className="h-3 w-3 text-slate-400" />{b.responsible}</span>}
                           {b.phone && (
@@ -369,19 +377,19 @@ export default async function BuildingsPage() {
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/admin/buildings/${b.id}/map`}
-                    title="План этажей: кто где сидит и что свободно"
+                    title={t("adminObjects.buildings.mapHint")}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
                   >
                     <MapIcon className="h-3.5 w-3.5" />
-                    План с арендаторами
+                    {t("adminObjects.buildings.mapLink")}
                   </Link>
                   <Link
                     href={`/admin/builder/${b.id}`}
-                    title="3D-модель здания: стены, этажи, чертежи"
+                    title={t("adminObjects.buildings.modelHint")}
                     className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 px-2.5 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 dark:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/20"
                   >
                     <Box className="h-3.5 w-3.5" />
-                    3D-модель
+                    {t("adminObjects.buildings.modelLink")}
                   </Link>
                 <BuildingActions
                   buildingId={b.id}
@@ -416,11 +424,11 @@ export default async function BuildingsPage() {
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 p-5 border-b border-slate-100 dark:border-slate-800">
-                <Stat label="Помещений" value={s.spacesCount} icon={Building2} tone="blue" />
-                <Stat label="Занято" value={s.occupiedCount} icon={DoorClosed} tone="violet" />
-                <Stat label="Свободно" value={s.spacesCount - s.occupiedCount} icon={DoorOpen} tone="emerald" />
-                <Stat label="Мест на крыше и территории" value={s.objectsCount} icon={Layers} tone="slate" />
-                <Stat label="Арендаторов" value={s.tenantsCount} icon={Users} tone="teal" />
+                <Stat label={t("adminObjects.buildings.stats.spaces")} value={s.spacesCount} icon={Building2} tone="blue" />
+                <Stat label={t("adminObjects.buildings.stats.occupied")} value={s.occupiedCount} icon={DoorClosed} tone="violet" />
+                <Stat label={t("adminObjects.buildings.stats.vacant")} value={s.spacesCount - s.occupiedCount} icon={DoorOpen} tone="emerald" />
+                <Stat label={t("adminObjects.buildings.stats.zoneObjects")} value={s.objectsCount} icon={Layers} tone="slate" />
+                <Stat label={t("adminObjects.buildings.stats.tenants")} value={s.tenantsCount} icon={Users} tone="teal" />
               </div>
 
               {/* Площадь (сумма обычных этажей) и эксплуатационный сбор — одной строкой */}
@@ -431,21 +439,21 @@ export default async function BuildingsPage() {
                 const fee = feeById.get(b.id)
                 const feeText = fee && (fee.summer || fee.winter)
                   ? fee.summer === fee.winter || !fee.winter
-                    ? `${formatMoney(fee.summer ?? 0)} за м² в месяц`
-                    : `лето ${formatMoney(fee.summer ?? 0)} · зима ${formatMoney(fee.winter)} за м²`
-                  : "не настроен"
+                    ? t("adminObjects.buildings.fee.flat", { amount: money(fee.summer ?? 0) })
+                    : t("adminObjects.buildings.fee.seasonal", { summer: money(fee.summer ?? 0), winter: money(fee.winter) })
+                  : t("adminObjects.buildings.fee.notSet")
                 return (
                   <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-b border-slate-100 bg-slate-50/40 px-5 py-3 text-xs dark:border-slate-800 dark:bg-slate-800/20">
                     <span className="text-slate-500 dark:text-slate-400">
-                      Площадь здания:{" "}
-                      <b className="tabular-nums text-slate-900 dark:text-slate-100">{sumFloorArea > 0 ? `${sumFloorArea.toFixed(1)} м²` : "не задана"}</b>
-                      {missingArea > 0 && <span className="text-amber-600 dark:text-amber-400"> · у {missingArea} этаж. не указана площадь</span>}
+                      {t("adminObjects.buildings.area.label")}{" "}
+                      <b className="tabular-nums text-slate-900 dark:text-slate-100">{sumFloorArea > 0 ? `${sumFloorArea.toFixed(1)} м²` : t("adminObjects.buildings.area.notSet")}</b>
+                      {missingArea > 0 && <span className="text-amber-600 dark:text-amber-400">{tp("adminObjects.buildings.area.missing", missingArea)}</span>}
                     </span>
                     <span className="text-slate-500 dark:text-slate-400">
-                      Эксплуатационный сбор: <b className="text-slate-900 dark:text-slate-100">{feeText}</b>
+                      {t("adminObjects.buildings.fee.label")} <b className="text-slate-900 dark:text-slate-100">{feeText}</b>
                       {canEditBuildings && (
                         <Link href={`/admin/buildings/${b.id}/service-fee`} className="ml-2 font-medium text-blue-600 hover:underline dark:text-blue-400">
-                          изменить
+                          {t("adminObjects.buildings.fee.change")}
                         </Link>
                       )}
                     </span>

@@ -2,12 +2,13 @@
 import { ModalShell } from "@/components/ui/modal"
 
 import { useEffect, useState, useTransition } from "react"
-import { Plus, X, Edit2 } from "lucide-react"
+import { Plus, X, Edit2, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { createSpace, createZoneObject, updateSpace, deleteSpace } from "@/app/actions/spaces"
 import { SpacePhotosField } from "./space-photos-field"
 import { parseSpacePhotos } from "@/lib/space-photos"
-import { DeleteAction } from "@/components/ui/delete-action"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useT } from "@/lib/i18n/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { isZoneFloor, SPACE_OBJECT_KIND } from "@/lib/zone-kinds"
@@ -30,12 +31,6 @@ type EditableSpace = Space & {
   tenant?: { id: string; companyName: string } | null
 }
 
-const STATUSES = [
-  { value: "VACANT", label: "Свободно" },
-  { value: "OCCUPIED", label: "Занято" },
-  { value: "MAINTENANCE", label: "Обслуживание" },
-]
-
 export function AddSpaceDialog({
   floors,
   objectTenants = [],
@@ -44,6 +39,7 @@ export function AddSpaceDialog({
   /** Кандидаты-арендаторы для объектов зоны (крыша/территория). */
   objectTenants?: { id: string; companyName: string }[]
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [floorId, setFloorId] = useState(floors[0]?.id ?? "")
@@ -67,13 +63,13 @@ export function AddSpaceDialog({
         onClick={() => setOpen(true)}
         leftIcon={<Plus className="h-4 w-4" />}
       >
-        {allZones ? "Добавить объект" : "Добавить помещение"}
+        {allZones ? t("adminObjects.spaceForm.addObject") : t("adminObjects.spaceForm.addSpace")}
       </Button>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">{isZone ? "Новый объект" : "Новое помещение"}</h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <h2 className="text-base font-semibold">{isZone ? t("adminObjects.spaceForm.newObject") : t("adminObjects.spaceForm.newSpace")}</h2>
+              <button onClick={() => setOpen(false)} aria-label={t("common.actions.close")}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
@@ -81,23 +77,27 @@ export function AddSpaceDialog({
                   try {
                     if (isZone) {
                       await createZoneObject(fd)
-                      toast.success(objTenantId ? "Объект создан и арендатор назначен" : "Объект создан")
+                      toast.success(objTenantId
+                        ? t("adminObjects.spaceForm.objectCreatedWithTenant")
+                        : t("adminObjects.spaceForm.objectCreated"))
                     } else {
                       await createSpace(fd)
-                      toast.success("Помещение создано")
+                      toast.success(t("adminObjects.spaceForm.spaceCreated"))
                     }
                     setOpen(false)
                     setAreaStr("")
                     setObjTenantId("")
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Не удалось создать")
+                    toast.error(e instanceof Error ? e.message : t("adminObjects.spaceForm.createFailed"))
                   }
                 })
               }
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{isZone ? "Зона *" : "Этаж *"}</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                  {isZone ? t("adminObjects.spaceForm.zone") : t("adminObjects.spaceForm.floor")}
+                </label>
                 <select
                   name="floorId"
                   required
@@ -111,15 +111,15 @@ export function AddSpaceDialog({
                 </select>
                 {!isZone && selectedFloor && total !== null && (
                   <p className={`text-[11px] mt-1 ${exceeds ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
-                    Этаж: {total} м² · занято {used.toFixed(1)} м² ·{" "}
+                    {t("adminObjects.spaceForm.floorCapacity", { total, used: used.toFixed(1) })}
                     <b className={exceeds ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-400"}>
-                      доступно {(available ?? 0).toFixed(1)} м²
+                      {t("adminObjects.spaceForm.floorAvailable", { available: (available ?? 0).toFixed(1) })}
                     </b>
                   </p>
                 )}
                 {!isZone && selectedFloor && total === null && (
                   <p className="text-[11px] mt-1 text-amber-600 dark:text-amber-400">
-                    На этаже не задана общая площадь — лимит не контролируется.
+                    {t("adminObjects.spaceForm.floorNoArea")}
                   </p>
                 )}
               </div>
@@ -129,42 +129,45 @@ export function AddSpaceDialog({
                 <>
                   <input type="hidden" name="kind" value={SPACE_OBJECT_KIND} />
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название объекта *</label>
-                    <Input name="number" required placeholder="Антенна Beeline / Парковка №5 / Щит А" />
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.objectName")}</label>
+                    <Input name="number" required placeholder={t("adminObjects.spaceForm.objectNamePlaceholder")} />
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                      Без квадратных метров — аренда задаётся фиксированной суммой при назначении арендатора.
+                      {t("adminObjects.spaceForm.objectNameHint")}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                    <Input name="description" placeholder="Антенно-мачтовое сооружение, юго-восток…" />
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.description")}</label>
+                    <Input name="description" placeholder={t("adminObjects.spaceForm.objectDescriptionPlaceholder")} />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Арендатор <span className="font-normal text-slate-400">— необязательно</span></label>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                      {t("adminObjects.spaceForm.tenantOptional")}{" "}
+                      <span className="font-normal text-slate-400">{t("adminObjects.spaceForm.tenantOptionalNote")}</span>
+                    </label>
                     <select
                       name="tenantId"
                       value={objTenantId}
                       onChange={(e) => setObjTenantId(e.target.value)}
                       className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none"
                     >
-                      <option value="">— без арендатора (свободно) —</option>
-                      {objectTenants.map((t) => (
-                        <option key={t.id} value={t.id}>{t.companyName}</option>
+                      <option value="">{t("adminObjects.spaceForm.noTenantOption")}</option>
+                      {objectTenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>{tenant.companyName}</option>
                       ))}
                     </select>
                   </div>
                   {objTenantId && (
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Аренда, ₸/мес</label>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.objectRent")}</label>
                       <Input
                         name="fixedMonthlyRent"
                         type="number"
                         step="1"
                         min="0"
-                        placeholder="например, 150000"
+                        placeholder={t("adminObjects.spaceForm.objectRentPlaceholder")}
                       />
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                        Фиксированная сумма за объект. Можно оставить пустым и задать позже в карточке арендатора.
+                        {t("adminObjects.spaceForm.objectRentHint")}
                       </p>
                     </div>
                   )}
@@ -173,17 +176,17 @@ export function AddSpaceDialog({
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер кабинета *</label>
-                      <Input name="number" required placeholder="101" />
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.roomNumber")}</label>
+                      <Input name="number" required placeholder={t("adminObjects.spaceForm.roomNumberPlaceholder")} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м² *</label>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.area")}</label>
                       <Input
                         name="area"
                         type="number"
                         step="0.1"
                         required
-                        placeholder="30"
+                        placeholder={t("adminObjects.spaceForm.areaPlaceholder")}
                         value={areaStr}
                         onChange={(e) => setAreaStr(e.target.value)}
                         max={available ?? undefined}
@@ -191,49 +194,49 @@ export function AddSpaceDialog({
                       />
                       {exceeds && (
                         <p className="text-[10px] text-red-600 dark:text-red-400 mt-1">
-                          Превышение на {(areaNum - (available ?? 0)).toFixed(1)} м²
+                          {t("adminObjects.spaceForm.areaExceeds", { value: (areaNum - (available ?? 0)).toFixed(1) })}
                         </p>
                       )}
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип помещения *</label>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.kind")}</label>
                     <div className="grid grid-cols-2 gap-2">
                       <label className="cursor-pointer">
                         <input type="radio" name="kind" value="RENTABLE" defaultChecked className="peer sr-only" />
                         <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-emerald-500 peer-checked:bg-emerald-50 peer-checked:dark:bg-emerald-500/10">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">Арендуемое</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Кабинет / офис / магазин</p>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{t("adminObjects.spaceForm.kindRentable")}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminObjects.spaceForm.kindRentableHint")}</p>
                         </div>
                       </label>
                       <label className="cursor-pointer">
                         <input type="radio" name="kind" value="COMMON" className="peer sr-only" />
                         <div className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs peer-checked:border-slate-500 peer-checked:bg-slate-50 peer-checked:dark:bg-slate-800">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">Общая зона</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400">Коридор / WC / лестница / тех</p>
+                          <p className="font-medium text-slate-900 dark:text-slate-100">{t("adminObjects.spaceForm.kindCommon")}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminObjects.spaceForm.kindCommonHint")}</p>
                         </div>
                       </label>
                     </div>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-                      Общие зоны не сдаются в аренду и не попадают в список свободных.
+                      {t("adminObjects.spaceForm.kindHint")}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                    <Input name="description" placeholder="Угловой офис, окна на юг…" />
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.description")}</label>
+                    <Input name="description" placeholder={t("adminObjects.spaceForm.spaceDescriptionPlaceholder")} />
                   </div>
                 </>
               )}
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button
                   type="submit"
                   loading={pending}
                   disabled={exceeds}
-                  title={exceeds ? "Площадь превышает доступную на этаже" : undefined}
+                  title={exceeds ? t("adminObjects.spaceForm.areaExceedsHint") : undefined}
                   className="flex-1"
                 >
-                  {pending ? "Создание..." : "Создать"}
+                  {pending ? t("adminObjects.spaceForm.creating") : t("adminObjects.spaceForm.create")}
                 </Button>
               </div>
             </form>
@@ -251,6 +254,7 @@ export function EditSpaceDialog({
   tenants: TenantOption[]
   buildingId?: string
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useState(space.status)
@@ -263,6 +267,12 @@ export function EditSpaceDialog({
   const requiresTenant = status === "OCCUPIED" && !occupiedTenant
   const cannotRelease = !!occupiedTenant && status !== "OCCUPIED"
   const cannotSave = cannotRelease || (requiresTenant && !tenantId)
+  const statuses = [
+    { value: "VACANT", label: t("adminObjects.spaceForm.statusVacant") },
+    { value: "OCCUPIED", label: t("adminObjects.spaceForm.statusOccupied") },
+    { value: "MAINTENANCE", label: t("adminObjects.spaceForm.statusMaintenance") },
+  ]
+  const loadFailed = t("adminObjects.spaceForm.tenantsLoadFailed")
 
   useEffect(() => {
     if (!open || !requiresTenant || !buildingId) return
@@ -276,7 +286,7 @@ export function EditSpaceDialog({
 
       fetch(`/api/admin/spaces/assignable-tenants?${params.toString()}`, { signal: controller.signal })
         .then((response) => {
-          if (!response.ok) throw new Error("Не удалось загрузить арендаторов")
+          if (!response.ok) throw new Error(loadFailed)
           return response.json()
         })
         .then((payload) => {
@@ -284,7 +294,7 @@ export function EditSpaceDialog({
         })
         .catch((error) => {
           if (controller.signal.aborted) return
-          setTenantsError(error instanceof Error ? error.message : "Не удалось загрузить арендаторов")
+          setTenantsError(error instanceof Error ? error.message : loadFailed)
           setTenantOptions(tenants)
         })
         .finally(() => {
@@ -296,29 +306,29 @@ export function EditSpaceDialog({
       controller.abort()
       window.clearTimeout(timer)
     }
-  }, [buildingId, open, requiresTenant, tenantQuery, tenants])
+  }, [buildingId, open, requiresTenant, tenantQuery, tenants, loadFailed])
 
   return (
     <>
       <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
         <Edit2 className="h-3 w-3" />
-        Изменить
+        {t("adminObjects.spaceForm.edit")}
       </button>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Редактировать помещение</h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <h2 className="text-base font-semibold">{t("adminObjects.spaceForm.editTitle")}</h2>
+              <button onClick={() => setOpen(false)} aria-label={t("common.actions.close")}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
                 startTransition(async () => {
                   try {
                     await updateSpace(space.id, fd)
-                    toast.success("Изменения сохранены")
+                    toast.success(t("adminObjects.spaceForm.savedChanges"))
                     setOpen(false)
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Не удалось сохранить")
+                    toast.error(e instanceof Error ? e.message : t("adminObjects.spaceForm.saveFailed"))
                   }
                 })
               }
@@ -326,45 +336,45 @@ export function EditSpaceDialog({
             >
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Номер</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.number")}</label>
                   <Input name="number" defaultValue={space.number} required />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь, м²</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.areaShort")}</label>
                   <Input name="area" type="number" step="0.1" defaultValue={space.area} required />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Статус</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.status")}</label>
                 <select
                   name="status"
                   value={status}
                   onChange={(event) => setStatus(event.target.value)}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none"
                 >
-                  {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  {statuses.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
               {status === "OCCUPIED" && (
                 <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs dark:border-blue-500/30 dark:bg-blue-500/10">
                   {occupiedTenant ? (
                     <>
-                      <p className="font-medium text-blue-900 dark:text-blue-200">Помещение уже занято</p>
+                      <p className="font-medium text-blue-900 dark:text-blue-200">{t("adminObjects.spaceForm.occupiedTitle")}</p>
                       <p className="mt-1 text-blue-700 dark:text-blue-300">
-                        Арендатор: <a href={`/admin/tenants/${occupiedTenant.id}`} className="underline hover:no-underline">{occupiedTenant.companyName}</a>
+                        {t("adminObjects.spaceForm.occupiedTenant")} <a href={`/admin/tenants/${occupiedTenant.id}`} className="underline hover:no-underline">{occupiedTenant.companyName}</a>
                       </p>
                       <input type="hidden" name="tenantId" value={occupiedTenant.id} />
                     </>
                   ) : (
                     <>
                       <label className="block text-xs font-medium text-blue-900 dark:text-blue-200 mb-1.5">
-                        Кем занято *
+                        {t("adminObjects.spaceForm.occupiedBy")}
                       </label>
                       <Input
                         type="search"
                         value={tenantQuery}
                         onChange={(event) => setTenantQuery(event.target.value)}
-                        placeholder="Поиск по названию, БИН или ИИН"
+                        placeholder={t("adminObjects.spaceForm.tenantSearch")}
                         className="mb-2 border-blue-200 bg-white dark:border-blue-500/30 dark:bg-slate-950"
                       />
                       <select
@@ -374,7 +384,7 @@ export function EditSpaceDialog({
                         onChange={(event) => setTenantId(event.target.value)}
                         className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-blue-500/30 dark:bg-slate-950 dark:text-slate-100"
                       >
-                        <option value="">Выберите арендатора</option>
+                        <option value="">{t("adminObjects.spaceForm.tenantSelect")}</option>
                         {tenantOptions.map((tenant) => (
                           <option key={tenant.id} value={tenant.id}>
                             {tenant.companyName}{tenant.placement ? ` · ${tenant.placement}` : ""}
@@ -382,18 +392,18 @@ export function EditSpaceDialog({
                         ))}
                       </select>
                       {tenantsLoading && (
-                        <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">Загрузка арендаторов...</p>
+                        <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">{t("adminObjects.spaceForm.tenantsLoading")}</p>
                       )}
                       {tenantsError && (
                         <p className="mt-1 text-[11px] text-red-600 dark:text-red-300">{tenantsError}</p>
                       )}
                       {!tenantsLoading && tenantOptions.length === 0 && !tenantsError && (
                         <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
-                          Подходящие арендаторы не найдены. Проверьте здание или создайте арендатора.
+                          {t("adminObjects.spaceForm.tenantsNotFound")}
                         </p>
                       )}
                       <p className="mt-1 text-[11px] text-blue-700 dark:text-blue-300">
-                        Статус “занято” сохраняется только вместе с привязкой арендатора.
+                        {t("adminObjects.spaceForm.occupiedRule")}
                       </p>
                     </>
                   )}
@@ -401,26 +411,25 @@ export function EditSpaceDialog({
               )}
               {cannotRelease && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                  Нельзя освободить помещение простой сменой статуса. Сначала откройте карточку арендатора
-                  «{occupiedTenant.companyName}» и снимите помещение или завершите договор.
+                  {t("adminObjects.spaceForm.cannotRelease", { name: occupiedTenant.companyName })}
                 </div>
               )}
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.spaceForm.description")}</label>
                 <Input name="description" defaultValue={space.description ?? ""} />
               </div>
               {/* Фото — сохраняются отдельным action сразу при добавлении/удалении */}
               <SpacePhotosField spaceId={space.id} initialPhotos={parseSpacePhotos(space.photos)} />
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button
                   type="submit"
                   loading={pending}
                   disabled={cannotSave}
-                  title={cannotSave ? "Проверьте правило занятости помещения" : undefined}
+                  title={cannotSave ? t("adminObjects.spaceForm.cannotSaveHint") : undefined}
                   className="flex-1"
                 >
-                  {pending ? "Сохранение..." : "Сохранить"}
+                  {pending ? t("adminObjects.spaceForm.saving") : t("common.actions.save")}
                 </Button>
               </div>
             </form>
@@ -430,15 +439,46 @@ export function EditSpaceDialog({
 }
 
 export function DeleteSpaceButton({ spaceId, hasTenant }: { spaceId: string; hasTenant: boolean }) {
+  const { t } = useT()
+  const [pending, startTransition] = useTransition()
+
+  if (hasTenant) return null
+
   return (
-    <DeleteAction
-      action={async () => {
-        const r = await deleteSpace(spaceId)
-        if (r && "error" in r && r.error) throw new Error(r.error)
-      }}
-      entity="помещение"
-      successMessage="Помещение удалено"
-      disabled={hasTenant}
+    <ConfirmDialog
+      variant="danger"
+      title={t("adminObjects.spaceForm.deleteTitle")}
+      description={t("adminObjects.spaceForm.deleteText")}
+      confirmLabel={t("adminObjects.spaceForm.deleteConfirm")}
+      cancelLabel={t("common.actions.cancel")}
+      onConfirm={() =>
+        new Promise<void>((resolve) => {
+          startTransition(async () => {
+            try {
+              const r = await deleteSpace(spaceId)
+              if (r && "error" in r && r.error) {
+                toast.error(r.error)
+                return
+              }
+              toast.success(t("adminObjects.spaceForm.deleted"))
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : t("adminObjects.spaceForm.deleteFailed"))
+            } finally {
+              resolve()
+            }
+          })
+        })
+      }
+      trigger={
+        <button
+          type="button"
+          disabled={pending}
+          aria-label={t("adminObjects.spaceForm.deleteAria")}
+          className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      }
     />
   )
 }

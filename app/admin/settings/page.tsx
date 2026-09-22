@@ -26,18 +26,16 @@ import { AddressAutocompleteInput } from "@/components/forms/address-autocomplet
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page"
+import { getT } from "@/lib/i18n/server"
 
-const SETTINGS_TABS = [
-  { key: "org", label: "Организация" },
-  { key: "money", label: "Документы и деньги" },
-  { key: "building", label: "Здание" },
-] as const
+// Ключи вкладок — в адресе (?tab=money), подписи берём из словаря.
+const SETTINGS_TABS = ["org", "money", "building"] as const
 
-type SettingsTab = (typeof SETTINGS_TABS)[number]["key"]
+type SettingsTab = (typeof SETTINGS_TABS)[number]
 
 function normalizeTab(value: string | string[] | undefined): SettingsTab {
   const raw = Array.isArray(value) ? value[0] : value
-  return SETTINGS_TABS.some((item) => item.key === raw) ? raw as SettingsTab : "org"
+  return SETTINGS_TABS.some((key) => key === raw) ? raw as SettingsTab : "org"
 }
 
 export default async function SettingsPage({
@@ -48,6 +46,7 @@ export default async function SettingsPage({
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
   const tab = normalizeTab((await searchParams)?.tab)
   // Гранулярные права: изменяющие секции настроек показываются только при наличии
   // соответствующего права. OWNER/платформенный админ получают все права.
@@ -130,15 +129,19 @@ export default async function SettingsPage({
   if (!building) {
     return (
       <div className="max-w-6xl space-y-5">
-        <PageHeader icon={SettingsIcon} title="Настройки" subtitle="Реквизиты организации и параметры объектов" />
+        <PageHeader
+          icon={SettingsIcon}
+          title={t("adminSettings.settings.title")}
+          subtitle={t("adminSettings.settings.subtitleNoBuilding")}
+        />
         {organization && canEditRequisites && (
           <section id="organization-requisites">
             <OrganizationRequisitesSection organization={organization} />
           </section>
         )}
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
-          <p className="mb-2 text-sm text-amber-800 dark:text-amber-200">Здание не выбрано</p>
-          <a href="/admin/buildings" className="text-xs text-amber-700 underline dark:text-amber-300">Перейти к списку зданий →</a>
+          <p className="mb-2 text-sm text-amber-800 dark:text-amber-200">{t("adminSettings.settings.noBuilding")}</p>
+          <a href="/admin/buildings" className="text-xs text-amber-700 underline dark:text-amber-300">{t("adminSettings.settings.goToBuildings")}</a>
         </div>
       </div>
     )
@@ -147,14 +150,22 @@ export default async function SettingsPage({
   return (
     <div className="max-w-6xl space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Настройки</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.settings.title")}</h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-          Здание «{building.name}». Личные данные — ФИО, пароль, вход — в{" "}
-          <Link href="/admin/profile" className="text-blue-600 hover:underline dark:text-blue-400">профиле</Link>.
+          {t("adminSettings.settings.subtitleBuilding", { building: building.name })}{" "}
+          <Link href="/admin/profile" className="text-blue-600 hover:underline dark:text-blue-400">{t("adminSettings.settings.profileLink")}</Link>.
         </p>
       </div>
 
-      <SettingsTabs active={tab} />
+      <SettingsTabs
+        active={tab}
+        aria={t("adminSettings.settings.tabsAria")}
+        labels={{
+          org: t("adminSettings.settings.tabs.org"),
+          money: t("adminSettings.settings.tabs.money"),
+          building: t("adminSettings.settings.tabs.building"),
+        }}
+      />
 
       {tab === "org" && (
         <div className="space-y-4">
@@ -186,15 +197,15 @@ export default async function SettingsPage({
           {/* Building info */}
           {canEditOrg && (
           <div id="building-settings">
-          <CollapsibleCard title="Основные сведения" icon={<Building2 className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
+          <CollapsibleCard title={t("adminSettings.settings.building.title")} icon={<Building2 className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
             <ServerForm
               action={updateBuilding.bind(null, building.id)}
-              successMessage="Данные здания сохранены"
+              successMessage={t("adminSettings.settings.building.saved")}
               className="p-5 grid grid-cols-2 gap-4"
             >
               <div className="col-span-2 grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.name")}</label>
                   <input
                     name="name"
                     defaultValue={building.name}
@@ -203,7 +214,7 @@ export default async function SettingsPage({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Адрес</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.address")}</label>
                   <AddressAutocompleteInput
                     name="address"
                     defaultValue={building.address}
@@ -232,30 +243,30 @@ export default async function SettingsPage({
                   обычный адрес. */}
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                  Адрес для документов <span className="text-slate-400 dark:text-slate-500 font-normal">— перекрывает обычный в договорах и актах</span>
+                  {t("adminSettings.settings.building.documentAddress")} <span className="text-slate-400 dark:text-slate-500 font-normal">{t("adminSettings.settings.building.documentAddressNote")}</span>
                 </label>
                 <input
                   name="documentAddress"
                   defaultValue={building.documentAddress ?? ""}
-                  placeholder="например: улица 30-й гвардейской дивизии, 24/1, г. Усть-Каменогорск, Восточно-Казахстанская область"
+                  placeholder={t("adminSettings.settings.building.documentAddressPlaceholder")}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
                 <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  Если оставить пустым — в документах используется обычный адрес (часто на казахском от автокомплита).
+                  {t("adminSettings.settings.building.documentAddressHint")}
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон здания</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.phone")}</label>
                 <KzPhoneInput
                   name="phone"
                   defaultValue={building.phone ?? ""}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Контакт этого здания (для арендаторов). Контакт арендодателя — в «Реквизитах».</p>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("adminSettings.settings.building.phoneHint")}</p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email здания</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.email")}</label>
                 <AsciiEmailInput
                   name="email"
                   defaultValue={building.email ?? ""}
@@ -263,7 +274,7 @@ export default async function SettingsPage({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ответственный</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.responsible")}</label>
                 <input
                   name="responsible"
                   defaultValue={building.responsible ?? ""}
@@ -271,7 +282,7 @@ export default async function SettingsPage({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Общая площадь, м²</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.totalArea")}</label>
                 <input
                   type="number"
                   step="0.01"
@@ -280,7 +291,7 @@ export default async function SettingsPage({
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
                 <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  Рассчитывается автоматически из общей площади этажей.
+                  {t("adminSettings.settings.building.totalAreaHint")}
                 </p>
               </div>
               {/* Услуги в эксп. сборе: чекбоксы 2026-05-27.
@@ -290,10 +301,10 @@ export default async function SettingsPage({
               <div className="col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/40 p-4 dark:border-slate-800 dark:bg-slate-900/40">
                 <input type="hidden" name="utilities_in_service_fee_form" value="1" />
                 <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">
-                  Включено в эксплуатационный сбор
+                  {t("adminSettings.settings.building.inServiceFee")}
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
-                  Отметьте услуги которые УЖЕ покрываются эксп. сбором. Они не будут выставляться арендатору отдельной строкой и не появятся в форме «Доп. начисления».
+                  {t("adminSettings.settings.building.inServiceFeeHint")}
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                   {(() => {
@@ -305,12 +316,12 @@ export default async function SettingsPage({
                       } catch { return new Set<string>() }
                     })()
                     const items: Array<[string, string]> = [
-                      ["ELECTRICITY", "Свет"],
-                      ["WATER", "Вода"],
-                      ["GARBAGE", "Вывоз мусора"],
-                      ["HEATING", "Отопление"],
-                      ["SECURITY", "Охрана"],
-                      ["INTERNET", "Интернет"],
+                      ["ELECTRICITY", t("adminSettings.settings.building.utilities.ELECTRICITY")],
+                      ["WATER", t("adminSettings.settings.building.utilities.WATER")],
+                      ["GARBAGE", t("adminSettings.settings.building.utilities.GARBAGE")],
+                      ["HEATING", t("adminSettings.settings.building.utilities.HEATING")],
+                      ["SECURITY", t("adminSettings.settings.building.utilities.SECURITY")],
+                      ["INTERNET", t("adminSettings.settings.building.utilities.INTERNET")],
                     ]
                     return items.map(([type, label]) => (
                       <label key={type} className="flex items-center gap-2 cursor-pointer rounded-lg border border-slate-200 px-3 py-2 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800">
@@ -329,7 +340,7 @@ export default async function SettingsPage({
               </div>
 
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.building.description")}</label>
                 <textarea
                   name="description"
                   rows={2}
@@ -343,7 +354,7 @@ export default async function SettingsPage({
                   size="lg"
                   className="font-medium"
                 >
-                  Сохранить
+                  {t("common.actions.save")}
                 </Button>
               </div>
             </ServerForm>
@@ -352,17 +363,17 @@ export default async function SettingsPage({
           )}
           {/* Floors */}
           {canEditOrg && (
-          <CollapsibleCard title="Этажи и ставки" icon={<Layers className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
+          <CollapsibleCard title={t("adminSettings.settings.floors.title")} icon={<Layers className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
             <div className="divide-y divide-slate-50 dark:divide-slate-800">
               {building.floors.map((floor) => (
                 <ServerForm
                   key={floor.id}
                   action={updateFloor.bind(null, floor.id)}
-                  successMessage={`${floor.name} сохранён`}
+                  successMessage={t("adminSettings.settings.floors.saved", { name: floor.name })}
                   className="px-5 py-4 grid grid-cols-4 gap-3 items-end"
                 >
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название этажа</label>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.floors.name")}</label>
                     <input
                       name="name"
                       defaultValue={floor.name}
@@ -371,7 +382,7 @@ export default async function SettingsPage({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ставка ₸/м²</label>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.floors.rate")}</label>
                     <input
                       name="ratePerSqm"
                       type="number"
@@ -381,7 +392,7 @@ export default async function SettingsPage({
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Площадь этажа, м²</label>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.floors.area")}</label>
                     <input
                       name="totalArea"
                       type="number"
@@ -395,7 +406,7 @@ export default async function SettingsPage({
                       type="submit"
                       className="font-medium"
                     >
-                      Сохранить
+                      {t("common.actions.save")}
                     </Button>
                   </div>
                 </ServerForm>
@@ -406,62 +417,62 @@ export default async function SettingsPage({
       )}
       {/* Tariffs */}
       {canEditOrg && (
-      <CollapsibleCard title="Тарифы коммунальных услуг" icon={<Zap className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
+      <CollapsibleCard title={t("adminSettings.settings.tariffs.title")} icon={<Zap className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
         <div className="divide-y divide-slate-50 dark:divide-slate-800">
           {building.tariffs.length === 0 && (
-            <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">Тарифы не настроены — добавьте ниже</p>
+            <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">{t("adminSettings.settings.tariffs.empty")}</p>
           )}
-          {building.tariffs.map((t) => (
+          {building.tariffs.map((tariff) => (
             <ServerForm
-              key={t.id}
-              action={updateTariff.bind(null, t.id)}
-              successMessage={`Тариф «${t.name}» сохранён`}
+              key={tariff.id}
+              action={updateTariff.bind(null, tariff.id)}
+              successMessage={t("adminSettings.settings.tariffs.saved", { name: tariff.name })}
               className="px-5 py-4 grid grid-cols-[120px_1fr_120px_100px_auto] gap-3 items-end"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип</label>
-                <p className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800">{t.type}</p>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.type")}</label>
+                <p className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-800">{tariff.type}</p>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.name")}</label>
                 <input
                   name="name"
-                  defaultValue={t.name}
+                  defaultValue={tariff.name}
                   required
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тариф ₸</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.rate")}</label>
                 <input
                   name="rate"
                   type="number"
                   step="0.01"
-                  defaultValue={t.rate}
+                  defaultValue={tariff.rate}
                   required
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ед.</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.unit")}</label>
                 <input
                   name="unit"
-                  defaultValue={t.unit}
+                  defaultValue={tariff.unit}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <label className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <input type="checkbox" name="isActive" defaultChecked={t.isActive} className="rounded" />
-                  Активен
+                  <input type="checkbox" name="isActive" defaultChecked={tariff.isActive} className="rounded" />
+                  {t("adminSettings.settings.tariffs.active")}
                 </label>
                 <Button type="submit" className="font-medium">
-                  Сохранить
+                  {t("common.actions.save")}
                 </Button>
                 <DeleteAction
-                  action={deleteTariff.bind(null, t.id)}
-                  entity="тариф"
-                  successMessage="Тариф удалён"
+                  action={deleteTariff.bind(null, tariff.id)}
+                  entity={t("adminSettings.settings.tariffs.entity")}
+                  successMessage={t("adminSettings.settings.tariffs.deleted")}
                 />
               </div>
             </ServerForm>
@@ -471,36 +482,36 @@ export default async function SettingsPage({
         {/* Add new tariff */}
         <ServerForm
           action={createTariff.bind(null, building.id)}
-          successMessage="Тариф добавлен"
+          successMessage={t("adminSettings.settings.tariffs.added")}
           className="border-t border-dashed border-slate-200 dark:border-slate-800 px-5 py-4 grid grid-cols-[120px_1fr_120px_100px_auto] gap-3 items-end bg-slate-50 dark:bg-slate-800/50"
         >
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип *</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.type")} *</label>
             <select name="type" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-              <option value="ELECTRICITY">Электр-во</option>
-              <option value="WATER">Вода</option>
-              <option value="HEATING">Отопление</option>
-              <option value="GARBAGE">Мусор</option>
-              <option value="INTERNET">Интернет</option>
-              <option value="OTHER">Прочее</option>
+              <option value="ELECTRICITY">{t("adminSettings.settings.tariffs.types.ELECTRICITY")}</option>
+              <option value="WATER">{t("adminSettings.settings.tariffs.types.WATER")}</option>
+              <option value="HEATING">{t("adminSettings.settings.tariffs.types.HEATING")}</option>
+              <option value="GARBAGE">{t("adminSettings.settings.tariffs.types.GARBAGE")}</option>
+              <option value="INTERNET">{t("adminSettings.settings.tariffs.types.INTERNET")}</option>
+              <option value="OTHER">{t("adminSettings.settings.tariffs.types.OTHER")}</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название *</label>
-            <input name="name" placeholder="Электроэнергия" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.name")} *</label>
+            <input name="name" placeholder={t("adminSettings.settings.tariffs.namePlaceholder")} required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тариф ₸ *</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.rate")} *</label>
             <input name="rate" type="number" step="0.01" placeholder="22" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Ед. *</label>
-            <input name="unit" placeholder="кВт·ч" required defaultValue="ед." className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.unit")} *</label>
+            <input name="unit" placeholder={t("adminSettings.settings.tariffs.unitPlaceholder")} required defaultValue="ед." className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div className="flex justify-end">
             <button type="submit" className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
               <Plus className="h-4 w-4" />
-              Добавить
+              {t("common.actions.add")}
             </button>
           </div>
         </ServerForm>
@@ -515,21 +526,29 @@ export default async function SettingsPage({
 }
 
 /** Вкладки настроек: адрес вида /admin/settings?tab=money. */
-function SettingsTabs({ active }: { active: SettingsTab }) {
+function SettingsTabs({
+  active,
+  aria,
+  labels,
+}: {
+  active: SettingsTab
+  aria: string
+  labels: Record<SettingsTab, string>
+}) {
   return (
-    <nav className="flex flex-wrap items-center gap-1 border-b border-slate-200 dark:border-slate-800" aria-label="Разделы настроек">
-      {SETTINGS_TABS.map((item) => (
+    <nav className="flex flex-wrap items-center gap-1 border-b border-slate-200 dark:border-slate-800" aria-label={aria}>
+      {SETTINGS_TABS.map((key) => (
         <Link
-          key={item.key}
-          href={item.key === "org" ? "/admin/settings" : `/admin/settings?tab=${item.key}`}
-          aria-current={active === item.key ? "page" : undefined}
+          key={key}
+          href={key === "org" ? "/admin/settings" : `/admin/settings?tab=${key}`}
+          aria-current={active === key ? "page" : undefined}
           className={`-mb-px whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-            active === item.key
+            active === key
               ? "border-blue-600 text-blue-600 dark:text-blue-400"
               : "border-transparent text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
           }`}
         >
-          {item.label}
+          {labels[key]}
         </Link>
       ))}
     </nav>

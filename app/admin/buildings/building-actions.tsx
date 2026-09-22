@@ -4,7 +4,7 @@ import { ModalShell } from "@/components/ui/modal"
 import { FIELD_CLS } from "@/lib/ui-fields"
 import { useState, useTransition } from "react"
 import type { ReactNode } from "react"
-import { Plus, X, Edit2, Power, Building2, Layers, ArrowRight } from "lucide-react"
+import { Plus, X, Edit2, Power, Building2, Layers, ArrowRight, Trash2 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
@@ -17,10 +17,10 @@ import {
   deleteFloor,
 } from "@/app/actions/buildings"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { DeleteAction } from "@/components/ui/delete-action"
 import { AddressAutocompleteInput } from "@/components/forms/address-autocomplete-input"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
-import { formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +29,7 @@ import { isZoneFloor, type FloorKind } from "@/lib/zone-kinds"
 const FIELD_CLASS = FIELD_CLS
 
 export function CreateBuildingButton() {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
 
@@ -38,61 +39,63 @@ export function CreateBuildingButton() {
         onClick={() => setOpen(true)}
         leftIcon={<Plus className="h-4 w-4" />}
       >
-        Добавить здание
+        {t("adminObjects.buildingForm.addButton")}
       </Button>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
               <h2 className="text-base font-semibold flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                Новое здание
+                {t("adminObjects.buildingForm.createTitle")}
               </h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <button onClick={() => setOpen(false)} aria-label={t("common.actions.close")}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
                 startTransition(async () => {
                   try {
                     await createBuilding(fd)
-                    toast.success("Здание добавлено и выбрано как текущее")
+                    toast.success(t("adminObjects.buildingForm.created"))
                     setOpen(false)
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Не удалось")
+                    toast.error(e instanceof Error ? e.message : t("adminObjects.buildingForm.failed"))
                   }
                 })
               }
               className="p-6 space-y-4"
             >
-              <Field label="Название *" name="name" required placeholder="F16 Plaza" />
-              <ContactField label="Адрес *">
+              <Field label={t("adminObjects.buildingForm.name")} name="name" required placeholder={t("adminObjects.buildingForm.namePlaceholder")} />
+              <ContactField label={t("adminObjects.buildingForm.address")}>
                 <AddressAutocompleteInput name="address" required className={FIELD_CLASS} />
               </ContactField>
-              <Field label="Описание" name="description" placeholder="Бизнес-центр класса А" />
+              <Field label={t("adminObjects.buildingForm.description")} name="description" placeholder={t("adminObjects.buildingForm.descriptionPlaceholder")} />
               <div className="grid grid-cols-2 gap-3">
-                <ContactField label="Телефон">
+                <ContactField label={t("adminObjects.buildingForm.phone")}>
                   <KzPhoneInput name="phone" className={FIELD_CLASS} />
                 </ContactField>
-                <ContactField label="Email">
+                <ContactField label={t("adminObjects.buildingForm.email")}>
                   <AsciiEmailInput name="email" className={FIELD_CLASS} />
                 </ContactField>
               </div>
               <div>
-                <Field label="Ответственный" name="responsible" />
+                <Field label={t("adminObjects.buildingForm.responsible")} name="responsible" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Префикс договоров</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.buildingForm.contractPrefix")}</label>
                 <Input
                   name="contractPrefix"
                   placeholder="F16"
                   maxLength={10}
                   className="font-mono uppercase"
                 />
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Используется в номере: {`{префикс}-{год}-{№}`}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                  {t("adminObjects.buildingForm.contractPrefixHint", { pattern: PREFIX_PATTERN })}
+                </p>
               </div>
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button type="submit" loading={pending} className="flex-1">
-                  {pending ? "Создание..." : "Создать"}
+                  {pending ? t("adminObjects.buildingForm.creating") : t("adminObjects.buildingForm.create")}
                 </Button>
               </div>
             </form>
@@ -100,6 +103,9 @@ export function CreateBuildingButton() {
     </>
   )
 }
+
+// Шаблон номера договора одинаков в обоих языках — это формат, а не текст.
+const PREFIX_PATTERN = "{префикс}-{год}-{№}"
 
 export function BuildingActions({
   buildingId, isCurrent, isActive, canEdit, canToggle, canDelete, building,
@@ -132,6 +138,7 @@ export function BuildingActions({
     contractPrefix: string | null
   }
 }) {
+  const { t } = useT()
   const [editOpen, setEditOpen] = useState(false)
   const [, startTransition] = useTransition()
 
@@ -144,14 +151,14 @@ export function BuildingActions({
             startTransition(async () => {
               try {
                 await switchBuilding(buildingId)
-                toast.success("Здание переключено")
+                toast.success(t("adminObjects.buildingActions.switched"))
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Ошибка")
+                toast.error(e instanceof Error ? e.message : t("adminObjects.buildingActions.error"))
               }
             })
           }
         >
-          Переключиться
+          {t("adminObjects.buildingActions.switch")}
         </Button>
       )}
 
@@ -159,7 +166,7 @@ export function BuildingActions({
       <button
         onClick={() => setEditOpen(true)}
         className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-        title="Редактировать"
+        title={t("adminObjects.buildingActions.edit")}
       >
         <Edit2 className="h-4 w-4" />
       </button>
@@ -167,18 +174,19 @@ export function BuildingActions({
 
       {canToggle && (
         <ConfirmDialog
-          title={isActive ? "Деактивировать здание?" : "Активировать здание?"}
-          description={isActive ? "Здание не будет доступно для переключения." : "Здание снова станет доступным."}
+          title={isActive ? t("adminObjects.buildingActions.deactivateTitle") : t("adminObjects.buildingActions.activateTitle")}
+          description={isActive ? t("adminObjects.buildingActions.deactivateText") : t("adminObjects.buildingActions.activateText")}
           variant={isActive ? "danger" : "default"}
-          confirmLabel={isActive ? "Деактивировать" : "Активировать"}
+          confirmLabel={isActive ? t("adminObjects.buildingActions.deactivate") : t("adminObjects.buildingActions.activate")}
+          cancelLabel={t("common.actions.cancel")}
           onConfirm={() =>
             new Promise<void>((resolve) => {
               startTransition(async () => {
                 try {
                   await toggleBuildingActive(buildingId, !isActive)
-                  toast.success(isActive ? "Деактивировано" : "Активировано")
+                  toast.success(isActive ? t("adminObjects.buildingActions.deactivated") : t("adminObjects.buildingActions.activated"))
                 } catch (e) {
-                  toast.error(e instanceof Error ? e.message : "Ошибка")
+                  toast.error(e instanceof Error ? e.message : t("adminObjects.buildingActions.error"))
                 } finally {
                   resolve()
                 }
@@ -186,7 +194,10 @@ export function BuildingActions({
             })
           }
           trigger={
-            <button className={isActive ? "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200"} title={isActive ? "Деактивировать" : "Активировать"}>
+            <button
+              className={isActive ? "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300" : "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-200"}
+              title={isActive ? t("adminObjects.buildingActions.deactivate") : t("adminObjects.buildingActions.activate")}
+            >
               <Power className="h-4 w-4" />
             </button>
           }
@@ -194,35 +205,38 @@ export function BuildingActions({
       )}
 
       {canDelete && (
-        <DeleteAction
+        <DeleteIconConfirm
+          title={t("adminObjects.buildingActions.deleteTitle")}
+          description={t("adminObjects.buildingActions.deleteText")}
+          confirmLabel={t("adminObjects.buildingActions.deleteConfirm")}
+          ariaLabel={t("adminObjects.buildingActions.deleteAria")}
+          successMessage={t("adminObjects.buildingActions.deleted")}
+          failMessage={t("adminObjects.buildingActions.deleteFailed")}
           action={() => deleteBuilding(buildingId)}
-          entity="здание"
-          description="Удаление возможно только если на здании нет этажей и помещений."
-          successMessage="Здание удалено"
         />
       )}
 
       <ModalShell open={editOpen && canEdit} onClose={() => setEditOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Редактировать здание</h2>
-              <button onClick={() => setEditOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <h2 className="text-base font-semibold">{t("adminObjects.buildingForm.editTitle")}</h2>
+              <button onClick={() => setEditOpen(false)} aria-label={t("common.actions.close")}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
                 startTransition(async () => {
                   try {
                     await updateBuildingDetails(buildingId, fd)
-                    toast.success("Сохранено")
+                    toast.success(t("adminObjects.buildingForm.saved"))
                     setEditOpen(false)
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Не удалось")
+                    toast.error(e instanceof Error ? e.message : t("adminObjects.buildingForm.failed"))
                   }
                 })
               }
               className="p-6 space-y-4"
             >
-              <Field label="Название *" name="name" defaultValue={building.name} required />
-              <ContactField label="Адрес *">
+              <Field label={t("adminObjects.buildingForm.name")} name="name" defaultValue={building.name} required />
+              <ContactField label={t("adminObjects.buildingForm.address")}>
                 <AddressAutocompleteInput
                   name="address"
                   defaultValue={building.address}
@@ -243,24 +257,24 @@ export function BuildingActions({
                   className={FIELD_CLASS}
                 />
               </ContactField>
-              <Field label="Описание" name="description" defaultValue={building.description ?? ""} />
+              <Field label={t("adminObjects.buildingForm.description")} name="description" defaultValue={building.description ?? ""} />
               <div className="grid grid-cols-2 gap-3">
-                <ContactField label="Телефон">
+                <ContactField label={t("adminObjects.buildingForm.phone")}>
                   <KzPhoneInput name="phone" defaultValue={building.phone} className={FIELD_CLASS} />
                 </ContactField>
-                <ContactField label="Email">
+                <ContactField label={t("adminObjects.buildingForm.email")}>
                   <AsciiEmailInput name="email" defaultValue={building.email} className={FIELD_CLASS} />
                 </ContactField>
               </div>
               <div>
-                <Field label="Ответственный" name="responsible" defaultValue={building.responsible ?? ""} />
+                <Field label={t("adminObjects.buildingForm.responsible")} name="responsible" defaultValue={building.responsible ?? ""} />
               </div>
               <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
-                Общая площадь здания пересчитывается автоматически = сумма «общих площадей этажей».
-                Текущее значение: <b className="text-slate-900 dark:text-slate-100 tabular-nums">{building.totalArea ? `${building.totalArea} м²` : "не задана"}</b>
+                {t("adminObjects.buildingForm.totalAreaNote")}{" "}
+                <b className="text-slate-900 dark:text-slate-100 tabular-nums">{building.totalArea ? `${building.totalArea} м²` : t("adminObjects.buildingForm.totalAreaNotSet")}</b>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Префикс договоров</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.buildingForm.contractPrefix")}</label>
                 <Input
                   name="contractPrefix"
                   defaultValue={building.contractPrefix ?? ""}
@@ -268,12 +282,17 @@ export function BuildingActions({
                   maxLength={10}
                   className="font-mono uppercase"
                 />
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Формат: {`{префикс}-{год}-{№}`} → {building.contractPrefix || "F16"}-{new Date().getFullYear()}-001</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                  {t("adminObjects.buildingForm.contractPrefixFormat", {
+                    pattern: PREFIX_PATTERN,
+                    example: `${building.contractPrefix || "F16"}-${new Date().getFullYear()}-001`,
+                  })}
+                </p>
               </div>
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button type="submit" className="flex-1">
-                  Сохранить
+                  {t("common.actions.save")}
                 </Button>
               </div>
             </form>
@@ -290,6 +309,8 @@ export function FloorsList({
   canCreate: boolean
   canDelete: boolean
 }) {
+  const { t, tp } = useT()
+  const locale = useLocale()
   const [open, setOpen] = useState(false)
   const [newKind, setNewKind] = useState<FloorKind>("FLOOR")
   const [pending, startTransition] = useTransition()
@@ -300,16 +321,16 @@ export function FloorsList({
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
           <Layers className="h-3.5 w-3.5" />
-          Этажи и зоны ({floors.length})
+          {t("adminObjects.floors.sectionTitle", { count: floors.length })}
         </p>
         {canCreate && (
         <button onClick={() => setOpen(true)} className="text-xs text-blue-600 dark:text-blue-400 hover:underline">
-          + Добавить этаж
+          {t("adminObjects.floors.add")}
         </button>
         )}
       </div>
       {floors.length === 0 ? (
-        <p className="text-xs text-slate-400 dark:text-slate-500">Нет этажей</p>
+        <p className="text-xs text-slate-400 dark:text-slate-500">{t("adminObjects.floors.empty")}</p>
       ) : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {floors.map((f) => (
@@ -317,28 +338,32 @@ export function FloorsList({
               <Link
                 href={`/admin/floors/${f.id}`}
                 className="block p-3"
-                title="Открыть настройки этажа: помещения, площадь, ставка, визуализация"
+                title={t("adminObjects.floors.openHint")}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate flex items-center gap-1.5">
-                      {/* этаж с названием-цифрой («1») — подписываем «1 этаж» */}
-                      <span className="truncate">{/^-?\d+$/.test(f.name.trim()) ? `${f.name.trim()} этаж` : f.name}</span>
+                      {/* этаж с названием-цифрой («1») — подписываем «1 этаж» / «1-қабат» */}
+                      <span className="truncate">
+                        {/^-?\d+$/.test(f.name.trim())
+                          ? t("adminObjects.floors.numberedName", { number: f.name.trim() })
+                          : f.name}
+                      </span>
                       {f.kind === "ROOF" && f.name.trim().toLowerCase() !== "крыша" && (
                         <Badge className="shrink-0 bg-sky-100 dark:bg-sky-500/20 px-1.5 text-[10px] text-sky-700 dark:text-sky-300">
-                          Крыша
+                          {t("adminObjects.floors.roofBadge")}
                         </Badge>
                       )}
                       {f.kind === "TERRITORY" && f.name.trim().toLowerCase() !== "территория" && (
                         <Badge className="shrink-0 bg-lime-100 dark:bg-lime-500/20 px-1.5 text-[10px] text-lime-700 dark:text-lime-300">
-                          Территория
+                          {t("adminObjects.floors.territoryBadge")}
                         </Badge>
                       )}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       {isZoneFloor(f.kind)
-                        ? `${f.spacesCount} ${plural(f.spacesCount, "место", "места", "мест")} для аренды`
-                        : `${f.spacesCount} ${plural(f.spacesCount, "помещение", "помещения", "помещений")} · аренда ${formatMoney(f.ratePerSqm)}/м²`}
+                        ? tp("adminObjects.floors.objectsForRent", f.spacesCount)
+                        : tp("adminObjects.floors.spacesWithRate", f.spacesCount, { rate: formatMoneyL(locale, f.ratePerSqm) })}
                     </p>
                     {!isZoneFloor(f.kind) && f.totalArea && <p className="text-xs text-slate-400 dark:text-slate-500">{f.totalArea} м²</p>}
                   </div>
@@ -347,14 +372,18 @@ export function FloorsList({
               </Link>
               {canDelete && (
                 <div className="absolute top-2 right-7 opacity-0 group-hover:opacity-100 z-10">
-                  <DeleteAction
-                    action={() => deleteFloor(f.id, { cascade: f.spacesCount > 0 })}
-                    entity={f.spacesCount > 0
-                      ? `этаж и ${f.spacesCount} помещ.`
-                      : "этаж"}
+                  <DeleteIconConfirm
+                    title={f.spacesCount > 0
+                      ? tp("adminObjects.floors.deleteWithSpacesTitle", f.spacesCount)
+                      : t("adminObjects.floors.deleteTitle")}
+                    description={t("adminObjects.floors.deleteText")}
+                    confirmLabel={t("adminObjects.floors.deleteConfirm")}
+                    ariaLabel={t("adminObjects.floors.deleteAria")}
                     successMessage={f.spacesCount > 0
-                      ? `Этаж и ${f.spacesCount} помещ. удалены`
-                      : "Этаж удалён"}
+                      ? tp("adminObjects.floors.deletedWithSpaces", f.spacesCount)
+                      : t("adminObjects.floors.deleted")}
+                    failMessage={t("adminObjects.floors.deleteFailed")}
+                    action={() => deleteFloor(f.id, { cascade: f.spacesCount > 0 })}
                   />
                 </div>
               )}
@@ -366,26 +395,30 @@ export function FloorsList({
       <ModalShell open={open && canCreate} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
               <h2 className="text-base font-semibold">
-                {newKind === "ROOF" ? "Новая крыша" : newKind === "TERRITORY" ? "Новая территория" : "Новый этаж"}
+                {newKind === "ROOF"
+                  ? t("adminObjects.floors.newRoof")
+                  : newKind === "TERRITORY"
+                    ? t("adminObjects.floors.newTerritory")
+                    : t("adminObjects.floors.newFloor")}
               </h2>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть"><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
+              <button onClick={() => setOpen(false)} aria-label={t("common.actions.close")}><X className="h-5 w-5 text-slate-400 dark:text-slate-500" /></button>
             </div>
             <form
               action={(fd) =>
                 startTransition(async () => {
                   try {
                     await createFloor(buildingId, fd)
-                    toast.success(isZone ? "Зона создана" : "Этаж создан")
+                    toast.success(isZone ? t("adminObjects.floors.zoneCreated") : t("adminObjects.floors.floorCreated"))
                     setOpen(false)
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Не удалось")
+                    toast.error(e instanceof Error ? e.message : t("adminObjects.buildingForm.failed"))
                   }
                 })
               }
               className="p-6 space-y-4"
             >
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тип *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.floors.kind")}</label>
                 <select
                   name="kind"
                   value={newKind}
@@ -395,44 +428,105 @@ export function FloorsList({
                   }}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
                 >
-                  <option value="FLOOR">Этаж здания</option>
-                  <option value="ROOF">Крыша (антенны, щиты, оборудование)</option>
-                  <option value="TERRITORY">Территория (двор, парковка, площадки)</option>
+                  <option value="FLOOR">{t("adminObjects.floors.kindFloor")}</option>
+                  <option value="ROOF">{t("adminObjects.floors.kindRoof")}</option>
+                  <option value="TERRITORY">{t("adminObjects.floors.kindTerritory")}</option>
                 </select>
                 {isZone && (
                   <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">
                     {newKind === "ROOF"
-                      ? "Антенно-мачтовые сооружения, рекламные щиты, оборудование заводятся как объекты этой крыши и сдаются за фиксированную сумму — без квадратных метров."
-                      : "Парковочные места, веранды, участки заводятся как объекты этой территории и сдаются за фиксированную сумму — без квадратных метров."}
-                    {" "}Площадь зоны не входит в площадь здания.
+                      ? t("adminObjects.floors.roofHint")
+                      : t("adminObjects.floors.territoryHint")}
+                    {" "}{t("adminObjects.floors.zoneAreaNote")}
                   </p>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Номер *" name="number" type="number" placeholder={isZone ? "0" : "1"} required />
+                <Field label={t("adminObjects.floors.number")} name="number" type="number" placeholder={isZone ? "0" : "1"} required />
                 <Field
-                  label="Название *"
+                  label={t("adminObjects.floors.name")}
                   name="name"
-                  placeholder={newKind === "ROOF" ? "Крыша" : newKind === "TERRITORY" ? "Территория / двор" : "1 этаж"}
+                  placeholder={newKind === "ROOF"
+                    ? t("adminObjects.floors.namePlaceholderRoof")
+                    : newKind === "TERRITORY"
+                      ? t("adminObjects.floors.namePlaceholderTerritory")
+                      : t("adminObjects.floors.namePlaceholderFloor")}
                   required
                 />
               </div>
               {/* У зон (крыша/территория) нет ставки за м² и площади — объекты сдаются фикс-суммой. */}
               {!isZone && (
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Ставка ₸/м²" name="ratePerSqm" type="number" step="0.01" placeholder="2500" />
-                  <Field label="Площадь м²" name="totalArea" type="number" step="0.1" />
+                  <Field label={t("adminObjects.floors.rate")} name="ratePerSqm" type="number" step="0.01" placeholder="2500" />
+                  <Field label={t("adminObjects.floors.totalArea")} name="totalArea" type="number" step="0.1" />
                 </div>
               )}
               <div className="flex gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button type="submit" loading={pending} className="flex-1">
-                  {pending ? "..." : "Создать"}
+                  {pending ? "..." : t("adminObjects.buildingForm.create")}
                 </Button>
               </div>
             </form>
           </ModalShell>
     </div>
+  )
+}
+
+/**
+ * Корзина с подтверждением. Заголовок окна приходит уже переведённым —
+ * общий DeleteAction собирает его из русского «Удалить {сущность}?».
+ */
+function DeleteIconConfirm({
+  title, description, confirmLabel, ariaLabel, successMessage, failMessage, action,
+}: {
+  title: string
+  description: string
+  confirmLabel: string
+  ariaLabel: string
+  successMessage: string
+  failMessage: string
+  action: () => Promise<unknown>
+}) {
+  const { t } = useT()
+  const [pending, startTransition] = useTransition()
+
+  return (
+    <ConfirmDialog
+      variant="danger"
+      title={title}
+      description={description}
+      confirmLabel={confirmLabel}
+      cancelLabel={t("common.actions.cancel")}
+      onConfirm={() =>
+        new Promise<void>((resolve) => {
+          startTransition(async () => {
+            try {
+              const result = await action()
+              if (result && typeof result === "object" && "error" in result && typeof result.error === "string") {
+                toast.error(result.error)
+                return
+              }
+              toast.success(successMessage)
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : failMessage)
+            } finally {
+              resolve()
+            }
+          })
+        })
+      }
+      trigger={
+        <button
+          type="button"
+          disabled={pending}
+          aria-label={ariaLabel}
+          className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      }
+    />
   )
 }
 
@@ -469,12 +563,4 @@ function ContactField({ label, children }: { label: string; children: ReactNode 
       {children}
     </div>
   )
-}
-
-function plural(n: number, one: string, few: string, many: string): string {
-  const m10 = n % 10
-  const m100 = n % 100
-  if (m10 === 1 && m100 !== 11) return one
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few
-  return many
 }

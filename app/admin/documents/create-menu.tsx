@@ -1,23 +1,24 @@
+"use client"
+
 import { Plus } from "lucide-react"
 import { ActionMenu } from "@/components/ui/action-menu"
+import { useT } from "@/lib/i18n/client"
 
-const ITEMS = [
-  { key: "contract", label: "Договор" },
-  { key: "addendum", label: "Допсоглашение к договору" },
-  { key: "invoice", label: "Счёт на оплату" },
-  { key: "avr", label: "АВР (акт выполненных работ)" },
-  { key: "reconciliation", label: "Акт сверки" },
-]
+const ITEMS = ["contract", "addendum", "invoice", "avr", "reconciliation"] as const
 
 // «Создать» — одной кнопкой со списком вместо отдельной вкладки и второго
 // ряда вкладок. Каждый пункт открывает свой конструктор.
 export function CreateDocumentMenu() {
+  const { t } = useT()
   return (
     <ActionMenu
       tone="primary"
       icon={<Plus className="h-4 w-4" />}
-      label="Создать"
-      items={ITEMS.map((it) => ({ label: it.label, href: `/admin/documents?create=${it.key}` }))}
+      label={t("adminDocs.create.label")}
+      items={ITEMS.map((key) => ({
+        label: t(`adminDocs.create.${key}`),
+        href: `/admin/documents?create=${key}`,
+      }))}
     />
   )
 }

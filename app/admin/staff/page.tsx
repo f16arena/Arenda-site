@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import Link from "next/link"
-import { formatMoney, ROLES, ROLE_COLORS } from "@/lib/utils"
+import { ROLE_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { CreateStaffDialog, EditStaffDialog, DeactivateButton, GenerateSalaryButton, MarkSalaryPaidButton } from "./staff-modals"
 import { requireOrgAccess } from "@/lib/org"
@@ -12,9 +12,20 @@ import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { TEAM_TABS } from "@/lib/hub-tabs"
 import { UsersRound } from "lucide-react"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
+
+// Системные роли: подписи из словаря, остальные (свои должности) — как есть.
+const STAFF_ROLE_KEYS = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"] as const
 
 export default async function StaffPage() {
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
+  const locale = await getLocale()
+  const roleLabel = (role: string) =>
+    STAFF_ROLE_KEYS.includes(role as (typeof STAFF_ROLE_KEYS)[number])
+      ? t(`adminSettings.staff.roles.${role as (typeof STAFF_ROLE_KEYS)[number]}`)
+      : role
   // Гранулярные права: каждая кнопка-действие показывается только при наличии
   // своего права. OWNER/платформенный админ получают все права.
   const session = await auth()
@@ -53,8 +64,8 @@ export default async function StaffPage() {
       <RouteTabs items={TEAM_TABS} className="mb-2" />
       <PageHeader
         icon={UsersRound}
-        title="Сотрудники"
-        subtitle={`${active.length} активных · ${inactive.length} уволенных`}
+        title={t("adminSettings.staff.title")}
+        subtitle={t("adminSettings.staff.subtitle", { active: active.length, inactive: inactive.length })}
         actions={
           <>
             {caps.has("staff.manageSalary") && <GenerateSalaryButton period={currentPeriod} />}
@@ -65,7 +76,7 @@ export default async function StaffPage() {
 
       {/* Active staff — карточки на мобиле */}
       <div className="space-y-2.5 sm:hidden">
-        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Активные сотрудники</p>
+        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t("adminSettings.staff.activeTitle")}</p>
         {active.map((u) => {
           const lastPayment = u.staff?.salaryPayments?.[0]
           return (
@@ -80,23 +91,23 @@ export default async function StaffPage() {
                     <p className="truncate text-xs text-slate-400 dark:text-slate-500">{u.email ?? u.phone ?? "—"}</p>
                   </div>
                 </Link>
-                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", ROLE_COLORS[u.role])}>{ROLES[u.role as keyof typeof ROLES] ?? u.role}</span>
+                <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", ROLE_COLORS[u.role])}>{roleLabel(u.role)}</span>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
                 {u.staff?.position && <span>{u.staff.position}</span>}
                 {u.phone && <span className="font-mono">{u.phone}</span>}
-                {u.staff && <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoney(u.staff.salary)}</span>}
-                <span>{u.role === "OWNER" ? "Все здания" : u.buildingAccess.length > 0 ? u.buildingAccess.map((a) => a.building.name).join(", ") : "Здания не назначены"}</span>
+                {u.staff && <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoneyL(locale, u.staff.salary)}</span>}
+                <span>{u.role === "OWNER" ? t("adminSettings.staff.allBuildings") : u.buildingAccess.length > 0 ? u.buildingAccess.map((a) => a.building.name).join(", ") : t("adminSettings.staff.noBuildings")}</span>
               </div>
               <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5 dark:border-slate-800">
                 {lastPayment ? (
                   <span className="flex items-center gap-2">
                     <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", lastPayment.status === "PAID" ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300")}>
-                      {lastPayment.status === "PAID" ? "Выплачено" : "Ожидает"}
+                      {lastPayment.status === "PAID" ? t("adminSettings.staff.salaryPaid") : t("adminSettings.staff.salaryPending")}
                     </span>
                     {lastPayment.status === "PENDING" && caps.has("staff.manageSalary") && <MarkSalaryPaidButton salaryPaymentId={lastPayment.id} />}
                   </span>
-                ) : <span className="text-xs text-slate-400 dark:text-slate-500">Зарплата не начислена</span>}
+                ) : <span className="text-xs text-slate-400 dark:text-slate-500">{t("adminSettings.staff.salaryNotAccrued")}</span>}
                 <div className="flex items-center gap-3">
                   {caps.has("users.edit") && <EditStaffDialog user={{
                     id: u.id, name: u.name, phone: u.phone, email: u.email, role: u.role, isActive: u.isActive,
@@ -109,25 +120,25 @@ export default async function StaffPage() {
             </div>
           )
         })}
-        {active.length === 0 && <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">Нет активных сотрудников</p>}
+        {active.length === 0 && <p className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-500">{t("adminSettings.staff.emptyActive")}</p>}
       </div>
 
       {/* Active staff — таблица (sm+) */}
       <div className="hidden bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto sm:block">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Активные сотрудники</p>
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t("adminSettings.staff.activeTitle")}</p>
         </div>
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Сотрудник</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Роль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Должность</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Телефон</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Оклад</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Зарплата</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Действия</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.employee")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.role")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.position")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.buildings")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.phone")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.salary")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.salaryStatus")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.staff.columns.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -148,22 +159,22 @@ export default async function StaffPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", ROLE_COLORS[u.role])}>
-                      {ROLES[u.role as keyof typeof ROLES] ?? u.role}
+                      {roleLabel(u.role)}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{u.staff?.position ?? "—"}</td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
                     {u.role === "OWNER" ? (
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400">Все здания</span>
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400">{t("adminSettings.staff.allBuildings")}</span>
                     ) : u.buildingAccess.length > 0 ? (
                       <span className="text-xs">{u.buildingAccess.map((a) => a.building.name).join(", ")}</span>
                     ) : (
-                      <span className="text-xs text-amber-600 dark:text-amber-400">Не назначено</span>
+                      <span className="text-xs text-amber-600 dark:text-amber-400">{t("adminSettings.staff.notAssigned")}</span>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{u.phone ?? "—"}</td>
                   <td className="px-5 py-3.5 text-right font-medium text-slate-900 dark:text-slate-100">
-                    {u.staff ? formatMoney(u.staff.salary) : "—"}
+                    {u.staff ? formatMoneyL(locale, u.staff.salary) : "—"}
                   </td>
                   <td className="px-5 py-3.5">
                     {lastPayment ? (
@@ -171,7 +182,7 @@ export default async function StaffPage() {
                         <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium",
                           lastPayment.status === "PAID" ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300"
                         )}>
-                          {lastPayment.status === "PAID" ? "Выплачено" : "Ожидает"}
+                          {lastPayment.status === "PAID" ? t("adminSettings.staff.salaryPaid") : t("adminSettings.staff.salaryPending")}
                         </span>
                         {lastPayment.status === "PENDING" && caps.has("staff.manageSalary") && (
                           <MarkSalaryPaidButton salaryPaymentId={lastPayment.id} />
@@ -199,7 +210,7 @@ export default async function StaffPage() {
             })}
             {active.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет активных сотрудников</td>
+                <td colSpan={8} className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t("adminSettings.staff.emptyActive")}</td>
               </tr>
             )}
           </tbody>
@@ -210,7 +221,7 @@ export default async function StaffPage() {
       {inactive.length > 0 && (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto opacity-70">
           <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Уволенные</p>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">{t("adminSettings.staff.dismissedTitle")}</p>
           </div>
           <table className="w-full min-w-[640px] text-sm">
             <tbody>
@@ -223,7 +234,7 @@ export default async function StaffPage() {
                       </div>
                       <span className="text-slate-400 dark:text-slate-500 line-through group-hover:text-slate-600 dark:group-hover:text-slate-300">{u.name}</span>
                       <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-medium", ROLE_COLORS[u.role])}>
-                        {ROLES[u.role as keyof typeof ROLES] ?? u.role}
+                        {roleLabel(u.role)}
                       </span>
                     </Link>
                   </td>

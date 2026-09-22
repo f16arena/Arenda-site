@@ -35,7 +35,6 @@ export type CompanyFormTenant = {
 export function CompanyForm({
   tenant,
   canEditCompany,
-  tenantVatRate,
   activeContract,
   ratePerSqm,
   monthlyRent,

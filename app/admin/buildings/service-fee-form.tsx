@@ -4,14 +4,21 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { Save, Sparkles, Sun, Snowflake } from "lucide-react"
 import { updateBuildingServiceFee } from "@/app/actions/service-fee"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 
-const MONTH_LABELS = [
-  "Янв", "Фев", "Мар", "Апр", "Май", "Июн",
-  "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек",
-]
+/** Короткие названия месяцев языка: «Янв…» / «Қаң…». */
+function monthLabels(locale: Locale): string[] {
+  const fmt = new Intl.DateTimeFormat(INTL_LOCALE[locale], { month: "short" })
+  return Array.from({ length: 12 }, (_, i) => {
+    const name = fmt.format(new Date(2026, i, 1)).replace(".", "")
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  })
+}
 
 /**
  * Секция «Эксплуатационный сбор» на странице здания.
@@ -33,6 +40,9 @@ export function ServiceFeeForm({
   initialIndexationPct: number
   lastIndexedAt: Date | string | null
 }) {
+  const { t } = useT()
+  const locale = useLocale()
+  const months12 = monthLabels(locale)
   const [winter, setWinter] = useState<string>(initialWinterRate?.toString() ?? "")
   const [summer, setSummer] = useState<string>(initialSummerRate?.toString() ?? "")
   const [months, setMonths] = useState<Set<number>>(new Set(initialWinterMonths))
@@ -57,8 +67,8 @@ export function ServiceFeeForm({
         winterMonths: Array.from(months),
         indexationPct: Number(pct) || 0,
       })
-      if (r.ok) toast.success("Настройки эксплуатационного сбора сохранены")
-      else toast.error(r.error ?? "Не удалось сохранить")
+      if (r.ok) toast.success(t("adminObjects.serviceFee.saved"))
+      else toast.error(r.error ?? t("adminObjects.serviceFee.saveFailed"))
     })
   }
 
@@ -71,18 +81,17 @@ export function ServiceFeeForm({
     <Card className="block p-5 space-y-4">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-amber-500" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Эксплуатационный сбор</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminObjects.serviceFee.title")}</h2>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
-        Сезонные ставки за м²/мес. Зимой обычно выше (отопление), летом ниже. Сбор будет
-        начисляться отдельной строкой к арендной плате каждое 1-е число месяца.
+        {t("adminObjects.serviceFee.intro")}
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5">
             <Snowflake className="h-3.5 w-3.5 text-blue-500" />
-            Зимний тариф, ₸/м²/мес
+            {t("adminObjects.serviceFee.winterRate")}
           </span>
           <Input
             type="number"
@@ -90,11 +99,11 @@ export function ServiceFeeForm({
             step={1}
             value={winter}
             onChange={(e) => setWinter(e.target.value)}
-            placeholder="например 608"
+            placeholder={t("adminObjects.serviceFee.winterPlaceholder")}
           />
           {winterMonthly !== null && (
             <span className="text-[11px] text-slate-500">
-              Для 100 м²: <b>{winterMonthly.toLocaleString("ru-RU")} ₸/мес</b>
+              {t("adminObjects.serviceFee.preview", { amount: formatMoneyL(locale, winterMonthly) })}
             </span>
           )}
         </label>
@@ -102,7 +111,7 @@ export function ServiceFeeForm({
         <label className="flex flex-col gap-1">
           <span className="text-xs font-medium text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5">
             <Sun className="h-3.5 w-3.5 text-orange-500" />
-            Летний тариф, ₸/м²/мес
+            {t("adminObjects.serviceFee.summerRate")}
           </span>
           <Input
             type="number"
@@ -110,11 +119,11 @@ export function ServiceFeeForm({
             step={1}
             value={summer}
             onChange={(e) => setSummer(e.target.value)}
-            placeholder="например 270"
+            placeholder={t("adminObjects.serviceFee.summerPlaceholder")}
           />
           {summerMonthly !== null && (
             <span className="text-[11px] text-slate-500">
-              Для 100 м²: <b>{summerMonthly.toLocaleString("ru-RU")} ₸/мес</b>
+              {t("adminObjects.serviceFee.preview", { amount: formatMoneyL(locale, summerMonthly) })}
             </span>
           )}
         </label>
@@ -122,10 +131,10 @@ export function ServiceFeeForm({
 
       <div>
         <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
-          Зимние месяцы <span className="text-slate-500">(в остальных применяется летний тариф)</span>
+          {t("adminObjects.serviceFee.winterMonths")} <span className="text-slate-500">{t("adminObjects.serviceFee.winterMonthsHint")}</span>
         </p>
         <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-12">
-          {MONTH_LABELS.map((label, idx) => {
+          {months12.map((label, idx) => {
             const m = idx + 1
             const on = months.has(m)
             return (
@@ -148,7 +157,7 @@ export function ServiceFeeForm({
 
       <label className="flex flex-col gap-1 max-w-xs">
         <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
-          Годовая индексация, %
+          {t("adminObjects.serviceFee.indexation")}
         </span>
         <Input
           type="number"
@@ -159,10 +168,10 @@ export function ServiceFeeForm({
           onChange={(e) => setPct(e.target.value)}
         />
         <span className="text-[11px] text-slate-500">
-          Применяется автоматически раз в год.{" "}
+          {t("adminObjects.serviceFee.indexationHint")}{" "}
           {lastIndexedAt
-            ? `Последняя индексация: ${new Date(lastIndexedAt).toLocaleDateString("ru-RU")}`
-            : "Первый раз сработает через год после первой ставки."}
+            ? t("adminObjects.serviceFee.lastIndexed", { date: formatDateShortL(locale, lastIndexedAt) })
+            : t("adminObjects.serviceFee.neverIndexed")}
         </span>
       </label>
 
@@ -173,7 +182,7 @@ export function ServiceFeeForm({
           loading={pending}
           leftIcon={<Save className="h-4 w-4" />}
         >
-          Сохранить
+          {t("common.actions.save")}
         </Button>
       </div>
     </Card>

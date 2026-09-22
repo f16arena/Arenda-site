@@ -5,10 +5,9 @@ import { useState, useTransition } from "react"
 import { AlertTriangle, Trash2, X } from "lucide-react"
 import { toast } from "sonner"
 import { deleteAllSpacesInBuilding } from "@/app/actions/spaces"
+import { useT } from "@/lib/i18n/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-
-const CONFIRM_WORD = "удалить"
 
 export function WipeAllSpacesButton({
   buildingId,
@@ -19,24 +18,28 @@ export function WipeAllSpacesButton({
   buildingName: string
   spacesCount: number
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [confirmText, setConfirmText] = useState("")
   const [pending, startTransition] = useTransition()
 
+  // Слово-подтверждение сверяет серверный action — оно одинаково в обоих языках.
+  const confirmWord = t("adminObjects.wipeSpaces.confirmWord")
+
   if (spacesCount === 0) return null
 
-  const confirmed = confirmText.trim().toLowerCase() === CONFIRM_WORD
+  const confirmed = confirmText.trim().toLowerCase() === confirmWord
 
   const handleDelete = () => {
     if (!confirmed || pending) return
     startTransition(async () => {
       try {
         const result = await deleteAllSpacesInBuilding(buildingId, confirmText)
-        toast.success(`Удалено помещений: ${result.count}`)
+        toast.success(t("adminObjects.wipeSpaces.done", { count: result.count }))
         setConfirmText("")
         setOpen(false)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось удалить помещения")
+        toast.error(error instanceof Error ? error.message : t("adminObjects.wipeSpaces.failed"))
       }
     })
   }
@@ -47,11 +50,11 @@ export function WipeAllSpacesButton({
         type="button"
         onClick={() => setOpen(true)}
         disabled={pending}
-        title={`Очистить помещения в здании ${buildingName}`}
+        title={t("adminObjects.wipeSpaces.buttonHint", { building: buildingName })}
         className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
       >
         <Trash2 className="h-4 w-4" />
-        {pending ? "Удаление..." : "Очистить всё"}
+        {pending ? t("adminObjects.wipeSpaces.deleting") : t("adminObjects.wipeSpaces.button")}
       </button>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-900">
