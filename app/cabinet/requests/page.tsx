@@ -5,11 +5,13 @@ import { cn } from "@/lib/utils"
 import { ClipboardList, Paperclip } from "lucide-react"
 import { RequestDialog } from "./request-dialog"
 import { PageHeader } from "@/components/ui/page"
+import { getT } from "@/lib/i18n/server"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 
 export default async function CabinetRequests() {
   const session = await auth()
+  const { t, tp } = await getT()
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session!.user.id },
@@ -53,15 +55,15 @@ export default async function CabinetRequests() {
     <div className="space-y-5">
       <PageHeader
         icon={ClipboardList}
-        title="Мои заявки"
-        subtitle={`${tenant.requests.length} заявок`}
+        title={t("cabinetSupport.requests.title")}
+        subtitle={tp("cabinetSupport.requests.count", tenant.requests.length)}
         actions={<RequestDialog />}
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <RequestStat label="Активные" value={activeRequests} tone="blue" />
-        <RequestStat label="Ожидают принятия" value={waitingRequests} tone="amber" />
-        <RequestStat label="Закрытые" value={doneRequests} tone="emerald" />
+        <RequestStat label={t("cabinetSupport.requests.tabs.active")} value={activeRequests} tone="blue" />
+        <RequestStat label={t("cabinetSupport.requests.tabs.pending")} value={waitingRequests} tone="amber" />
+        <RequestStat label={t("cabinetSupport.requests.tabs.closed")} value={doneRequests} tone="emerald" />
       </div>
 
       <div className="space-y-3">
@@ -90,7 +92,7 @@ export default async function CabinetRequests() {
                         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                       >
                         <Paperclip className="h-3.5 w-3.5" />
-                        {file.mimeType.startsWith("image/") ? "Фото" : "Файл"}
+                        {file.mimeType.startsWith("image/") ? t("cabinetSupport.requests.photo") : t("cabinetSupport.requests.file")}
                       </a>
                     ))}
                   </div>
@@ -99,7 +101,7 @@ export default async function CabinetRequests() {
                   <span>{REQUEST_TYPE_LABELS[r.type] ?? r.type}</span>
                   <span>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>
                   {r._count.comments > 0 && (
-                    <span>{r._count.comments} комментариев</span>
+                    <span>{tp("cabinetSupport.requests.comments", r._count.comments)}</span>
                   )}
                 </div>
               </div>
@@ -110,9 +112,9 @@ export default async function CabinetRequests() {
         {tenant.requests.length === 0 && (
           <Card className="block py-16 text-center">
             <ClipboardList className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Заявок нет</p>
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">{t("cabinetSupport.requests.empty")}</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-              Создайте заявку на замену лампочки, подключение интернета или любой другой вопрос
+              {t("cabinetSupport.requests.emptyHint")}
             </p>
           </Card>
         )}

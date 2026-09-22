@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { redirect } from "next/navigation"
 import { ChatViewLoader } from "@/components/messages/chat-view-loader"
 import type { ChatUser, ChatMessage } from "@/components/messages/chat-view"
@@ -13,6 +14,7 @@ const CHAT_MESSAGE_SOURCE_LIMIT = 300
 
 export default async function CabinetMessages() {
   const session = await auth()
+  const { t } = await getT()
   if (!session?.user) redirect("/login")
 
   const me = session.user.id
@@ -89,7 +91,7 @@ export default async function CabinetMessages() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={MessageSquare} title="Сообщения" subtitle="Связь с администрацией здания" />
+      <PageHeader icon={MessageSquare} title={t("cabinetSupport.messages.title")} subtitle={t("cabinetSupport.messages.subtitle")} />
       <ChatViewLoader
         currentUserId={me}
         contacts={contacts}

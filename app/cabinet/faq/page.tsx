@@ -7,6 +7,7 @@ import { FaqSearch } from "@/components/faq/faq-search"
 import { getFaqItemsFromDb } from "@/lib/faq-db"
 import { requireOrgAccess } from "@/lib/org"
 import { PageHeader } from "@/components/ui/page"
+import { getT } from "@/lib/i18n/server"
 
 export default async function TenantFaqPage() {
   const session = await auth()
@@ -14,14 +15,15 @@ export default async function TenantFaqPage() {
   if (session.user.role !== "TENANT") redirect("/admin")
   const { orgId } = await requireOrgAccess()
   const items = await getFaqItemsFromDb(orgId, ["tenant"])
+  const { t } = await getT()
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <PageHeader
         icon={CircleHelp}
         tone="teal"
-        title="FAQ арендатора"
-        subtitle="Вход, финансы, документы, подписание, заявки, счетчики и связь с администратором."
+        title={t("cabinetSupport.faq.title")}
+        subtitle={t("cabinetSupport.faq.subtitle")}
       />
 
       <FaqSearch
