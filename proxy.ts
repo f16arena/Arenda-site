@@ -18,6 +18,10 @@ import { parseHost } from "@/lib/host"
 // Пути, разрешённые на корневом домене
 const PUBLIC_ROOT_PATHS = new Set([
   "/", "/login", "/signup", "/offer", "/privacy", "/terms", "/sla", "/delete-account",
+  // Языковые версии главной: / — государственный язык, /ru — русская,
+  // /kk — старый адрес казахской (ведёт на /). Без них посредник молча
+  // возвращал на «/», и переключатель языка не работал.
+  "/ru", "/kk",
   // Публичное демо: вход в демо-организацию одним кликом (lib/demo.ts).
   "/demo",
   "/verify-email", "/forgot-password", "/reset-password",
