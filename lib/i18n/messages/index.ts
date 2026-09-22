@@ -25,6 +25,22 @@ import { cabinetCalendar as ruCabinetCalendar, cabinetProfile as ruCabinetProfil
 import { cabinetCalendar as kkCabinetCalendar, cabinetProfile as kkCabinetProfile, cabinetPayDocs as kkCabinetPayDocs } from "./kk/cabinetCalendar"
 import { emails as ruEmails } from "./ru/emails"
 import { emails as kkEmails } from "./kk/emails"
+import { adminShell as ruAdminShell } from "./ru/adminShell"
+import { adminShell as kkAdminShell } from "./kk/adminShell"
+import { adminObjects as ruAdminObjects } from "./ru/adminObjects"
+import { adminObjects as kkAdminObjects } from "./kk/adminObjects"
+import { adminTenants as ruAdminTenants } from "./ru/adminTenants"
+import { adminTenants as kkAdminTenants } from "./kk/adminTenants"
+import { adminFinance as ruAdminFinance } from "./ru/adminFinance"
+import { adminFinance as kkAdminFinance } from "./kk/adminFinance"
+import { adminDocs as ruAdminDocs } from "./ru/adminDocs"
+import { adminDocs as kkAdminDocs } from "./kk/adminDocs"
+import { adminService as ruAdminService } from "./ru/adminService"
+import { adminService as kkAdminService } from "./kk/adminService"
+import { adminSettings as ruAdminSettings } from "./ru/adminSettings"
+import { adminSettings as kkAdminSettings } from "./kk/adminSettings"
+import { landing as ruLanding } from "./ru/landing"
+import { landing as kkLanding } from "./kk/landing"
 import { domain as ruDomain } from "./ru/domain"
 import { domain as kkDomain } from "./kk/domain"
 
@@ -41,6 +57,14 @@ export const ru = {
   cabinetProfile: ruCabinetProfile,
   cabinetPayDocs: ruCabinetPayDocs,
   emails: ruEmails,
+  adminShell: ruAdminShell,
+  adminObjects: ruAdminObjects,
+  adminTenants: ruAdminTenants,
+  adminFinance: ruAdminFinance,
+  adminDocs: ruAdminDocs,
+  adminService: ruAdminService,
+  adminSettings: ruAdminSettings,
+  landing: ruLanding,
 }
 
 export type Messages = typeof ru
@@ -59,6 +83,14 @@ export const kk: Messages = {
   cabinetProfile: kkCabinetProfile,
   cabinetPayDocs: kkCabinetPayDocs,
   emails: kkEmails,
+  adminShell: kkAdminShell,
+  adminObjects: kkAdminObjects,
+  adminTenants: kkAdminTenants,
+  adminFinance: kkAdminFinance,
+  adminDocs: kkAdminDocs,
+  adminService: kkAdminService,
+  adminSettings: kkAdminSettings,
+  landing: kkLanding,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }
