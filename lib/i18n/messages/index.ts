@@ -13,6 +13,10 @@ import { cabinet as ruCabinet } from "./ru/cabinet"
 import { cabinet as kkCabinet } from "./kk/cabinet"
 import { cabinetHome as ruCabinetHome } from "./ru/cabinetHome"
 import { cabinetHome as kkCabinetHome } from "./kk/cabinetHome"
+import { cabinetFinances as ruCabinetFinances } from "./ru/cabinetFinances"
+import { cabinetFinances as kkCabinetFinances } from "./kk/cabinetFinances"
+import { cabinetPayment as ruCabinetPayment } from "./ru/cabinetPayment"
+import { cabinetPayment as kkCabinetPayment } from "./kk/cabinetPayment"
 import { domain as ruDomain } from "./ru/domain"
 import { domain as kkDomain } from "./kk/domain"
 
@@ -21,6 +25,8 @@ export const ru = {
   domain: ruDomain,
   cabinet: ruCabinet,
   cabinetHome: ruCabinetHome,
+  cabinetFinances: ruCabinetFinances,
+  cabinetPayment: ruCabinetPayment,
 }
 
 export type Messages = typeof ru
@@ -31,6 +37,8 @@ export const kk: Messages = {
   domain: kkDomain,
   cabinet: kkCabinet,
   cabinetHome: kkCabinetHome,
+  cabinetFinances: kkCabinetFinances,
+  cabinetPayment: kkCabinetPayment,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }

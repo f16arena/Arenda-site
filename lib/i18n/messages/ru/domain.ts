@@ -20,6 +20,12 @@ export const domain = {
     SERVICE_DELIVERED: "Оказанная услуга",
     OTHER: "Прочее",
   },
+  paymentMethods: {
+    TRANSFER: "Банковский перевод",
+    KASPI: "Kaspi",
+    CASH: "Наличные",
+    CARD: "Карта",
+  },
   docTypes: {
     INVOICE: "Счёт на оплату",
     ACT: "Акт услуг",

@@ -19,6 +19,12 @@ export const domain: typeof ru = {
     SERVICE_DELIVERED: "Көрсетілген қызмет",
     OTHER: "Басқа",
   },
+  paymentMethods: {
+    TRANSFER: "Банк аударымы",
+    KASPI: "Kaspi",
+    CASH: "Қолма-қол ақша",
+    CARD: "Карта",
+  },
   docTypes: {
     INVOICE: "Төлем шоты",
     ACT: "Көрсетілген қызметтер актісі",

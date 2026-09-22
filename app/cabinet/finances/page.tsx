@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { formatMoney, formatPeriod, CHARGE_TYPES, PAYMENT_METHOD_LABELS } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL, formatPeriodL } from "@/lib/i18n/format"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 import { formatTenantPlacement, getTenantAreaTotal } from "@/lib/tenant-placement"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
@@ -14,6 +15,20 @@ import { Wallet } from "lucide-react"
 
 export default async function CabinetFinances() {
   const session = await auth()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const day = (value: Date | string) => formatDateShortL(locale, value)
+  const methodLabel = (method: string) => {
+    const key = `domain.paymentMethods.${method}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? method : label
+  }
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session!.user.id },
@@ -60,9 +75,9 @@ export default async function CabinetFinances() {
   const currentPeriod = new Date().toISOString().slice(0, 7)
   const placement = formatTenantPlacement(tenant, {
     includeFloorName: false,
-    emptyLabel: "помещение по договору",
+    emptyLabel: t("cabinetFinances.purpose.placementFallback"),
   })
-  const paymentPurpose = `Аренда ${placement}, ${tenant.companyName}, период ${currentPeriod}`
+  const paymentPurpose = t("cabinetFinances.purpose.value", { placement, company: tenant.companyName, period: currentPeriod })
   const landlord = await getOrganizationRequisites(tenant.user.organizationId ?? session!.user.organizationId!)
   const requisites = {
     recipient: landlord.fullName,
@@ -77,13 +92,15 @@ export default async function CabinetFinances() {
   }
   const primaryAccount = requisites.accounts[0]
   const qrText = [
-    `Получатель: ${requisites.recipient}`,
-    `ИИН/БИН: ${requisites.iin}`,
-    `Банк: ${primaryAccount.bank}`,
-    `БИК: ${primaryAccount.bik}`,
-    `ИИК: ${primaryAccount.account}`,
-    `Назначение: ${paymentPurpose}`,
-    `Сумма к оплате: ${formatMoney(totalDebt > 0 ? totalDebt : monthlyRent)}`,
+    // Текст внутри QR читает человек в банковском приложении — он тоже
+    // должен быть на языке арендатора.
+    `${t("domain.requisites.recipient")}: ${requisites.recipient}`,
+    `${t("domain.requisites.taxId")}: ${requisites.iin}`,
+    `${t("domain.requisites.bank")}: ${primaryAccount.bank}`,
+    `${t("domain.requisites.bik")}: ${primaryAccount.bik}`,
+    `${t("domain.requisites.iik")}: ${primaryAccount.account}`,
+    `${t("domain.requisites.purpose")}: ${paymentPurpose}`,
+    `${t("cabinetFinances.purpose.qrAmount")}: ${money(totalDebt > 0 ? totalDebt : monthlyRent)}`,
   ].join("\n")
   const qrDataUrl = await import("qrcode")
     .then((mod) => mod.default.toDataURL(qrText, { margin: 1, width: 180 }))
@@ -133,28 +150,31 @@ export default async function CabinetFinances() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={Wallet} title="Финансы" subtitle="Начисления и оплаты" />
+      <PageHeader icon={Wallet} title={t("cabinetFinances.title")} subtitle={t("cabinetFinances.subtitle")} />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card className="block p-5">
           <p className={`text-2xl font-bold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-            {formatMoney(totalDebt)}
+            {money(totalDebt)}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Задолженность{unpaidDeposit > 0 ? ` · в т.ч. депозит ${formatMoney(unpaidDeposit)}` : ""}
-            {tenantCredit > 0 ? ` · аванс ${formatMoney(tenantCredit)}` : ""}
+            {t("cabinetFinances.summary.debt")}
+            {unpaidDeposit > 0 ? t("cabinetFinances.summary.debtWithDeposit", { amount: money(unpaidDeposit) }) : ""}
+            {tenantCredit > 0 ? t("cabinetFinances.summary.debtWithCredit", { amount: money(tenantCredit) }) : ""}
           </p>
         </Card>
         <Card className="block p-5">
           <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{area} м²</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Площадь</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t("cabinetFinances.summary.area")}</p>
           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-            {hasFixedTenantRent(tenant.fixedMonthlyRent) || hasFullFloorFixedRent ? "Фикс. сумма" : `Ставка: ${formatMoney(rate)}/м²`}
+            {hasFixedTenantRent(tenant.fixedMonthlyRent) || hasFullFloorFixedRent
+              ? t("cabinetFinances.summary.fixedRent")
+              : t("cabinetFinances.summary.rate", { amount: money(rate) })}
           </p>
         </Card>
         <Card className="block p-5">
-          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{formatMoney(monthlyRent)}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Аренда в месяц</p>
+          <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{money(monthlyRent)}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{t("cabinetFinances.summary.monthlyRent")}</p>
         </Card>
       </div>
 
@@ -171,19 +191,19 @@ export default async function CabinetFinances() {
       {tenant.paymentReports.length > 0 && (
         <Card className="block p-0">
           <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Отправленные чеки и оплаты</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("cabinetFinances.reports.title")}</h2>
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Здесь видно, что уже отправлено администратору на проверку.
+              {t("cabinetFinances.reports.subtitle")}
             </p>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {tenant.paymentReports.map((report) => (
               <div key={report.id} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(report.amount)}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{money(report.amount)}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(report.paymentDate).toLocaleDateString("ru-RU")} · {PAYMENT_METHOD_LABELS[report.method] ?? report.method}
-                    {report.receiptName ? ` · чек: ${report.receiptName}` : ""}
+                    {day(report.paymentDate)} · {methodLabel(report.method)}
+                    {report.receiptName ? t("cabinetFinances.reports.receipt", { name: report.receiptName }) : ""}
                   </p>
                 </div>
                 <Badge variant="secondary" className={
@@ -193,7 +213,11 @@ export default async function CabinetFinances() {
                       ? "bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300"
                       : "bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300"
                 }>
-                  {report.status === "DISPUTED" ? "Требует уточнения" : report.status === "REJECTED" ? "Отклонено" : "На проверке"}
+                  {report.status === "DISPUTED"
+                    ? t("cabinetFinances.reports.disputed")
+                    : report.status === "REJECTED"
+                      ? t("cabinetFinances.reports.rejected")
+                      : t("cabinetFinances.reports.checking")}
                 </Badge>
               </div>
             ))}
@@ -204,20 +228,20 @@ export default async function CabinetFinances() {
       {tenant.payments.length > 0 && (
         <Card className="block p-0">
           <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">История оплат</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("cabinetFinances.history.title")}</h2>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {tenant.payments.map((payment) => (
               <div key={payment.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(payment.amount)}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{money(payment.amount)}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(payment.paymentDate).toLocaleDateString("ru-RU")} · {PAYMENT_METHOD_LABELS[payment.method] ?? payment.method}
+                    {day(payment.paymentDate)} · {methodLabel(payment.method)}
                   </p>
                   {payment.note && <p className="text-xs text-slate-400 dark:text-slate-500">{payment.note}</p>}
                 </div>
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-                  Проведено
+                  {t("cabinetFinances.history.done")}
                 </Badge>
               </div>
             ))}
@@ -236,22 +260,22 @@ export default async function CabinetFinances() {
             return (
               <Card key={period} className="block p-0">
                 <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatPeriod(period)}</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatPeriodL(locale, period)}</h3>
                   <div className="text-right text-xs text-slate-500 dark:text-slate-400">
-                    {formatMoney(periodPaid)} / {formatMoney(periodTotal)}
+                    {money(periodPaid)} / {money(periodTotal)}
                   </div>
                 </div>
                 <div className="divide-y divide-slate-50 dark:divide-slate-800">
                   {periodCharges.map((c) => (
                     <div key={c.id} className="flex items-center justify-between px-5 py-3">
                       <div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300">{CHARGE_TYPES[c.type] ?? c.type}</p>
+                        <p className="text-sm text-slate-700 dark:text-slate-300">{chargeTypeLabel(c.type)}</p>
                         {c.description && <p className="text-xs text-slate-400 dark:text-slate-500">{c.description}</p>}
                       </div>
                       <div className="flex items-center gap-3">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(c.amount)}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{money(c.amount)}</p>
                         <Badge variant="secondary" className={c.isPaid ? "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400"}>
-                          {c.isPaid ? "Оплачено" : "Долг"}
+                          {c.isPaid ? t("cabinetFinances.charges.paid") : t("cabinetFinances.charges.unpaid")}
                         </Badge>
                       </div>
                     </div>
@@ -263,7 +287,7 @@ export default async function CabinetFinances() {
 
         {tenant.charges.length === 0 && (
           <Card className="block py-16 text-center">
-            <p className="text-sm text-slate-400 dark:text-slate-500">Начислений нет</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t("cabinetFinances.charges.empty")}</p>
           </Card>
         )}
       </div>
