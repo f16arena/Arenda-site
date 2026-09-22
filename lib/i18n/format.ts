@@ -59,3 +59,22 @@ export function formatPeriodL(locale: Locale, period: string): string {
   })
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
+
+/** Названия месяцев для календаря: «Январь…» / «Қаңтар…». */
+export function monthNamesL(locale: Locale): string[] {
+  const fmt = new Intl.DateTimeFormat(INTL_LOCALE[locale], { month: "long" })
+  return Array.from({ length: 12 }, (_, i) => {
+    const name = fmt.format(new Date(2026, i, 1))
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  })
+}
+
+/** Дни недели с понедельника: «Пн Вт…» / «Дс Сс…». */
+export function weekdayNamesL(locale: Locale): string[] {
+  const fmt = new Intl.DateTimeFormat(INTL_LOCALE[locale], { weekday: "short" })
+  // 21.09.2026 — понедельник.
+  return Array.from({ length: 7 }, (_, i) => {
+    const name = fmt.format(new Date(2026, 8, 21 + i)).replace(".", "")
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  })
+}

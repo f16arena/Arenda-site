@@ -21,6 +21,8 @@ import { cabinetDocs as ruCabinetDocs } from "./ru/cabinetDocs"
 import { cabinetDocs as kkCabinetDocs } from "./kk/cabinetDocs"
 import { cabinetSupport as ruCabinetSupport } from "./ru/cabinetSupport"
 import { cabinetSupport as kkCabinetSupport } from "./kk/cabinetSupport"
+import { cabinetCalendar as ruCabinetCalendar, cabinetProfile as ruCabinetProfile, cabinetPayDocs as ruCabinetPayDocs } from "./ru/cabinetCalendar"
+import { cabinetCalendar as kkCabinetCalendar, cabinetProfile as kkCabinetProfile, cabinetPayDocs as kkCabinetPayDocs } from "./kk/cabinetCalendar"
 import { domain as ruDomain } from "./ru/domain"
 import { domain as kkDomain } from "./kk/domain"
 
@@ -33,6 +35,9 @@ export const ru = {
   cabinetPayment: ruCabinetPayment,
   cabinetDocs: ruCabinetDocs,
   cabinetSupport: ruCabinetSupport,
+  cabinetCalendar: ruCabinetCalendar,
+  cabinetProfile: ruCabinetProfile,
+  cabinetPayDocs: ruCabinetPayDocs,
 }
 
 export type Messages = typeof ru
@@ -47,6 +52,9 @@ export const kk: Messages = {
   cabinetPayment: kkCabinetPayment,
   cabinetDocs: kkCabinetDocs,
   cabinetSupport: kkCabinetSupport,
+  cabinetCalendar: kkCabinetCalendar,
+  cabinetProfile: kkCabinetProfile,
+  cabinetPayDocs: kkCabinetPayDocs,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }

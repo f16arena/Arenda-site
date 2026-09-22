@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { redirect } from "next/navigation"
 import { TelegramSetup } from "@/app/admin/profile/telegram-setup"
 import { Send, User } from "lucide-react"
@@ -14,6 +15,7 @@ import { Card } from "@/components/ui/card"
 
 export default async function CabinetProfilePage() {
   const session = await auth()
+  const { t } = await getT()
   if (!session?.user) redirect("/login")
 
   const user = await db.user.findUnique({
@@ -34,7 +36,7 @@ export default async function CabinetProfilePage() {
       <PageHeader
         icon={User}
         tone="slate"
-        title="Мой профиль"
+        title={t("cabinetProfile.title")}
         subtitle={`${formatPersonShortName(user.name)}${user.tenant ? ` · ${user.tenant.companyName}` : ""}`}
       />
 

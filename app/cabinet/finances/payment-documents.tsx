@@ -3,6 +3,7 @@
 import { FileText, Download, ShieldCheck } from "lucide-react"
 import { DocumentSignButton } from "@/components/cabinet/document-sign-button"
 import { Card } from "@/components/ui/card"
+import { useT } from "@/lib/i18n/client"
 
 export type PaymentDoc = {
   id: string
@@ -12,20 +13,23 @@ export type PaymentDoc = {
   signedByTenant: boolean
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  INVOICE: "Счёт на оплату",
-  ACT: "Акт выполненных работ",
-}
+
 
 /** Документы к оплате (счёт/АВР) прямо у панели оплаты: скачать → подписать ЭЦП → оплатить. */
 export function PaymentDocuments({ docs }: { docs: PaymentDoc[] }) {
+  const { t } = useT()
+  const typeLabel = (type: string) => {
+    const key = `domain.docTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
   if (docs.length === 0) return null
   return (
     <Card className="block p-0">
       <div className="border-b border-slate-100 bg-slate-50 px-5 py-3.5 dark:border-slate-800 dark:bg-slate-800/50">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Документы к оплате</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("cabinetPayDocs.title")}</h2>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          Счёт и акт по вашей аренде. Скачайте, при необходимости подпишите ЭЦП — и оплатите ниже.
+          {t("cabinetPayDocs.subtitle")}
         </p>
       </div>
       <div className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -35,7 +39,7 @@ export function PaymentDocuments({ docs }: { docs: PaymentDoc[] }) {
               <FileText className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                  {TYPE_LABEL[d.type] ?? d.type}{d.number ? ` № ${d.number}` : ""}
+                  {typeLabel(d.type)}{d.number ? ` № ${d.number}` : ""}
                 </p>
                 {d.period && <p className="text-xs text-slate-400 dark:text-slate-500">Период {d.period}</p>}
               </div>

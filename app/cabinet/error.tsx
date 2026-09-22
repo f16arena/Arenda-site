@@ -6,6 +6,7 @@ import { useEffect, useMemo } from "react"
 import { reportClientError } from "@/lib/client-error-report"
 import { formatErrorId } from "@/lib/error-id"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/lib/i18n/client"
 
 export default function Error({
   error,
@@ -14,6 +15,7 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const { t } = useT()
   const pathname = usePathname()
   const errorId = useMemo(() => formatErrorId(error.digest), [error.digest])
   const isDev = process.env.NODE_ENV !== "production"
@@ -28,12 +30,12 @@ export default function Error({
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10">
           <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Что-то пошло не так</h2>
+        <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{t("cabinetSupport.error.title")}</h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Мы записали ошибку. Сообщите администратору код ниже.
+          {t("cabinetSupport.error.hint")}
         </p>
         <p className="mt-2 text-sm font-medium text-slate-700 dark:text-slate-300">
-          Ошибка <span className="font-mono">#{errorId}</span>
+          {t("cabinetSupport.error.code")} <span className="font-mono">#{errorId}</span>
         </p>
         {isDev && error.message && (
           <p className="mt-2 break-words text-xs text-slate-400 dark:text-slate-500">
@@ -42,7 +44,7 @@ export default function Error({
         )}
         <Button onClick={reset} className="mt-4">
           <RotateCcw className="h-4 w-4" />
-          Попробовать снова
+          {t("cabinetSupport.error.retry")}
         </Button>
       </div>
     </div>

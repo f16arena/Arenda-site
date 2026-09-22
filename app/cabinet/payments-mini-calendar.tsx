@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+import { useT, useLocale } from "@/lib/i18n/client"
+import { formatMoneyL, monthNamesL, weekdayNamesL } from "@/lib/i18n/format"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 
@@ -21,11 +22,6 @@ interface PaymentRow {
   paymentDate: string
 }
 
-const MONTHS = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-]
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 /**
  * Календарь платежей арендатора — в том же стиле, что у владельца (/admin/calendar):
@@ -39,6 +35,11 @@ export function PaymentsMiniCalendar({
   payments: PaymentRow[]
   paymentDueDay: number
 }) {
+  const { t } = useT()
+  const locale = useLocale()
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const MONTHS = monthNamesL(locale)
+  const WEEKDAYS = weekdayNamesL(locale)
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
@@ -89,20 +90,20 @@ export function PaymentsMiniCalendar({
       <Card className="block p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => nav(-1)} aria-label="Предыдущий месяц"
+            <button type="button" onClick={() => nav(-1)} aria-label={t("cabinetCalendar.prevMonth")}
               className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2">
               <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </button>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 min-w-[160px] text-center">
               {MONTHS[month]} {year}
             </h2>
-            <button type="button" onClick={() => nav(1)} aria-label="Следующий месяц"
+            <button type="button" onClick={() => nav(1)} aria-label={t("cabinetCalendar.nextMonth")}
               className="rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 p-2">
               <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </button>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={goToday}>
-            Сегодня
+            {t("cabinetCalendar.today")}
           </Button>
         </div>
       </Card>
@@ -111,7 +112,7 @@ export function PaymentsMiniCalendar({
         {/* Сетка */}
         <Card className="block p-0">
           <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-            {WEEKDAYS.map((d) => (
+            {WEEKDAYS.map((d: string) => (
               <div key={d} className="px-2 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{d}</div>
             ))}
           </div>
@@ -155,7 +156,7 @@ export function PaymentsMiniCalendar({
                     </div>
                   )}
                   {cell.isExpectedRent && dots.length === 0 && (
-                    <span className="absolute bottom-1 left-1 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" title="Ожидаемая дата платежа" />
+                    <span className="absolute bottom-1 left-1 h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" title={t("cabinetCalendar.expectedDate")} />
                   )}
                 </button>
               )
@@ -171,7 +172,7 @@ export function PaymentsMiniCalendar({
                 {new Date(selCell.dateKey).toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" })}
               </h3>
               {selCell.dueCharges.length === 0 && selCell.paidThisDay === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500">Нет платежей</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">{t("cabinetCalendar.noPayments")}</p>
               ) : (
                 <ul className="space-y-2">
                   {selCell.dueCharges.map((c) => {
@@ -180,8 +181,8 @@ export function PaymentsMiniCalendar({
                       <li key={c.id} className="flex items-center gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2">
                         <span className={`inline-block h-2 w-2 rounded-full ${overdue ? "bg-red-500" : c.isPaid ? "bg-emerald-500" : "bg-blue-500"}`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(c.amount)}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{overdue ? "Просрочено" : c.isPaid ? "Оплачено" : "К оплате"}</p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{money(c.amount)}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">{overdue ? t("cabinetCalendar.overdue") : c.isPaid ? t("cabinetCalendar.paid") : t("cabinetCalendar.due")}</p>
                         </div>
                       </li>
                     )
@@ -190,8 +191,8 @@ export function PaymentsMiniCalendar({
                     <li className="flex items-center gap-2 rounded-lg border border-slate-100 dark:border-slate-800 p-2">
                       <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{formatMoney(selCell.paidThisDay)}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Оплата получена</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{money(selCell.paidThisDay)}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{t("cabinetCalendar.received")}</p>
                       </div>
                     </li>
                   )}
@@ -200,14 +201,14 @@ export function PaymentsMiniCalendar({
             </>
           ) : (
             <>
-              <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Обозначения</h4>
+              <h4 className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">{t("cabinetCalendar.legend")}</h4>
               <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-blue-500" /> К оплате</li>
-                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-red-500" /> Просрочка</li>
-                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Оплачено</li>
-                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-blue-600 ring-1 ring-blue-600" /> Сегодня</li>
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-blue-500" /> {t("cabinetCalendar.due")}</li>
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-red-500" /> {t("cabinetCalendar.overdue")}</li>
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-emerald-500" /> {t("cabinetCalendar.paid")}</li>
+                <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-blue-600 ring-1 ring-blue-600" /> {t("cabinetCalendar.today")}</li>
               </ul>
-              <p className="text-xs text-slate-400 dark:text-slate-500 pt-1">Нажмите на дату — покажем платежи этого дня.</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 pt-1">{t("cabinetCalendar.hint")}</p>
             </>
           )}
         </Card>

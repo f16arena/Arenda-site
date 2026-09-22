@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic"
 import { useEffect, useState } from "react"
+import { useT } from "@/lib/i18n/client"
 
 const PaymentsMiniCalendar = dynamic(
   () => import("./payments-mini-calendar").then((mod) => mod.PaymentsMiniCalendar),
@@ -18,6 +19,7 @@ export function PaymentsMiniCalendarLoader({
 }: {
   paymentDueDay: number
 }) {
+  const { t } = useT()
   const [state, setState] = useState<{
     loading: boolean
     error: string | null
@@ -41,7 +43,7 @@ export function PaymentsMiniCalendarLoader({
 
     fetch("/api/cabinet/payment-calendar", { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error("Не удалось загрузить календарь платежей")
+        if (!response.ok) throw new Error("")
         return response.json()
       })
       .then((payload) => {
@@ -56,7 +58,7 @@ export function PaymentsMiniCalendarLoader({
         if (controller.signal.aborted) return
         setState({
           loading: false,
-          error: error instanceof Error ? error.message : "Не удалось загрузить календарь платежей",
+          error: error instanceof Error && error.message ? error.message : "load",
           charges: [],
           payments: [],
         })
@@ -74,7 +76,7 @@ export function PaymentsMiniCalendarLoader({
   if (state.error) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-        {state.error}
+        {state.error === "load" ? t("cabinetCalendar.loadFailed") : state.error}
       </div>
     )
   }
