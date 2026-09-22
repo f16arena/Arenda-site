@@ -2,53 +2,56 @@
 
 import { useState } from "react"
 import { Building2, Info, TrendingUp, TrendingDown, Minus } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import type { MarketComparison } from "@/lib/market"
 
 export function MarketSection({ data }: { data: MarketComparison | null }) {
+  const { t } = useT()
+  const locale = useLocale()
+  const money = (amount: number) => formatMoneyL(locale, amount)
   const [scopeKey, setScopeKey] = useState<string>("city")
 
   if (!data) {
     return (
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-        <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">Рынок аренды</h3>
-        <p className="text-[12px] text-slate-400 dark:text-slate-500">
-          Город здания не распознан для рыночных данных. Укажите город в адресе здания.
-        </p>
+        <h3 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminFinance.market.title")}</h3>
+        <p className="text-[12px] text-slate-400 dark:text-slate-500">{t("adminFinance.market.noCity")}</p>
       </section>
     )
   }
 
-  const date = data.collectedAt ? new Date(data.collectedAt).toLocaleDateString("ru-RU") : null
+  const date = data.collectedAt ? formatDateShortL(locale, data.collectedAt) : null
   const scope = data.scopes.find((s) => s.key === scopeKey) ?? data.scopes[0] ?? null
-  const maxMedian = Math.max(1, ...(scope?.types.map((t) => t.perSqmMedian) ?? [1]), data.ownerPerSqm ?? 0)
-  const benchmark = scope?.types.find((t) => t.propertyType === "FREE") ?? scope?.types[0] ?? null
+  // Тип помещения в колбэках назван row, а не t: иначе перекрывает переводчик.
+  const maxMedian = Math.max(1, ...(scope?.types.map((row) => row.perSqmMedian) ?? [1]), data.ownerPerSqm ?? 0)
+  const benchmark = scope?.types.find((row) => row.propertyType === "FREE") ?? scope?.types[0] ?? null
   const diffPct = benchmark && data.ownerPerSqm
     ? Math.round(((data.ownerPerSqm - benchmark.perSqmMedian) / benchmark.perSqmMedian) * 100)
     : null
 
   // Вердикт-советник
   const verdict = diffPct === null ? null
-    : diffPct <= -12 ? { tone: "low", icon: TrendingDown, text: `Вы сдаёте дешевле рынка на ${Math.abs(diffPct)}% — есть запас поднять ставку`, cls: "bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200" }
-    : diffPct >= 12 ? { tone: "high", icon: TrendingUp, text: `Ваша ставка выше рынка на ${diffPct}% — возможно, завышена для этой локации`, cls: "bg-blue-50 text-blue-800 dark:bg-blue-500/10 dark:text-blue-200" }
-    : { tone: "fair", icon: Minus, text: `Ваша ставка в рынке (${diffPct >= 0 ? "+" : ""}${diffPct}% к медиане)`, cls: "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" }
+    : diffPct <= -12 ? { tone: "low", icon: TrendingDown, text: t("adminFinance.market.verdictLow", { percent: Math.abs(diffPct) }), cls: "bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-200" }
+    : diffPct >= 12 ? { tone: "high", icon: TrendingUp, text: t("adminFinance.market.verdictHigh", { percent: diffPct }), cls: "bg-blue-50 text-blue-800 dark:bg-blue-500/10 dark:text-blue-200" }
+    : { tone: "fair", icon: Minus, text: t("adminFinance.market.verdictFair", { percent: `${diffPct >= 0 ? "+" : ""}${diffPct}` }), cls: "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-200" }
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Рынок аренды · сколько просят рядом</h3>
-        {date && <span className="text-[11px] text-slate-400 dark:text-slate-500">данные на {date}</span>}
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminFinance.market.titleFull")}</h3>
+        {date && <span className="text-[11px] text-slate-400 dark:text-slate-500">{t("adminFinance.market.collectedAt", { date })}</span>}
       </div>
 
       {data.scopes.length === 0 ? (
         <p className="py-6 text-center text-[12.5px] text-slate-400 dark:text-slate-500">
-          Рыночные данные ещё не собраны. Сборщик на VPS пришлёт их при ближайшем запуске.
+          {t("adminFinance.market.noData")}
         </p>
       ) : (
         <>
           {/* Область сравнения: район ↔ город (расширяемая) */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <label className="text-[12px] text-slate-500 dark:text-slate-400">Область:</label>
+            <label className="text-[12px] text-slate-500 dark:text-slate-400">{t("adminFinance.market.scope")}</label>
             <select
               value={scope?.key ?? "city"}
               onChange={(e) => setScopeKey(e.target.value)}
@@ -56,11 +59,11 @@ export function MarketSection({ data }: { data: MarketComparison | null }) {
             >
               {data.scopes.map((s) => (
                 <option key={s.key} value={s.key}>
-                  {s.isCity ? s.label : `Район: ${s.label}`}
+                  {s.isCity ? s.label : t("adminFinance.market.district", { name: s.label })}
                 </option>
               ))}
             </select>
-            <span className="text-[11px] text-slate-400 dark:text-slate-500">сузьте до района или расширьте до города</span>
+            <span className="text-[11px] text-slate-400 dark:text-slate-500">{t("adminFinance.market.scopeHint")}</span>
           </div>
 
           {/* Вердикт-советник */}
@@ -68,22 +71,27 @@ export function MarketSection({ data }: { data: MarketComparison | null }) {
             <div className={`mb-3 flex items-start gap-2 rounded-lg px-3 py-2 text-[12.5px] ${verdict.cls}`}>
               <verdict.icon className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                <b>Ваша ставка: {data.ownerPerSqm ? `${formatMoney(data.ownerPerSqm)}/м²` : "—"}.</b> {verdict.text}.
+                <b>
+                  {data.ownerPerSqm
+                    ? t("adminFinance.market.yourRate", { amount: money(data.ownerPerSqm) })
+                    : t("adminFinance.market.yourRateUnknown")}
+                </b>{" "}
+                {verdict.text}.
               </span>
             </div>
           )}
 
           {/* Бары медиан по типам */}
           <div className="space-y-2.5">
-            {scope?.types.map((t) => {
-              const w = (t.perSqmMedian / maxMedian) * 100
+            {scope?.types.map((row) => {
+              const w = (row.perSqmMedian / maxMedian) * 100
               return (
-                <div key={t.propertyType}>
+                <div key={row.propertyType}>
                   <div className="mb-0.5 flex items-baseline justify-between text-[12px]">
-                    <span className="text-slate-600 dark:text-slate-300">{t.label}</span>
+                    <span className="text-slate-600 dark:text-slate-300">{row.label}</span>
                     <span className="tabular-nums font-medium text-slate-900 dark:text-slate-100">
-                      {formatMoney(t.perSqmMedian)}/м²
-                      <span className="ml-1.5 text-[10.5px] font-normal text-slate-400 dark:text-slate-500">n={t.sampleCount}</span>
+                      {money(row.perSqmMedian)}/м²
+                      <span className="ml-1.5 text-[10.5px] font-normal text-slate-400 dark:text-slate-500">n={row.sampleCount}</span>
                     </span>
                   </div>
                   <div className="relative h-3 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
@@ -103,7 +111,7 @@ export function MarketSection({ data }: { data: MarketComparison | null }) {
               >
                 <div className="h-3 w-0.5 bg-slate-900 dark:bg-slate-100" />
                 <span className="whitespace-nowrap text-[10px] font-medium text-slate-700 dark:text-slate-300">
-                  вы · {formatMoney(data.ownerPerSqm)}
+                  {t("adminFinance.market.you", { amount: money(data.ownerPerSqm) })}
                 </span>
               </div>
             </div>
@@ -111,11 +119,11 @@ export function MarketSection({ data }: { data: MarketComparison | null }) {
 
           <p className="mt-3 flex items-start gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
             <Building2 className="mt-0.5 h-3 w-3 shrink-0" />
-            Сравнивайте со своей ставкой по совпадающему типу помещений. «Вы» — ваша средняя ₸/м² (Σ аренды ÷ Σ площади).
+            {t("adminFinance.market.footnoteCompare")}
           </p>
           <p className="mt-1 flex items-start gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
             <Info className="mt-0.5 h-3 w-3 shrink-0" />
-            Медианы по объявлениям krisha (после отсева выбросов). Ориентир для решения, не оценка.
+            {t("adminFinance.market.footnoteSource")}
           </p>
         </>
       )}

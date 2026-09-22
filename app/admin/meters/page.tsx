@@ -14,13 +14,9 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL, formatNumberL, formatPeriodL } from "@/lib/i18n/format"
 import { PageHeader, Card } from "@/components/ui/page"
-
-const typeLabel: Record<string, string> = {
-  ELECTRICITY: "Электричество",
-  WATER: "Вода",
-  HEAT: "Тепло",
-}
 
 const typeColor: Record<string, string> = {
   ELECTRICITY: "bg-yellow-100 dark:bg-yellow-500/20 text-yellow-700 dark:text-yellow-300",
@@ -36,6 +32,14 @@ const TARIFF_TYPE_BY_METER: Record<string, string> = {
 
 export default async function MetersPage() {
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const typeLabel = (type: string) => {
+    const key = `adminFinance.meters.types.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
+  const num = (value: number) => formatNumberL(locale, value)
   // Гранулярные права: кнопки-действия показываются только при наличии своего права.
   const session = await auth()
   const caps = session?.user
@@ -114,7 +118,8 @@ export default async function MetersPage() {
     ),
   ])
 
-  const tariffByType = new Map(tariffs.map((t) => [t.type, t]))
+  // Тариф в колбэке назван row, а не t: иначе перекрывает переводчик.
+  const tariffByType = new Map(tariffs.map((row) => [row.type, row]))
 
   const meterProps = meters.map((m) => ({
     id: m.id,
@@ -127,8 +132,11 @@ export default async function MetersPage() {
     <div className="space-y-5">
       <PageHeader
         icon={Gauge}
-        title="Счётчики"
-        subtitle={`${meters.length} счётчиков · ${currentPeriod}`}
+        title={t("adminFinance.meters.title")}
+        subtitle={t("adminFinance.meters.subtitle", {
+          count: meters.length,
+          period: formatPeriodL(locale, currentPeriod),
+        })}
         actions={
           canManage ? (
             <>
@@ -143,14 +151,14 @@ export default async function MetersPage() {
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Счётчик</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Помещение</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Пред. период</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Тек. период</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Расход</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Тариф</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">К оплате</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.meter")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.space")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.tenant")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.prevPeriod")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.currentPeriod")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.consumption")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.tariff")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.meters.toPay")}</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -168,39 +176,39 @@ export default async function MetersPage() {
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColor[meter.type] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-                        {typeLabel[meter.type] ?? meter.type}
+                        {typeLabel(meter.type)}
                       </span>
                       <span className="text-slate-500 dark:text-slate-400 font-mono text-xs">#{meter.number}</span>
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-slate-700 dark:text-slate-300">
-                    Каб. {meter.space.number}
+                    {t("adminFinance.meters.room", { number: meter.space.number })}
                     <span className="text-slate-400 dark:text-slate-500 ml-1">· {meter.space.floor.name}</span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">
-                    {tenantName ?? <span className="text-slate-400 dark:text-slate-500">Свободно</span>}
+                    {tenantName ?? <span className="text-slate-400 dark:text-slate-500">{t("adminFinance.meters.vacant")}</span>}
                   </td>
                   <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">
-                    {prev ? prev.value.toLocaleString("ru-RU") : "—"}
+                    {prev ? num(prev.value) : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {current ? (
-                      <span className="font-medium text-slate-900 dark:text-slate-100">{current.value.toLocaleString("ru-RU")}</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">{num(current.value)}</span>
                     ) : (
-                      <span className="text-amber-500 text-xs">Не внесено</span>
+                      <span className="text-amber-500 text-xs">{t("adminFinance.meters.noReading")}</span>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {consumption !== null ? (
-                      <span className="font-medium text-slate-900 dark:text-slate-100">{consumption.toLocaleString("ru-RU")}</span>
+                      <span className="font-medium text-slate-900 dark:text-slate-100">{num(consumption)}</span>
                     ) : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right text-slate-500 dark:text-slate-400 text-xs">
-                    {tariff ? `${tariff.rate} ₸/${tariff.unit}` : <span className="text-amber-500">не задан</span>}
+                    {tariff ? `${num(tariff.rate)} ₸/${tariff.unit}` : <span className="text-amber-500">{t("adminFinance.meters.noTariff")}</span>}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {cost !== null ? (
-                      <span className="font-medium text-emerald-600 dark:text-emerald-400">{cost.toLocaleString("ru-RU")} ₸</span>
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatMoneyL(locale, cost)}</span>
                     ) : "—"}
                   </td>
                   <td className="px-5 py-3.5 text-right">
@@ -209,9 +217,9 @@ export default async function MetersPage() {
                       {canManage && (
                         <DeleteAction
                           action={deleteMeter.bind(null, meter.id)}
-                          entity="счётчик"
-                          description="Все показания этого счётчика будут удалены."
-                          successMessage="Счётчик удалён"
+                          entity={t("adminFinance.meters.entity")}
+                          description={t("adminFinance.meters.deleteText")}
+                          successMessage={t("adminFinance.meters.deleted")}
                         />
                       )}
                     </div>
@@ -224,17 +232,17 @@ export default async function MetersPage() {
                 <td colSpan={9} className="px-5 py-8">
                   <EmptyState
                     icon={<Gauge className="h-5 w-5" />}
-                    title="Счётчики не добавлены"
+                    title={t("adminFinance.meters.emptyTitle")}
                     description={
                       spaces.length === 0
-                        ? "Сначала добавьте помещения в здании. После этого можно привязать счетчики света, воды или тепла к конкретному кабинету."
-                        : "Добавьте счетчик к помещению, чтобы вести показания, считать расход и автоматически формировать коммунальные начисления."
+                        ? t("adminFinance.meters.emptyNoSpaces")
+                        : t("adminFinance.meters.emptyText")
                     }
                     actions={[
                       spaces.length === 0
-                        ? { href: "/admin/spaces", label: "Добавить помещения" }
-                        : { href: "/admin/settings", label: "Проверить тарифы" },
-                      { href: "/admin/faq", label: "Как вести счетчики", variant: "secondary" },
+                        ? { href: "/admin/spaces", label: t("adminFinance.meters.emptyAddSpaces") }
+                        : { href: "/admin/settings", label: t("adminFinance.meters.emptyTariffs") },
+                      { href: "/admin/faq", label: t("adminFinance.meters.emptyFaq"), variant: "secondary" },
                     ]}
                   />
                 </td>

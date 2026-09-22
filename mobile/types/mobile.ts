@@ -15,6 +15,8 @@ export type MobileBootstrap = {
     phone?: string | null
     role?: MobileRole | null
     totpEnabled?: boolean
+    /** Язык интерфейса из профиля: ru | kk. */
+    locale?: string | null
   }
   organization: {
     id: string

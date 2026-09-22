@@ -5,7 +5,8 @@ import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import { Repeat, ArrowLeft } from "lucide-react"
-import { formatMoney, expenseCategoryLabel } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL, formatPeriodL } from "@/lib/i18n/format"
 import { PageHeader, Card } from "@/components/ui/page"
 import { DataTable } from "@/components/ui/data-table"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -21,13 +22,19 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { deleteRecurringExpense } from "@/app/actions/recurring-expenses"
 import { RecurringExpenseDialog, RecurringToggle, GenerateRecurringButton } from "./recurring-actions"
 
-function scheduleLabel(months: string | null): string {
-  if (!months) return "Каждый месяц"
-  return "Только зимой (окт–апр)"
-}
-
 export default async function RecurringExpensesPage() {
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  // Повтор: либо каждый месяц, либо «только зимой» (months задан).
+  const scheduleLabel = (months: string | null) =>
+    months ? t("adminFinance.recurring.winterOnly") : t("adminFinance.recurring.everyMonth")
+  const categoryLabel = (category: string) => {
+    const key = `adminFinance.expenseCategories.${category}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? category : label
+  }
   const session = await auth()
   const caps = session?.user
     ? new Set(await getAllowedCapabilityKeysForUser({
@@ -82,18 +89,19 @@ export default async function RecurringExpensesPage() {
     ),
   ])
 
-  const activeCount = templates.filter((t) => t.isActive).length
+  // Шаблон в колбэках назван row, а не t: иначе перекрывает переводчик.
+  const activeCount = templates.filter((row) => row.isActive).length
   const monthlyTotal = templates
-    .filter((t) => t.isActive)
-    .reduce((sum, t) => sum + t.amount, 0)
+    .filter((row) => row.isActive)
+    .reduce((sum, row) => sum + row.amount, 0)
 
   return (
     <div className="space-y-5">
       <RouteTabs items={FINANCE_TABS} className="mb-2" />
       <PageHeader
         icon={Repeat}
-        title="Постоянные расходы"
-        subtitle="Повторяются автоматически каждый месяц"
+        title={t("adminFinance.recurring.title")}
+        subtitle={t("adminFinance.recurring.subtitle")}
         actions={
           <>
             <Link
@@ -101,9 +109,9 @@ export default async function RecurringExpensesPage() {
               className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
             >
               <ArrowLeft className="h-4 w-4" />
-              К финансам
+              {t("adminFinance.recurring.toFinances")}
             </Link>
-            {canManage && <GenerateRecurringButton period={currentPeriod} />}
+            {canManage && <GenerateRecurringButton period={currentPeriod} periodLabel={formatPeriodL(locale, currentPeriod)} />}
             {canManage && <RecurringExpenseDialog cashAccounts={cashAccounts} buildings={buildingOptions} currentBuildingId={currentBuildingId} />}
           </>
         }
@@ -112,47 +120,50 @@ export default async function RecurringExpensesPage() {
       <Card padded={false}>
         <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Шаблоны ({activeCount} активны)
+            {t("adminFinance.recurring.templates", { count: activeCount })}
           </h2>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            В месяц: <span className="font-medium text-orange-600 dark:text-orange-400">{formatMoney(monthlyTotal)}</span>
+            {t("adminFinance.recurring.monthlyTotal")}{" "}
+            <span className="font-medium text-orange-600 dark:text-orange-400">{money(monthlyTotal)}</span>
           </span>
         </div>
         <DataTable density="compact" className="min-w-[680px]">
           <thead className="bg-slate-50 dark:bg-slate-800/80">
             <tr className="border-b border-slate-100 dark:border-slate-800">
-              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Категория</th>
-              {!currentBuildingId && <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Здание</th>}
-              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Описание</th>
-              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">Повтор</th>
-              <th className="text-center text-xs font-medium text-slate-500 dark:text-slate-400">Число</th>
-              <th className="text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
-              <th className="text-center text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.category")}</th>
+              {!currentBuildingId && <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.building")}</th>}
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.description")}</th>
+              <th className="text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.schedule")}</th>
+              <th className="text-center text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.dayOfMonth")}</th>
+              <th className="text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.amount")}</th>
+              <th className="text-center text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminFinance.recurring.status")}</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {templates.map((t) => (
-              <tr key={t.id} className="border-b border-slate-50 dark:border-slate-800/50">
-                <td className="text-slate-700 dark:text-slate-300">{expenseCategoryLabel(t.category)}</td>
-                {!currentBuildingId && <td className="text-slate-500 dark:text-slate-400">{t.building.name}</td>}
-                <td className="text-slate-500 dark:text-slate-400">{t.description ?? "—"}</td>
-                <td className="text-slate-500 dark:text-slate-400">{scheduleLabel(t.months)}</td>
-                <td className="text-center text-slate-500 dark:text-slate-400">{t.dayOfMonth}</td>
-                <td className="text-right font-medium text-orange-600 dark:text-orange-400">{formatMoney(t.amount)}</td>
+            {templates.map((row) => (
+              <tr key={row.id} className="border-b border-slate-50 dark:border-slate-800/50">
+                <td className="text-slate-700 dark:text-slate-300">{categoryLabel(row.category)}</td>
+                {!currentBuildingId && <td className="text-slate-500 dark:text-slate-400">{row.building.name}</td>}
+                <td className="text-slate-500 dark:text-slate-400">{row.description ?? "—"}</td>
+                <td className="text-slate-500 dark:text-slate-400">{scheduleLabel(row.months)}</td>
+                <td className="text-center text-slate-500 dark:text-slate-400">{row.dayOfMonth}</td>
+                <td className="text-right font-medium text-orange-600 dark:text-orange-400">{money(row.amount)}</td>
                 <td className="text-center">
                   {canManage ? (
-                    <RecurringToggle id={t.id} isActive={t.isActive} />
+                    <RecurringToggle id={row.id} isActive={row.isActive} />
                   ) : (
-                    <span className="text-[11px] text-slate-500 dark:text-slate-400">{t.isActive ? "Активен" : "Пауза"}</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {row.isActive ? t("adminFinance.recurring.active") : t("adminFinance.recurring.paused")}
+                    </span>
                   )}
                 </td>
                 <td className="text-right">
                   {canManage && (
                     <DeleteAction
-                      action={deleteRecurringExpense.bind(null, t.id)}
-                      entity="постоянный расход"
-                      successMessage="Шаблон удалён"
+                      action={deleteRecurringExpense.bind(null, row.id)}
+                      entity={t("adminFinance.recurring.entity")}
+                      successMessage={t("adminFinance.recurring.deleted")}
                     />
                   )}
                 </td>
@@ -163,8 +174,8 @@ export default async function RecurringExpensesPage() {
                 <td colSpan={currentBuildingId ? 7 : 8} className="px-5 py-6">
                   <EmptyState
                     icon={<Repeat className="h-5 w-5" />}
-                    title="Постоянных расходов нет"
-                    description="Добавьте расходы, которые повторяются каждый месяц одинаковой суммой: зарплата, вывоз мусора, техничка, интернет. Для отопления выберите «Только зимой» — оно будет создаваться лишь в октябре–апреле."
+                    title={t("adminFinance.recurring.emptyTitle")}
+                    description={t("adminFinance.recurring.emptyText")}
                   />
                 </td>
               </tr>
@@ -174,7 +185,7 @@ export default async function RecurringExpensesPage() {
       </Card>
 
       <p className="text-xs text-slate-400 dark:text-slate-500">
-        Расходы создаются автоматически 1-го числа каждого месяца. Переменные расходы (вода, свет) добавляйте вручную на странице «Финансы» — их сумма меняется месяц от месяца.
+        {t("adminFinance.recurring.footnote")}
       </p>
     </div>
   )

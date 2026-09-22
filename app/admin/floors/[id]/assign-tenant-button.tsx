@@ -5,6 +5,7 @@ import { UserPlus, X, ChevronDown } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
 import { assignTenantToPlace } from "@/app/actions/builder-premise"
+import { useT } from "@/lib/i18n/client"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 
@@ -24,6 +25,7 @@ export function AssignTenantButton({
   spaceNumber: string
   candidates: Candidate[]
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState("")
   const [pending, startTransition] = useTransition()
@@ -39,11 +41,11 @@ export function AssignTenantButton({
       try {
         const res = await assignTenantToPlace(tenantId, spaceId)
         if (!res.ok) throw new Error(res.error)
-        toast.success(`«${companyName}» назначен в Каб. ${spaceNumber}`)
+        toast.success(t("adminObjects.assignTenant.assigned", { tenant: companyName, number: spaceNumber }))
         setOpen(false)
         setSearch("")
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось назначить")
+        toast.error(e instanceof Error ? e.message : t("adminObjects.assignTenant.failed"))
       }
     })
   }
@@ -54,10 +56,10 @@ export function AssignTenantButton({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 font-medium"
-        title="Назначить арендатора"
+        title={t("adminObjects.assignTenant.triggerHint")}
       >
         <UserPlus className="h-3.5 w-3.5" />
-        Назначить
+        {t("adminObjects.assignTenant.trigger")}
         <ChevronDown className="h-3 w-3" />
       </PopoverTrigger>
       <PopoverContent
@@ -70,16 +72,16 @@ export function AssignTenantButton({
           <div>
             <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Каб. {spaceNumber} → арендатор
+                {t("adminObjects.assignTenant.title", { number: spaceNumber })}
               </p>
-              <button onClick={() => setOpen(false)} aria-label="Закрыть" className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => setOpen(false)} aria-label={t("common.actions.close")} className="text-slate-400 hover:text-slate-600">
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
             <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
               <input
                 type="search"
-                placeholder="Поиск по названию..."
+                placeholder={t("adminObjects.assignTenant.search")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full rounded border border-slate-200 dark:border-slate-800 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
@@ -89,13 +91,13 @@ export function AssignTenantButton({
             <div className="max-h-72 overflow-y-auto">
               {filtered.length === 0 ? (
                 <div className="px-3 py-4 text-center">
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Нет арендаторов</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{t("adminObjects.assignTenant.empty")}</p>
                   <Link
                     href="/admin/tenants"
                     className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline"
                     onClick={() => setOpen(false)}
                   >
-                    Создать нового →
+                    {t("adminObjects.assignTenant.createNew")}
                   </Link>
                 </div>
               ) : (
@@ -107,7 +109,10 @@ export function AssignTenantButton({
                       </p>
                       {c.currentSpace && (
                         <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
-                          Сейчас: Каб. {c.currentSpace.number} · {c.currentSpace.floorName} (переедет)
+                          {t("adminObjects.assignTenant.currentSpace", {
+                            number: c.currentSpace.number,
+                            floor: c.currentSpace.floorName,
+                          })}
                         </p>
                       )}
                     </>
@@ -117,9 +122,10 @@ export function AssignTenantButton({
                     return (
                       <ConfirmDialog
                         key={c.id}
-                        title={`Переселить «${c.companyName}» в кабинет ${spaceNumber}?`}
-                        description={`Сейчас занимает Каб. ${cs.number} (${cs.floorName}). Старый кабинет освободится.`}
-                        confirmLabel="Переселить"
+                        title={t("adminObjects.assignTenant.moveTitle", { tenant: c.companyName, number: spaceNumber })}
+                        description={t("adminObjects.assignTenant.moveText", { current: cs.number, floor: cs.floorName })}
+                        confirmLabel={t("adminObjects.assignTenant.moveConfirm")}
+                        cancelLabel={t("common.actions.cancel")}
                         onConfirm={() => performAssign(c.id, c.companyName)}
                         trigger={
                           <button

@@ -10,10 +10,10 @@ import { DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
   normalizeTenantLegalType,
   tenantLegalTypeUsesBin,
-  tenantTaxIdLabel,
   tenantTaxIdValue,
   type TenantLegalType,
 } from "@/lib/tenant-identity"
+import { useT } from "@/lib/i18n/client"
 
 type Props = {
   initialLegalType?: string | null
@@ -38,6 +38,7 @@ export function TenantIdentityFields({
   initialIsVatPayer, initialVatStatus,
   onLegalTypeChange,
 }: Props) {
+  const { t } = useT()
   const [legalType, setLegalType] = useState<TenantLegalType>(normalizeTenantLegalType(initialLegalType))
   // НДС определяется автоматически из КГД. null = ещё не определялся.
   const [vatPayer, setVatPayer] = useState<boolean | null>(
@@ -69,7 +70,7 @@ export function TenantIdentityFields({
     return () => form.removeEventListener("reset", onReset)
   }, [])
   const usesBin = tenantLegalTypeUsesBin(legalType)
-  const taxIdLabel = tenantTaxIdLabel(legalType)
+  const taxIdLabel = usesBin ? t("adminTenants.identity.bin") : t("adminTenants.identity.iin")
   const iinValidation = !usesBin && taxId.length === 12 ? validateKazakhstanIin(taxId) : null
   const [lookupPending, startLookup] = useTransition()
 
@@ -92,11 +93,11 @@ export function TenantIdentityFields({
 
       // Правовая форма из типа налогоплательщика КГД (UL → ТОО/АО по названию,
       // IP → ИП, LZCHP → нотариус/адвокат/ЧСИ по виду практики).
-      const t = r.info.taxpayerType
+      const taxpayerType = r.info.taxpayerType
       let detected: TenantLegalType | null = null
-      if (t === "UL") detected = /акционерное общество/i.test(r.info.name ?? "") ? "AO" : "TOO"
-      else if (t === "IP") detected = "IP"
-      else if (t === "LZCHP") {
+      if (taxpayerType === "UL") detected = /акционерное общество/i.test(r.info.name ?? "") ? "AO" : "TOO"
+      else if (taxpayerType === "IP") detected = "IP"
+      else if (taxpayerType === "LZCHP") {
         const k = (r.info.lzchpType ?? "").toUpperCase()
         detected = k.includes("NOTAR") ? "NOTARIUS"
           : k.includes("ADVOC") || k.includes("LAWYER") ? "ADVOKAT"
@@ -130,7 +131,7 @@ export function TenantIdentityFields({
           .trim()
         return cleaned || raw
       }
-      const personName = t === "IP" || t === "LZCHP" ? stripIpPrefix(r.info.name) : r.info.director
+      const personName = taxpayerType === "IP" || taxpayerType === "LZCHP" ? stripIpPrefix(r.info.name) : r.info.director
       // НДС-статус — из сервиса КГД «Поиск плательщиков НДС». null = сервис не
       // ответил → прежнее значение не трогаем (статус остаётся «не определён»).
       if (r.info.vatPayer !== null) {
@@ -146,18 +147,18 @@ export function TenantIdentityFields({
         r.info.vatPayer !== null,
       ].filter(Boolean).length
       const parts = [
-        r.info.name && "наименование",
-        detected && "правовая форма",
-        r.info.address && "адрес",
-        r.info.director && "руководитель",
-        r.info.vatPayer !== null && "НДС",
+        r.info.name && t("adminTenants.identity.lookup.parts.name"),
+        detected && t("adminTenants.identity.lookup.parts.legalForm"),
+        r.info.address && t("adminTenants.identity.lookup.parts.address"),
+        r.info.director && t("adminTenants.identity.lookup.parts.director"),
+        r.info.vatPayer !== null && t("adminTenants.identity.lookup.parts.vat"),
       ].filter(Boolean).join(", ")
-      if (filled > 0 || detected) toast.success(`Заполнено из КГД: ${parts}`)
-      else if (r.info.status) toast.info("Налогоплательщик найден, но заполнять нечего")
-      else toast.info("Справочник ответил, но подходящих полей в этой форме нет")
+      if (filled > 0 || detected) toast.success(t("adminTenants.identity.lookup.filled", { parts }))
+      else if (r.info.status) toast.info(t("adminTenants.identity.lookup.nothingToFill"))
+      else toast.info(t("adminTenants.identity.lookup.noFields"))
       // Статус регистрации + НДС-статус (постановка/снятие с учёта)
       const statusLine = [r.info.status, r.info.vatStatus].filter(Boolean).join(" · ")
-      if (statusLine) toast.message("Статус в КГД", { description: statusLine, duration: 8000 })
+      if (statusLine) toast.message(t("adminTenants.identity.lookup.statusTitle"), { description: statusLine, duration: 8000 })
     })
   }
 
@@ -180,7 +181,7 @@ export function TenantIdentityFields({
     <>
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Правовая форма
+          {t("adminTenants.identity.legalForm")}
         </label>
         <select
           ref={selectRef}
@@ -192,19 +193,19 @@ export function TenantIdentityFields({
           }}
           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900"
         >
-          <option value="IP">ИП — Талон (Уведомление о начале деятельности)</option>
-          <option value="TOO">ТОО — Устав</option>
-          <option value="AO">АО — Устав</option>
-          <option value="CHSI">ЧСИ — Лицензия МЮ</option>
-          <option value="ADVOKAT">Адвокат — Лицензия МЮ</option>
-          <option value="NOTARIUS">Нотариус — Лицензия МЮ</option>
-          <option value="PHYSICAL">Физ. лицо — Удостоверение личности</option>
+          <option value="IP">{t("adminTenants.identity.options.IP")}</option>
+          <option value="TOO">{t("adminTenants.identity.options.TOO")}</option>
+          <option value="AO">{t("adminTenants.identity.options.AO")}</option>
+          <option value="CHSI">{t("adminTenants.identity.options.CHSI")}</option>
+          <option value="ADVOKAT">{t("adminTenants.identity.options.ADVOKAT")}</option>
+          <option value="NOTARIUS">{t("adminTenants.identity.options.NOTARIUS")}</option>
+          <option value="PHYSICAL">{t("adminTenants.identity.options.PHYSICAL")}</option>
         </select>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          {taxIdLabel} <span className="text-slate-300 dark:text-slate-500">12 цифр</span>
+          {taxIdLabel} <span className="text-slate-300 dark:text-slate-500">{t("adminTenants.identity.digits12")}</span>
         </label>
         <Input
           name={usesBin ? "bin" : "iin"}
@@ -212,14 +213,14 @@ export function TenantIdentityFields({
           onChange={(event) => setTaxId(event.target.value.replace(/\D/g, "").slice(0, 12))}
           placeholder={
             usesBin
-              ? "БИН для ТОО/АО"
+              ? t("adminTenants.identity.placeholders.bin")
               : legalType === "CHSI"
-                ? "ИИН частного судебного исполнителя"
+                ? t("adminTenants.identity.placeholders.chsi")
                 : legalType === "ADVOKAT"
-                  ? "ИИН адвоката"
+                  ? t("adminTenants.identity.placeholders.advokat")
                   : legalType === "NOTARIUS"
-                    ? "ИИН нотариуса"
-                    : "ИИН для ИП/физлица"
+                    ? t("adminTenants.identity.placeholders.notarius")
+                    : t("adminTenants.identity.placeholders.iin")
           }
           inputMode="numeric"
           pattern="\d{12}"
@@ -236,15 +237,15 @@ export function TenantIdentityFields({
             type="button"
             onClick={() => fillFromRegistry()}
             disabled={lookupPending}
-            title="Подтянуть наименование, адрес и руководителя из справочника налогоплательщиков КГД"
+            title={t("adminTenants.identity.lookupHint")}
             className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
           >
             {lookupPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-            Заполнить из КГД
+            {t("adminTenants.identity.lookupButton")}
           </button>
         )}
         {!iinValidation && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">12 цифр без пробелов</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("adminTenants.identity.digitsHint")}</p>
         )}
         {iinValidation && (
           <p className={[
@@ -253,8 +254,8 @@ export function TenantIdentityFields({
           ].join(" ")}>
             {iinValidation.ok
               ? iinValidation.birthDate
-                ? `Контрольная цифра верна · ${formatKzIinBirthDate(iinValidation.birthDate)} · ${iinValidation.genderLabel ?? "пол не определён"}`
-                : "Контрольная цифра верна · дата/пол не расшифрованы по классическому формату"
+                ? `${t("adminTenants.identity.checkOk")} · ${formatKzIinBirthDate(iinValidation.birthDate)} · ${iinValidation.genderLabel ?? t("adminTenants.identity.genderUnknown")}`
+                : t("adminTenants.identity.checkOkNoDate")
               : iinValidation.errors[0]}
           </p>
         )}
@@ -265,7 +266,7 @@ export function TenantIdentityFields({
           Ставка единая по НК РК (КГД её не отдаёт). Скрытые поля сабмитятся с формой. */}
       <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">НДС (по данным КГД)</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t("adminTenants.identity.vatTitle")}</p>
           {taxId.length === 12 && (
             <button
               type="button"
@@ -274,20 +275,20 @@ export function TenantIdentityFields({
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
             >
               {lookupPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Обновить из КГД
+              {t("adminTenants.identity.vatRefresh")}
             </button>
           )}
         </div>
         <div className="mt-1.5 text-sm">
           {vatPayer === true ? (
             <span className="font-medium text-emerald-700 dark:text-emerald-300">
-              ✅ {vatStatus?.trim() || "Плательщик НДС"} · ставка {DEFAULT_KZ_VAT_RATE}%
+              ✅ {vatStatus?.trim() || t("adminTenants.identity.vatPayer")} · {t("adminTenants.identity.vatRate", { rate: DEFAULT_KZ_VAT_RATE })}
             </span>
           ) : vatStatus?.trim() ? (
             <span className="text-slate-600 dark:text-slate-400">{vatStatus}</span>
           ) : (
             <span className="text-amber-600 dark:text-amber-400">
-              Не определён — введите {usesBin ? "БИН" : "ИИН"} (12 цифр), статус подтянется из КГД автоматически.
+              {t("adminTenants.identity.vatUnknown", { id: taxIdLabel })}
             </span>
           )}
         </div>
@@ -302,26 +303,26 @@ export function TenantIdentityFields({
           основание в договоре = паспортные данные. Поля submit-ятся с формой. */}
       {legalType === "PHYSICAL" && (
         <div className="col-span-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Удостоверение личности</p>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t("adminTenants.identity.idDocTitle")}</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">№ удостоверения</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.identity.idDocNumber")}</label>
               <Input
                 name="idDocNumber"
                 defaultValue={initialIdDocNumber ?? ""}
-                placeholder="напр. 045678901"
+                placeholder={t("adminTenants.identity.idDocNumberPlaceholder")}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Кем выдан</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.identity.idDocIssuedBy")}</label>
               <Input
                 name="idDocIssuedBy"
                 defaultValue={initialIdDocIssuedBy ?? ""}
-                placeholder="напр. МВД РК"
+                placeholder={t("adminTenants.identity.idDocIssuedByPlaceholder")}
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата выдачи (от)</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.identity.idDocIssuedAt")}</label>
               <Input
                 name="idDocIssuedAt"
                 type="date"
@@ -329,7 +330,7 @@ export function TenantIdentityFields({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Действует до</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.identity.idDocExpiresAt")}</label>
               <Input
                 name="idDocExpiresAt"
                 type="date"
@@ -338,7 +339,7 @@ export function TenantIdentityFields({
             </div>
           </div>
           <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-            Подставится в шапку договора как основание физлица: «удостоверение личности №… от …, выдано …».
+            {t("adminTenants.identity.idDocHint")}
           </p>
         </div>
       )}

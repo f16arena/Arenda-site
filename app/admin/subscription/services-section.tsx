@@ -5,6 +5,8 @@ import { Briefcase, Send, CheckCircle2, Clock, Loader2, FileBadge } from "lucide
 import { toast } from "sonner"
 import { requestService } from "@/app/actions/services"
 import type { ServiceCatalogItem } from "@/lib/services-catalog"
+import { useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 
 type OrgService = {
   id: string
@@ -17,11 +19,19 @@ type OrgService = {
   createdAt: Date | string
 }
 
-const STATUS_LABEL: Record<string, { label: string; cls: string; icon: React.ElementType }> = {
-  PENDING:   { label: "ожидает оплаты", cls: "text-amber-400",   icon: Clock },
-  PAID:      { label: "в работе",        cls: "text-blue-400",    icon: FileBadge },
-  DELIVERED: { label: "выполнено",       cls: "text-emerald-400", icon: CheckCircle2 },
-  CANCELLED: { label: "отменено",        cls: "text-slate-500",   icon: Clock },
+// Статусы услуги: подписи — в словаре, здесь только цвет и иконка.
+const SERVICE_STATUSES = ["PENDING", "PAID", "DELIVERED", "CANCELLED"] as const
+type ServiceStatus = (typeof SERVICE_STATUSES)[number]
+
+const STATUS_STYLE: Record<ServiceStatus, { cls: string; icon: React.ElementType }> = {
+  PENDING:   { cls: "text-amber-400",   icon: Clock },
+  PAID:      { cls: "text-blue-400",    icon: FileBadge },
+  DELIVERED: { cls: "text-emerald-400", icon: CheckCircle2 },
+  CANCELLED: { cls: "text-slate-500",   icon: Clock },
+}
+
+function toServiceStatus(value: string): ServiceStatus {
+  return SERVICE_STATUSES.includes(value as ServiceStatus) ? (value as ServiceStatus) : "PENDING"
 }
 
 /**
@@ -29,13 +39,14 @@ const STATUS_LABEL: Record<string, { label: string; cls: string; icon: React.Ele
  * Платежи вручную, кнопка «Заказать» создаёт OrganizationService(PENDING).
  */
 export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogItem[]; active: OrgService[] }) {
+  const { t, locale } = useT()
   const [pending, startTransition] = useTransition()
 
   function order(code: string, label: string) {
     startTransition(async () => {
       const r = await requestService({ serviceCode: code })
-      if (r.ok) toast.success(`Заявка отправлена: «${label}». Супер-админ получит уведомление.`)
-      else toast.error(r.error ?? "Не удалось отправить заявку")
+      if (r.ok) toast.success(t("adminSettings.subscription.addons.ordered", { name: label }))
+      else toast.error(r.error ?? t("adminSettings.subscription.addons.orderError"))
     })
   }
 
@@ -45,23 +56,24 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
             <Briefcase className="h-4 w-4 text-blue-400" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">История разовых услуг</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.subscription.services.history")}</h2>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {active.map((s) => {
-              const status = STATUS_LABEL[s.status] ?? STATUS_LABEL.PENDING
-              const Icon = status.icon
+              const statusKey = toServiceStatus(s.status)
+              const style = STATUS_STYLE[statusKey]
+              const Icon = style.icon
               return (
                 <div key={s.id} className="px-5 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{s.serviceName}</p>
                     <p className="text-xs text-slate-500">
-                      {s.price.toLocaleString("ru-RU")} ₸ ·
-                      <span className={`ml-1 inline-flex items-center gap-1 ${status.cls}`}>
-                        <Icon className="h-3 w-3" />{status.label}
+                      {formatMoneyL(locale, s.price)} ·
+                      <span className={`ml-1 inline-flex items-center gap-1 ${style.cls}`}>
+                        <Icon className="h-3 w-3" />{t(`adminSettings.subscription.services.statuses.${statusKey}`)}
                       </span>
                       <span className="ml-2 text-slate-600">
-                        от {new Date(s.createdAt).toLocaleDateString("ru-RU")}
+                        {t("adminSettings.subscription.services.from", { date: formatDateShortL(locale, s.createdAt) })}
                       </span>
                     </p>
                   </div>
@@ -75,10 +87,10 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
           <Briefcase className="h-4 w-4 text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Разовые услуги под ваш тариф</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.subscription.services.available")}</h2>
         </div>
         {catalog.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-500">Для текущего тарифа нет доступных разовых услуг.</p>
+          <p className="px-5 py-6 text-sm text-slate-500">{t("adminSettings.subscription.services.none")}</p>
         ) : (
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             {catalog.map((item) => (
@@ -88,10 +100,12 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                      {item.price.toLocaleString("ru-RU")} <span className="text-xs font-normal text-slate-500">₸</span>
+                      {formatMoneyL(locale, item.price)}
                     </p>
                     {item.recurringMonthly ? (
-                      <p className="text-[10px] text-slate-500">+ {item.recurringMonthly.toLocaleString("ru-RU")} ₸/мес</p>
+                      <p className="text-[10px] text-slate-500">
+                        + {formatMoneyL(locale, item.recurringMonthly)}{t("common.money.perMonth")}
+                      </p>
                     ) : null}
                   </div>
                   <button
@@ -100,7 +114,7 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
                     className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                   >
                     {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                    Заказать
+                    {t("adminSettings.subscription.addons.order")}
                   </button>
                 </div>
               </div>

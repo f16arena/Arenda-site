@@ -8,6 +8,7 @@ import { createRole, deleteRole, setCapability, setPermission, setUserCapability
 import { cn } from "@/lib/utils"
 import { capabilityPermissionKey } from "@/lib/capability-keys"
 import type { Section } from "@/lib/acl"
+import { useT } from "@/lib/i18n/client"
 
 type RoleInfo = {
   key: string
@@ -73,13 +74,15 @@ type RoleReview = {
   score: number
 }
 
-const CAPABILITY_FILTERS: Array<{ key: CapabilityFilter; label: string; description: string }> = [
-  { key: "all", label: "Все", description: "Все точные действия" },
-  { key: "enabled", label: "Включены", description: "Что сейчас разрешено" },
-  { key: "highRisk", label: "Риск", description: "Деньги, удаление, доступы" },
-  { key: "locked", label: "Тариф", description: "Закрыто тарифом" },
-  { key: "explicit", label: "Настроено", description: "Отдельно от раздела" },
-]
+// Порядок фильтров фиксирован, подписи и подсказки — из словаря
+// (adminSettings.roles.matrix.filters.<dict>Label / <dict>Hint).
+const CAPABILITY_FILTERS = [
+  { key: "all", dict: "all" },
+  { key: "enabled", dict: "enabled" },
+  { key: "highRisk", dict: "risk" },
+  { key: "locked", dict: "locked" },
+  { key: "explicit", dict: "explicit" },
+] as const satisfies ReadonlyArray<{ key: CapabilityFilter; dict: string }>
 
 export function PermissionsMatrix({
   roles,
@@ -102,6 +105,7 @@ export function PermissionsMatrix({
   userOverrides: UserOverrideMap
   editable: boolean
 }) {
+  const { t, tp } = useT()
   const [perms, setPerms] = useState(permissions)
   const [tab, setTab] = useState<"roles" | "users">("roles")
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "")
@@ -143,7 +147,9 @@ export function PermissionsMatrix({
   const changeUserOverride = (user: UserInfo, capability: CapabilityInfo, mode: "INHERIT" | OverrideMode) => {
     if (!editable) return
     if (capability.locked) {
-      toast.info(`Действие закрыто тарифом: ${capability.requiredFeatureLabel ?? capability.requiredFeature}`)
+      toast.info(t("adminSettings.roles.matrix.toast.capLocked", {
+        feature: capability.requiredFeatureLabel ?? capability.requiredFeature ?? "",
+      }))
       return
     }
     const prev = userOv[user.id]?.[capability.key]
@@ -157,7 +163,7 @@ export function PermissionsMatrix({
       try {
         await setUserCapabilityOverride(user.id, capability.key, mode)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить право пользователя")
+        toast.error(error instanceof Error ? error.message : t("adminSettings.roles.matrix.toast.saveUserError"))
         setUserOv((state) => {
           const nextUser = { ...(state[user.id] ?? {}) }
           if (prev) nextUser[capability.key] = prev
@@ -269,11 +275,13 @@ export function PermissionsMatrix({
   const cycleSection = (role: RoleInfo, section: SectionInfo) => {
     if (!editable) return
     if (role.key === "OWNER") {
-      toast.info("Владелец всегда имеет полный доступ")
+      toast.info(t("adminSettings.roles.matrix.toast.ownerSections"))
       return
     }
     if (section.locked) {
-      toast.info(`Раздел закрыт тарифом: ${section.requiredFeatureLabel ?? section.requiredFeature}`)
+      toast.info(t("adminSettings.roles.matrix.toast.sectionLocked", {
+        feature: section.requiredFeatureLabel ?? section.requiredFeature ?? "",
+      }))
       return
     }
 
@@ -292,7 +300,7 @@ export function PermissionsMatrix({
       try {
         await setPermission(role.key, section.key, next.canView, next.canEdit)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить право")
+        toast.error(error instanceof Error ? error.message : t("adminSettings.roles.matrix.toast.saveSectionError"))
         setPerms((prev) => ({
           ...prev,
           [role.key]: { ...(prev[role.key] ?? {}), [section.key]: current },
@@ -304,11 +312,13 @@ export function PermissionsMatrix({
   const toggleCapability = (role: RoleInfo, capability: CapabilityInfo) => {
     if (!editable) return
     if (role.key === "OWNER") {
-      toast.info("Владелец всегда имеет все точные права")
+      toast.info(t("adminSettings.roles.matrix.toast.ownerCaps"))
       return
     }
     if (capability.locked) {
-      toast.info(`Действие закрыто тарифом: ${capability.requiredFeatureLabel ?? capability.requiredFeature}`)
+      toast.info(t("adminSettings.roles.matrix.toast.capLocked", {
+        feature: capability.requiredFeatureLabel ?? capability.requiredFeature ?? "",
+      }))
       return
     }
 
@@ -327,7 +337,7 @@ export function PermissionsMatrix({
       try {
         await setCapability(role.key, capability.key, nextEnabled)
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить точное право")
+        toast.error(error instanceof Error ? error.message : t("adminSettings.roles.matrix.toast.saveCapError"))
         setPerms((prev) => ({
           ...prev,
           [role.key]: { ...(prev[role.key] ?? {}), [permissionKey]: explicitCurrent },
@@ -344,24 +354,30 @@ export function PermissionsMatrix({
     startTransition(async () => {
       try {
         await createRole(fd)
-        toast.success("Должность создана")
+        toast.success(t("adminSettings.roles.matrix.toast.roleCreated"))
         setLabel("")
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось создать должность")
+        toast.error(error instanceof Error ? error.message : t("adminSettings.roles.matrix.toast.roleCreateError"))
       }
     })
   }
 
   const remove = async (role: RoleInfo) => {
     if (!editable || role.system) return
-    const confirmation = await askText({ title: `Удалить должность «${role.label}»?`, requireText: "удалить", confirmLabel: "Удалить" })
-    if (confirmation?.trim().toLowerCase() !== "удалить") return
+    // Слово-подтверждение тоже на языке интерфейса: набирают то, что показали.
+    const confirmWord = t("adminSettings.roles.matrix.deleteRoleWord")
+    const confirmation = await askText({
+      title: t("adminSettings.roles.matrix.deleteRoleTitle", { name: role.label }),
+      requireText: confirmWord,
+      confirmLabel: t("adminSettings.roles.matrix.deleteRoleConfirm"),
+    })
+    if (confirmation?.trim().toLowerCase() !== confirmWord.toLowerCase()) return
     startTransition(async () => {
       try {
         await deleteRole(role.key)
-        toast.success("Должность удалена")
+        toast.success(t("adminSettings.roles.matrix.toast.roleDeleted"))
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось удалить должность")
+        toast.error(error instanceof Error ? error.message : t("adminSettings.roles.matrix.toast.roleDeleteError"))
       }
     })
   }
@@ -369,7 +385,7 @@ export function PermissionsMatrix({
   if (!selected) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-400">
-        Нет должностей для настройки.
+        {t("adminSettings.roles.matrix.noRoles")}
       </div>
     )
   }
@@ -386,7 +402,7 @@ export function PermissionsMatrix({
           )}
         >
           <ShieldCheck className="h-4 w-4" />
-          По ролям
+          {t("adminSettings.roles.matrix.tabRoles")}
         </button>
         <button
           type="button"
@@ -397,7 +413,7 @@ export function PermissionsMatrix({
           )}
         >
           <Users className="h-4 w-4" />
-          По пользователю
+          {t("adminSettings.roles.matrix.tabUsers")}
         </button>
       </div>
       {tab === "users" ? (
@@ -420,8 +436,8 @@ export function PermissionsMatrix({
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Должности</p>
-              <p className="mt-1 text-xs text-slate-500">Роль это пресет: разделы плюс точные действия.</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.roles.matrix.rolesTitle")}</p>
+              <p className="mt-1 text-xs text-slate-500">{t("adminSettings.roles.matrix.rolesHint")}</p>
             </div>
             <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs text-slate-400">{roles.length}</span>
           </div>
@@ -445,10 +461,10 @@ export function PermissionsMatrix({
                   <span className={cn("rounded-full border px-2 py-0.5 text-xs font-semibold", role.color)}>
                     {role.label}
                   </span>
-                  <span className="text-xs text-slate-500">{role.userCount} чел.</span>
+                  <span className="text-xs text-slate-500">{t("adminSettings.roles.matrix.people", { count: role.userCount })}</span>
                 </div>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  {role.system ? "Системная роль" : "Своя должность"}
+                  {role.system ? t("adminSettings.roles.matrix.systemRole") : t("adminSettings.roles.matrix.customRole")}
                 </p>
               </button>
             ))}
@@ -456,13 +472,13 @@ export function PermissionsMatrix({
         </div>
 
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Создать должность</p>
-          <p className="mt-1 text-xs text-slate-500">Например: управляющий, оператор, техник, кассир.</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.roles.matrix.createTitle")}</p>
+          <p className="mt-1 text-xs text-slate-500">{t("adminSettings.roles.matrix.createHint")}</p>
           <input
             value={label}
             onChange={(event) => setLabel(event.target.value)}
             disabled={!editable || pending}
-            placeholder="Название должности"
+            placeholder={t("adminSettings.roles.matrix.namePlaceholder")}
             className="mt-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500 disabled:opacity-50"
           />
           <select
@@ -483,7 +499,7 @@ export function PermissionsMatrix({
               className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus className="h-4 w-4" />
-              Пустая
+              {t("adminSettings.roles.matrix.createEmpty")}
             </button>
             <button
               type="button"
@@ -492,7 +508,7 @@ export function PermissionsMatrix({
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium text-slate-800 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Copy className="h-4 w-4" />
-              Копия
+              {t("adminSettings.roles.matrix.createCopy")}
             </button>
           </div>
         </div>
@@ -502,9 +518,9 @@ export function PermissionsMatrix({
               <ClipboardCheck className="h-4 w-4 text-blue-700 dark:text-blue-300" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ревизия должностей</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.roles.matrix.reviewTitle")}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Какие пресеты прав стоит проверить перед назначением сотрудникам.
+                {t("adminSettings.roles.matrix.reviewHint")}
               </p>
             </div>
           </div>
@@ -529,7 +545,7 @@ export function PermissionsMatrix({
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{review.role.label}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{review.role.userCount} сотрудников</p>
+                      <p className="mt-0.5 text-xs text-slate-500">{tp("adminSettings.roles.matrix.employees", review.role.userCount)}</p>
                     </div>
                     <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", review.role.color)}>
                       {review.enabled}
@@ -537,13 +553,13 @@ export function PermissionsMatrix({
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {review.highRiskEnabled > 0 && (
-                      <ReviewPill tone="amber">риск {review.highRiskEnabled}</ReviewPill>
+                      <ReviewPill tone="amber">{t("adminSettings.roles.matrix.pillRisk", { count: review.highRiskEnabled })}</ReviewPill>
                     )}
                     {review.explicit > 0 && (
-                      <ReviewPill tone="blue">точно {review.explicit}</ReviewPill>
+                      <ReviewPill tone="blue">{t("adminSettings.roles.matrix.pillExplicit", { count: review.explicit })}</ReviewPill>
                     )}
                     {review.role.userCount === 0 && (
-                      <ReviewPill tone="slate">не используется</ReviewPill>
+                      <ReviewPill tone="slate">{t("adminSettings.roles.matrix.pillUnused")}</ReviewPill>
                     )}
                   </div>
                   {review.examples.length > 0 && (
@@ -556,9 +572,9 @@ export function PermissionsMatrix({
             </div>
           ) : (
             <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-100">Все должности выглядят спокойно</p>
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-100">{t("adminSettings.roles.matrix.calmTitle")}</p>
               <p className="mt-1 text-xs text-emerald-200/70">
-                Нет рискованных пресетов и лишних точечных настроек для проверки.
+                {t("adminSettings.roles.matrix.calmHint")}
               </p>
             </div>
           )}
@@ -574,12 +590,12 @@ export function PermissionsMatrix({
               </span>
               {selected.key === "OWNER" && (
                 <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-1 text-xs text-purple-700 dark:text-purple-200">
-                  полный доступ
+                  {t("adminSettings.roles.matrix.fullAccess")}
                 </span>
               )}
             </div>
             <p className="mt-2 text-sm text-slate-400">
-              Сначала включите страницы, затем уточните конкретные действия: кто удаляет, подтверждает оплаты, меняет шаблоны и реквизиты.
+              {t("adminSettings.roles.matrix.intro")}
             </p>
           </div>
           {!selected.system && (
@@ -588,23 +604,23 @@ export function PermissionsMatrix({
               onClick={() => remove(selected)}
               disabled={!editable || pending || selected.userCount > 0}
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-700 dark:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
-              title={selected.userCount > 0 ? "Сначала переназначьте пользователей на другую должность" : "Удалить должность"}
+              title={selected.userCount > 0 ? t("adminSettings.roles.matrix.deleteBlocked") : t("adminSettings.roles.matrix.deleteHint")}
             >
               <Trash2 className="h-4 w-4" />
-              Удалить
+              {t("adminSettings.roles.matrix.delete")}
             </button>
           )}
         </div>
 
         <div className="space-y-5 p-5">
           <div className="grid gap-3 md:grid-cols-6">
-            <RoleStat label="Разделы видит" value={selectedStats.view} />
-            <RoleStat label="Разделы меняет" value={selectedStats.edit} />
-            <RoleStat label="Действий включено" value={selectedStats.enabled} />
-            <RoleStat label="Точно настроено" value={selectedStats.explicit} />
-            <RoleStat label="Закрыто тарифом" value={selectedStats.locked} />
+            <RoleStat label={t("adminSettings.roles.matrix.statView")} value={selectedStats.view} />
+            <RoleStat label={t("adminSettings.roles.matrix.statEdit")} value={selectedStats.edit} />
+            <RoleStat label={t("adminSettings.roles.matrix.statEnabled")} value={selectedStats.enabled} />
+            <RoleStat label={t("adminSettings.roles.matrix.statExplicit")} value={selectedStats.explicit} />
+            <RoleStat label={t("adminSettings.roles.matrix.statLocked")} value={selectedStats.locked} />
             <RoleStat
-              label="Рискованных прав"
+              label={t("adminSettings.roles.matrix.statRisky")}
               value={selectedStats.highRiskEnabled}
               tone={selectedStats.highRiskEnabled > 0 ? "amber" : "slate"}
             />
@@ -615,9 +631,9 @@ export function PermissionsMatrix({
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300" />
                 <div>
-                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-100">У этой должности есть рискованные права</p>
+                  <p className="text-sm font-semibold text-amber-700 dark:text-amber-100">{t("adminSettings.roles.matrix.riskTitle")}</p>
                   <p className="mt-1 text-xs text-amber-100/75">
-                    Проверьте, что сотрудник действительно должен работать с деньгами, удалениями, реквизитами или доступами.
+                    {t("adminSettings.roles.matrix.riskHint")}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selectedHighRiskCapabilities.map((capability) => (
@@ -636,9 +652,9 @@ export function PermissionsMatrix({
 
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-4">
             <div className="mb-3">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Доступ к разделам</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.roles.matrix.sectionsTitle")}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Клик переключает: нет доступа -&gt; просмотр -&gt; редактирование -&gt; нет доступа.
+                {t("adminSettings.roles.matrix.sectionsHint")}
               </p>
             </div>
             <div className="space-y-4">
@@ -676,10 +692,10 @@ export function PermissionsMatrix({
               <div>
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
                   <Zap className="h-4 w-4 text-blue-700 dark:text-blue-300" />
-                  Точные действия
+                  {t("adminSettings.roles.matrix.capsTitle")}
                 </p>
                 <p className="mt-1 max-w-2xl text-xs text-slate-500">
-                  Это те самые “лампочки”: каждая опасная кнопка и server action проверяются отдельно.
+                  {t("adminSettings.roles.matrix.capsHint")}
                 </p>
               </div>
               <div className="relative w-full md:w-80">
@@ -687,7 +703,7 @@ export function PermissionsMatrix({
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Поиск действия..."
+                  placeholder={t("adminSettings.roles.matrix.search")}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
                 />
               </div>
@@ -695,6 +711,8 @@ export function PermissionsMatrix({
             <div className="mt-4 flex flex-wrap gap-2">
               {CAPABILITY_FILTERS.map((filter) => {
                 const active = capabilityFilter === filter.key
+                const filterLabel = t(`adminSettings.roles.matrix.filters.${filter.dict}Label`)
+                const filterHint = t(`adminSettings.roles.matrix.filters.${filter.dict}Hint`)
                 return (
                   <button
                     key={filter.key}
@@ -706,10 +724,10 @@ export function PermissionsMatrix({
                         ? "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200"
                         : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-400 hover:border-slate-700",
                     )}
-                    title={filter.description}
+                    title={filterHint}
                   >
-                    <span className="block text-xs font-semibold">{filter.label}</span>
-                    <span className="mt-0.5 block text-[10px] opacity-70">{filter.description}</span>
+                    <span className="block text-xs font-semibold">{filterLabel}</span>
+                    <span className="mt-0.5 block text-[10px] opacity-70">{filterHint}</span>
                   </button>
                 )
               })}
@@ -743,7 +761,7 @@ export function PermissionsMatrix({
               ))}
               {filteredCapabilityGroups.length === 0 && (
                 <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-center text-sm text-slate-500">
-                  По такому запросу точных действий не найдено.
+                  {t("adminSettings.roles.matrix.capsNotFound")}
                 </div>
               )}
             </div>
@@ -781,12 +799,13 @@ function UsersView({
   query: string
   setQuery: (value: string) => void
 }) {
+  const { t } = useT()
   const user = users.find((item) => item.id === selectedUserId) ?? users[0] ?? null
 
   if (!user) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-400">
-        Нет сотрудников для индивидуальной настройки. Сначала пригласите сотрудников.
+        {t("adminSettings.roles.matrix.noUsers")}
       </div>
     )
   }
@@ -811,8 +830,8 @@ function UsersView({
       <aside className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Сотрудники</p>
-            <p className="mt-1 text-xs text-slate-500">Точечно выдайте или отнимите право поверх роли.</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.roles.matrix.usersTitle")}</p>
+            <p className="mt-1 text-xs text-slate-500">{t("adminSettings.roles.matrix.usersHint")}</p>
           </div>
           <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs text-slate-400">{users.length}</span>
         </div>
@@ -830,11 +849,11 @@ function UsersView({
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{item.name || item.email || "Без имени"}</span>
+                  <span className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{item.name || item.email || t("adminSettings.roles.matrix.noName")}</span>
                   {count > 0 && <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{count}</span>}
                 </div>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  {item.roleLabel}{!item.isActive ? "· отключён" : ""}
+                  {item.roleLabel}{!item.isActive ? t("adminSettings.roles.matrix.userDisabled") : ""}
                 </p>
               </button>
             )
@@ -847,9 +866,13 @@ function UsersView({
           <div>
             <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{user.name || user.email}</p>
             <p className="mt-1 text-sm text-slate-400">
-              Роль <span className="text-slate-800 dark:text-slate-200">{user.roleLabel}</span> даёт базовый набор. Здесь можно
-              отдельно <span className="text-emerald-700 dark:text-emerald-300">выдать</span> или <span className="text-red-700 dark:text-red-300">отнять</span> право этому человеку.
-              {overrideCount > 0 && <> Сейчас переопределено: <span className="text-amber-700 dark:text-amber-300">{overrideCount}</span>.</>}
+              {t("adminSettings.roles.matrix.userIntroRole")} <span className="text-slate-800 dark:text-slate-200">{user.roleLabel}</span>{" "}
+              {t("adminSettings.roles.matrix.userIntroMid")}{" "}
+              <span className="text-emerald-700 dark:text-emerald-300">{t("adminSettings.roles.matrix.userIntroGrant")}</span>{" "}
+              {t("adminSettings.roles.matrix.userIntroOr")}{" "}
+              <span className="text-red-700 dark:text-red-300">{t("adminSettings.roles.matrix.userIntroRevoke")}</span>{" "}
+              {t("adminSettings.roles.matrix.userIntroEnd")}
+              {overrideCount > 0 && <> {t("adminSettings.roles.matrix.userOverridden")} <span className="text-amber-700 dark:text-amber-300">{overrideCount}</span>.</>}
             </p>
           </div>
           <div className="relative w-full md:w-72">
@@ -857,7 +880,7 @@ function UsersView({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Поиск действия..."
+              placeholder={t("adminSettings.roles.matrix.search")}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
             />
           </div>
@@ -889,7 +912,7 @@ function UsersView({
           ))}
           {visibleGroups.length === 0 && (
             <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 text-center text-sm text-slate-500">
-              По такому запросу действий не найдено.
+              {t("adminSettings.roles.matrix.actionsNotFound")}
             </div>
           )}
         </div>
@@ -911,12 +934,19 @@ function UserCapabilityRow({
   editable: boolean
   onChange: (mode: "INHERIT" | OverrideMode) => void
 }) {
+  const { t } = useT()
   const effective = override === "ALLOW" ? true : override === "DENY" ? false : inherited
   const sensitive = capability.risk === "sensitive" || capability.level === "sensitive"
   const states: Array<{ mode: "INHERIT" | OverrideMode; label: string; active: string }> = [
-    { mode: "INHERIT", label: `Как у роли (${inherited ? "вкл" : "выкл"})`, active: "bg-slate-700 text-slate-900 dark:text-slate-100" },
-    { mode: "ALLOW", label: "Выдать", active: "bg-emerald-600 text-white" },
-    { mode: "DENY", label: "Отнять", active: "bg-red-600 text-white" },
+    {
+      mode: "INHERIT",
+      label: inherited
+        ? t("adminSettings.roles.matrix.modeInheritOn")
+        : t("adminSettings.roles.matrix.modeInheritOff"),
+      active: "bg-slate-700 text-slate-900 dark:text-slate-100",
+    },
+    { mode: "ALLOW", label: t("adminSettings.roles.matrix.modeAllow"), active: "bg-emerald-600 text-white" },
+    { mode: "DENY", label: t("adminSettings.roles.matrix.modeDeny"), active: "bg-red-600 text-white" },
   ]
   const current: "INHERIT" | OverrideMode = override ?? "INHERIT"
 
@@ -931,15 +961,17 @@ function UserCapabilityRow({
         <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-900 dark:text-slate-100">
           {capability.label}
           {sensitive && (
-            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">важно</span>
+            <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">{t("adminSettings.roles.matrix.important")}</span>
           )}
           <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-semibold", effective ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" : "bg-slate-700/50 text-slate-400")}>
-            {effective ? "доступно" : "скрыто"}
+            {effective ? t("adminSettings.roles.matrix.available") : t("adminSettings.roles.matrix.hidden")}
           </span>
         </p>
         <p className="mt-0.5 text-xs text-slate-500">{capability.description}</p>
         {capability.locked && (
-          <p className="mt-1 text-[11px] text-slate-600">Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}</p>
+          <p className="mt-1 text-[11px] text-slate-600">
+            {t("adminSettings.roles.matrix.lockedBy", { feature: capability.requiredFeatureLabel ?? capability.requiredFeature ?? "" })}
+          </p>
         )}
       </div>
       <div className="inline-flex shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-0.5">
@@ -1029,6 +1061,7 @@ function SectionButton({
   editable: boolean
   onClick: () => void
 }) {
+  const { t } = useT()
   return (
     <button
       type="button"
@@ -1050,12 +1083,12 @@ function SectionButton({
         <span className="block text-sm font-medium text-slate-900 dark:text-slate-100">{section.label}</span>
         <span className="mt-1 block text-xs text-slate-500">
           {section.locked
-            ? `Закрыто тарифом: ${section.requiredFeatureLabel ?? section.requiredFeature}`
+            ? t("adminSettings.roles.matrix.lockedBy", { feature: section.requiredFeatureLabel ?? section.requiredFeature ?? "" })
             : current.canEdit
-              ? "Можно смотреть и менять данные"
+              ? t("adminSettings.roles.matrix.sectionEdit")
               : current.canView
-                ? "Можно только смотреть"
-                : "Не видит раздел и действия"}
+                ? t("adminSettings.roles.matrix.sectionView")
+                : t("adminSettings.roles.matrix.sectionNone")}
         </span>
       </span>
       <StatusPill locked={section.locked} view={current.canView} edit={current.canEdit} />
@@ -1076,6 +1109,7 @@ function CapabilityButton({
   editable: boolean
   onClick: () => void
 }) {
+  const { t } = useT()
   const sensitive = capability.risk === "sensitive" || capability.level === "sensitive"
   return (
     <button
@@ -1099,17 +1133,17 @@ function CapabilityButton({
           {capability.label}
           {sensitive && (
             <span className="rounded-full border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-              важно
+              {t("adminSettings.roles.matrix.important")}
             </span>
           )}
         </span>
         <span className="mt-1 block text-xs text-slate-500">{capability.description}</span>
         <span className="mt-2 block text-[11px] text-slate-600">
           {capability.locked
-            ? `Тариф: ${capability.requiredFeatureLabel ?? capability.requiredFeature}`
+            ? t("adminSettings.roles.matrix.planPrefix", { feature: capability.requiredFeatureLabel ?? capability.requiredFeature ?? "" })
             : inherited
-              ? "унаследовано от доступа к разделу"
-              : "лично настроено для должности"}
+              ? t("adminSettings.roles.matrix.inheritedFromSection")
+              : t("adminSettings.roles.matrix.setForRole")}
         </span>
       </span>
       <span className={cn(
@@ -1121,13 +1155,18 @@ function CapabilityButton({
             : "border-slate-200 dark:border-slate-700 text-slate-500",
       )}>
         {capability.locked ? <Lock className="h-3.5 w-3.5" /> : enabled ? <ShieldCheck className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-        {capability.locked ? "тариф" : enabled ? "on" : "off"}
+        {capability.locked
+          ? t("adminSettings.roles.matrix.pillPlan")
+          : enabled
+            ? t("adminSettings.roles.matrix.pillOn")
+            : t("adminSettings.roles.matrix.pillOff")}
       </span>
     </button>
   )
 }
 
 function StatusPill({ locked, view, edit }: { locked: boolean; view: boolean; edit: boolean }) {
+  const { t } = useT()
   return (
     <span className={cn(
       "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold",
@@ -1140,7 +1179,13 @@ function StatusPill({ locked, view, edit }: { locked: boolean; view: boolean; ed
             : "border-slate-200 dark:border-slate-700 text-slate-500",
     )}>
       {locked ? <Lock className="h-3.5 w-3.5" /> : edit ? <Edit2 className="h-3.5 w-3.5" /> : view ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-      {locked ? "тариф" : edit ? "edit" : view ? "view" : "off"}
+      {locked
+        ? t("adminSettings.roles.matrix.pillPlan")
+        : edit
+          ? t("adminSettings.roles.matrix.pillEdit")
+          : view
+            ? t("adminSettings.roles.matrix.pillView")
+            : t("adminSettings.roles.matrix.pillOff")}
     </span>
   )
 }

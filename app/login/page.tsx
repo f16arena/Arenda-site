@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import { parseHost, ROOT_HOST } from "@/lib/host"
 import { LoginForm } from "./login-form"
 import { I18nProvider } from "@/lib/i18n/client"
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
 import { getLocale } from "@/lib/i18n/server"
 import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 
@@ -54,9 +55,14 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8fb] flex items-center justify-center p-4">
+    <div className="relative min-h-screen bg-[#f6f8fb] flex items-center justify-center p-4">
       <ForceLight />
       <I18nProvider locale={locale} messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}>
+        {/* Переключатель языка нужен и до входа: человек должен увидеть
+            привычный язык раньше, чем введёт пароль. */}
+        <div className="absolute right-4 top-4">
+          <LocaleSwitcher />
+        </div>
         <LoginForm />
       </I18nProvider>
     </div>

@@ -51,6 +51,19 @@ export const adminService: typeof ru = {
       assign: "Тағайындау",
       changeStatus: "Мәртебесін өзгерту",
     },
+    types: {
+      TECHNICAL: "Техникалық",
+      INTERNET: "Интернет",
+      CLEANING: "Тазалау",
+      QUESTION: "Сұрақ",
+      ELECTRICAL: "Электр жүйесі", // проверить
+      PLUMBING: "Сантехника", // проверить
+      HVAC: "Желдету және климат", // проверить
+      SECURITY: "Қауіпсіздік",
+      ADMINISTRATIVE: "Әкімшілік",
+      MAINTENANCE: "Қызмет көрсету",
+      OTHER: "Басқа",
+    },
   },
 
   tasks: {
@@ -182,5 +195,68 @@ export const adminService: typeof ru = {
       one: "{count} сұрақ",
       other: "{count} сұрақ",
     }),
+  },
+
+  complaints: {
+    title: "Шағымдар мен ұсыныстар",
+    subtitle: "{new} жаңа · {reviewed} қаралды",
+    filters: {
+      all: "Барлығы",
+      new: "Жаңа",
+      reviewed: "Қаралған",
+      resolved: "Шешілген",
+    },
+    statusReviewed: "Қаралды",
+    statusResolved: "Шешілді",
+    anonymous: "Аноним", // проверить
+    responseTitle: "Әкімшінің жауабы:",
+    responseLabel: "Әкімшінің жауабы",
+    responsePlaceholder: "Жауапты жазыңыз...",
+    respond: "Жауап беру",
+    respondTitle: "Шағымға жауап беру",
+    markResolved: "Шешілді",
+    editResponse: "Жауапты өзгерту",
+    emptyTitle: "Әзірге шағым мен ұсыныс жоқ",
+    emptyDescription: "Мұнда жалға алушылардың жеке кабинеттен жіберген өтініштері шығады. Шешім тарихы сақталуы үшін оларға жүйеде жауап беріңіз.",
+    emptyOpenTenants: "Жалға алушыларды ашу",
+    emptyOpenFaq: "Жалға алушыға арналған FAQ",
+    filterEmptyTitle: "Бұл сүзгіде өтініш жоқ",
+    filterEmptyDescription: "Басқа мәртебені таңдаңыз немесе барлық шағымдар мен ұсыныстарға қайтыңыз.",
+    showAll: "Барлығын көрсету",
+  },
+
+  calendar: {
+    title: "Күнтізбе",
+    subtitle: "Төлем қашан күтіледі, шарт қашан бітеді және тапсырмалар қалай", // проверить
+    subtitleCapped: " · алғашқы оқиғалар көрсетілген",
+    cappedNotice: "Бұл айда оқиғалар қауіпсіз жүктеу шегінен көп. Бет жылдам ашылуы үшін күнтізбе күндер бойынша алғашқы оқиғаларды көрсетеді; айды нақтылаңыз немесе нақты ғимаратты таңдаңыз.",
+    charge: "Есептеу",
+    chargeSubtitle: "{type} · {amount}",
+    chargeOverdueSubtitle: "{type} · {amount} · мерзімі өткен",
+    paymentSubtitle: "Төлем түсті · {amount}",
+    contractSubtitle: "Шарт бітуге жақын — ұзартыңыз немесе жаңа жалға алушы табыңыз",
+    taskUrgent: "Шұғыл тапсырма",
+    eventTypes: {
+      payment_overdue: "Мерзімі өткен",
+      payment_due: "Төлем күтіледі",
+      payment_done: "Төлем түсті",
+      contract_ending: "Шарт бітеді",
+      task: "Тапсырма",
+    },
+    summary: {
+      expected: "Осы айда төлем күтіледі",
+      overdue: "Осы айда мерзімі өткен",
+      received: "Осы айда түскен",
+      contracts: "Осы айда шарттар бітеді",
+    },
+    prevMonth: "Алдыңғы ай",
+    nextMonth: "Келесі ай",
+    today: "Бүгін",
+    moreEvents: "тағы {count}",
+    closeDate: "Таңдалған күнді жабу",
+    dayEmpty: "Бұл күні ештеңе жоқ.",
+    upcoming: "Алда",
+    upcomingEmpty: "Ай соңына дейін жоспарланған ештеңе жоқ.",
+    hint: "Күнтізбедегі күнді басыңыз — сол күндегінің бәрін көрсетеміз.",
   },
 }

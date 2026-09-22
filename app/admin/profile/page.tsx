@@ -11,24 +11,21 @@ import { TwoFactorCard } from "@/components/two-factor-card"
 import { getMyNotificationSettings } from "@/app/actions/notification-settings"
 import { formatPersonShortName } from "@/lib/display-name"
 import { PageHeader } from "@/components/ui/page"
+import { getT } from "@/lib/i18n/server"
 // Вкладка «Управление» (ManagementHub) удалена 2026-05-26:
 // её 14 тайлов либо дублировали sidebar, либо были настройками,
 // которые теперь живут в свёрнутой секции «НАСТРОЙКИ» в sidebar.
 // Профиль = только про «меня»: Личное / Email / Безопасность / Уведомления.
 
-const ROLE_LABELS: Record<string, string> = {
-  OWNER: "Владелец",
-  ADMIN: "Администратор",
-  ACCOUNTANT: "Бухгалтер",
-  FACILITY_MANAGER: "Управляющий",
-  EMPLOYEE: "Сотрудник",
-}
+// Подписи должностей берём из словаря команды, чтобы не держать вторую копию.
+const ROLE_KEYS = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"] as const
 
 type ProfileSearchParams = { tab?: string | string[] }
 
 export default async function ProfilePage({ searchParams }: { searchParams?: Promise<ProfileSearchParams> }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
+  const { t } = await getT()
 
   const resolvedSearchParams = (await searchParams) ?? {}
   const tabParamRaw = resolvedSearchParams.tab
@@ -53,14 +50,17 @@ export default async function ProfilePage({ searchParams }: { searchParams?: Pro
   if (!user) redirect("/login")
 
   const notifSettings = await getMyNotificationSettings()
+  const roleLabel = ROLE_KEYS.includes(user.role as (typeof ROLE_KEYS)[number])
+    ? t(`adminSettings.staff.roles.${user.role as (typeof ROLE_KEYS)[number]}`)
+    : user.role
 
   return (
     <div className="space-y-5 max-w-3xl">
       <PageHeader
         icon={User}
         tone="slate"
-        title="Мой профиль"
-        subtitle={`${formatPersonShortName(user.name)} · ${ROLE_LABELS[user.role] ?? user.role}`}
+        title={t("adminSettings.profile.title")}
+        subtitle={`${formatPersonShortName(user.name)} · ${roleLabel}`}
       />
 
       <ProfileTabs
@@ -76,7 +76,7 @@ export default async function ProfilePage({ searchParams }: { searchParams?: Pro
             <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
                 <Send className="h-4 w-4 text-blue-500" />
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Telegram-бот</h2>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.profile.telegramTitle")}</h2>
               </div>
               <div className="p-5">
                 <TelegramSetup currentChatId={user.telegramChatId} />

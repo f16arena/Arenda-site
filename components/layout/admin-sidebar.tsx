@@ -14,10 +14,15 @@ import {
   PanelLeftClose, PanelLeftOpen, Megaphone, Box, Upload, KeyRound, History,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
+import type { TextKey } from "@/lib/i18n/translate"
+import type { Messages } from "@/lib/i18n/messages"
+
+type NavKey = TextKey<Messages>
 
 type NavItem = {
   href: string
-  label: string
+  label: NavKey
   icon: typeof LayoutDashboard
   exact?: boolean
   ownerOnly?: boolean
@@ -31,7 +36,7 @@ type NavItem = {
   alsoActive?: string[]
 }
 type NavSection = {
-  title?: string
+  title?: NavKey
   items: NavItem[]
   ownerOnly?: boolean
   /** Свёрнутая по умолчанию секция (раскрывается по клику). Состояние
@@ -51,85 +56,77 @@ const COUNTER_STYLE: Record<CounterKey, string> = {
   documents: "bg-violet-500 text-white",
 }
 
-const ROLE_RU: Record<string, string> = {
-  OWNER: "Владелец",
-  ADMIN: "Администратор",
-  MANAGER: "Менеджер",
-  ACCOUNTANT: "Бухгалтер",
-  STAFF: "Сотрудник",
-}
-
 // Целевая IA редизайна (docs/REDESIGN-PLAN.md, этап 1): 7 групп, одна задача —
 // одно место. /admin/ops удалён (redirect на /admin); сироты contracts/import/
 // api-keys получили пункты; CRM вынесен из «Настроек» в «Аренду и клиентов».
 const nav: NavSection[] = [
   {
     items: [
-      { href: "/admin", label: "Обзор", icon: LayoutDashboard, exact: true, section: "dashboard" },
-      { href: "/admin/calendar", label: "Календарь", icon: CalendarDays, section: "dashboard" },
+      { href: "/admin", label: "adminShell.nav.overview", icon: LayoutDashboard, exact: true, section: "dashboard" },
+      { href: "/admin/calendar", label: "adminShell.nav.calendar", icon: CalendarDays, section: "dashboard" },
     ],
   },
   {
-    title: "ОБЪЕКТЫ",
+    title: "adminShell.nav.sectionObjects",
     items: [
-      { href: "/admin/buildings", label: "Здания", icon: Building, section: "buildings" },
-      { href: "/admin/spaces", label: "Помещения", icon: Building2, section: "spaces" },
+      { href: "/admin/buildings", label: "adminShell.nav.buildings", icon: Building, section: "buildings" },
+      { href: "/admin/spaces", label: "adminShell.nav.spaces", icon: Building2, section: "spaces" },
       // Эксплуатационный сбор настраивается в карточке здания (/buildings/[id]/service-fee)
-      { href: "/admin/builder/projects", label: "3D-модель", icon: Box, section: "buildings" },
+      { href: "/admin/builder/projects", label: "adminShell.nav.builder", icon: Box, section: "buildings" },
     ],
   },
   {
-    title: "АРЕНДАТОРЫ",
+    title: "adminShell.nav.sectionTenants",
     items: [
-      { href: "/admin/tenants", label: "Арендаторы", icon: Users, section: "tenants" },
-      { href: "/admin/listings", label: "Объявления", icon: Megaphone, section: "leads" },
+      { href: "/admin/tenants", label: "adminShell.nav.tenants", icon: Users, section: "tenants" },
+      { href: "/admin/listings", label: "adminShell.nav.listings", icon: Megaphone, section: "leads" },
     ],
   },
   {
-    title: "ФИНАНСЫ",
+    title: "adminShell.nav.sectionFinance",
     items: [
-      { href: "/admin/finances", label: "Финансы", icon: Wallet, section: "finances" },
+      { href: "/admin/finances", label: "adminShell.nav.finances", icon: Wallet, section: "finances" },
       // Показания счётчиков превращаются в начисления за свет и воду — это деньги
-      { href: "/admin/meters", label: "Счётчики", icon: Gauge, section: "meters" },
+      { href: "/admin/meters", label: "adminShell.nav.meters", icon: Gauge, section: "meters" },
       // Хаб: аналитика + фин.дашборд + отчётность — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, section: "analytics" },
+      { href: "/admin/analytics", label: "adminShell.nav.analytics", icon: BarChart3, section: "analytics" },
     ],
   },
   {
-    title: "ДОКУМЕНТЫ",
+    title: "adminShell.nav.sectionDocuments",
     items: [
       // Хаб: все документы + договоры — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/documents", label: "Документы", icon: FileText, section: "documents", counter: "documents" },
-      { href: "/admin/storage", label: "Хранилище", icon: HardDrive, section: "documents" },
+      { href: "/admin/documents", label: "adminShell.nav.documents", icon: FileText, section: "documents", counter: "documents" },
+      { href: "/admin/storage", label: "adminShell.nav.storage", icon: HardDrive, section: "documents" },
     ],
   },
   {
-    title: "ОБСЛУЖИВАНИЕ",
+    title: "adminShell.nav.sectionService",
     items: [
       // Хаб: заявки + жалобы и предложения — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/requests", label: "Заявки", icon: ClipboardList, section: "requests", counter: ["requests", "complaints"], alsoActive: ["/admin/complaints"] },
-      { href: "/admin/tasks", label: "Задачи", icon: CheckSquare, section: "tasks", counter: "tasks" },
-      { href: "/admin/messages", label: "Сообщения", icon: MessageSquare, section: "messages", counter: "messages" },
-      { href: "/admin/faq", label: "Помощь", icon: CircleHelp },
+      { href: "/admin/requests", label: "adminShell.nav.requests", icon: ClipboardList, section: "requests", counter: ["requests", "complaints"], alsoActive: ["/admin/complaints"] },
+      { href: "/admin/tasks", label: "adminShell.nav.tasks", icon: CheckSquare, section: "tasks", counter: "tasks" },
+      { href: "/admin/messages", label: "adminShell.nav.messages", icon: MessageSquare, section: "messages", counter: "messages" },
+      { href: "/admin/faq", label: "adminShell.nav.faq", icon: CircleHelp },
     ],
   },
   // НАСТРОЙКИ — collapsible, свёрнуто по умолчанию. Только конфигурация и служебное.
   {
-    title: "НАСТРОЙКИ",
+    title: "adminShell.nav.sectionSettings",
     ownerOnly: true,
     collapsible: true,
     items: [
-      { href: "/admin/settings", label: "Настройки", icon: SettingsIcon, section: "settings" },
+      { href: "/admin/settings", label: "adminShell.nav.settings", icon: SettingsIcon, section: "settings" },
       // Хаб: запуск платформы + качество данных + проверка системы (lib/hub-tabs).
-      { href: "/admin/onboarding", label: "Запуск и проверки", icon: Rocket, section: "dashboard", alsoActive: ["/admin/data-quality", "/admin/system-health"] },
+      { href: "/admin/onboarding", label: "adminShell.nav.onboarding", icon: Rocket, section: "dashboard", alsoActive: ["/admin/data-quality", "/admin/system-health"] },
       // Хаб: сотрудники + доступы/здания + роли — вкладки внутри (lib/hub-tabs).
-      { href: "/admin/staff", label: "Команда", icon: Users, section: "staff" },
-      { href: "/admin/subscription", label: "Подписка", icon: Package, section: "settings" },
-      { href: "/admin/import/tenants", label: "Импорт", icon: Upload, section: "settings", alsoActive: ["/admin/import/contracts", "/admin/import/charges", "/admin/finances/import"] },
-      { href: "/admin/emergency", label: "Экстренные службы", icon: Phone, section: "settings" },
+      { href: "/admin/staff", label: "adminShell.nav.staff", icon: Users, section: "staff" },
+      { href: "/admin/subscription", label: "adminShell.nav.subscription", icon: Package, section: "settings" },
+      { href: "/admin/import/tenants", label: "adminShell.nav.importData", icon: Upload, section: "settings", alsoActive: ["/admin/import/contracts", "/admin/import/charges", "/admin/finances/import"] },
+      { href: "/admin/emergency", label: "adminShell.nav.emergency", icon: Phone, section: "settings" },
       // Хаб: действия сотрудников + письма арендаторам (lib/hub-tabs).
-      { href: "/admin/audit", label: "История", icon: History, section: "settings", alsoActive: ["/admin/email-logs"] },
-      { href: "/admin/api-keys", label: "Доступ по API", icon: KeyRound, section: "settings" },
+      { href: "/admin/audit", label: "adminShell.nav.history", icon: History, section: "settings", alsoActive: ["/admin/email-logs"] },
+      { href: "/admin/api-keys", label: "adminShell.nav.apiKeys", icon: KeyRound, section: "settings" },
     ],
   },
 ]
@@ -150,6 +147,7 @@ export function AdminSidebar({
   allowedCapabilities?: string[]
   isPlatformOwner?: boolean
 }) {
+  const { t } = useT()
   const pathname = usePathname()
   const isOwner = userRole === "OWNER"
   const allowed = new Set(allowedSections ?? [])
@@ -262,7 +260,9 @@ export function AdminSidebar({
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase())
     .join("") || "?"
-  const roleLabel = (userRole && ROLE_RU[userRole]) ?? userRole ?? ""
+  const roleKey = `domain.roles.${userRole ?? ""}` as TextKey<Messages>
+  const roleTranslated = userRole ? t(roleKey) : ""
+  const roleLabel = roleTranslated === roleKey ? userRole ?? "" : roleTranslated
 
   return (
     <>
@@ -270,7 +270,7 @@ export function AdminSidebar({
       <button
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-900 border border-slate-200 dark:bg-slate-900 dark:text-white dark:border-transparent shadow-lg"
-        aria-label="Открыть меню"
+        aria-label={t("adminShell.shell.openMenu")}
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -297,7 +297,7 @@ export function AdminSidebar({
       <button
         onClick={() => setMobileOpen(false)}
         className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-        aria-label="Закрыть меню"
+        aria-label={t("adminShell.shell.closeMenu")}
       >
         <X className="h-5 w-5" />
       </button>
@@ -311,7 +311,7 @@ export function AdminSidebar({
         {orgLogoUrl ? (
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-md shadow-slate-950/50">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={orgLogoUrl} alt="Логотип организации" className="h-full w-full object-contain p-0.5" />
+            <img src={orgLogoUrl} alt="" className="h-full w-full object-contain p-0.5" />
           </div>
         ) : (
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/95 shadow-md shadow-slate-950/50">
@@ -323,7 +323,7 @@ export function AdminSidebar({
           <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
             {buildingName ?? "Commrent"}
           </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">{orgLogoUrl ? "Панель управления" : "Commrent · панель управления"}</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{orgLogoUrl ? t("adminShell.shell.panelTitle") : `Commrent · ${t("adminShell.shell.panelTitle").toLowerCase()}`}</p>
         </div>
       </div>
 
@@ -356,7 +356,7 @@ export function AdminSidebar({
                   aria-expanded={!isCollapsed}
                 >
                   <span className="flex items-center gap-1.5">
-                    {section.title}
+                    {t(section.title)}
                     {isCollapsed && sectionCount > 0 && (
                       <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white normal-case tracking-normal">
                         {formatBadge(sectionCount)}
@@ -387,7 +387,7 @@ export function AdminSidebar({
                       <li key={item.href}>
                         <Link
                           href={item.href}
-                          title={item.label}
+                          title={t(item.label)}
                           className={cn(
                             "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
                             "transition-all duration-200",
@@ -414,7 +414,7 @@ export function AdminSidebar({
                               </span>
                             )}
                           </span>
-                          <span className={cn("truncate", rail && "lg:hidden")}>{item.label}</span>
+                          <span className={cn("truncate", rail && "lg:hidden")}>{t(item.label)}</span>
                           {/* Бейдж-пилюля в полном режиме */}
                           {count > 0 && (
                             <span className={cn(
@@ -431,7 +431,7 @@ export function AdminSidebar({
                             "pointer-events-none absolute left-full z-50 ml-2 hidden whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-white shadow-lg",
                             rail && "lg:group-hover:block",
                           )}>
-                            {item.label}{count > 0 ? ` · ${formatBadge(count)}` : ""}
+                            {t(item.label)}{count > 0 ? ` · ${formatBadge(count)}` : ""}
                           </span>
                         </Link>
                       </li>
@@ -456,10 +456,10 @@ export function AdminSidebar({
             "hidden lg:flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800/80 dark:hover:text-slate-200",
             rail && "lg:justify-center lg:px-0",
           )}
-          title={rail ? "Развернуть меню" : "Свернуть в иконки"}
+          title={rail ? t("adminShell.shell.expandMenu") : t("adminShell.shell.collapseMenu")}
         >
           {rail ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
-          <span className={cn(rail && "lg:hidden")}>Свернуть меню</span>
+          <span className={cn(rail && "lg:hidden")}>{t("adminShell.shell.collapseMenu")}</span>
         </button>
 
         <div className={cn(
@@ -468,20 +468,20 @@ export function AdminSidebar({
         )}>
           <Link
             href="/admin/profile"
-            title="Открыть профиль"
+            title={t("adminShell.shell.profile")}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-[11px] font-bold text-white shadow-md shadow-blue-950/50 transition-transform hover:scale-105"
           >
             {initials}
           </Link>
           <div className={cn("min-w-0 flex-1", rail && "lg:hidden")}>
-            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{userName ?? "Профиль"}</p>
+            <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">{userName ?? t("adminShell.shell.profile")}</p>
             {roleLabel && <p className="truncate text-[10px] text-slate-500">{roleLabel}</p>}
           </div>
           <form action="/api/logout" method="post" className="shrink-0">
             <button
               type="submit"
-              title="Выйти"
-              aria-label="Выйти"
+              title={t("common.actions.logout")}
+              aria-label={t("common.actions.logout")}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-red-500 dark:hover:bg-slate-800 dark:hover:text-red-400"
             >
               <LogOut className="h-4 w-4" />

@@ -6,9 +6,9 @@ import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { assertRequestInOrg } from "@/lib/scope-guards"
 import { cn } from "@/lib/utils"
-import {
-  STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST_TYPE_LABELS,
-} from "@/lib/utils"
+import { STATUS_COLORS, PRIORITY_COLORS } from "@/lib/utils"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 import { ArrowLeft, Paperclip, User } from "lucide-react"
 import Link from "next/link"
 import { addRequestComment, updateRequestStatus } from "@/app/actions/requests"
@@ -17,9 +17,32 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 
+// Подписи статусов, приоритетов и типов — из словаря; неизвестное значение
+// (старые записи) показываем как есть.
+const STATUS_KEYS = ["NEW", "IN_PROGRESS", "DONE", "CLOSED", "POSTPONED"] as const
+const PRIORITY_KEYS = ["URGENT", "HIGH", "MEDIUM", "LOW"] as const
+const TYPE_KEYS = [
+  "TECHNICAL", "INTERNET", "CLEANING", "QUESTION", "ELECTRICAL",
+  "PLUMBING", "HVAC", "SECURITY", "ADMINISTRATIVE", "MAINTENANCE", "OTHER",
+] as const
+
 export default async function RequestDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
+  const locale = await getLocale()
+  const statusLabel = (value: string) =>
+    STATUS_KEYS.includes(value as (typeof STATUS_KEYS)[number])
+      ? t(`domain.statuses.${value as (typeof STATUS_KEYS)[number]}`)
+      : value
+  const priorityLabel = (value: string) =>
+    PRIORITY_KEYS.includes(value as (typeof PRIORITY_KEYS)[number])
+      ? t(`adminService.requests.priorities.${value as (typeof PRIORITY_KEYS)[number]}`)
+      : value
+  const typeLabel = (value: string) =>
+    TYPE_KEYS.includes(value as (typeof TYPE_KEYS)[number])
+      ? t(`adminService.requests.types.${value as (typeof TYPE_KEYS)[number]}`)
+      : value
   // Гранулярные права: кнопки-действия показываются только при наличии своего права.
   const session = await auth()
   const caps = session?.user
@@ -96,7 +119,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         <div>
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{request.title}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {request.tenant.companyName} · {new Date(request.createdAt).toLocaleDateString("ru-RU")}
+            {request.tenant.companyName} · {formatDateShortL(locale, request.createdAt)}
           </p>
         </div>
       </div>
@@ -117,7 +140,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                     className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
                     <Paperclip className="h-3.5 w-3.5" />
-                    {file.mimeType.startsWith("image/") ? "Фото заявки" : file.fileName}
+                    {file.mimeType.startsWith("image/") ? t("adminService.requests.detail.photo") : file.fileName}
                   </a>
                 ))}
               </div>
@@ -127,7 +150,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
           {/* Comments */}
           <Card className="block overflow-hidden p-0">
             <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Комментарии</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminService.requests.detail.comments")}</p>
             </div>
             <div className="divide-y divide-slate-50 dark:divide-slate-800">
               {request.comments.map((c) => (
@@ -137,13 +160,13 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                       <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">{c.author.name[0]?.toUpperCase()}</span>
                     </div>
                     <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{c.author.name}</span>
-                    <span className="text-xs text-slate-400 dark:text-slate-500">{new Date(c.createdAt).toLocaleDateString("ru-RU")}</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">{formatDateShortL(locale, c.createdAt)}</span>
                   </div>
                   <p className="text-sm text-slate-700 dark:text-slate-300 pl-8">{c.text}</p>
                 </div>
               ))}
               {request.comments.length === 0 && (
-                <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">Комментариев нет</p>
+                <p className="px-5 py-6 text-sm text-slate-400 dark:text-slate-500 text-center">{t("adminService.requests.detail.noComments")}</p>
               )}
             </div>
             {canManage && request.status !== "CLOSED" && (
@@ -161,12 +184,12 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                         name="text"
                         required
                         rows={2}
-                        placeholder="Добавить комментарий..."
+                        placeholder={t("adminService.requests.detail.commentPlaceholder")}
                         className="resize-none"
                       />
                       <div className="flex justify-end mt-2">
                         <Button type="submit" size="sm" className="font-medium">
-                          Отправить
+                          {t("adminService.requests.detail.send")}
                         </Button>
                       </div>
                     </div>
@@ -181,30 +204,30 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
         <div className="space-y-4">
           <Card className="block p-5 space-y-4">
             <div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Статус</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{t("adminService.requests.detail.status")}</p>
               <Badge className={cn(STATUS_COLORS[request.status])}>
-                {STATUS_LABELS[request.status] ?? request.status}
+                {statusLabel(request.status)}
               </Badge>
             </div>
             <div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Приоритет</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{t("adminService.requests.detail.priority")}</p>
               <Badge className={cn(PRIORITY_COLORS[request.priority])}>
-                {PRIORITY_LABELS[request.priority] ?? request.priority}
+                {priorityLabel(request.priority)}
               </Badge>
             </div>
             <div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Тип</p>
-              <p className="text-sm text-slate-700 dark:text-slate-300">{REQUEST_TYPE_LABELS[request.type] ?? request.type}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{t("adminService.requests.detail.type")}</p>
+              <p className="text-sm text-slate-700 dark:text-slate-300">{typeLabel(request.type)}</p>
             </div>
             <div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Арендатор</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">{t("adminService.requests.detail.tenant")}</p>
               <p className="text-sm text-slate-700 dark:text-slate-300">{request.tenant.companyName}</p>
             </div>
 
             {/* Assignee */}
             {canManage && (
             <div>
-              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1.5">Исполнитель</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-1.5">{t("adminService.requests.detail.assignee")}</p>
               <form action={async (fd) => {
                 "use server"
                 const assigneeId = fd.get("assigneeId") as string
@@ -212,13 +235,13 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
               }}>
                 <select name="assigneeId" defaultValue={request.assigneeId ?? ""}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-xs bg-white dark:bg-slate-900 focus:border-blue-500 focus:outline-none">
-                  <option value="">Не назначен</option>
+                  <option value="">{t("adminService.requests.detail.unassigned")}</option>
                   {staff.map((s) => (
                     <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
                 <Button type="submit" variant="outline" size="sm" className="mt-1.5 w-full">
-                  Назначить
+                  {t("adminService.requests.detail.assign")}
                 </Button>
               </form>
             </div>
@@ -228,7 +251,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
           {/* Status transitions */}
           {canManage && nextStatuses.length > 0 && (
             <Card className="block p-4 space-y-2">
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Изменить статус</p>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">{t("adminService.requests.detail.changeStatus")}</p>
               {nextStatuses.map((s) => (
                 <form key={s} action={async () => {
                   "use server"
@@ -236,7 +259,7 @@ export default async function RequestDetailPage({ params }: { params: Promise<{ 
                 }}>
                   <button type="submit"
                     className={cn("w-full rounded-lg py-2 text-xs font-medium transition-colors", statusBtnColor[s])}>
-                    {STATUS_LABELS[s] ?? s}
+                    {statusLabel(s)}
                   </button>
                 </form>
               ))}

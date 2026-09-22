@@ -4,6 +4,7 @@ import { useTransition, ReactNode } from "react"
 import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { ConfirmDialog } from "./confirm-dialog"
+import { useT } from "@/lib/i18n/client"
 
 interface DeleteActionProps {
   action: () => Promise<unknown>
@@ -19,16 +20,20 @@ interface DeleteActionProps {
 
 export function DeleteAction({
   action,
-  entity = "элемент",
+  entity,
   description,
-  confirmLabel = "Удалить",
+  confirmLabel,
   successMessage,
   size = "sm",
   trigger,
   disabled,
   onSuccess,
 }: DeleteActionProps) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
+  // Что удаляем («счёт», «тариф») приходит из словаря вызывающей страницы;
+  // если не передали — нейтральное «элемент».
+  const what = entity ?? t("common.deleteDialog.entity")
 
   if (disabled) return null
 
@@ -37,7 +42,7 @@ export function DeleteAction({
     <button
       disabled={pending}
       className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
-      aria-label={`Удалить ${entity}`}
+      aria-label={t("common.deleteDialog.ariaLabel", { entity: what })}
     >
       <Trash2 className={sizeClass} />
     </button>
@@ -45,10 +50,10 @@ export function DeleteAction({
 
   return (
     <ConfirmDialog
-      title={`Удалить ${entity}?`}
-      description={description ?? "Это действие нельзя отменить."}
+      title={t("common.deleteDialog.title", { entity: what })}
+      description={description ?? t("common.deleteDialog.description")}
       variant="danger"
-      confirmLabel={confirmLabel}
+      confirmLabel={confirmLabel ?? t("common.actions.delete")}
       onConfirm={() =>
         new Promise<void>((resolve) => {
           startTransition(async () => {
@@ -58,10 +63,10 @@ export function DeleteAction({
                 toast.error(result.error)
                 return
               }
-              toast.success(successMessage ?? `${capitalize(entity)} удалён`)
+              toast.success(successMessage ?? t("common.deleteDialog.success"))
               onSuccess?.()
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Не удалось удалить")
+              toast.error(e instanceof Error ? e.message : t("common.deleteDialog.failed"))
             } finally {
               resolve()
             }
@@ -73,9 +78,6 @@ export function DeleteAction({
   )
 }
 
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
 
 function isActionError(value: unknown): value is { error: string } {
   return (

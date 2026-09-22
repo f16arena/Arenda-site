@@ -20,6 +20,14 @@ export const common: typeof ru = {
     more: "Тағы",
     all: "Барлығы",
   },
+  deleteDialog: {
+    entity: "элемент",
+    title: "{entity} жойылсын ба?",
+    ariaLabel: "{entity} жою",
+    description: "Бұл әрекетті кері қайтару мүмкін емес.",
+    success: "Жойылды",
+    failed: "Жою мүмкін болмады",
+  },
   state: {
     loading: "Жүктелуде…",
     empty: "Әзірге бос",

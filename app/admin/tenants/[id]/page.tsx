@@ -18,7 +18,11 @@ import {
   assignTenantSpace,
   unassignTenantSpace,
 } from "@/app/actions/tenant"
-import { formatMoney, formatDate, LEGAL_TYPE_LABELS } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateL, formatMoneyL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
+import type { Translator } from "@/lib/i18n/translate"
+import type { Messages } from "@/lib/i18n/messages"
 import {
   ArrowLeft, Building2, User, CreditCard, FileText, Receipt,
   Wallet, TrendingDown, ClipboardList, MessageSquare, Zap,
@@ -38,7 +42,7 @@ import {
   RequisitesFormLoader,
 } from "./client-section-loaders"
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
-import { computeDepositStatus, DEPOSIT_STATUS_LABELS } from "@/lib/deposit"
+import { computeDepositStatus } from "@/lib/deposit"
 import { getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { AsciiEmailInput, KzPhoneInput } from "@/components/forms/contact-inputs"
 import { ExternalContractButton } from "./external-contract-button"
@@ -77,8 +81,18 @@ type TenantPrimaryAction = {
   href: string
 } | null
 
+/** Название правовой формы: ключи adminTenants.legalTypes, иначе — код как есть. */
+function legalTypeLabel(t: Translator<Messages>["t"], legalType: string): string {
+  const key = `adminTenants.legalTypes.${legalType}` as Parameters<Translator<Messages>["t"]>[0]
+  const label = t(key)
+  return label === key ? legalType : label
+}
+
 export default async function TenantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   return measureServerRoute("/admin/tenants/[id]", async () => {
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
@@ -333,11 +347,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const hasTenantCustomRate = hasFixedTenantRent(tenant.customRate)
   const rentalTermsLocked = fullFloorsWithFixedRent.length > 0 || hasTenantFixedRent || hasTenantCustomRate
   const rentalTermsLockReason = fullFloorsWithFixedRent.length > 0
-    ? `У арендатора указана стоимость за этажи ${fullFloorsWithFixedRent.map((floor) => floor.name).join(", ")}: ${formatMoney(fullFloorRentTotal)}/мес.`
+    ? t("adminTenants.card.rental.lockReasonFloors", {
+        floors: fullFloorsWithFixedRent.map((floor) => floor.name).join(", "),
+        amount: money(fullFloorRentTotal),
+      })
     : hasTenantFixedRent
-      ? `У арендатора указана индивидуальная сумма аренды: ${formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес.`
+      ? t("adminTenants.card.rental.lockReasonFixed", { amount: money(tenant.fixedMonthlyRent ?? 0) })
       : hasTenantCustomRate
-        ? `У арендатора указана индивидуальная ставка аренды: ${formatMoney(tenant.customRate ?? 0)}/м².`
+        ? t("adminTenants.card.rental.lockReasonRate", { amount: money(tenant.customRate ?? 0) })
         : null
   const hasPlacement = assignedSpaces.length > 0 || myFullFloors.length > 0
   const hasContact = Boolean((tenant.user.phone ?? "").trim() || (tenant.user.email ?? "").trim())
@@ -350,43 +367,43 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
    * арендатора. Теперь видно, на каком он шаге.
    */
   const contractState: { value: string; ok: boolean; action: TenantPrimaryAction | null } = hasSignedContract
-    ? { value: "подписан", ok: true, action: null }
+    ? { value: t("adminTenants.card.contractState.signed"), ok: true, action: null }
     : activeContract
       ? activeContract.status === "SENT"
         ? {
-            value: `№${activeContract.number} ждёт подписи арендатора`,
+            value: t("adminTenants.card.contractState.waitingTenant", { number: activeContract.number ?? "" }),
             ok: false,
             action: {
-              label: "Открыть договор",
-              description: `Договор №${activeContract.number} отправлен арендатору — ждём его подпись. Второй договор создавать не нужно.`,
+              label: t("adminTenants.card.contractState.openContract"),
+              description: t("adminTenants.card.contractState.openContractHint", { number: activeContract.number ?? "" }),
               href: "/admin/documents",
             },
           }
         : activeContract.status === "SIGNED_BY_TENANT"
           ? {
-              value: `№${activeContract.number} ждёт вашей подписи`,
+              value: t("adminTenants.card.contractState.waitingYou", { number: activeContract.number ?? "" }),
               ok: false,
               action: {
-                label: "Подписать договор",
-                description: `Арендатор подписал договор №${activeContract.number} — осталась ваша подпись.`,
+                label: t("adminTenants.card.contractState.signContract"),
+                description: t("adminTenants.card.contractState.signContractHint", { number: activeContract.number ?? "" }),
                 href: "/admin/documents",
               },
             }
           : {
-              value: `№${activeContract.number} — черновик`,
+              value: t("adminTenants.card.contractState.draft", { number: activeContract.number ?? "" }),
               ok: false,
               action: {
-                label: "Дооформить договор",
-                description: `Договор №${activeContract.number} создан, но не отправлен арендатору.`,
+                label: t("adminTenants.card.contractState.finishContract"),
+                description: t("adminTenants.card.contractState.finishContractHint", { number: activeContract.number ?? "" }),
                 href: "/admin/documents",
               },
             }
       : {
-          value: "не создан",
+          value: t("adminTenants.card.contractState.none"),
           ok: false,
           action: {
-            label: "Создать договор",
-            description: "У арендатора нет договора в системе.",
+            label: t("adminTenants.card.contractState.createContract"),
+            description: t("adminTenants.card.contractState.createContractHint"),
             href: `/admin/documents?create=contract&tenantId=${tenant.id}`,
           },
         }
@@ -409,68 +426,70 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
   const unpaidDepositAmount = depositCharges
     .filter((c) => c.type === "DEPOSIT" && !c.isPaid)
     .reduce((sum, c) => sum + c.amount, 0)
+  // Статус депозита: подписи в adminTenants.depositStatuses (ключи lib/deposit).
+  const depositStatusKey = `adminTenants.depositStatuses.${depositStatus}` as Parameters<typeof t>[0]
   const tenantHealthItems: TenantHealthItem[] = [
     {
-      label: "Долг",
-      value: totalDebt > 0 ? formatMoney(totalDebt) : "нет",
+      label: t("adminTenants.card.health.debt"),
+      value: totalDebt > 0 ? money(totalDebt) : t("adminTenants.card.health.debtNone"),
       ok: totalDebt <= 0,
       href: `/admin/finances?tenantId=${tenant.id}`,
     },
     {
-      label: "Договор",
+      label: t("adminTenants.card.health.contract"),
       value: contractState.value,
       ok: contractState.ok,
       href: contractState.action?.href ?? "/admin/documents",
     },
     {
-      label: "Депозит",
-      value: DEPOSIT_STATUS_LABELS[depositStatus].toLowerCase(),
+      label: t("adminTenants.card.health.deposit"),
+      value: t(depositStatusKey).toLowerCase(),
       ok: depositOk,
       href: "/admin/finances/deposits",
     },
     {
-      label: "Помещение",
-      value: hasPlacement ? "назначено" : "не назначено",
+      label: t("adminTenants.card.health.space"),
+      value: hasPlacement ? t("adminTenants.card.health.spaceOk") : t("adminTenants.card.health.spaceNo"),
       ok: hasPlacement,
       href: "#tenant-placement",
     },
     {
-      label: "Контакты",
-      value: hasContact ? "заполнены" : "не заполнены",
+      label: t("adminTenants.card.health.contacts"),
+      value: hasContact ? t("adminTenants.card.health.filled") : t("adminTenants.card.health.notFilled"),
       ok: hasContact,
       href: "#tenant-contact",
     },
     {
-      label: "Реквизиты",
-      value: hasBankDetails ? "заполнены" : "не заполнены",
+      label: t("adminTenants.card.health.requisites"),
+      value: hasBankDetails ? t("adminTenants.card.health.filled") : t("adminTenants.card.health.notFilled"),
       ok: hasBankDetails,
       href: "#tenant-requisites",
     },
   ]
   const tenantPrimaryAction: TenantPrimaryAction = totalDebt > 0
     ? {
-        label: "Проверить долг",
-        description: `Есть неоплаченные начисления: ${formatMoney(totalDebt)}.`,
+        label: t("adminTenants.card.primaryAction.checkDebt"),
+        description: t("adminTenants.card.primaryAction.checkDebtHint", { amount: money(totalDebt) }),
         href: `/admin/finances?tenantId=${tenant.id}`,
       }
     : !hasPlacement
       ? {
-          label: "Назначить помещение",
-          description: "Без помещения нельзя корректно формировать договоры и начисления.",
+          label: t("adminTenants.card.primaryAction.assignSpace"),
+          description: t("adminTenants.card.primaryAction.assignSpaceHint"),
           href: "#tenant-placement",
         }
       : contractState.action
         ? contractState.action
         : !hasBankDetails
           ? {
-              label: "Заполнить реквизиты",
-              description: "Реквизиты нужны для договоров, счетов и актов.",
+              label: t("adminTenants.card.primaryAction.fillRequisites"),
+              description: t("adminTenants.card.primaryAction.fillRequisitesHint"),
               href: "#tenant-requisites",
             }
           : !hasContact
             ? {
-                label: "Заполнить контакты",
-                description: "Телефон или email нужны для связи и уведомлений.",
+                label: t("adminTenants.card.primaryAction.fillContacts"),
+                description: t("adminTenants.card.primaryAction.fillContactsHint"),
                 href: "#tenant-contact",
               }
             : null
@@ -479,8 +498,8 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
     <div className="space-y-6">
       <Breadcrumbs
         items={[
-          { label: "Главная", href: "/admin" },
-          { label: "Арендаторы", href: "/admin/tenants" },
+          { label: t("adminTenants.card.home"), href: "/admin" },
+          { label: t("adminTenants.card.tenants"), href: "/admin/tenants" },
           { label: tenant.companyName },
         ]}
       />
@@ -491,12 +510,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           className="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
-          Назад
+          {t("common.actions.back")}
         </Link>
         <div className="flex-1">
           <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">{tenant.companyName}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType}
+            {legalTypeLabel(t, tenant.legalType)}
             {tenant.category ? ` · ${tenant.category}` : ""}
           </p>
         </div>
@@ -543,9 +562,9 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           {/* Contact info */}
           <Tab
               id="contact"
-              title="Контактное лицо"
+              title={t("adminTenants.card.tabs.contact")}
               icon={User}
-              meta={tenant.user.phone ?? tenant.user.email ?? "контакты не заполнены"}
+              meta={tenant.user.phone ?? tenant.user.email ?? t("adminTenants.card.tabs.contactEmpty")}
             >
             <form
               action={async (formData: FormData) => {
@@ -556,7 +575,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             >
               <fieldset disabled={!canEditContacts} className="contents">
               <div className="col-span-2">
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">ФИО</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.card.contactForm.fullName")}</label>
                 <Input
                   name="name"
                   defaultValue={tenant.user.name}
@@ -565,7 +584,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Телефон</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.card.contactForm.phone")}</label>
                 <KzPhoneInput
                   name="phone"
                   defaultValue={tenant.user.phone}
@@ -573,7 +592,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Email</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.card.contactForm.email")}</label>
                 <AsciiEmailInput
                   name="email"
                   defaultValue={tenant.user.email}
@@ -587,7 +606,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                   disabled={!canEditContacts}
                   className="font-medium"
                 >
-                  Сохранить
+                  {t("common.actions.save")}
                 </Button>
               </div>
               </fieldset>
@@ -597,9 +616,15 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           {/* Company info */}
           <Tab
             id="company"
-            title="Данные компании"
+            title={t("adminTenants.card.tabs.company")}
             icon={Building2}
-            meta={`${LEGAL_TYPE_LABELS[tenant.legalType] ?? tenant.legalType} · ${tenant.category ?? "вид деятельности не указан"} · ${tenant.isVatPayer ? `НДС ${tenantVatRate}%` : "без НДС"}`}
+            meta={[
+              legalTypeLabel(t, tenant.legalType),
+              tenant.category ?? t("adminTenants.card.tabs.companyNoCategory"),
+              tenant.isVatPayer
+                ? t("adminTenants.card.tabs.companyVat", { rate: tenantVatRate })
+                : t("adminTenants.card.tabs.companyNoVat"),
+            ].join(" · ")}
           >
             {/* Форма вынесена в company-form.tsx (perf-gate: страница < 55 КБ) */}
             <CompanyForm
@@ -616,11 +641,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <div className="border-t border-slate-100 dark:border-slate-800">
               <div className="px-5 pt-5 pb-2 flex items-center gap-2">
                 <CreditCard className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Счета в банке</h3>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminTenants.card.bankAccounts.title")}</h3>
                 <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
                   {tenant.bankAccounts.length > 0
-                    ? `${tenant.bankAccounts.length} шт. · основной подставляется в договоры и счета`
-                    : "не добавлены"}
+                    ? t("adminTenants.card.bankAccounts.count", { count: tenant.bankAccounts.length })
+                    : t("adminTenants.card.bankAccounts.empty")}
                 </span>
               </div>
               {canEditCompany ? (
@@ -637,7 +662,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 />
               ) : (
                 <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
-                  Реквизиты доступны только для просмотра. Нужно право на «данные компании арендатора».
+                  {t("adminTenants.card.bankAccounts.readOnly")}
                 </div>
               )}
             </div>
@@ -651,13 +676,19 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           {/* === Объединено 2026-05-27: «Аренда» = Условия + Целый этаж + Помещения === */}
           <Tab
             id="rental"
-            title="Аренда"
+            title={t("adminTenants.card.tabs.rental")}
             icon={Receipt}
-            meta={`${formatMoney(monthlyRent)}/мес · ${assignedSpaces.length > 0 ? `${assignedSpaces.length} помещ.` : myFullFloors.length > 0 ? `${myFullFloors.length} этаж` : "—"}`}
+            meta={`${money(monthlyRent)}${t("common.money.perMonth")} · ${
+              assignedSpaces.length > 0
+                ? t("adminTenants.card.tabs.rentalSpaces", { count: assignedSpaces.length })
+                : myFullFloors.length > 0
+                  ? t("adminTenants.card.tabs.rentalFloors", { count: myFullFloors.length })
+                  : "—"
+            }`}
           >
             <div className="px-5 pt-5 pb-2 flex items-center gap-2">
               <Receipt className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Условия аренды</h3>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminTenants.card.rental.termsTitle")}</h3>
             </div>
             {canEditRentalTerms ? (
               <RentalTermsFormLoader
@@ -681,7 +712,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               />
             ) : (
               <div className="p-5 text-sm text-slate-500 dark:text-slate-400">
-                Условия аренды доступны только для просмотра. Нужно отдельное право.
+                {t("adminTenants.card.rental.termsReadOnly")}
               </div>
             )}
 
@@ -702,9 +733,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
             <div className="border-t border-slate-100 dark:border-slate-800">
               <div className="px-5 pt-5 pb-2 flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Помещения</h3>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminTenants.card.rental.spacesTitle")}</h3>
                 <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
-                  {assignedSpaces.length > 0 ? `${assignedSpaces.length} назначено · ${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : "не назначено"}
+                  {assignedSpaces.length > 0
+                    ? t("adminTenants.card.rental.spacesMeta", {
+                        count: assignedSpaces.length,
+                        area: assignedSpaces.reduce((sum, space) => sum + space.area, 0),
+                      })
+                    : t("adminTenants.card.rental.spacesEmpty")}
                 </span>
               </div>
               <div className="p-4">
@@ -716,10 +752,10 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                           <div className="flex items-start justify-between gap-3">
                             <div>
                               <p className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                                Каб. {space.number}
+                                {t("adminTenants.table.spaceLabel", { number: space.number })}
                                 {index === 0 && (
                                   <span className="ml-2 align-middle rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-500/20 dark:text-blue-300">
-                                    Основное
+                                    {t("adminTenants.card.rental.primary")}
                                   </span>
                                 )}
                               </p>
@@ -737,7 +773,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                                   type="submit"
                                   className="rounded-lg border border-red-200 px-2.5 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
                                 >
-                                  Снять
+                                  {t("adminTenants.card.rental.unassign")}
                                 </button>
                               </form>
                             )}
@@ -746,21 +782,25 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                       ))}
                     </div>
                     {hasTenantFixedRent ? (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. сумма: {formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        {t("adminTenants.card.rental.fixedAmount", { amount: money(tenant.fixedMonthlyRent ?? 0) })}
+                      </p>
                     ) : tenant.customRate ? (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Инд. ставка: {formatMoney(tenant.customRate)}/м²</p>
+                      <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                        {t("adminTenants.card.rental.customRate", { amount: money(tenant.customRate) })}
+                      </p>
                     ) : (
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Расчёт по ставкам этажей</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{t("adminTenants.card.rental.byFloorRate")}</p>
                     )}
                     <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
-                      Аренда: {formatMoney(monthlyRent)}/мес
+                      {t("adminTenants.card.rental.rentTotal", { amount: money(monthlyRent) })}
                     </p>
                     {canCreateDocuments && (
                       <Link
                         href={`/admin/documents?create=contract&tenantId=${tenant.id}`}
                         className="mt-3 block text-center rounded-lg border border-slate-200 dark:border-slate-800 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                       >
-                        Сформировать договор
+                        {t("adminTenants.card.rental.makeContract")}
                       </Link>
                     )}
                   </div>
@@ -772,22 +812,22 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                           <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{floor.name}</p>
                           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{floor.totalArea ?? 0} м²</p>
                           <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            {formatMoney(floor.fixedMonthlyRent ?? 0)}/мес
+                            {money(floor.fixedMonthlyRent ?? 0)}{t("common.money.perMonth")}
                           </p>
                         </div>
                       ))}
                     </div>
                     <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 mt-2">
-                      Аренда всего: {formatMoney(monthlyRent)}/мес
+                      {t("adminTenants.card.rental.rentAll", { amount: money(monthlyRent) })}
                     </p>
                   </div>
                 ) : (
-                  <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">Помещение не назначено</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500 mb-3">{t("adminTenants.card.rental.notAssigned")}</p>
                 )}
                 {canAssignTenantSpaces && (
                   <div className={assignedSpaces.length > 0 ? "mt-4 border-t border-slate-100 pt-4 dark:border-slate-800" : ""}>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium">
-                      {assignedSpaces.length > 0 ? "Добавить ещё помещение:" : "Свободные помещения:"}
+                      {assignedSpaces.length > 0 ? t("adminTenants.card.rental.addMore") : t("adminTenants.card.rental.vacant")}
                     </p>
                     <div className="space-y-2">
                       {vacantSpaces.map((s) => (
@@ -802,17 +842,17 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                             type="submit"
                             className="w-full text-left rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
                           >
-                            <span className="font-medium">Каб. {s.number}</span>
+                            <span className="font-medium">{t("adminTenants.table.spaceLabel", { number: s.number })}</span>
                             <span className="text-slate-400 dark:text-slate-500 ml-1">· {s.floor.name} · {s.area} м²</span>
                           </button>
                         </form>
                       ))}
                       {vacantSpaces.length === 0 && (
-                        <p className="text-xs text-slate-400 dark:text-slate-500">Нет свободных помещений</p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500">{t("adminTenants.card.rental.noVacant")}</p>
                       )}
                       {vacantSpacesHasMore && (
                         <p className="text-xs text-slate-400 dark:text-slate-500">
-                          Показаны первые {vacantSpaces.length}. Для точного выбора откройте страницу помещений выбранного здания.
+                          {t("adminTenants.card.rental.vacantTruncated", { count: vacantSpaces.length })}
                         </p>
                       )}
                     </div>
@@ -825,7 +865,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           {/* === Объединение «Договоры» 2026-05-27: список договоров +
               действия (создать счёт/договор/АВР) + начисления по договорам.
               Раньше 3 отдельных таба — теперь один с 3 секциями. === */}
-          <Tab id="contracts" title="Договоры" icon={ShieldCheck}>
+          <Tab id="contracts" title={t("adminTenants.card.tabs.contracts")} icon={ShieldCheck}>
             {/* У каждой карточки свой заголовок — внешние сняты, иначе
                 «Список договоров → Договоры» читалось как два разных блока. */}
             <div className="space-y-4 p-5">
@@ -835,7 +875,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
                 <>
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-800">
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                      Договор подписан на бумаге? Загрузите скан — условия попадут в карточку.
+                      {t("adminTenants.card.contracts.externalHint")}
                     </p>
                     <ExternalContractButton tenantId={tenant.id} />
                   </div>
@@ -852,7 +892,12 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 
           {/* === Объединение «Начисления» 2026-05-27: доп. начисления (свет/вода)
               + последние начисления (cron-сводка). === */}
-          <Tab id="charges-all" title="Начисления" icon={Zap} meta={`за ${currentPeriod}`}>
+          <Tab
+            id="charges-all"
+            title={t("adminTenants.card.tabs.charges")}
+            icon={Zap}
+            meta={t("adminTenants.card.tabs.chargesMeta", { period: currentPeriod })}
+          >
             <div className="space-y-4 p-5">
               {showAdditionalCharges && <TenantLazyServiceCharges />}
               <TenantLazyRecentChargesSidebar />
@@ -860,7 +905,7 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </Tab>
 
           {/* История изменений */}
-          <Tab id="history" title="История" icon={HistoryIcon}>
+          <Tab id="history" title={t("adminTenants.card.tabs.history")} icon={HistoryIcon}>
             <TenantLazyHistory />
           </Tab>
       </Tabs>
@@ -872,33 +917,40 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
         <Card className="block p-0">
           <dl className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
             <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-              <dt className="text-slate-500 dark:text-slate-400">Долг</dt>
+              <dt className="text-slate-500 dark:text-slate-400">{t("adminTenants.card.summary.debt")}</dt>
               <dd className={`text-right font-semibold ${totalDebt > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                {totalDebt > 0 ? formatMoney(totalDebt) : "нет"}
+                {totalDebt > 0 ? money(totalDebt) : t("adminTenants.card.summary.noDebt")}
                 {totalDebt > 0 && (
                   <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">
-                    {debtCount} начислений{unpaidDepositAmount > 0 ? ` · депозит ${formatMoney(unpaidDepositAmount)}` : ""}
+                    {tp("adminTenants.card.summary.debtCharges", debtCount)}
+                    {unpaidDepositAmount > 0
+                      ? t("adminTenants.card.summary.debtDeposit", { amount: money(unpaidDepositAmount) })
+                      : ""}
                   </span>
                 )}
-                {tenantCredit > 0 && <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">аванс {formatMoney(tenantCredit)}</span>}
+                {tenantCredit > 0 && (
+                  <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">
+                    {t("adminTenants.card.summary.credit", { amount: money(tenantCredit) })}
+                  </span>
+                )}
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-              <dt className="text-slate-500 dark:text-slate-400">Аренда в месяц</dt>
-              <dd className="text-right font-semibold text-slate-900 dark:text-slate-100">{formatMoney(monthlyRent)}</dd>
+              <dt className="text-slate-500 dark:text-slate-400">{t("adminTenants.card.summary.rent")}</dt>
+              <dd className="text-right font-semibold text-slate-900 dark:text-slate-100">{money(monthlyRent)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-              <dt className="text-slate-500 dark:text-slate-400">Помещение</dt>
+              <dt className="text-slate-500 dark:text-slate-400">{t("adminTenants.card.summary.space")}</dt>
               <dd className="min-w-0 text-right font-medium text-slate-900 dark:text-slate-100">
                 {assignedSpaces.length > 1
-                  ? `${assignedSpaces.length} помещ.`
+                  ? t("adminTenants.card.summary.spaces", { count: assignedSpaces.length })
                   : assignedSpaces[0]
-                    ? `№ ${assignedSpaces[0].number}`
+                    ? t("adminTenants.card.summary.spaceNumber", { number: assignedSpaces[0].number })
                     : myFullFloors.length > 1
-                      ? `${myFullFloors.length} этажа целиком`
+                      ? t("adminTenants.card.summary.floors", { count: myFullFloors.length })
                       : myFullFloors[0]
                         ? myFullFloors[0].name
-                        : "не назначено"}
+                        : t("adminTenants.card.summary.notAssigned")}
                 <span className="block text-xs font-normal text-slate-400 dark:text-slate-500">
                   {assignedSpaces.length > 0
                     ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²`
@@ -909,12 +961,14 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
               </dd>
             </div>
             <div className="flex items-baseline justify-between gap-3 px-4 py-3">
-              <dt className="text-slate-500 dark:text-slate-400">Договор до</dt>
+              <dt className="text-slate-500 dark:text-slate-400">{t("adminTenants.card.summary.contractEnd")}</dt>
               <dd className="text-right font-medium text-slate-900 dark:text-slate-100">
-                {effectiveContractEnd ? formatDate(effectiveContractEnd) : "не создан"}
+                {effectiveContractEnd ? formatDateL(locale, effectiveContractEnd) : t("adminTenants.card.summary.noContract")}
                 {daysToContractEnd !== null && (
                   <span className={`block text-xs font-normal ${daysToContractEnd < 0 ? "text-red-500" : daysToContractEnd < 30 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`}>
-                    {daysToContractEnd < 0 ? "истёк" : `осталось ${daysToContractEnd} дн.`}
+                    {daysToContractEnd < 0
+                      ? t("adminTenants.card.summary.expired")
+                      : tp("adminTenants.card.summary.daysLeft", daysToContractEnd)}
                   </span>
                 )}
               </dd>
@@ -922,33 +976,33 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
           </dl>
         </Card>
 
-        <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} />
+        <TenantHealthPanel items={tenantHealthItems} primaryAction={tenantPrimaryAction} t={t} />
 
-        <Card title="Действия" className="block">
+        <Card title={t("adminTenants.card.actions.title")} className="block">
           <div className="flex flex-col gap-2">
             {canCreateInvoice && (
               <Link href={`/admin/documents?create=invoice&tenantId=${tenant.id}`} className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
-                <Receipt className="h-4 w-4" /> Создать счёт
+                <Receipt className="h-4 w-4" /> {t("adminTenants.card.actions.createInvoice")}
               </Link>
             )}
             {canRecordPayment && (
               <Link href={`/admin/finances?tenantId=${tenant.id}`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-                <Wallet className="h-4 w-4" /> Принять оплату
+                <Wallet className="h-4 w-4" /> {t("adminTenants.card.actions.recordPayment")}
               </Link>
             )}
             <ActionMenu
-              label="Другие действия"
+              label={t("adminTenants.card.actions.more")}
               tone="outline"
               align="start"
               width="w-64"
               items={[
                 ...(canCreateDocuments ? [
-                  { label: "Создать договор", icon: <FileSignature className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=contract&tenantId=${tenant.id}` },
-                  { label: "Акт выполненных работ", icon: <FileText className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=avr&tenantId=${tenant.id}` },
-                  { label: "Акт сверки", icon: <TrendingDown className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=reconciliation&tenantId=${tenant.id}` },
+                  { label: t("adminTenants.card.actions.createContract"), icon: <FileSignature className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=contract&tenantId=${tenant.id}` },
+                  { label: t("adminTenants.card.actions.avr"), icon: <FileText className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=avr&tenantId=${tenant.id}` },
+                  { label: t("adminTenants.card.actions.reconciliation"), icon: <TrendingDown className="h-4 w-4 text-slate-400" />, href: `/admin/documents?create=reconciliation&tenantId=${tenant.id}` },
                 ] : []),
-                ...(canSendMessages ? [{ label: "Написать арендатору", icon: <MessageSquare className="h-4 w-4 text-slate-400" />, href: `/admin/messages?to=${tenant.userId}`, separatorBefore: true }] : []),
-                { label: "Заявки арендатора", icon: <ClipboardList className="h-4 w-4 text-slate-400" />, href: `/admin/requests?tenantId=${tenant.id}` },
+                ...(canSendMessages ? [{ label: t("adminTenants.card.actions.message"), icon: <MessageSquare className="h-4 w-4 text-slate-400" />, href: `/admin/messages?to=${tenant.userId}`, separatorBefore: true }] : []),
+                { label: t("adminTenants.card.actions.requests"), icon: <ClipboardList className="h-4 w-4 text-slate-400" />, href: `/admin/requests?tenantId=${tenant.id}` },
               ]}
             />
           </div>
@@ -967,9 +1021,11 @@ export default async function TenantDetailPage({ params }: { params: Promise<{ i
 function TenantHealthPanel({
   items,
   primaryAction,
+  t,
 }: {
   items: TenantHealthItem[]
   primaryAction: TenantPrimaryAction
+  t: Translator<Messages>["t"]
 }) {
   const issues = items.filter((item) => !item.ok)
 
@@ -977,7 +1033,7 @@ function TenantHealthPanel({
     return (
       <Card className="block p-4">
         <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-          <CheckCircle2 className="h-4 w-4" /> Карточка заполнена
+          <CheckCircle2 className="h-4 w-4" /> {t("adminTenants.card.health.allGood")}
         </p>
       </Card>
     )

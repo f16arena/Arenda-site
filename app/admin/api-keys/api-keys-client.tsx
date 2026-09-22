@@ -6,6 +6,8 @@ import { toast } from "sonner"
 import { createApiKey, revokeApiKey } from "@/app/actions/api-keys"
 import { useRouter } from "next/navigation"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useT } from "@/lib/i18n/client"
+import { formatDateShortL } from "@/lib/i18n/format"
 
 type Key = {
   id: string
@@ -19,6 +21,7 @@ type Key = {
 }
 
 export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
+  const { t, locale } = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [showCreate, setShowCreate] = useState(false)
@@ -29,7 +32,7 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
   const [copied, setCopied] = useState(false)
 
   const handleCreate = () => {
-    if (name.length < 3) { toast.error("Минимум 3 символа в названии"); return }
+    if (name.length < 3) { toast.error(t("adminSettings.apiKeys.nameTooShort")); return }
     startTransition(async () => {
       const r = await createApiKey({
         name,
@@ -46,11 +49,11 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
   const handleRevoke = (id: string) => {
     startTransition(async () => {
       const r = await revokeApiKey(id)
-      if (!r.ok) { toast.error(r.error ?? "Ошибка"); return }
+      if (!r.ok) { toast.error(r.error ?? t("adminSettings.apiKeys.error")); return }
       // Отозванный ключ больше не нужен — убираем и жёлтый блок с токеном,
       // иначе он продолжал висеть над таблицей, где ключ уже «Отозван».
       setNewToken(null)
-      toast.success("Ключ отозван")
+      toast.success(t("adminSettings.apiKeys.revokeDone"))
       router.refresh()
     })
   }
@@ -70,9 +73,9 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
           <div className="flex items-start gap-2 mb-2">
             <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Сохраните этот токен</p>
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{t("adminSettings.apiKeys.saveToken")}</p>
               <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
-                Это единственная возможность увидеть его. После закрытия окна — только prefix.
+                {t("adminSettings.apiKeys.saveTokenHint")}
               </p>
             </div>
           </div>
@@ -85,13 +88,13 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
               className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white py-2 text-sm font-medium"
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              {copied ? "Скопировано" : "Копировать"}
+              {copied ? t("adminSettings.apiKeys.copied") : t("adminSettings.apiKeys.copy")}
             </button>
             <button
               onClick={() => { setNewToken(null); router.refresh() }}
               className="flex-1 rounded-lg border border-amber-200 dark:border-amber-500/30 py-2 text-sm font-medium text-amber-700 dark:text-amber-300"
             >
-              Я сохранил
+              {t("adminSettings.apiKeys.saved")}
             </button>
           </div>
         </div>
@@ -100,33 +103,33 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
       {/* Создание */}
       {showCreate ? (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 space-y-3">
-          <p className="text-sm font-semibold">Новый ключ</p>
+          <p className="text-sm font-semibold">{t("adminSettings.apiKeys.newKey")}</p>
           <div>
-            <label htmlFor="api-key-name" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Название *</label>
+            <label htmlFor="api-key-name" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("adminSettings.apiKeys.name")} *</label>
             <input
               id="api-key-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="1С интеграция / Excel-скрипт / BI"
+              placeholder={t("adminSettings.apiKeys.namePlaceholder")}
               maxLength={100}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="api-key-scope" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Права</label>
+              <label htmlFor="api-key-scope" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("adminSettings.apiKeys.scope")}</label>
               <select
                 id="api-key-scope"
                 value={scope}
                 onChange={(e) => setScope(e.target.value as "READ" | "WRITE")}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
               >
-                <option value="READ">Только чтение</option>
-                <option value="WRITE">Чтение и запись</option>
+                <option value="READ">{t("adminSettings.apiKeys.scopeRead")}</option>
+                <option value="WRITE">{t("adminSettings.apiKeys.scopeWrite")}</option>
               </select>
             </div>
             <div>
-              <label htmlFor="api-key-expires" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Срок (дни)</label>
+              <label htmlFor="api-key-expires" className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("adminSettings.apiKeys.expires")}</label>
               <input
                 id="api-key-expires"
                 type="number"
@@ -134,7 +137,7 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
                 max="365"
                 value={expiresInDays}
                 onChange={(e) => setExpiresInDays(e.target.value)}
-                placeholder="90 (или пусто)"
+                placeholder={t("adminSettings.apiKeys.expiresPlaceholder")}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
               />
             </div>
@@ -144,14 +147,14 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
               onClick={() => { setShowCreate(false); setName("") }}
               className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400"
             >
-              Отмена
+              {t("common.actions.cancel")}
             </button>
             <button
               onClick={handleCreate}
               disabled={pending || name.length < 3}
               className="flex-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white py-2 text-sm font-medium disabled:opacity-60"
             >
-              {pending ? "..." : "Создать"}
+              {pending ? "…" : t("adminSettings.apiKeys.create")}
             </button>
           </div>
         </div>
@@ -161,7 +164,7 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
           className="inline-flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 text-sm font-medium"
         >
           <Plus className="h-4 w-4" />
-          Создать API-ключ
+          {t("adminSettings.apiKeys.createButton")}
         </button>
       )}
 
@@ -169,18 +172,18 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
       {initialKeys.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
           <Key className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-2" />
-          <p className="text-sm text-slate-500 dark:text-slate-400">Нет ключей</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminSettings.apiKeys.noKeys")}</p>
         </div>
       ) : (
         <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-x-auto">
           <table className="w-full min-w-[640px] text-xs">
             <thead className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
               <tr>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">Название</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">Префикс</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">Права</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">Использован</th>
-                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">Истекает</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.apiKeys.columns.name")}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.apiKeys.columns.prefix")}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.apiKeys.columns.scope")}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.apiKeys.columns.used")}</th>
+                <th className="px-4 py-2.5 text-left font-medium text-slate-500 dark:text-slate-400">{t("adminSettings.apiKeys.columns.expires")}</th>
                 <th className="px-4 py-2.5" />
               </tr>
             </thead>
@@ -199,37 +202,37 @@ export function ApiKeysClient({ initialKeys }: { initialKeys: Key[] }) {
                           ? "bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-300"
                           : "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300"
                       }`}>
-                        {k.scope === "WRITE" ? "Чтение+Запись" : "Только чтение"}
+                        {k.scope === "WRITE" ? t("adminSettings.apiKeys.scopeWriteShort") : t("adminSettings.apiKeys.scopeRead")}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
-                      {k.lastUsedAt ? new Date(k.lastUsedAt).toLocaleDateString("ru-RU") : "—"}
+                      {k.lastUsedAt ? formatDateShortL(locale, k.lastUsedAt) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
                       {isRevoked ? (
-                        <span className="text-red-600 dark:text-red-400">Отозван</span>
+                        <span className="text-red-600 dark:text-red-400">{t("adminSettings.apiKeys.revoked")}</span>
                       ) : isExpired ? (
-                        <span className="text-red-600 dark:text-red-400">Истёк</span>
+                        <span className="text-red-600 dark:text-red-400">{t("adminSettings.apiKeys.expired")}</span>
                       ) : k.expiresAt ? (
-                        new Date(k.expiresAt).toLocaleDateString("ru-RU")
+                        formatDateShortL(locale, k.expiresAt)
                       ) : (
-                        "Бессрочно"
+                        t("adminSettings.apiKeys.forever")
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right">
                       {!inactive && (
                         <ConfirmDialog
                           variant="danger"
-                          title={`Отозвать ключ "${k.name}"?`}
-                          description="Приложения, использующие этот токен, перестанут работать."
-                          confirmLabel="Отозвать"
+                          title={t("adminSettings.apiKeys.revokeTitle", { name: k.name })}
+                          description={t("adminSettings.apiKeys.revokeDesc")}
+                          confirmLabel={t("adminSettings.apiKeys.revoke")}
                           onConfirm={() => handleRevoke(k.id)}
                           trigger={
                             <button
                               className="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline"
                             >
                               <Ban className="h-3 w-3" />
-                              Отозвать
+                              {t("adminSettings.apiKeys.revoke")}
                             </button>
                           }
                         />

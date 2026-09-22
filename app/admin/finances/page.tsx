@@ -389,10 +389,11 @@ async function renderFinancesPage({
   const collectionRate = billedForRate > 0 ? Math.round((paidCharges / billedForRate) * 100) : 0
   const totalChargeCount = chargesAggregate._count._all
   const totalExpenseCount = expensesAggregate._count._all
+  // Арендатор назван row, а не t: иначе перекрывает переводчик t.
   const dialogTenantOptions = dialogCharges
     .map((c) => c.tenant)
-    .filter((t, i, arr) => arr.findIndex((x) => x.id === t.id) === i)
-    .map((t) => ({ id: t.id, companyName: t.companyName }))
+    .filter((row, i, arr) => arr.findIndex((x) => x.id === row.id) === i)
+    .map((row) => ({ id: row.id, companyName: row.companyName }))
   if (selectedPaymentTenant && !dialogTenantOptions.some((tenant) => tenant.id === selectedPaymentTenant.id)) {
     dialogTenantOptions.push(selectedPaymentTenant)
   }

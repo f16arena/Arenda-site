@@ -1,6 +1,6 @@
 "use server"
 
-import { signIn } from "@/auth"
+import { signIn, SHARED_COOKIE_DOMAIN } from "@/auth"
 import { AuthError } from "next-auth"
 import { redirect } from "next/navigation"
 import { headers, cookies } from "next/headers"
@@ -9,6 +9,7 @@ import { parseHost, ROOT_HOST } from "@/lib/host"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { getLoginIdentifiers } from "@/lib/contact-validation"
 import { loginBlockReason } from "@/lib/approval"
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale } from "@/lib/i18n/config"
 
 export interface LoginState {
   error?: string
@@ -68,6 +69,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     approvalStatus: string
     rejectionReason: string | null
     organizationId: string | null
+    locale: string
     organization: {
       slug: string
       isActive: boolean
@@ -93,6 +95,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
         approvalStatus: true,
         rejectionReason: true,
         organizationId: true,
+        locale: true,
         organization: {
           select: {
             slug: true,
@@ -173,6 +176,18 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
       error: showLoginDiagnostics ? `Ошибка входа: ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
       details,
     }
+  }
+
+  // Язык из профиля — в cookie: следующая страница и <html lang> сразу
+  // соответствуют тому, на чём человек работает.
+  if (isLocale(user.locale)) {
+    const store = await cookies()
+    store.set(LOCALE_COOKIE, user.locale, {
+      path: "/",
+      maxAge: LOCALE_COOKIE_MAX_AGE,
+      sameSite: "lax",
+      ...(SHARED_COOKIE_DOMAIN ? { domain: SHARED_COOKIE_DOMAIN } : {}),
+    })
   }
 
   // ── 4. Редирект ────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { useT } from "@/lib/i18n/client"
 
 type Blockers = Awaited<ReturnType<typeof getTenantDeleteBlockers>>
 
@@ -24,6 +25,7 @@ export function DeleteTenantButton({
   companyName: string
   redirectAfter?: boolean
 }) {
+  const { t, tp } = useT()
   const [open, setOpen] = useState(false)
   const [blockers, setBlockers] = useState<Blockers | null>(null)
   const [pending, startTransition] = useTransition()
@@ -35,19 +37,19 @@ export function DeleteTenantButton({
       const b = await getTenantDeleteBlockers(tenantId)
       setBlockers(b)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Не удалось проверить связи")
+      toast.error(e instanceof Error ? e.message : t("adminTenants.remove.checkFailed"))
       setOpen(false)
     }
   }
 
   const items = blockers
     ? [
-        { label: "Начисления", count: blockers.charges },
-        { label: "Платежи", count: blockers.payments },
-        { label: "Договоры", count: blockers.contracts },
-        { label: "Документы", count: blockers.documents },
-        { label: "Заявки", count: blockers.requests },
-        { label: "Этажи целиком", count: blockers.fullFloors },
+        { label: t("adminTenants.remove.items.charges"), count: blockers.charges },
+        { label: t("adminTenants.remove.items.payments"), count: blockers.payments },
+        { label: t("adminTenants.remove.items.contracts"), count: blockers.contracts },
+        { label: t("adminTenants.remove.items.documents"), count: blockers.documents },
+        { label: t("adminTenants.remove.items.requests"), count: blockers.requests },
+        { label: t("adminTenants.remove.items.fullFloors"), count: blockers.fullFloors },
       ].filter((x) => x.count > 0)
     : []
 
@@ -59,10 +61,10 @@ export function DeleteTenantButton({
     startTransition(async () => {
       try {
         await deleteTenant(tenantId, { redirectAfter, force })
-        toast.success(`Арендатор «${companyName}» удалён`)
+        toast.success(t("adminTenants.remove.deleted", { name: companyName }))
         setOpen(false)
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось удалить")
+        toast.error(e instanceof Error ? e.message : t("adminTenants.remove.failed"))
       }
     })
   }
@@ -74,7 +76,7 @@ export function DeleteTenantButton({
         className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 font-medium"
       >
         <Trash2 className="h-3.5 w-3.5" />
-        Удалить
+        {t("adminTenants.remove.button")}
       </button>
 
       <Dialog
@@ -91,7 +93,7 @@ export function DeleteTenantButton({
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400">
                 <AlertTriangle className="h-4 w-4" />
               </div>
-              <DialogTitle>Удалить арендатора?</DialogTitle>
+              <DialogTitle>{t("adminTenants.remove.title")}</DialogTitle>
             </div>
           </DialogHeader>
 
@@ -101,19 +103,19 @@ export function DeleteTenantButton({
             </p>
 
             {!blockers ? (
-              <p className="text-xs text-slate-500 dark:text-slate-400">Проверка связей...</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("adminTenants.remove.checking")}</p>
             ) : (
               <>
                 {hasSpace && (
                   <div className="rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
-                    Привязан к помещению — оно будет автоматически освобождено.
+                    {t("adminTenants.remove.hasSpace")}
                   </div>
                 )}
 
                 {hasLinks ? (
                   <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 p-3 space-y-2">
                     <p className="text-xs font-medium text-red-800 dark:text-red-200">
-                      Связан с {totalLinks} записями:
+                      {tp("adminTenants.remove.linked", totalLinks)}
                     </p>
                     <ul className="space-y-0.5 text-xs">
                       {items.map((x) => (
@@ -124,12 +126,12 @@ export function DeleteTenantButton({
                       ))}
                     </ul>
                     <p className="text-[11px] text-red-600 dark:text-red-400 pt-1 border-t border-red-200 dark:border-red-500/20">
-                      Каскадное удаление сотрёт всё перечисленное вместе с арендатором. Это действие необратимо.
+                      {t("adminTenants.remove.cascadeWarning")}
                     </p>
                   </div>
                 ) : (
                   <p className="text-xs text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-lg px-3 py-2">
-                    ✓ Связей нет — можно удалить чисто. Пользователь будет деактивирован.
+                    {t("adminTenants.remove.clean")}
                   </p>
                 )}
               </>
@@ -143,7 +145,7 @@ export function DeleteTenantButton({
               disabled={pending}
               className="flex-1"
             >
-              Отмена
+              {t("common.actions.cancel")}
             </Button>
             {blockers && !hasLinks && (
               <Button
@@ -152,7 +154,7 @@ export function DeleteTenantButton({
                 loading={pending}
                 className="flex-1 font-medium"
               >
-                {pending ? "Удаление..." : "Удалить"}
+                {pending ? t("adminTenants.remove.deleting") : t("common.actions.delete")}
               </Button>
             )}
             {blockers && hasLinks && (
@@ -162,7 +164,9 @@ export function DeleteTenantButton({
                 loading={pending}
                 className="flex-1 font-medium"
               >
-                {pending ? "Удаление..." : `Удалить со всеми связями (${totalLinks})`}
+                {pending
+                  ? t("adminTenants.remove.deleting")
+                  : t("adminTenants.remove.deleteWithLinks", { count: totalLinks })}
               </Button>
             )}
           </DialogFooter>

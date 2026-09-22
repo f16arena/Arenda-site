@@ -17,56 +17,42 @@ import {
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import {
   getOnboardingState,
   type OnboardingStep,
   type OnboardingStepCategory,
 } from "@/lib/onboarding"
 
+// Название и подзаголовок группы — из словаря
+// (adminSettings.onboarding.categories.*), здесь только иконка и цвет.
 const categoryMeta: Record<OnboardingStepCategory, {
-  title: string
-  subtitle: string
   icon: LucideIcon
   tone: string
 }> = {
-  foundation: {
-    title: "Основа владельца",
-    subtitle: "Реквизиты и первая точка учета",
-    icon: Landmark,
-    tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-  },
-  object: {
-    title: "Объект",
-    subtitle: "Здание, этажи, помещения и ставки",
-    icon: Building2,
-    tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-  },
-  people: {
-    title: "Люди",
-    subtitle: "Администратор, арендаторы и команда",
-    icon: Users,
-    tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-  },
-  legal: {
-    title: "Документы",
-    subtitle: "Нумерация, договоры и подписи",
-    icon: FileText,
-    tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-  },
-  finance: {
-    title: "Финансы",
-    subtitle: "Счета, начисления, тарифы и оплаты",
-    icon: Wallet,
-    tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
-  },
+  foundation: { icon: Landmark, tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
+  object: { icon: Building2, tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
+  people: { icon: Users, tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
+  legal: { icon: FileText, tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
+  finance: { icon: Wallet, tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" },
 }
 
 const categoryOrder: OnboardingStepCategory[] = ["foundation", "object", "people", "legal", "finance"]
+
+/** Готовые подписи блока: собираем на сервере, внутрь передаём строками. */
+type CategoryLabels = {
+  title: string
+  subtitle: string
+  requiredCount: string
+  required: string
+  optional: string
+}
 
 export default async function OnboardingPage() {
   const session = await auth()
   if (!session) redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   const [org, onboarding] = await Promise.all([
     db.organization.findUnique({
@@ -86,10 +72,20 @@ export default async function OnboardingPage() {
     ? Math.max(0, Math.ceil((org.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
 
-  const grouped = categoryOrder.map((category) => ({
-    category,
-    steps: onboarding.steps.filter((step) => step.category === category),
-  }))
+  const orgName = org?.name ?? t("adminSettings.onboarding.orgFallback")
+  const grouped = categoryOrder.map((category) => {
+    const steps = onboarding.steps.filter((step) => step.category === category)
+    const doneRequired = steps.filter((step) => step.required && step.done).length
+    const required = steps.filter((step) => step.required).length
+    const labels: CategoryLabels = {
+      title: t(`adminSettings.onboarding.categories.${category}Title`),
+      subtitle: t(`adminSettings.onboarding.categories.${category}Subtitle`),
+      requiredCount: t("adminSettings.onboarding.requiredCount", { done: doneRequired, total: required }),
+      required: t("adminSettings.onboarding.required"),
+      optional: t("adminSettings.onboarding.optional"),
+    }
+    return { category, steps, labels }
+  })
   const recommendedOpen = onboarding.recommendedCount - onboarding.doneRecommendedCount
   const requiredOpen = onboarding.requiredCount - onboarding.doneRequiredCount
 
@@ -98,19 +94,19 @@ export default async function OnboardingPage() {
       <RouteTabs items={HEALTH_TABS} className="mb-2" />
 
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Что осталось настроить</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.onboarding.title")}</h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
           {onboarding.allDone
-            ? `${org?.name ?? "Организация"} готова к работе: обязательные шаги закрыты.`
-            : `${org?.name ?? "Организация"} · осталось обязательных шагов: ${requiredOpen}`}
-          {isTrial && daysLeft !== null && ` · пробный период: ${daysLeft} дн.`}
+            ? t("adminSettings.onboarding.allDone", { org: orgName })
+            : t("adminSettings.onboarding.remaining", { org: orgName, count: requiredOpen })}
+          {isTrial && daysLeft !== null && t("adminSettings.onboarding.trial", { days: daysLeft })}
         </p>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-2 flex items-center justify-between text-sm">
           <span className="font-medium text-slate-700 dark:text-slate-300">
-            Сделано {onboarding.doneRequiredCount} из {onboarding.requiredCount} обязательных
+            {t("adminSettings.onboarding.progress", { done: onboarding.doneRequiredCount, total: onboarding.requiredCount })}
           </span>
           <span className="tabular-nums text-slate-500 dark:text-slate-400">{onboarding.percent}%</span>
         </div>
@@ -120,7 +116,7 @@ export default async function OnboardingPage() {
 
         {onboarding.nextRequiredStep ? (
           <div className="mt-5 border-t border-slate-100 pt-5 dark:border-slate-800">
-            <p className="text-xs uppercase tracking-wide text-slate-400">Следующий шаг</p>
+            <p className="text-xs uppercase tracking-wide text-slate-400">{t("adminSettings.onboarding.nextStep")}</p>
             <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
               {onboarding.nextRequiredStep.title}
             </p>
@@ -138,14 +134,14 @@ export default async function OnboardingPage() {
         ) : (
           <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-5 dark:border-slate-800">
             <p className="text-sm text-slate-600 dark:text-slate-400">
-              Обязательное закрыто — можно работать.
-              {recommendedOpen > 0 && ` Необязательных пунктов осталось ${recommendedOpen}.`}
+              {t("adminSettings.onboarding.requiredDone")}
+              {recommendedOpen > 0 && t("adminSettings.onboarding.optionalLeft", { count: recommendedOpen })}
             </p>
             <Link
               href="/admin"
               className="ml-auto inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition active:scale-[0.97] hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
             >
-              На главную
+              {t("adminSettings.onboarding.toHome")}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -156,8 +152,8 @@ export default async function OnboardingPage() {
           три карточки с текстом «что владелец увидит» и три ссылки на
           разделы, которые и так открыты вкладками сверху. */}
       <div className="space-y-4">
-        {grouped.map(({ category, steps }) => (
-          <CategoryBlock key={category} category={category} steps={steps} />
+        {grouped.map(({ category, steps, labels }) => (
+          <CategoryBlock key={category} category={category} steps={steps} labels={labels} />
         ))}
       </div>
     </div>
@@ -167,14 +163,14 @@ export default async function OnboardingPage() {
 function CategoryBlock({
   category,
   steps,
+  labels,
 }: {
   category: OnboardingStepCategory
   steps: OnboardingStep[]
+  labels: CategoryLabels
 }) {
   const meta = categoryMeta[category]
   const Icon = meta.icon
-  const doneRequired = steps.filter((step) => step.required && step.done).length
-  const required = steps.filter((step) => step.required).length
 
   return (
     <section className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
@@ -184,12 +180,12 @@ function CategoryBlock({
             <Icon className="h-4 w-4" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{meta.title}</h2>
-            <p className="text-xs text-slate-400 dark:text-slate-500">{meta.subtitle}</p>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{labels.title}</h2>
+            <p className="text-xs text-slate-400 dark:text-slate-500">{labels.subtitle}</p>
           </div>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-          {doneRequired}/{required} обяз.
+          {labels.requiredCount}
         </span>
       </div>
 
@@ -217,7 +213,7 @@ function CategoryBlock({
                     ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
                     : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                 }`}>
-                  {step.required ? "обязательно" : "можно позже"}
+                  {step.required ? labels.required : labels.optional}
                 </span>
                 {step.countLabel && (
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">

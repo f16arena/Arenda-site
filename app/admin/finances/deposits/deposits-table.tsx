@@ -4,7 +4,8 @@ import { askConfirm } from "@/components/ui/dialog-host"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { issueDepositCharge, markDepositPaid, returnDeposit } from "@/app/actions/deposits"
 import type { DepositStatus } from "@/lib/deposit"
 import { Badge } from "@/components/ui/badge"
@@ -20,7 +21,6 @@ export interface DepositRow {
   required: number
   held: number
   status: DepositStatus
-  statusLabel: string
   unpaidChargeId: string | null
 }
 
@@ -35,6 +35,14 @@ const STATUS_STYLES: Record<DepositStatus, string> = {
 
 export function DepositsTable({ rows }: { rows: DepositRow[] }) {
   const router = useRouter()
+  const { t } = useT()
+  const locale = useLocale()
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const statusLabel = (status: DepositStatus) => {
+    const key = `adminFinance.deposits.statuses.${status}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? status : label
+  }
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
@@ -44,7 +52,7 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
     setPendingId(tenantId)
     startTransition(async () => {
       const result = await action()
-      if (!result.ok) setError(result.error ?? "Не удалось выполнить действие")
+      if (!result.ok) setError(result.error ?? t("adminFinance.deposits.actionFailed"))
       setPendingId(null)
       router.refresh()
     })
@@ -61,13 +69,13 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 text-left text-xs uppercase text-slate-500 dark:text-slate-400">
-              <th className="px-4 py-3 font-medium">Арендатор</th>
-              <th className="px-4 py-3 font-medium">Размещение</th>
-              <th className="px-4 py-3 font-medium text-right">Требуется</th>
-              <th className="px-4 py-3 font-medium text-right">Внесено</th>
-              <th className="px-4 py-3 font-medium text-right">Остаток</th>
-              <th className="px-4 py-3 font-medium">Статус</th>
-              <th className="px-4 py-3 font-medium text-right">Действия</th>
+              <th className="px-4 py-3 font-medium">{t("adminFinance.deposits.tenant")}</th>
+              <th className="px-4 py-3 font-medium">{t("adminFinance.deposits.placement")}</th>
+              <th className="px-4 py-3 font-medium text-right">{t("adminFinance.deposits.required")}</th>
+              <th className="px-4 py-3 font-medium text-right">{t("adminFinance.deposits.deposited")}</th>
+              <th className="px-4 py-3 font-medium text-right">{t("adminFinance.deposits.remaining")}</th>
+              <th className="px-4 py-3 font-medium">{t("adminFinance.deposits.status")}</th>
+              <th className="px-4 py-3 font-medium text-right">{t("adminFinance.deposits.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -84,22 +92,24 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
                       {row.companyName}
                     </Link>
                     {row.contractNumber && (
-                      <p className="text-xs text-slate-400 dark:text-slate-500">Договор № {row.contractNumber}</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500">
+                        {t("adminFinance.deposits.contractNumber", { number: row.contractNumber })}
+                      </p>
                     )}
                   </td>
                   <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{row.placement || "—"}</td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {row.required > 0 ? formatMoney(row.required) : "—"}
+                    {row.required > 0 ? money(row.required) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {row.held > 0 ? formatMoney(row.held) : "—"}
+                    {row.held > 0 ? money(row.held) : "—"}
                   </td>
                   <td className={`px-4 py-3 text-right tabular-nums ${remaining > 0 && row.status !== "NOT_REQUIRED" && row.status !== "RETURNED" ? "font-medium text-red-600 dark:text-red-400" : "text-slate-400"}`}>
-                    {row.status === "NOT_REQUIRED" || row.status === "RETURNED" ? "—" : remaining > 0 ? formatMoney(remaining) : "—"}
+                    {row.status === "NOT_REQUIRED" || row.status === "RETURNED" ? "—" : remaining > 0 ? money(remaining) : "—"}
                   </td>
                   <td className="px-4 py-3">
                     <Badge className={STATUS_STYLES[row.status]}>
-                      {row.statusLabel}
+                      {statusLabel(row.status)}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -109,7 +119,7 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
                       <div className="flex justify-end gap-2">
                         {row.status === "NOT_ISSUED" && (
                           <ActionButton onClick={() => run(row.tenantId, () => issueDepositCharge(row.tenantId))}>
-                            Выставить
+                            {t("adminFinance.deposits.issue")}
                           </ActionButton>
                         )}
                         {row.unpaidChargeId && (row.status === "UNPAID" || row.status === "PARTIAL") && (
@@ -117,18 +127,19 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
                             primary
                             onClick={() => run(row.tenantId, () => markDepositPaid(row.unpaidChargeId!))}
                           >
-                            Отметить внесённым
+                            {t("adminFinance.deposits.markPaid")}
                           </ActionButton>
                         )}
                         {row.held > 0 && (
                           <ActionButton
                             onClick={async () => {
-                              if (await askConfirm({ title: `Вернуть депозит ${formatMoney(row.held)} арендатору «${row.companyName}»?`, confirmLabel: "Вернуть" })) {
+                              const title = t("adminFinance.deposits.refundConfirm", { amount: money(row.held), name: row.companyName })
+                              if (await askConfirm({ title, confirmLabel: t("adminFinance.deposits.refundConfirmLabel") })) {
                                 run(row.tenantId, () => returnDeposit(row.tenantId))
                               }
                             }}
                           >
-                            Вернуть
+                            {t("adminFinance.deposits.refund")}
                           </ActionButton>
                         )}
                       </div>
@@ -140,7 +151,7 @@ export function DepositsTable({ rows }: { rows: DepositRow[] }) {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-10 text-center text-slate-400 dark:text-slate-500">
-                  Арендаторов с депозитами пока нет
+                  {t("adminFinance.deposits.empty")}
                 </td>
               </tr>
             )}

@@ -11,12 +11,25 @@ import {
   toggleRecurringExpense,
   generateRecurringExpensesNow,
 } from "@/app/actions/recurring-expenses"
-import { EXPENSE_CATEGORIES } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
 
 type CashAccount = { id: string; name: string; type: string }
 type BuildingOption = { id: string; name: string }
 
-const CATEGORY_OPTIONS = Object.entries(EXPENSE_CATEGORIES)
+// Категории расходов (Expense.category): порядок фиксирован, подписи — из словаря.
+const EXPENSE_CATEGORY_CODES = [
+  "SALARY",
+  "GARBAGE",
+  "CLEANING",
+  "INTERNET",
+  "SECURITY",
+  "ELECTRICITY",
+  "WATER",
+  "HEATING",
+  "GAS",
+  "REPAIR",
+  "OTHER",
+] as const
 
 export function RecurringExpenseDialog({
   cashAccounts,
@@ -28,22 +41,28 @@ export function RecurringExpenseDialog({
   currentBuildingId?: string | null
 }) {
   const router = useRouter()
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
   const shouldChooseBuilding = !currentBuildingId && buildings.length > 1
+  // Подпись из словаря по коду из базы; нет строки — показываем сам код.
+  const dictLabel = (key: string, fallback: string) => {
+    const text = t(key as Parameters<typeof t>[0])
+    return text === key ? fallback : text
+  }
 
   return (
     <>
       <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" />
-        Постоянный расход
+        {t("adminFinance.recurring.dialog.trigger")}
       </Button>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
-              <h2 className="text-base font-semibold">Постоянный расход</h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" title="Закрыть">
+              <h2 className="text-base font-semibold">{t("adminFinance.recurring.dialog.title")}</h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label={t("common.actions.close")} title={t("common.actions.close")}>
                 <X className="h-5 w-5 text-slate-400 dark:text-slate-500" />
               </button>
             </div>
@@ -68,9 +87,9 @@ export function RecurringExpenseDialog({
                 <input type="hidden" name="buildingId" value={buildings[0].id} />
               ) : shouldChooseBuilding ? (
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Здание *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.recurring.dialog.building")}</label>
                   <select name="buildingId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-                    <option value="">Выберите здание</option>
+                    <option value="">{t("adminFinance.recurring.dialog.buildingPlaceholder")}</option>
                     {buildings.map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
@@ -79,48 +98,51 @@ export function RecurringExpenseDialog({
               ) : null}
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Категория</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.recurring.dialog.category")}</label>
                 <select name="category" defaultValue="SALARY" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-                  {CATEGORY_OPTIONS.map(([value, label]) => (
-                    <option key={value} value={value}>{label}</option>
+                  {EXPENSE_CATEGORY_CODES.map((code) => (
+                    <option key={code} value={code}>{dictLabel(`adminFinance.expenseCategories.${code}`, code)}</option>
                   ))}
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма, ₸ *</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.recurring.dialog.amount")}</label>
                   <Input name="amount" type="number" step="0.01" required />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Число месяца</label>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.recurring.dialog.dayOfMonth")}</label>
                   <Input name="dayOfMonth" type="number" min={1} max={28} defaultValue={1} />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Период повтора</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.recurring.dialog.schedule")}</label>
                 <select name="schedule" defaultValue="always" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-                  <option value="always">Каждый месяц</option>
-                  <option value="winter">Только зимой (окт–апр)</option>
+                  <option value="always">{t("adminFinance.recurring.everyMonth")}</option>
+                  <option value="winter">{t("adminFinance.recurring.winterOnly")}</option>
                 </select>
-                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">«Только зимой» — для отопления: расход создаётся лишь в октябре–апреле.</p>
+                <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("adminFinance.recurring.dialog.scheduleHint")}</p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Описание</label>
-                <Input name="description" placeholder="Необязательно" />
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.recurring.dialog.description")}</label>
+                <Input name="description" placeholder={t("adminFinance.recurring.dialog.descriptionPlaceholder")} />
               </div>
 
               {cashAccounts && cashAccounts.length > 0 && (
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                    Со счёта <span className="text-slate-400 dark:text-slate-500">(автосписание при генерации)</span>
+                    {t("adminFinance.recurring.dialog.account")}{" "}
+                    <span className="text-slate-400 dark:text-slate-500">{t("adminFinance.recurring.dialog.accountHint")}</span>
                   </label>
                   <select name="cashAccountId" defaultValue="" className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
-                    <option value="">Не списывать (просто фиксировать расход)</option>
+                    <option value="">{t("adminFinance.recurring.dialog.accountNone")}</option>
                     {cashAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name} ({a.type === "BANK" ? "Банк" : a.type === "CASH" ? "Касса" : "Карта"})</option>
+                      <option key={a.id} value={a.id}>
+                        {a.name} ({dictLabel(`adminFinance.accountTypes.${a.type}`, a.type)})
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -129,9 +151,9 @@ export function RecurringExpenseDialog({
               {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button type="submit" loading={pending} className="flex-1">
-                  {pending ? "Сохранение..." : "Добавить"}
+                  {pending ? t("common.actions.saving") : t("common.actions.add")}
                 </Button>
               </div>
             </form>
@@ -142,6 +164,7 @@ export function RecurringExpenseDialog({
 
 export function RecurringToggle({ id, isActive }: { id: string; isActive: boolean }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -159,15 +182,16 @@ export function RecurringToggle({ id, isActive }: { id: string; isActive: boolea
           ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
           : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-400"
       }`}
-      title={isActive ? "Активен — нажмите, чтобы приостановить" : "Приостановлен — нажмите, чтобы включить"}
+      title={isActive ? t("adminFinance.recurring.activeHint") : t("adminFinance.recurring.pausedHint")}
     >
-      {isActive ? "Активен" : "Пауза"}
+      {isActive ? t("adminFinance.recurring.active") : t("adminFinance.recurring.paused")}
     </button>
   )
 }
 
-export function GenerateRecurringButton({ period }: { period: string }) {
+export function GenerateRecurringButton({ period, periodLabel }: { period: string; periodLabel: string }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [result, setResult] = useState<string | null>(null)
 
@@ -181,14 +205,18 @@ export function GenerateRecurringButton({ period }: { period: string }) {
         onClick={() =>
           startTransition(async () => {
             const r = await generateRecurringExpensesNow(period)
-            setResult(r.created > 0 ? `✓ Создано ${r.created} расходов за ${period}` : "Расходы за этот месяц уже созданы")
+            setResult(
+              r.created > 0
+                ? t("adminFinance.recurring.generate.done", { count: r.created, period: periodLabel })
+                : t("adminFinance.recurring.generate.nothing"),
+            )
             router.refresh()
             setTimeout(() => setResult(null), 4000)
           })
         }
       >
         <Repeat className="h-4 w-4" />
-        {pending ? "Генерация..." : `Сгенерировать за ${period}`}
+        {pending ? t("adminFinance.recurring.generate.pending") : t("adminFinance.recurring.generate.trigger", { period: periodLabel })}
       </Button>
     </div>
   )

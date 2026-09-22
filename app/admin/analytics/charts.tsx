@@ -4,17 +4,34 @@
 // в стиле проекта (как occupancy-heatmap). Тема-aware через currentColor/палитру.
 
 import { useId } from "react"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+
+/** «сен. 26» — короткая подпись месяца на оси графика, на языке пользователя. */
+function monthShortL(locale: Locale, period: string): string {
+  const [year, month] = period.split("-").map(Number)
+  const name = new Date(year, month - 1, 1).toLocaleDateString(INTL_LOCALE[locale], { month: "short" })
+  return `${name} ${String(year).slice(2)}`
+}
+import { formatMoneyL } from "@/lib/i18n/format"
 
 const PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#64748b"]
 
-function fmtCompact(n: number): string {
-  const a = Math.abs(n)
-  if (a >= 1_000_000) return `${(n / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1)} млн`
-  if (a >= 1_000) return `${Math.round(n / 1000)}k`
-  return String(Math.round(n))
+/** Короткая подпись на оси: «12,5 млн», «340k», «820». */
+function useCompact() {
+  const { t } = useT()
+  return (n: number) => {
+    const a = Math.abs(n)
+    if (a >= 1_000_000) return t("adminFinance.charts.million", { value: (n / 1_000_000).toFixed(a >= 10_000_000 ? 0 : 1) })
+    if (a >= 1_000) return `${Math.round(n / 1000)}k`
+    return String(Math.round(n))
+  }
 }
-function fmtFull(n: number): string {
-  return new Intl.NumberFormat("ru-RU").format(Math.round(n)) + " ₸"
+
+/** Полная сумма в тултипе. */
+function useFull() {
+  const locale = useLocale()
+  return (n: number) => formatMoneyL(locale, Math.round(n))
 }
 
 // ──────────── Водопад: Доход → −Расход → −Налог → Прибыль ────────────
@@ -30,6 +47,9 @@ export function Waterfall({
   tax: number
   net: number
 }) {
+  const { t } = useT()
+  const fmtCompact = useCompact()
+  const fmtFull = useFull()
   const W = 520
   const H = 240
   const padT = 24
@@ -40,10 +60,10 @@ export function Waterfall({
 
   // top/bottom — границы столбца; end — накопленный итог после столбца (для коннектора).
   const cols = [
-    { key: "income", label: "Доход", color: "#10b981", top: income, bottom: 0, value: income, end: income },
-    { key: "expense", label: "Расход", color: "#ef4444", top: income, bottom: income - expense, value: -expense, end: income - expense },
-    { key: "tax", label: "Налог", color: "#f59e0b", top: income - expense, bottom: net, value: -tax, end: net },
-    { key: "net", label: "Прибыль", color: net >= 0 ? "#3b82f6" : "#ef4444", top: Math.max(net, 0), bottom: Math.min(net, 0), value: net, end: net },
+    { key: "income", label: t("adminFinance.charts.income"), color: "#10b981", top: income, bottom: 0, value: income, end: income },
+    { key: "expense", label: t("adminFinance.charts.expense"), color: "#ef4444", top: income, bottom: income - expense, value: -expense, end: income - expense },
+    { key: "tax", label: t("adminFinance.charts.tax"), color: "#f59e0b", top: income - expense, bottom: net, value: -tax, end: net },
+    { key: "net", label: t("adminFinance.charts.profit"), color: net >= 0 ? "#3b82f6" : "#ef4444", top: Math.max(net, 0), bottom: Math.min(net, 0), value: net, end: net },
   ]
 
   const slot = W / cols.length
@@ -76,7 +96,7 @@ export function Waterfall({
                 />
               )}
               <rect x={cx - barW / 2} y={yTop} width={barW} height={h} rx={3} fill={c.color}>
-                <title>{`${c.label}: ${fmtFull(Math.abs(c.value))}`}</title>
+                <title>{t("adminFinance.charts.tooltip", { label: c.label, amount: fmtFull(Math.abs(c.value)) })}</title>
               </rect>
               {/* сумма над столбцом */}
               <text x={cx} y={yTop - 6} textAnchor="middle" className="fill-slate-700 dark:fill-slate-200" fontSize={12} fontWeight={600}>
@@ -99,21 +119,37 @@ export function Waterfall({
 
 // ───────────────────────── Пончик (структура) ─────────────────────────
 
-export function Donut({ items, empty }: { items: { label: string; amount: number }[]; empty?: string }) {
+export function Donut({ items, empty }: { items: { key: string; label: string; amount: number }[]; empty?: string }) {
+  const { t } = useT()
+  const fmtFull = useFull()
   const total = items.reduce((s, i) => s + i.amount, 0)
   if (total <= 0) {
-    return <div className="flex h-[180px] items-center justify-center text-sm text-slate-400 dark:text-slate-500">{empty ?? "Нет данных за период"}</div>
+    return (
+      <div className="flex h-[180px] items-center justify-center text-sm text-slate-400 dark:text-slate-500">
+        {empty ?? t("adminFinance.charts.noData")}
+      </div>
+    )
   }
   const R = 70
   const STROKE = 28
   const C = 2 * Math.PI * R
   // Накопительные смещения без мутации в рендере (react-hooks/immutability):
   // offset i-го сегмента = сумма долей предыдущих.
+  // label с сервера всегда русский — берём по ключу из словаря, а если такого
+  // ключа нет (редкий вид), оставляем серверную подпись.
+  const labelOf = (it: { key: string; label: string }) => {
+    for (const prefix of ["domain.chargeTypes", "adminFinance.expenseCategories"]) {
+      const full = `${prefix}.${it.key}` as Parameters<typeof t>[0]
+      const translated = t(full)
+      if (translated !== full) return translated
+    }
+    return it.label
+  }
   const fracs = items.map((it) => it.amount / total)
   const segs = items.map((it, i) => {
     const frac = fracs[i]
     const offsetFrac = fracs.slice(0, i).reduce((s, f) => s + f, 0)
-    return { ...it, color: PALETTE[i % PALETTE.length], dash: frac * C, offset: offsetFrac * C, pct: Math.round(frac * 100) }
+    return { ...it, label: labelOf(it), color: PALETTE[i % PALETTE.length], dash: frac * C, offset: offsetFrac * C, pct: Math.round(frac * 100) }
   })
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center">
@@ -152,8 +188,13 @@ export function Donut({ items, empty }: { items: { label: string; amount: number
 export function IncomeExpenseChart({
   months,
 }: {
-  months: { label: string; income: number; expense: number; net: number }[]
+  months: { period: string; label: string; income: number; expense: number; net: number }[]
 }) {
+  const { t } = useT()
+  const locale = useLocale()
+  const monthShort = (period: string) => monthShortL(locale, period)
+  const fmtCompact = useCompact()
+  const fmtFull = useFull()
   const gid = useId()
   const W = 720
   const H = 240
@@ -179,11 +220,12 @@ export function IncomeExpenseChart({
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="h-[240px] w-full min-w-[560px]">
         {/* сетка */}
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => (
-          <g key={t}>
-            <line x1={padL} x2={W - padR} y1={padT + innerH * t} y2={padT + innerH * t} stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth={1} />
-            <text x={padL} y={padT + innerH * t - 3} className="fill-slate-400 dark:fill-slate-500" fontSize={9}>
-              {fmtCompact(maxVal * (1 - t))}
+        {/* Доля высоты названа frac, а не t: иначе перекрывает переводчик. */}
+        {[0, 0.25, 0.5, 0.75, 1].map((frac) => (
+          <g key={frac}>
+            <line x1={padL} x2={W - padR} y1={padT + innerH * frac} y2={padT + innerH * frac} stroke="currentColor" className="text-slate-100 dark:text-slate-800" strokeWidth={1} />
+            <text x={padL} y={padT + innerH * frac - 3} className="fill-slate-400 dark:fill-slate-500" fontSize={9}>
+              {fmtCompact(maxVal * (1 - frac))}
             </text>
           </g>
         ))}
@@ -192,13 +234,13 @@ export function IncomeExpenseChart({
           return (
             <g key={i}>
               <rect x={cx - barW - 1} y={y(m.income)} width={barW} height={padT + innerH - y(m.income)} rx={2} fill="#10b981">
-                <title>{`${m.label} · доход ${fmtFull(m.income)}`}</title>
+                <title>{t("adminFinance.charts.monthIncome", { month: monthShort(m.period), amount: fmtFull(m.income) })}</title>
               </rect>
               <rect x={cx + 1} y={y(m.expense)} width={barW} height={padT + innerH - y(m.expense)} rx={2} fill="#ef4444">
-                <title>{`${m.label} · расход ${fmtFull(m.expense)}`}</title>
+                <title>{t("adminFinance.charts.monthExpense", { month: monthShort(m.period), amount: fmtFull(m.expense) })}</title>
               </rect>
               <text x={cx} y={H - 9} textAnchor="middle" className="fill-slate-500 dark:fill-slate-400" fontSize={9}>
-                {m.label}
+                {monthShort(m.period)}
               </text>
             </g>
           )
@@ -207,15 +249,15 @@ export function IncomeExpenseChart({
         <polyline points={netPts} fill="none" stroke="#3b82f6" strokeWidth={2} />
         {months.map((m, i) => (
           <circle key={i} cx={padL + slot * i + slot / 2} cy={netY(m.net)} r={2.5} fill="#3b82f6">
-            <title>{`${m.label} · прибыль ${fmtFull(m.net)}`}</title>
+            <title>{t("adminFinance.charts.monthNet", { month: m.label, amount: fmtFull(m.net) })}</title>
           </circle>
         ))}
       </svg>
       <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11.5px] text-slate-500 dark:text-slate-400">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Доход</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />Расход</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-blue-500" />Чистая прибыль</span>
-        <span className="ml-auto text-slate-400 dark:text-slate-500" id={gid}>Налог уже вычтен из прибыли</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />{t("adminFinance.charts.income")}</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />{t("adminFinance.charts.expense")}</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-blue-500" />{t("adminFinance.charts.netProfit")}</span>
+        <span className="ml-auto text-slate-400 dark:text-slate-500" id={gid}>{t("adminFinance.charts.taxNote")}</span>
       </div>
     </div>
   )

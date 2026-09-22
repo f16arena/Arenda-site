@@ -9,6 +9,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { buildingScope } from "@/lib/tenant-scope"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { summarizeLayouts } from "@/lib/indoor-map/layout-source"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatNumberL } from "@/lib/i18n/format"
 
 /**
  * 3D-объекты: здания организации, у каждого одна модель в конструкторе.
@@ -17,6 +19,8 @@ import { summarizeLayouts } from "@/lib/indoor-map/layout-source"
 export default async function BuilderObjectsPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const { orgId } = await requireOrgAccess()
 
   const accessibleIds = await getAccessibleBuildingIdsForSession(orgId)
@@ -59,18 +63,18 @@ export default async function BuilderObjectsPage() {
           <Boxes className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">3D-конструктор</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t("adminObjects.builder.title")}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            У каждого здания одна модель. Открывается и сохраняется на месте, копий не плодит.
+            {t("adminObjects.builder.subtitle")}
           </p>
         </div>
       </div>
 
       {objects.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          Ещё нет ни одного здания.{" "}
+          {t("adminObjects.builder.empty")}{" "}
           <Link href="/admin/buildings" className="font-medium text-blue-600 hover:underline">
-            Добавить здание
+            {t("adminObjects.buildingForm.addButton")}
           </Link>
         </div>
       ) : (
@@ -88,27 +92,27 @@ export default async function BuilderObjectsPage() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-slate-50 py-2 dark:bg-slate-800/60">
                   <div className="text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100">{object.floors}</div>
-                  <div className="text-[11px] text-slate-500">этажей</div>
+                  <div className="text-[11px] text-slate-500">{t("adminObjects.spaces.shortFloors")}</div>
                 </div>
                 <div className="rounded-lg bg-slate-50 py-2 dark:bg-slate-800/60">
                   <div className="text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100">{object.spaces}</div>
-                  <div className="text-[11px] text-slate-500">помещений</div>
+                  <div className="text-[11px] text-slate-500">{t("adminObjects.builder.statSpaces")}</div>
                 </div>
                 <div className="rounded-lg bg-slate-50 py-2 dark:bg-slate-800/60">
                   <div className="text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
-                    {object.vacantArea.toFixed(0)}
+                    {formatNumberL(locale, object.vacantArea)}
                   </div>
-                  <div className="text-[11px] text-slate-500">свободно, м²</div>
+                  <div className="text-[11px] text-slate-500">{t("adminObjects.builder.statVacantArea")}</div>
                 </div>
               </div>
 
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {object.layouts.drawn + object.layouts.schema === 0
-                  ? "Планов этажей пока нет — модель начнётся с контура по площадям"
+                  ? t("adminObjects.builder.noLayouts")
                   : [
-                      object.layouts.drawn > 0 ? `${object.layouts.drawn} с планом` : null,
-                      object.layouts.schema > 0 ? `${object.layouts.schema} со схемой` : null,
-                      object.layouts.none > 0 ? `${object.layouts.none} без плана` : null,
+                      object.layouts.drawn > 0 ? t("adminObjects.builder.layoutsDrawn", { count: object.layouts.drawn }) : null,
+                      object.layouts.schema > 0 ? t("adminObjects.builder.layoutsSchema", { count: object.layouts.schema }) : null,
+                      object.layouts.none > 0 ? t("adminObjects.builder.layoutsNone", { count: object.layouts.none }) : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -119,13 +123,13 @@ export default async function BuilderObjectsPage() {
                   href={`/admin/builder/${object.id}`}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
                 >
-                  <Boxes className="h-3.5 w-3.5" /> Открыть конструктор
+                  <Boxes className="h-3.5 w-3.5" /> {t("adminObjects.builder.openBuilder")}
                 </Link>
                 <Link
                   href={`/admin/buildings/${object.id}/map`}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  <MapIcon className="h-3.5 w-3.5" /> Карта этажа
+                  <MapIcon className="h-3.5 w-3.5" /> {t("adminObjects.builder.floorMap")}
                 </Link>
               </div>
             </div>

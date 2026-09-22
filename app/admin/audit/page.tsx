@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils"
 import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
 import { Card } from "@/components/ui/page"
 import { auditSentence, auditTrace, auditWhen } from "@/lib/audit-humanize"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * История действий. Раньше это была таблица с колонками «DELETE»,
@@ -32,13 +33,14 @@ const ACTION_STYLE: Record<string, { icon: React.ElementType; className: string 
   SECURITY: { icon: ShieldAlert, className: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
 }
 
+// Подписи фильтров — из словаря по ключу (adminSettings.audit.filters.*).
 const AUDIT_FILTERS = [
-  { key: "all", label: "Всё", action: null },
-  { key: "delete", label: "Удаления", action: "DELETE" },
-  { key: "permissions", label: "Доступы", action: null },
-  { key: "login", label: "Входы", action: "LOGIN" },
-  { key: "error", label: "Сбои", action: "ERROR" },
-  { key: "security", label: "Безопасность", action: "SECURITY" },
+  { key: "all", action: null },
+  { key: "delete", action: "DELETE" },
+  { key: "permissions", action: null },
+  { key: "login", action: "LOGIN" },
+  { key: "error", action: "ERROR" },
+  { key: "security", action: "SECURITY" },
 ] as const
 
 type AuditFilterKey = (typeof AUDIT_FILTERS)[number]["key"]
@@ -67,6 +69,7 @@ export default async function AuditPage({
 }) {
   await requireOwner()
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
   const resolvedSearchParams = await searchParams
   const selectedFilter = normalizeFilter(resolvedSearchParams?.type)
   const page = normalizePage(resolvedSearchParams?.page)
@@ -107,11 +110,11 @@ export default async function AuditPage({
       <RouteTabs items={HISTORY_TABS} className="mb-2" />
 
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Кто что делал</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.audit.title")}</h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
           {totalAllLogs === 0
-            ? "Действия сотрудников появятся здесь автоматически."
-            : `Записано ${totalAllLogs} действий сотрудников. Ничего нельзя удалить или изменить задним числом.`}
+            ? t("adminSettings.audit.emptyHint")
+            : t("adminSettings.audit.countHint", { count: totalAllLogs })}
         </p>
       </div>
 
@@ -129,7 +132,7 @@ export default async function AuditPage({
                   : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/50",
               )}
             >
-              {filter.label}
+              {t(`adminSettings.audit.filters.${filter.key}`)}
               <span className="ml-2 text-xs text-slate-400">{filterCounts[filter.key]}</span>
             </Link>
           )
@@ -140,7 +143,7 @@ export default async function AuditPage({
         {logs.length === 0 ? (
           <div className="py-16 text-center">
             <History className="mx-auto mb-3 h-10 w-10 text-slate-200 dark:text-slate-700" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">Здесь пока пусто</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminSettings.audit.empty")}</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">

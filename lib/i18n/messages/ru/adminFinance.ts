@@ -435,7 +435,12 @@ export const adminFinance = {
     matched: "сопоставлено: {count}",
     unmatched: "требует ручного выбора: {count}",
     clear: "Очистить",
-    applyTitle: "Импортировать {count} платежей?",
+    applyTitle: plural({
+      one: "Импортировать {count} платёж?",
+      few: "Импортировать {count} платежа?",
+      many: "Импортировать {count} платежей?",
+      other: "Импортировать {count} платежей?",
+    }),
     applyText: "Будут созданы платежи и автоматически закрыты совпадающие начисления.",
     apply: "Импортировать",
     applyShort: "Применить",
@@ -541,6 +546,19 @@ export const adminFinance = {
   analytics: {
     title: "Аналитика",
     subtitleAll: " · все здания",
+    // Период отчёта (?period=…): подписи кнопок. Ключи — из lib/reports/period.
+    periods: {
+      month: "Этот месяц",
+      prev: "Прошлый месяц",
+      quarter: "Квартал",
+      year: "Год",
+    },
+    // Подпись периода внутри фразы: «Поступило за сентябрь».
+    captions: {
+      month: "за {month}",
+      quarter: "за {quarter} квартал {year}",
+      year: "за {year} год",
+    },
     noBuildings: "Нет доступных зданий",
     exportExcel: "Отчёт в Excel",
     received: "Поступило {period}",

@@ -16,23 +16,21 @@ import { cn } from "@/lib/utils"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 
-const statusLabel: Record<string, string> = {
-  NEW: "Новая",
-  REVIEWED: "Рассмотрена",
-  RESOLVED: "Решена",
-}
 const statusColor: Record<string, string> = {
   NEW: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",
   REVIEWED: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",
   RESOLVED: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300",
 }
 
+// Подписи фильтров и статусов — из словаря (ключ фильтра = ключ в словаре).
 const COMPLAINT_FILTERS = [
-  { key: "all", label: "Все", statuses: null },
-  { key: "new", label: "Новые", statuses: ["NEW"] },
-  { key: "reviewed", label: "Рассмотрены", statuses: ["REVIEWED"] },
-  { key: "resolved", label: "Решены", statuses: ["RESOLVED"] },
+  { key: "all", statuses: null },
+  { key: "new", statuses: ["NEW"] },
+  { key: "reviewed", statuses: ["REVIEWED"] },
+  { key: "resolved", statuses: ["RESOLVED"] },
 ] as const
 
 type ComplaintFilterKey = (typeof COMPLAINT_FILTERS)[number]["key"]
@@ -48,6 +46,14 @@ export default async function ComplaintsPage({
   searchParams?: Promise<{ status?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  // «Новая» есть в общем словаре статусов, остальные два — только у жалоб.
+  const statusLabel = (status: string) =>
+    status === "NEW" ? t("domain.statuses.NEW")
+      : status === "REVIEWED" ? t("adminService.complaints.statusReviewed")
+        : status === "RESOLVED" ? t("adminService.complaints.statusResolved")
+          : status
   // Гранулярные права: кнопки-действия показываются только при наличии своего права.
   const session = await auth()
   const caps = session?.user
@@ -95,8 +101,8 @@ export default async function ComplaintsPage({
       <RouteTabs items={SERVICE_TABS} className="mb-2" />
       <PageHeader
         icon={MessagesSquare}
-        title="Жалобы и предложения"
-        subtitle={`${filterCounts.new} новых · ${filterCounts.reviewed} рассмотрено`}
+        title={t("adminService.complaints.title")}
+        subtitle={t("adminService.complaints.subtitle", { new: filterCounts.new, reviewed: filterCounts.reviewed })}
       />
 
       <div className="flex flex-wrap gap-2">
@@ -113,7 +119,7 @@ export default async function ComplaintsPage({
                   : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
               )}
             >
-              {filter.label}
+              {t(`adminService.complaints.filters.${filter.key}`)}
               <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 {filterCounts[filter.key]}
               </span>
@@ -129,21 +135,21 @@ export default async function ComplaintsPage({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {c.user?.name ?? c.name ?? "Аноним"}
+                    {c.user?.name ?? c.name ?? t("adminService.complaints.anonymous")}
                   </p>
                   <Badge className={statusColor[c.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}>
-                    {statusLabel[c.status] ?? c.status}
+                    {statusLabel(c.status)}
                   </Badge>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">{c.text}</p>
                 {c.response && (
                   <div className="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-600 dark:text-slate-400 border-l-2 border-slate-300">
-                    <span className="text-xs text-slate-400 dark:text-slate-500 block mb-1">Ответ администратора:</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500 block mb-1">{t("adminService.complaints.responseTitle")}</span>
                     {c.response}
                   </div>
                 )}
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                  {new Date(c.createdAt).toLocaleDateString("ru-RU")}
+                  {formatDateShortL(locale, c.createdAt)}
                 </p>
               </div>
               {canManage && c.status !== "RESOLVED" && (
@@ -158,20 +164,20 @@ export default async function ComplaintsPage({
             {allComplaints.length === 0 ? (
               <EmptyState
                 icon={<CheckCircle className="h-5 w-5" />}
-                title="Жалоб и предложений пока нет"
-                description="Здесь появятся обращения арендаторов из кабинета. Отвечайте на них в системе, чтобы сохранялась история решения."
+                title={t("adminService.complaints.emptyTitle")}
+                description={t("adminService.complaints.emptyDescription")}
                 actions={[
-                  { href: "/admin/tenants", label: "Открыть арендаторов" },
-                  { href: "/admin/faq", label: "FAQ для арендатора", variant: "secondary" },
+                  { href: "/admin/tenants", label: t("adminService.complaints.emptyOpenTenants") },
+                  { href: "/admin/faq", label: t("adminService.complaints.emptyOpenFaq"), variant: "secondary" },
                 ]}
               />
             ) : (
               <EmptyState
                 icon={<CheckCircle className="h-5 w-5" />}
-                title="В этом фильтре обращений нет"
-                description="Выберите другой статус или вернитесь ко всем жалобам и предложениям."
+                title={t("adminService.complaints.filterEmptyTitle")}
+                description={t("adminService.complaints.filterEmptyDescription")}
                 actions={[
-                  { href: "/admin/complaints", label: "Показать все" },
+                  { href: "/admin/complaints", label: t("adminService.complaints.showAll") },
                 ]}
               />
             )}

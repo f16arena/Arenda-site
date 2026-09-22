@@ -83,7 +83,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="ru" className={`${manrope.variable} h-full`} suppressHydrationWarning>
+    <html lang="kk" className={`${manrope.variable} h-full`} suppressHydrationWarning>
       <head>
         <Script
           id="theme-init"

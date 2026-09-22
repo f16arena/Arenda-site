@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST_TYPE_LABELS } from "@/lib/utils"
+import { STATUS_COLORS, PRIORITY_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { ClipboardList } from "lucide-react"
 import Link from "next/link"
@@ -21,13 +21,24 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 const REQUEST_FILTERS = [
-  { key: "all", label: "Все", statuses: null },
-  { key: "new", label: "Новые", statuses: ["NEW"] },
-  { key: "active", label: "В работе", statuses: ["IN_PROGRESS", "POSTPONED"] },
-  { key: "done", label: "Выполнены", statuses: ["DONE", "CLOSED"] },
+  { key: "all", statuses: null },
+  { key: "new", statuses: ["NEW"] },
+  { key: "active", statuses: ["IN_PROGRESS", "POSTPONED"] },
+  { key: "done", statuses: ["DONE", "CLOSED"] },
+] as const
+
+// Подписи статусов, приоритетов и типов берём из словаря; значение вне списка
+// (старые записи в базе) показываем как есть.
+const STATUS_KEYS = ["NEW", "IN_PROGRESS", "DONE", "CLOSED", "POSTPONED"] as const
+const PRIORITY_KEYS = ["URGENT", "HIGH", "MEDIUM", "LOW"] as const
+const TYPE_KEYS = [
+  "TECHNICAL", "INTERNET", "CLEANING", "QUESTION", "ELECTRICAL",
+  "PLUMBING", "HVAC", "SECURITY", "ADMINISTRATIVE", "MAINTENANCE", "OTHER",
 ] as const
 
 type RequestFilterKey = (typeof REQUEST_FILTERS)[number]["key"]
@@ -59,6 +70,20 @@ export default async function RequestsPage({
   }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
+  const locale = await getLocale()
+  const statusLabel = (value: string) =>
+    STATUS_KEYS.includes(value as (typeof STATUS_KEYS)[number])
+      ? t(`domain.statuses.${value as (typeof STATUS_KEYS)[number]}`)
+      : value
+  const priorityLabel = (value: string) =>
+    PRIORITY_KEYS.includes(value as (typeof PRIORITY_KEYS)[number])
+      ? t(`adminService.requests.priorities.${value as (typeof PRIORITY_KEYS)[number]}`)
+      : value
+  const typeLabel = (value: string) =>
+    TYPE_KEYS.includes(value as (typeof TYPE_KEYS)[number])
+      ? t(`adminService.requests.types.${value as (typeof TYPE_KEYS)[number]}`)
+      : value
   // Гранулярные права: кнопки-действия показываются только при наличии своего права.
   const session = await auth()
   const caps = session?.user
@@ -146,8 +171,8 @@ export default async function RequestsPage({
       <RouteTabs items={SERVICE_TABS} className="mb-2" />
       <PageHeader
         icon={ClipboardList}
-        title="Заявки арендаторов"
-        subtitle={`${filterCounts.new} новых · ${filterCounts.active} в работе`}
+        title={t("adminService.requests.title")}
+        subtitle={t("adminService.requests.subtitle", { new: filterCounts.new, active: filterCounts.active })}
       />
 
       {/* Filters */}
@@ -171,7 +196,7 @@ export default async function RequestsPage({
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
                 )}
               >
-                {filter.label}
+                {t(`adminService.requests.filters.${filter.key}`)}
                 <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                   {filterCounts[filter.key]}
                 </span>
@@ -180,23 +205,18 @@ export default async function RequestsPage({
           })}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Приоритет:</span>
-          {[
-            { value: "", label: "Все" },
-            { value: "URGENT", label: "Срочно" },
-            { value: "HIGH", label: "Высокий" },
-            { value: "MEDIUM", label: "Средний" },
-            { value: "LOW", label: "Низкий" },
-          ].map((p) => {
-            const active = (selectedPriority || "") === p.value
+          <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500">{t("adminService.requests.priorityLabel")}</span>
+          {(["all", ...PRIORITY_KEYS] as const).map((key) => {
+            const value = key === "all" ? "" : key
+            const active = (selectedPriority || "") === value
             const params = new URLSearchParams()
             if (selectedFilter !== "all") params.set("status", selectedFilter)
-            if (p.value) params.set("priority", p.value)
+            if (value) params.set("priority", value)
             if (selectedType) params.set("type", selectedType)
             const qs = params.toString()
             return (
               <Link
-                key={p.value || "all-priority"}
+                key={key}
                 href={qs ? `/admin/requests?${qs}` : "/admin/requests"}
                 className={cn(
                   "text-[11px] rounded-full px-2.5 py-0.5 border transition-colors",
@@ -205,7 +225,7 @@ export default async function RequestsPage({
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:bg-slate-800/60",
                 )}
               >
-                {p.label}
+                {t(`adminService.requests.priorities.${key}`)}
               </Link>
             )
           })}
@@ -217,12 +237,12 @@ export default async function RequestsPage({
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Заявка</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Арендатор</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тип</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Приоритет</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Дата</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminService.requests.columns.request")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminService.requests.columns.tenant")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminService.requests.columns.type")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminService.requests.columns.priority")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminService.requests.columns.status")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminService.requests.columns.date")}</th>
               <th className="px-5 py-3" />
             </tr>
           </thead>
@@ -237,27 +257,27 @@ export default async function RequestsPage({
                 </td>
                 <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{r.tenant.companyName}</td>
                 <td className="px-5 py-3.5 text-slate-500 dark:text-slate-400">
-                  {REQUEST_TYPE_LABELS[r.type] ?? r.type}
+                  {typeLabel(r.type)}
                 </td>
                 <td className="px-5 py-3.5">
                   <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", PRIORITY_COLORS[r.priority])}>
-                    {PRIORITY_LABELS[r.priority] ?? r.priority}
+                    {priorityLabel(r.priority)}
                   </span>
                 </td>
                 <td className="px-5 py-3.5">
                   <span className={cn("px-2 py-0.5 rounded-full text-xs font-medium", STATUS_COLORS[r.status])}>
-                    {STATUS_LABELS[r.status] ?? r.status}
+                    {statusLabel(r.status)}
                   </span>
                 </td>
                 <td className="px-5 py-3.5 text-slate-400 dark:text-slate-500 text-xs">
-                  {new Date(r.createdAt).toLocaleDateString("ru-RU")}
+                  {formatDateShortL(locale, r.createdAt)}
                 </td>
                 <td className="px-5 py-3.5">
                   {caps.has("requests.manage") && (
                     <DeleteAction
                       action={deleteRequest.bind(null, r.id)}
-                      entity="заявку"
-                      successMessage="Заявка удалена"
+                      entity={t("adminService.requests.deleteEntity")}
+                      successMessage={t("adminService.requests.deleted")}
                     />
                   )}
                 </td>
@@ -269,20 +289,20 @@ export default async function RequestsPage({
                   {totalAllRequests === 0 ? (
                     <EmptyState
                       icon={<ClipboardList className="h-5 w-5" />}
-                      title="Заявок пока нет"
-                      description="Заявки появятся здесь, когда арендатор отправит обращение из кабинета. Проверьте, что у арендаторов есть доступ и они знают, где создать заявку."
+                      title={t("adminService.requests.emptyTitle")}
+                      description={t("adminService.requests.emptyDescription")}
                       actions={[
-                        { href: "/admin/tenants", label: "Открыть арендаторов" },
-                        { href: "/admin/faq", label: "FAQ для инструкции", variant: "secondary" },
+                        { href: "/admin/tenants", label: t("adminService.requests.emptyOpenTenants") },
+                        { href: "/admin/faq", label: t("adminService.requests.emptyOpenFaq"), variant: "secondary" },
                       ]}
                     />
                   ) : (
                     <EmptyState
                       icon={<ClipboardList className="h-5 w-5" />}
-                      title="В этом фильтре заявок нет"
-                      description="Выберите другой статус или вернитесь ко всем заявкам, чтобы увидеть полный список обращений."
+                      title={t("adminService.requests.filterEmptyTitle")}
+                      description={t("adminService.requests.filterEmptyDescription")}
                       actions={[
-                        { href: "/admin/requests", label: "Показать все" },
+                        { href: "/admin/requests", label: t("adminService.requests.showAll") },
                       ]}
                     />
                   )}

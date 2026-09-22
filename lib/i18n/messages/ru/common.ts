@@ -20,6 +20,14 @@ export const common = {
     more: "Ещё",
     all: "Все",
   },
+  deleteDialog: {
+    entity: "элемент",
+    title: "Удалить {entity}?",
+    ariaLabel: "Удалить {entity}",
+    description: "Это действие нельзя отменить.",
+    success: "Удалено",
+    failed: "Не удалось удалить",
+  },
   state: {
     loading: "Загрузка…",
     empty: "Пока пусто",

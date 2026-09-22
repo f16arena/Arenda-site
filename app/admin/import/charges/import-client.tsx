@@ -4,6 +4,8 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { Upload, Loader2, AlertCircle, Check, X, FileSpreadsheet } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 import {
   previewChargeImport,
   applyChargeImport,
@@ -13,17 +15,32 @@ import {
 
 type Stage = "select" | "preview" | "applying" | "done"
 
-function money(v: number): string {
-  return `${Math.round(v).toLocaleString("ru-RU")} ₸`
-}
+// Вид начисления распознаётся кодом (см. mapType в app/actions/import-charges.ts),
+// подпись берём из общего словаря видов начислений.
+const CHARGE_TYPE_KEYS = ["RENT", "ELECTRICITY", "WATER", "HEATING", "CLEANING", "SERVICE_FEE", "PENALTY", "DEPOSIT", "OTHER"] as const
+type ChargeTypeKey = (typeof CHARGE_TYPE_KEYS)[number]
+
+// Обязательные колонки приходят именами полей — показываем их по-человечески.
+const FIELD_LABEL_KEYS = { period: "fieldPeriod", amount: "fieldAmount" } as const
 
 export function ImportChargesClient() {
   const router = useRouter()
+  const { t, locale } = useT()
   const [stage, setStage] = useState<Stage>("select")
   const [pending, startTransition] = useTransition()
   const [fileName, setFileName] = useState<string | null>(null)
   const [preview, setPreview] = useState<ChargePreviewResult | null>(null)
   const [result, setResult] = useState<ChargeImportResult | null>(null)
+
+  const typeLabel = (value: string) =>
+    CHARGE_TYPE_KEYS.includes(value as ChargeTypeKey)
+      ? t(`domain.chargeTypes.${value as ChargeTypeKey}`)
+      : value
+
+  const fieldLabel = (field: string) => {
+    const key = FIELD_LABEL_KEYS[field as keyof typeof FIELD_LABEL_KEYS]
+    return key ? t(`adminSettings.import.file.${key}`) : field
+  }
 
   function handleFile(file: File | null | undefined) {
     if (!file) return
@@ -36,7 +53,7 @@ export function ImportChargesClient() {
         setPreview(p)
         setStage("preview")
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Ошибка чтения файла")
+        toast.error(e instanceof Error ? e.message : t("adminSettings.import.file.readError"))
         setFileName(null)
         setPreview(null)
       }
@@ -51,9 +68,9 @@ export function ImportChargesClient() {
         const r = await applyChargeImport(preview.validRows)
         setResult(r)
         setStage("done")
-        if (r.created > 0) toast.success(`Создано начислений: ${r.created}`)
+        if (r.created > 0) toast.success(t("adminSettings.import.file.createdCharges", { count: r.created }))
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Ошибка импорта")
+        toast.error(e instanceof Error ? e.message : t("adminSettings.import.file.importError"))
         setStage("preview")
       }
     })
@@ -75,13 +92,13 @@ export function ImportChargesClient() {
             {pending ? (
               <>
                 <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 animate-spin" />
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Парсим файл...</p>
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-200">{t("adminSettings.import.file.parsing")}</p>
               </>
             ) : (
               <>
                 <Upload className="h-10 w-10 text-slate-400 dark:text-slate-500" />
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Перетащите файл сюда или нажмите чтобы выбрать</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Поддерживаются .xlsx, .xls, .csv до 10 МБ</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("adminSettings.import.file.drop")}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("adminSettings.import.file.formats")}</p>
               </>
             )}
           </div>
@@ -92,15 +109,14 @@ export function ImportChargesClient() {
 
   if (stage === "preview" && preview) {
     if (preview.unmappedFields.length > 0) {
-      const ru: Record<string, string> = { period: "Период", amount: "Сумма" }
       return (
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-5">
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">Не найдены обязательные колонки</p>
-              <p className="text-sm text-red-800 dark:text-red-200 mb-3">Нужны: <b>{preview.unmappedFields.map((f) => ru[f] ?? f).join(", ")}</b>.</p>
-              <button onClick={reset} className="text-xs text-red-700 dark:text-red-300 hover:underline font-medium">Загрузить другой файл</button>
+              <p className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">{t("adminSettings.import.file.missingTitle")}</p>
+              <p className="text-sm text-red-800 dark:text-red-200 mb-3">{t("adminSettings.import.file.missingNeeded", { fields: preview.unmappedFields.map(fieldLabel).join(", ") })}</p>
+              <button onClick={reset} className="text-xs text-red-700 dark:text-red-300 hover:underline font-medium">{t("adminSettings.import.file.loadAnother")}</button>
             </div>
           </div>
         </div>
@@ -115,28 +131,35 @@ export function ImportChargesClient() {
             <div className="flex items-center gap-2 text-sm">
               <FileSpreadsheet className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <span className="font-medium text-slate-900 dark:text-slate-100">{fileName}</span>
-              <button onClick={reset} aria-label="Сбросить" className="text-slate-400 dark:text-slate-500 hover:text-red-500"><X className="h-4 w-4" /></button>
+              <button onClick={reset} aria-label={t("adminSettings.import.file.reset")} className="text-slate-400 dark:text-slate-500 hover:text-red-500"><X className="h-4 w-4" /></button>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Stat label="Всего строк" value={String(preview.totalRows)} />
-            <Stat label="Готовы" value={String(preview.validRows.length)} color="emerald" />
-            <Stat label="С ошибками" value={String(preview.invalidRows.length)} color={preview.invalidRows.length > 0 ? "red" : "slate"} />
+            <Stat label={t("adminSettings.import.file.totalRows")} value={String(preview.totalRows)} />
+            <Stat label={t("adminSettings.import.file.ready")} value={String(preview.validRows.length)} color="emerald" />
+            <Stat label={t("adminSettings.import.file.withErrors")} value={String(preview.invalidRows.length)} color={preview.invalidRows.length > 0 ? "red" : "slate"} />
           </div>
           {unpaid.length > 0 && (
-            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">⚠ Неоплаченных: {unpaid.length} на {money(unpaidSum)} — увеличит долг арендаторов.</p>
+            <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">{t("adminSettings.import.file.unpaidWarning", { count: unpaid.length, sum: formatMoneyL(locale, unpaidSum) })}</p>
           )}
         </div>
 
         {preview.validRows.length > 0 && (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Превью (первые 10 из {preview.validRows.length})</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{t("adminSettings.import.file.previewShort", { count: preview.validRows.length })}</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/50">
-                  <tr><Th>Стр.</Th><Th>Арендатор</Th><Th>Период</Th><Th>Тип</Th><Th>Сумма</Th><Th>Оплачено</Th></tr>
+                  <tr>
+                    <Th>{t("adminSettings.import.file.cols.row")}</Th>
+                    <Th>{t("adminSettings.import.file.cols.tenant")}</Th>
+                    <Th>{t("adminSettings.import.file.cols.period")}</Th>
+                    <Th>{t("adminSettings.import.file.cols.type")}</Th>
+                    <Th>{t("adminSettings.import.file.cols.amount")}</Th>
+                    <Th>{t("adminSettings.import.file.cols.paid")}</Th>
+                  </tr>
                 </thead>
                 <tbody>
                   {preview.validRows.slice(0, 10).map((r) => (
@@ -144,8 +167,8 @@ export function ImportChargesClient() {
                       <td className="px-3 py-2 text-slate-400 dark:text-slate-500">{r.rowIndex}</td>
                       <td className="px-3 py-2 text-slate-900 dark:text-slate-100">{r.data.tenantCompany}</td>
                       <td className="px-3 py-2 font-mono text-slate-600 dark:text-slate-400">{r.data.period}</td>
-                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{r.data.type}</td>
-                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{money(r.data.amount)}</td>
+                      <td className="px-3 py-2 text-slate-600 dark:text-slate-400">{typeLabel(r.data.type)}</td>
+                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{formatMoneyL(locale, r.data.amount)}</td>
                       <td className="px-3 py-2">{r.data.isPaid ? "✅" : "—"}</td>
                     </tr>
                   ))}
@@ -157,20 +180,20 @@ export function ImportChargesClient() {
 
         {preview.invalidRows.length > 0 && (
           <details className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
-            <summary className="text-sm font-medium text-red-900 dark:text-red-200 cursor-pointer">Строки с ошибками ({preview.invalidRows.length}) — будут пропущены</summary>
+            <summary className="text-sm font-medium text-red-900 dark:text-red-200 cursor-pointer">{t("adminSettings.import.file.errorRows", { count: preview.invalidRows.length })}</summary>
             <ul className="mt-3 space-y-1 text-xs">
               {preview.invalidRows.slice(0, 50).map((e) => (
-                <li key={e.rowIndex} className="text-red-700 dark:text-red-300">Строка <span className="font-mono">{e.rowIndex}</span>: {e.error}</li>
+                <li key={e.rowIndex} className="text-red-700 dark:text-red-300">{t("adminSettings.import.file.row")} <span className="font-mono">{e.rowIndex}</span>: {e.error}</li>
               ))}
             </ul>
           </details>
         )}
 
         <div className="flex justify-end gap-2">
-          <button onClick={reset} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">Отмена</button>
+          <button onClick={reset} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">{t("adminSettings.import.file.cancel")}</button>
           <button onClick={applyImport} disabled={preview.validRows.length === 0 || pending} className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-5 py-2 text-sm font-medium text-white inline-flex items-center gap-2">
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Импортировать {preview.validRows.length}
+            {t("adminSettings.import.file.importShort", { count: preview.validRows.length })}
           </button>
         </div>
       </div>
@@ -181,7 +204,7 @@ export function ImportChargesClient() {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-10 text-center">
         <Loader2 className="h-10 w-10 text-blue-600 dark:text-blue-400 mx-auto mb-3 animate-spin" />
-        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Сохраняем в БД...</p>
+        <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t("adminSettings.import.file.saving")}</p>
       </div>
     )
   }
@@ -192,27 +215,27 @@ export function ImportChargesClient() {
         <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-5">
           <div className="flex items-center gap-3 mb-3">
             <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Импорт завершён</p>
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">{t("adminSettings.import.file.done")}</p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <Stat label="Создано" value={String(result.created)} color="emerald" />
-            <Stat label="Пропущено (дубли)" value={String(result.skipped)} />
-            <Stat label="Ошибок" value={String(result.errors.length)} color={result.errors.length > 0 ? "red" : "slate"} />
+            <Stat label={t("adminSettings.import.file.created")} value={String(result.created)} color="emerald" />
+            <Stat label={t("adminSettings.import.file.skipped")} value={String(result.skipped)} />
+            <Stat label={t("adminSettings.import.file.errors")} value={String(result.errors.length)} color={result.errors.length > 0 ? "red" : "slate"} />
           </div>
         </div>
         {result.errors.length > 0 && (
           <details className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
-            <summary className="text-sm font-medium text-red-900 dark:text-red-200 cursor-pointer">Ошибки ({result.errors.length})</summary>
+            <summary className="text-sm font-medium text-red-900 dark:text-red-200 cursor-pointer">{t("adminSettings.import.file.errorsShort", { count: result.errors.length })}</summary>
             <ul className="mt-3 space-y-1 text-xs">
               {result.errors.map((e) => (
-                <li key={e.rowIndex} className="text-red-700 dark:text-red-300">Строка <span className="font-mono">{e.rowIndex}</span>: {e.error}</li>
+                <li key={e.rowIndex} className="text-red-700 dark:text-red-300">{t("adminSettings.import.file.row")} <span className="font-mono">{e.rowIndex}</span>: {e.error}</li>
               ))}
             </ul>
           </details>
         )}
         <div className="flex gap-2 justify-end">
-          <button onClick={reset} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">Ещё файл</button>
-          <button onClick={() => router.push("/admin/finances")} className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-medium text-white">К финансам →</button>
+          <button onClick={reset} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50">{t("adminSettings.import.file.loadMoreShort")}</button>
+          <button onClick={() => router.push("/admin/finances")} className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2 text-sm font-medium text-white">{t("adminSettings.import.file.goFinances")}</button>
         </div>
       </div>
     )

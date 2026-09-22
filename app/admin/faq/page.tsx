@@ -10,11 +10,13 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import { FaqManager } from "./faq-manager"
 import { PageHeader } from "@/components/ui/page"
+import { getT } from "@/lib/i18n/server"
 
 export default async function AdminFaqPage() {
   const session = await auth()
   if (!session) redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   const caps = new Set(
     await getAllowedCapabilityKeysForUser({
@@ -39,8 +41,8 @@ export default async function AdminFaqPage() {
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
         icon={CircleHelp}
-        title="FAQ и инструкции"
-        subtitle="Быстрые ответы по работе владельца и администратора в Commrent."
+        title={t("adminService.faq.title")}
+        subtitle={t("adminService.faq.subtitle")}
       />
 
       <FaqSearch

@@ -7,6 +7,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { spaceScope } from "@/lib/tenant-scope"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
+import { getT } from "@/lib/i18n/server"
 import { TenantWizard } from "./tenant-wizard"
 
 /**
@@ -14,6 +15,7 @@ import { TenantWizard } from "./tenant-wizard"
  * Один поток вместо четырёх форм, данные вводятся один раз (аудит 2026-06-10, п.11).
  */
 export default async function NewTenantWizardPage({ searchParams }: { searchParams: Promise<{ space?: string }> }) {
+  const { t } = await getT()
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
   const { orgId } = await requireOrgAccess()
@@ -44,9 +46,9 @@ export default async function NewTenantWizardPage({ searchParams }: { searchPara
     <div className="mx-auto max-w-6xl space-y-6">
       <Breadcrumbs
         items={[
-          { label: "Главная", href: "/admin" },
-          { label: "Арендаторы", href: "/admin/tenants" },
-          { label: "Мастер заселения" },
+          { label: t("adminTenants.wizard.home"), href: "/admin" },
+          { label: t("adminTenants.wizard.tenants"), href: "/admin/tenants" },
+          { label: t("adminTenants.wizard.breadcrumb") },
         ]}
       />
       <TenantWizard

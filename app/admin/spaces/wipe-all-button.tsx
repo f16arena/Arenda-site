@@ -65,10 +65,10 @@ export function WipeAllSpacesButton({
                 </div>
                 <div>
                   <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                    Очистить все помещения?
+                    {t("adminObjects.wipeSpaces.title")}
                   </h2>
                   <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                    Здание: {buildingName}
+                    {t("adminObjects.wipeSpaces.building", { building: buildingName })}
                   </p>
                 </div>
               </div>
@@ -81,7 +81,7 @@ export function WipeAllSpacesButton({
                   }
                 }}
                 className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
-                aria-label="Закрыть"
+                aria-label={t("common.actions.close")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -89,18 +89,17 @@ export function WipeAllSpacesButton({
 
             <div className="space-y-4 px-5 py-4">
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                Это удалит все созданные помещения в выбранном здании, если они не привязаны к арендаторам.
-                Если хотя бы одно помещение занято арендатором или этаж сдан целиком, система заблокирует очистку.
+                {t("adminObjects.wipeSpaces.warning")}
               </div>
 
               <div className="text-sm text-slate-600 dark:text-slate-300">
-                <p>Будет проверено помещений: <b>{spacesCount}</b>.</p>
-                <p className="mt-1">Этажи и само здание не удаляются, но записи помещений восстановить автоматически нельзя.</p>
+                <p>{t("adminObjects.wipeSpaces.willCheck")}<b>{spacesCount}</b>.</p>
+                <p className="mt-1">{t("adminObjects.wipeSpaces.keepNote")}</p>
               </div>
 
               <div>
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-                  Для подтверждения напишите: <span className="font-semibold text-slate-900 dark:text-slate-100">удалить</span>
+                  {t("adminObjects.wipeSpaces.confirmLabel")}<span className="font-semibold text-slate-900 dark:text-slate-100">{confirmWord}</span>
                 </label>
                 <Input
                   value={confirmText}
@@ -122,7 +121,7 @@ export function WipeAllSpacesButton({
                 }}
                 disabled={pending}
               >
-                Отмена
+                {t("common.actions.cancel")}
               </Button>
               <Button
                 type="button"
@@ -133,7 +132,7 @@ export function WipeAllSpacesButton({
                 leftIcon={<Trash2 className="h-4 w-4" />}
                 className="font-medium"
               >
-                {pending ? "Удаление..." : "Удалить помещения"}
+                {pending ? t("adminObjects.wipeSpaces.deleting") : t("adminObjects.wipeSpaces.submit")}
               </Button>
             </div>
           </ModalShell>

@@ -5,6 +5,8 @@ import { Package, Send, CheckCircle2, Clock, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { requestAddon } from "@/app/actions/addons"
 import type { AddonCatalogItem } from "@/lib/addons-catalog"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 type ActiveAddon = {
   id: string
@@ -22,13 +24,14 @@ type ActiveAddon = {
  * и шлёт уведомление супер-админу.
  */
 export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]; active: ActiveAddon[] }) {
+  const { t, locale } = useT()
   const [pending, startTransition] = useTransition()
 
   function order(code: string, label: string) {
     startTransition(async () => {
       const r = await requestAddon({ addonCode: code, quantity: 1 })
-      if (r.ok) toast.success(`Заявка отправлена: «${label}». Супер-админ получит уведомление.`)
-      else toast.error(r.error ?? "Не удалось отправить заявку")
+      if (r.ok) toast.success(t("adminSettings.subscription.addons.ordered", { name: label }))
+      else toast.error(r.error ?? t("adminSettings.subscription.addons.orderError"))
     })
   }
 
@@ -38,7 +41,7 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
             <Package className="h-4 w-4 text-slate-400" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ваши аддоны</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.subscription.addons.mine")}</h2>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {active.map((a) => {
@@ -48,11 +51,11 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{item?.label ?? a.addonCode}{a.quantity > 1 ? ` × ${a.quantity}` : ""}</p>
                     <p className="text-xs text-slate-500">
-                      {a.priceMonthly.toLocaleString("ru-RU")} ₸/мес ·
+                      {formatMoneyL(locale, a.priceMonthly)}{t("common.money.perMonth")} ·
                       {a.isActive ? (
-                        <span className="ml-1 inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" />активен</span>
+                        <span className="ml-1 inline-flex items-center gap-1 text-emerald-400"><CheckCircle2 className="h-3 w-3" />{t("adminSettings.subscription.addons.active")}</span>
                       ) : (
-                        <span className="ml-1 inline-flex items-center gap-1 text-amber-400"><Clock className="h-3 w-3" />ожидает подтверждения</span>
+                        <span className="ml-1 inline-flex items-center gap-1 text-amber-400"><Clock className="h-3 w-3" />{t("adminSettings.subscription.addons.awaiting")}</span>
                       )}
                     </p>
                   </div>
@@ -66,10 +69,10 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
           <Package className="h-4 w-4 text-blue-400" />
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Доступные аддоны</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.subscription.addons.available")}</h2>
         </div>
         {catalog.length === 0 ? (
-          <p className="px-5 py-6 text-sm text-slate-500">Для текущего тарифа аддонов нет.</p>
+          <p className="px-5 py-6 text-sm text-slate-500">{t("adminSettings.subscription.addons.none")}</p>
         ) : (
           <div className="grid gap-3 p-5 sm:grid-cols-2">
             {catalog.map((item) => (
@@ -78,7 +81,8 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
                 <p className="mt-1 text-xs text-slate-500 leading-relaxed">{item.description}</p>
                 <div className="mt-3 flex items-center justify-between gap-3">
                   <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    {item.priceMonthly.toLocaleString("ru-RU")} <span className="text-xs font-normal text-slate-500">₸/мес</span>
+                    {formatMoneyL(locale, item.priceMonthly)}
+                    <span className="text-xs font-normal text-slate-500">{t("common.money.perMonth")}</span>
                   </p>
                   <button
                     onClick={() => order(item.code, item.label)}
@@ -86,7 +90,7 @@ export function AddonsSection({ catalog, active }: { catalog: AddonCatalogItem[]
                     className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
                   >
                     {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
-                    Заказать
+                    {t("adminSettings.subscription.addons.order")}
                   </button>
                 </div>
               </div>

@@ -9,6 +9,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
 import { MessageSquare } from "lucide-react"
+import { getT } from "@/lib/i18n/server"
 
 const CHAT_MESSAGE_SOURCE_LIMIT = 300
 
@@ -16,6 +17,7 @@ export default async function AdminMessagesPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   // Гранулярные права: рассылка (broadcast) доступна только при праве messages.send.
   const caps = new Set(await getAllowedCapabilityKeysForUser({
@@ -107,7 +109,11 @@ export default async function AdminMessagesPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader icon={MessageSquare} title="Сообщения" subtitle="Общайтесь с арендаторами и сотрудниками" />
+      <PageHeader
+        icon={MessageSquare}
+        title={t("adminService.messages.title")}
+        subtitle={t("adminService.messages.subtitle")}
+      />
       <ChatViewLoader
         currentUserId={me}
         contacts={contacts}

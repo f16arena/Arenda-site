@@ -9,10 +9,15 @@
  * Файл общий для сервера и клиента: здесь нет ничего, кроме констант.
  */
 
-export const LOCALES = ["ru", "kk"] as const
+// Порядок — как в переключателе: государственный язык первым.
+export const LOCALES = ["kk", "ru"] as const
 export type Locale = (typeof LOCALES)[number]
 
-export const DEFAULT_LOCALE: Locale = "ru"
+/**
+ * Казахский — основной язык продукта: интерфейс и публичные страницы по
+ * умолчанию на государственном языке, русский доступен одним нажатием.
+ */
+export const DEFAULT_LOCALE: Locale = "kk"
 
 /** Cookie с выбранным языком. Год — чтобы не сбрасывался между визитами. */
 export const LOCALE_COOKIE = "locale"
@@ -36,14 +41,14 @@ export const INTL_LOCALE: Record<Locale, string> = {
 
 /** Как язык называет сам себя — для переключателя. */
 export const LOCALE_NAMES: Record<Locale, string> = {
-  ru: "Русский",
   kk: "Қазақша",
+  ru: "Русский",
 }
 
 /** Короткая подпись на кнопке переключателя. */
 export const LOCALE_SHORT: Record<Locale, string> = {
-  ru: "RU",
   kk: "ҚАЗ",
+  ru: "RU",
 }
 
 /**

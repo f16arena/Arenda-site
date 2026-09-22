@@ -24,30 +24,30 @@ import { getReleaseInfo } from "@/lib/release"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { HEALTH_TABS } from "@/lib/hub-tabs"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
+// Только оформление: подписи статусов берём из словаря
+// (adminSettings.systemHealth.statuses) — ключ совпадает со статусом проверки.
 const statusMeta: Record<SystemCheckStatus, {
-  label: string
   icon: typeof CheckCircle2
   box: string
   pill: string
   border: string
 }> = {
   ok: {
-    label: "Работает",
     icon: CheckCircle2,
     box: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300",
     pill: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
     border: "border-emerald-200 dark:border-emerald-500/30",
   },
   warning: {
-    label: "Внимание",
     icon: CircleAlert,
     box: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300",
     pill: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
     border: "border-amber-200 dark:border-amber-500/30",
   },
   error: {
-    label: "Критично",
     icon: AlertTriangle,
     box: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300",
     pill: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
@@ -59,6 +59,8 @@ export default async function SystemHealthPage() {
   await requireSection("analytics", "view")
   await requireOrgAccess()
 
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const [checks, release] = await Promise.all([
     runSystemHealthChecks(),
     getReleaseInfo(),
@@ -71,8 +73,8 @@ export default async function SystemHealthPage() {
       <RouteTabs items={HEALTH_TABS} className="mb-2" />
       <PageHeader
         icon={ShieldCheck}
-        title="Проверка системы"
-        subtitle="Production readiness: база, миграции, env, cron, email, sitemap и журнал ошибок."
+        title={t("adminSettings.systemHealth.title")}
+        subtitle={t("adminSettings.systemHealth.subtitle")}
         actions={
           <>
             <Link
@@ -88,7 +90,7 @@ export default async function SystemHealthPage() {
               className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500"
             >
               <RefreshCw className="h-4 w-4" />
-              Обновить
+              {t("adminSettings.systemHealth.refresh")}
             </Link>
           </>
         }
@@ -101,29 +103,29 @@ export default async function SystemHealthPage() {
             <div>
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                 {summary.status === "ok"
-                  ? "Система готова к работе"
+                  ? t("adminSettings.systemHealth.summaryOk")
                   : summary.status === "warning"
-                    ? "Система работает, но есть предупреждения"
-                    : "Есть критичные проблемы"}
+                    ? t("adminSettings.systemHealth.summaryWarning")
+                    : t("adminSettings.systemHealth.summaryError")}
               </h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Версия сборки: <span className="font-mono">{release.version}</span>
+                {t("adminSettings.systemHealth.version")}: <span className="font-mono">{release.version}</span>
                 {" "}· commit <span className="font-mono">{release.commitShort}</span>
-                {" "}· проверено {formatDateTime(checkedAt)}
+                {" "}· {t("adminSettings.systemHealth.checkedAt", { date: formatDateTime(locale, checkedAt) })}
               </p>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 text-center sm:min-w-80">
-            <SummaryBadge label="OK" value={summary.okCount} tone="emerald" />
-            <SummaryBadge label="Внимание" value={summary.warningCount} tone="amber" />
-            <SummaryBadge label="Критично" value={summary.errorCount} tone="red" />
+            <SummaryBadge label={t("adminSettings.systemHealth.badgeOk")} value={summary.okCount} tone="emerald" />
+            <SummaryBadge label={t("adminSettings.systemHealth.statuses.warning")} value={summary.warningCount} tone="amber" />
+            <SummaryBadge label={t("adminSettings.systemHealth.statuses.error")} value={summary.errorCount} tone="red" />
           </div>
         </div>
       </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {checks.map((check) => (
-          <CheckCard key={check.id} check={check} />
+          <CheckCard key={check.id} check={check} statusLabel={t(`adminSettings.systemHealth.statuses.${check.status}`)} />
         ))}
       </div>
 
@@ -133,9 +135,9 @@ export default async function SystemHealthPage() {
             <Server className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Как пользоваться</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.systemHealth.howTitle")}</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-              Перед push/deploy открывайте эту страницу: если есть красный блок, сначала исправляем его. Желтые блоки не всегда ломают сайт, но это список того, что нужно довести до production-уровня.
+              {t("adminSettings.systemHealth.howText")}
             </p>
           </div>
         </div>
@@ -144,7 +146,7 @@ export default async function SystemHealthPage() {
   )
 }
 
-function CheckCard({ check }: { check: SystemCheck }) {
+function CheckCard({ check, statusLabel }: { check: SystemCheck; statusLabel: string }) {
   const meta = statusMeta[check.status]
   const Icon = meta.icon
 
@@ -159,7 +161,7 @@ function CheckCard({ check }: { check: SystemCheck }) {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</h2>
               <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>
-                {meta.label}
+                {statusLabel}
               </span>
             </div>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{check.message}</p>
@@ -212,8 +214,9 @@ function SummaryBadge({ label, value, tone }: { label: string; value: number; to
   )
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+// Дата и время последней проверки: короткая дата + часы, на языке страницы.
+function formatDateTime(locale: Locale, date: Date) {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

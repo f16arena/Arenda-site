@@ -506,7 +506,7 @@ export default async function SettingsPage({
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminSettings.settings.tariffs.unit")} *</label>
-            <input name="unit" placeholder={t("adminSettings.settings.tariffs.unitPlaceholder")} required defaultValue="ед." className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
+            <input name="unit" placeholder={t("adminSettings.settings.tariffs.unitPlaceholder")} required defaultValue={t("adminSettings.settings.tariffs.unitDefault")} className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none" />
           </div>
           <div className="flex justify-end">
             <button type="submit" className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">

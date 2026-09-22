@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       : Promise.resolve(0),
     db.user.findUnique({
       where: { id: user.id },
-      select: { totpEnabledAt: true },
+      select: { totpEnabledAt: true, locale: true },
     }).catch(() => null),
   ])
 
@@ -57,6 +57,8 @@ export async function GET(req: Request) {
       phone: userPhone,
       role: user.role,
       totpEnabled: !!twoFactor?.totpEnabledAt,
+      // Язык интерфейса из профиля: приложение показывает тот же язык, что и кабинет.
+      locale: twoFactor?.locale ?? "ru",
     },
     organization: org,
     buildings,

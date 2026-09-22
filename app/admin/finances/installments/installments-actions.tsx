@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation"
 import { X, Plus, Check, CalendarClock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CHARGE_TYPES, formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 import {
   getTenantUnpaidChargesForPlan,
   createInstallmentPlan,
@@ -32,6 +33,14 @@ function firstOfNextMonthISO(): string {
 
 export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
   const router = useRouter()
+  const { t } = useT()
+  const locale = useLocale()
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
   const [open, setOpen] = useState(false)
   const [tenantId, setTenantId] = useState("")
   const [charges, setCharges] = useState<ChargeOpt[]>([])
@@ -55,7 +64,7 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
       setCharges(rows)
       setSelected(new Set(rows.map((r) => r.id)))
     } catch {
-      setError("Не удалось загрузить начисления")
+      setError(t("adminFinance.installments.create.loadFailed"))
     } finally {
       setLoadingCharges(false)
     }
@@ -87,28 +96,30 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
     <>
       <Button type="button" onClick={() => setOpen(true)}>
         <Plus className="h-4 w-4" />
-        Оформить рассрочку
+        {t("adminFinance.installments.create.trigger")}
       </Button>
 
       <ModalShell open={open} onClose={() => setOpen(false)} className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900">
-              <h2 className="text-base font-semibold">Рассрочка по долгу</h2>
-              <button type="button" onClick={() => setOpen(false)} aria-label="Закрыть" title="Закрыть">
+              <h2 className="text-base font-semibold">{t("adminFinance.installments.create.title")}</h2>
+              <button type="button" onClick={() => setOpen(false)} aria-label={t("common.actions.close")} title={t("common.actions.close")}>
                 <X className="h-5 w-5 text-slate-400 dark:text-slate-500" />
               </button>
             </div>
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Арендатор-должник *</label>
+                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.installments.create.tenant")}</label>
                 <select
                   value={tenantId}
                   onChange={(e) => onPickTenant(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
                 >
-                  <option value="">Выберите арендатора</option>
+                  <option value="">{t("adminFinance.installments.create.tenantPlaceholder")}</option>
                   {debtors.map((d) => (
-                    <option key={d.id} value={d.id}>{d.companyName} — долг {formatMoney(d.debt)}</option>
+                    <option key={d.id} value={d.id}>
+                      {t("adminFinance.installments.create.tenantOption", { name: d.companyName, amount: money(d.debt) })}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -116,20 +127,20 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
               {tenantId && (
                 <div>
                   <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-                    Начисления в рассрочку {loadingCharges && "(загрузка…)"}
+                    {t("adminFinance.installments.create.charges")} {loadingCharges && t("adminFinance.installments.create.loading")}
                   </label>
                   {charges.length === 0 && !loadingCharges ? (
-                    <p className="text-xs text-slate-400 dark:text-slate-500">Нет подходящих неоплаченных начислений (или все уже в рассрочке).</p>
+                    <p className="text-xs text-slate-400 dark:text-slate-500">{t("adminFinance.installments.create.chargesEmpty")}</p>
                   ) : (
                     <div className="space-y-1.5 max-h-44 overflow-y-auto rounded-lg border border-slate-100 dark:border-slate-800 p-2">
                       {charges.map((c) => (
                         <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
                           <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} className="rounded" />
                           <span className="flex-1">
-                            {CHARGE_TYPES[c.type] ?? c.type} · {c.period}
+                            {chargeTypeLabel(c.type)} · {c.period}
                             {c.description ? ` · ${c.description}` : ""}
                           </span>
-                          <span className="font-medium text-slate-700 dark:text-slate-300">{formatMoney(c.amount)}</span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{money(c.amount)}</span>
                         </label>
                       ))}
                     </div>
@@ -141,7 +152,7 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Число платежей *</label>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.installments.create.count")}</label>
                       <Input
                         type="number"
                         min={2}
@@ -151,7 +162,7 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Первый платёж</label>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.installments.create.firstDue")}</label>
                       <Input
                         type="date"
                         value={firstDue}
@@ -161,16 +172,19 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
                   </div>
 
                   <div className="rounded-lg bg-slate-50 dark:bg-slate-800/40 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
-                    Долг к рассрочке: <span className="font-semibold">{formatMoney(total)}</span> · по{" "}
-                    <span className="font-semibold">{formatMoney(perPayment)}</span> × {count} мес (ежемесячно)
+                    {t("adminFinance.installments.create.summary", {
+                      total: money(total),
+                      perPayment: money(perPayment),
+                      count,
+                    })}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Примечание</label>
+                    <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminFinance.installments.create.note")}</label>
                     <Input
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      placeholder="Необязательно"
+                      placeholder={t("adminFinance.installments.create.notePlaceholder")}
                     />
                   </div>
                 </>
@@ -179,7 +193,7 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
               {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">Отмена</Button>
+                <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">{t("common.actions.cancel")}</Button>
                 <Button
                   type="button"
                   loading={pending}
@@ -205,7 +219,7 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
                     })
                   }
                 >
-                  {pending ? "Создание…" : "Создать рассрочку"}
+                  {pending ? t("adminFinance.installments.create.submitting") : t("adminFinance.installments.create.submit")}
                 </Button>
               </div>
             </div>
@@ -216,6 +230,7 @@ export function CreateInstallmentDialog({ debtors }: { debtors: Debtor[] }) {
 
 export function MarkInstallmentPaidButton({ installmentId }: { installmentId: string }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
@@ -238,7 +253,7 @@ export function MarkInstallmentPaidButton({ installmentId }: { installmentId: st
         className="flex items-center gap-1 text-[11px] rounded-full px-2.5 py-0.5 border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 disabled:opacity-60"
       >
         <Check className="h-3 w-3" />
-        {pending ? "…" : "Оплачен"}
+        {pending ? "…" : t("adminFinance.installments.markPaid")}
       </button>
       {error && <span className="text-[10px] text-red-600 dark:text-red-400">{error}</span>}
     </span>
@@ -247,6 +262,7 @@ export function MarkInstallmentPaidButton({ installmentId }: { installmentId: st
 
 export function CancelPlanButton({ planId }: { planId: string }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -254,17 +270,23 @@ export function CancelPlanButton({ planId }: { planId: string }) {
       type="button"
       disabled={pending}
       onClick={async () => {
-        if (!(await askConfirm({ title: "Отменить рассрочку?", description: "Начисления вернутся в обычный режим — пеня снова будет начисляться.", confirmLabel: "Отменить рассрочку", danger: true }))) return
+        const confirmed = await askConfirm({
+          title: t("adminFinance.installments.cancelTitle"),
+          description: t("adminFinance.installments.cancelText"),
+          confirmLabel: t("adminFinance.installments.cancelConfirm"),
+          danger: true,
+        })
+        if (!confirmed) return
         startTransition(async () => {
           await cancelInstallmentPlan(planId)
           router.refresh()
         })
       }}
       className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400 disabled:opacity-60"
-      title="Отменить рассрочку"
+      title={t("adminFinance.installments.cancelConfirm")}
     >
       <CalendarClock className="h-3 w-3" />
-      Отменить
+      {t("adminFinance.installments.cancel")}
     </button>
   )
 }

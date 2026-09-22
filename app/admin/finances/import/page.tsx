@@ -11,12 +11,14 @@ import { ImportClient } from "./import-client"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 export default async function BankImportPage() {
   const session = await auth()
   if (!session || session.user.role === "TENANT") redirect("/login")
 
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
   const caps = new Set(await getAllowedCapabilityKeysForUser({
     userId: session.user.id,
     role: session.user.role,
@@ -39,12 +41,12 @@ export default async function BankImportPage() {
 
   return (
     <ImportPage
-      title="Платежи из банковской выписки"
-      subtitle="CSV из Kaspi Business или Halyk Online. Платёж находит арендатора по БИН/ИИН в назначении."
+      title={t("adminFinance.import.title")}
+      subtitle={t("adminFinance.import.subtitle")}
       columns={
         <>
-          <p><b>Дата</b>, <b>сумма</b> и <b>назначение платежа</b> — как в выгрузке банка, менять ничего не нужно.</p>
-          <p>Если БИН/ИИН в назначении нет, платёж останется без арендатора — привяжете вручную в списке.</p>
+          <p>{t("adminFinance.import.columnsLine1")}</p>
+          <p>{t("adminFinance.import.columnsLine2")}</p>
         </>
       }
     >

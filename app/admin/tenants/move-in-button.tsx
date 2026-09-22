@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { Wand2 } from "lucide-react"
 import { ModalShell } from "@/components/ui/modal"
 import { TenantWizard } from "./new/tenant-wizard"
+import { useT } from "@/lib/i18n/client"
 
 type WizardSpace = {
   id: string
@@ -21,6 +22,7 @@ type WizardSpace = {
 }
 
 export function MoveInTenantButton({ vacantSpaces }: { vacantSpaces: WizardSpace[] }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const router = useRouter()
 
@@ -30,16 +32,16 @@ export function MoveInTenantButton({ vacantSpaces }: { vacantSpaces: WizardSpace
         type="button"
         onClick={() => setOpen(true)}
         className="order-last inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        title="Заселение за 3 шага: контакты → помещение и условия → договор"
+        title={t("adminTenants.wizard.openHint")}
       >
         <Wand2 className="h-4 w-4" />
-        Заселить арендатора
+        {t("adminTenants.wizard.openButton")}
       </button>
 
       <ModalShell
         open={open}
         onClose={() => { setOpen(false); router.refresh() }}
-        title="Заселить арендатора"
+        title={t("adminTenants.wizard.openButton")}
         className="w-full max-w-5xl rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
       >
         <TenantWizard vacantSpaces={vacantSpaces} onClose={() => { setOpen(false); router.refresh() }} />

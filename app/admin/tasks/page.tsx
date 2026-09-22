@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { db } from "@/lib/db"
-import { formatMoney, STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS } from "@/lib/utils"
+import { STATUS_COLORS, PRIORITY_COLORS } from "@/lib/utils"
 import { Calendar, CheckSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { TaskDialog } from "./task-dialog"
@@ -21,15 +21,22 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { DEFAULT_PAGE_SIZE, normalizePage, pageSkip } from "@/lib/pagination"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatMoneyL, formatDateShortL } from "@/lib/i18n/format"
 import type { Prisma } from "@/app/generated/prisma/client"
 import Link from "next/link"
 
 const TASK_FILTERS = [
-  { key: "all", label: "Все", statuses: null, color: "text-slate-700 dark:text-slate-300" },
-  { key: "new", label: "Новые", statuses: ["NEW"], color: "text-blue-700 dark:text-blue-300" },
-  { key: "active", label: "В работе", statuses: ["IN_PROGRESS"], color: "text-amber-700 dark:text-amber-300" },
-  { key: "done", label: "Выполнены", statuses: ["DONE"], color: "text-emerald-700 dark:text-emerald-300" },
+  { key: "all", statuses: null, color: "text-slate-700 dark:text-slate-300" },
+  { key: "new", statuses: ["NEW"], color: "text-blue-700 dark:text-blue-300" },
+  { key: "active", statuses: ["IN_PROGRESS"], color: "text-amber-700 dark:text-amber-300" },
+  { key: "done", statuses: ["DONE"], color: "text-emerald-700 dark:text-emerald-300" },
 ] as const
+
+// Подписи из словаря; значение вне списка (старые записи) показываем как есть.
+const STATUS_KEYS = ["NEW", "IN_PROGRESS", "DONE", "CLOSED", "POSTPONED"] as const
+const PRIORITY_KEYS = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const
+const CATEGORY_KEYS = ["REPAIR", "PLUMBING", "ELECTRICAL", "CLEANING", "SECURITY", "OTHER"] as const
 
 type TaskFilterKey = (typeof TASK_FILTERS)[number]["key"]
 
@@ -44,6 +51,21 @@ export default async function TasksPage({
   searchParams?: Promise<{ status?: string | string[]; page?: string | string[] }>
 }) {
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
+  const locale = await getLocale()
+  const statusLabel = (value: string) =>
+    STATUS_KEYS.includes(value as (typeof STATUS_KEYS)[number])
+      ? t(`domain.statuses.${value as (typeof STATUS_KEYS)[number]}`)
+      : value
+  // Приоритеты у задач названы как в форме создания — берём подписи оттуда.
+  const priorityLabel = (value: string) =>
+    PRIORITY_KEYS.includes(value as (typeof PRIORITY_KEYS)[number])
+      ? t(`adminService.tasks.dialog.priorities.${value as (typeof PRIORITY_KEYS)[number]}`)
+      : value
+  const categoryLabel = (value: string) =>
+    CATEGORY_KEYS.includes(value as (typeof CATEGORY_KEYS)[number])
+      ? t(`adminService.tasks.categories.${value as (typeof CATEGORY_KEYS)[number]}`)
+      : value
   // Гранулярные права: кнопки-действия показываются только при наличии своего права.
   const session = await auth()
   const caps = session?.user
@@ -146,21 +168,12 @@ export default async function TasksPage({
     done: filterCounts.done,
   }
 
-  const CATEGORY_LABELS: Record<string, string> = {
-    REPAIR: "Ремонт",
-    PLUMBING: "Сантехника",
-    ELECTRICAL: "Электрика",
-    CLEANING: "Уборка",
-    SECURITY: "Безопасность",
-    OTHER: "Прочее",
-  }
-
   return (
     <div className="space-y-5">
       <PageHeader
         icon={CheckSquare}
-        title="Задачи"
-        subtitle={`${stats.total} задач · ${stats.inProgress} в работе`}
+        title={t("adminService.tasks.title")}
+        subtitle={t("adminService.tasks.subtitle", { total: stats.total, inProgress: stats.inProgress })}
         actions={canManage ? <TaskDialog staffUsers={staffUsers} buildings={buildingOptions} currentBuildingId={currentBuildingId} /> : undefined}
       />
 
@@ -179,7 +192,7 @@ export default async function TasksPage({
                 : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50",
             )}
           >
-            {tab.label}
+            {t(`adminService.tasks.filters.${tab.key}`)}
             <span className={`rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-xs font-semibold ${tab.color}`}>
               {filterCounts[tab.key]}
             </span>
@@ -199,14 +212,14 @@ export default async function TasksPage({
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{task.title}</h3>
                   <Badge className={cn(STATUS_COLORS[task.status] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
-                    {STATUS_LABELS[task.status] ?? task.status}
+                    {statusLabel(task.status)}
                   </Badge>
                   <Badge className={cn(PRIORITY_COLORS[task.priority] ?? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400")}>
-                    {PRIORITY_LABELS[task.priority] ?? task.priority}
+                    {priorityLabel(task.priority)}
                   </Badge>
                   {task.category && (
                     <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                      {CATEGORY_LABELS[task.category] ?? task.category}
+                      {categoryLabel(task.category)}
                     </Badge>
                   )}
                 </div>
@@ -214,24 +227,24 @@ export default async function TasksPage({
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{task.description}</p>
                 )}
                 <div className="flex items-center gap-4 mt-2 text-xs text-slate-400 dark:text-slate-500 flex-wrap">
-                  {task.floorNumber !== null && <span>Этаж {task.floorNumber}</span>}
-                  {task.spaceNumber && <span>Каб. {task.spaceNumber}</span>}
-                  {task.assignedTo && <span>Исполнитель: <span className="text-slate-600 dark:text-slate-400">{task.assignedTo.name}</span></span>}
-                  <span>Создал: {task.createdBy.name}</span>
+                  {task.floorNumber !== null && <span>{t("adminService.tasks.floor", { number: task.floorNumber })}</span>}
+                  {task.spaceNumber && <span>{t("adminService.tasks.space", { number: task.spaceNumber })}</span>}
+                  {task.assignedTo && <span>{t("adminService.tasks.assignee")} <span className="text-slate-600 dark:text-slate-400">{task.assignedTo.name}</span></span>}
+                  <span>{t("adminService.tasks.createdBy")} {task.createdBy.name}</span>
                   {task.dueDate && (
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
-                      До {new Date(task.dueDate).toLocaleDateString("ru-RU")}
+                      {t("adminService.tasks.due", { date: formatDateShortL(locale, task.dueDate) })}
                     </span>
                   )}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2 shrink-0">
                 {task.estimatedCost !== null && (
-                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">~{formatMoney(task.estimatedCost)}</p>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300">~{formatMoneyL(locale, task.estimatedCost)}</p>
                 )}
                 {task.actualCost !== null && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500">Факт: {formatMoney(task.actualCost)}</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500">{t("adminService.tasks.fact", { amount: formatMoneyL(locale, task.actualCost) })}</p>
                 )}
                 {/* Quick status change */}
                 {canManage && (
@@ -239,21 +252,21 @@ export default async function TasksPage({
                   {task.status === "NEW" && (
                     <form action={async () => { "use server"; await updateTaskStatus(task.id, "IN_PROGRESS") }}>
                       <button type="submit" className="text-xs px-2 py-1 rounded bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/30">
-                        В работу
+                        {t("adminService.tasks.toWork")}
                       </button>
                     </form>
                   )}
                   {task.status === "IN_PROGRESS" && (
                     <form action={async () => { "use server"; await updateTaskStatus(task.id, "DONE") }}>
                       <button type="submit" className="text-xs px-2 py-1 rounded bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30">
-                        Выполнено
+                        {t("adminService.tasks.markDone")}
                       </button>
                     </form>
                   )}
                   <DeleteAction
                     action={deleteTask.bind(null, task.id)}
-                    entity="задачу"
-                    successMessage="Задача удалена"
+                    entity={t("adminService.tasks.deleteEntity")}
+                    successMessage={t("adminService.tasks.deleted")}
                   />
                 </div>
                 )}
@@ -267,20 +280,20 @@ export default async function TasksPage({
             {totalAllTasks === 0 ? (
               <EmptyState
                 icon={<CheckSquare className="h-5 w-5" />}
-                title="Задач пока нет"
-                description="Создавайте задачи на ремонт, обслуживание, уборку и другие работы по зданию, чтобы видеть ответственного, срок и статус."
+                title={t("adminService.tasks.emptyTitle")}
+                description={t("adminService.tasks.emptyDescription")}
                 actions={[
-                  { href: "/admin/staff", label: "Проверить сотрудников" },
-                  { href: "/admin/faq", label: "Как вести задачи", variant: "secondary" },
+                  { href: "/admin/staff", label: t("adminService.tasks.emptyCheckStaff") },
+                  { href: "/admin/faq", label: t("adminService.tasks.emptyHowTo"), variant: "secondary" },
                 ]}
               />
             ) : (
               <EmptyState
                 icon={<CheckSquare className="h-5 w-5" />}
-                title="В этом фильтре задач нет"
-                description="Выберите другой статус или вернитесь ко всем задачам, чтобы увидеть полный список работ."
+                title={t("adminService.tasks.filterEmptyTitle")}
+                description={t("adminService.tasks.filterEmptyDescription")}
                 actions={[
-                  { href: "/admin/tasks", label: "Показать все" },
+                  { href: "/admin/tasks", label: t("adminService.tasks.showAll") },
                 ]}
               />
             )}

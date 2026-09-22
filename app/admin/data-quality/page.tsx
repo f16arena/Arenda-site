@@ -15,7 +15,8 @@ import { requireSection } from "@/lib/acl"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
-import { formatDate, formatMoney } from "@/lib/utils"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatDateL, formatMoneyL } from "@/lib/i18n/format"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import {
   ACTION_CAPABILITIES,
@@ -45,6 +46,8 @@ type QualityIssue = {
   title: string
   description: string
   severity: Severity
+  /** Подпись важности («Критично» / «Внимание» / «Контроль») — уже на языке страницы. */
+  severityLabel: string
   count: number
   actionLabel: string
   href: string
@@ -53,69 +56,58 @@ type QualityIssue = {
 
 const SAMPLE_LIMIT = 8
 
+// Только оформление: подписи важности берём из словаря
+// (adminSettings.dataQuality.severity) — ключ совпадает с важностью.
 const severityMeta = {
   critical: {
-    label: "Критично",
     icon: AlertTriangle,
     pill: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
     iconBox: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-300",
   },
   warning: {
-    label: "Внимание",
     icon: CircleAlert,
     pill: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
     iconBox: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300",
   },
   info: {
-    label: "Контроль",
     icon: Info,
     pill: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300",
     iconBox: "bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-300",
   },
 } as const
 
-function tenantPlace(tenant: {
-  space: { number: string } | null
-  tenantSpaces: Array<{ space: { number: string } }>
-  fullFloors: Array<{ name: string }>
-}) {
-  if (tenant.space) return `Каб. ${tenant.space.number}`
-  if (tenant.tenantSpaces.length > 0) {
-    return tenant.tenantSpaces.map((item) => `Каб. ${item.space.number}`).join(", ")
-  }
-  if (tenant.fullFloors.length > 0) return tenant.fullFloors.map((floor) => floor.name).join(", ")
-  return "Без помещения"
-}
-
 function tenantHref(id: string) {
   return `/admin/tenants/${id}`
 }
 
-function invalidContactReasons(tenant: {
+/** Контакт непригоден: возвращаем сами значения, подписи к ним — на странице. */
+function invalidContactValues(tenant: {
   user: {
     email: string | null
     phone: string | null
   }
 }) {
-  const reasons: string[] = []
-
-  if (tenant.user.phone) {
+  const phone = (() => {
+    if (!tenant.user.phone) return null
     try {
       normalizeKzPhone(tenant.user.phone)
+      return null
     } catch {
-      reasons.push(`телефон: ${tenant.user.phone}`)
+      return tenant.user.phone
     }
-  }
+  })()
 
-  if (tenant.user.email) {
+  const email = (() => {
+    if (!tenant.user.email) return null
     try {
       normalizeEmail(tenant.user.email)
+      return null
     } catch {
-      reasons.push(`email: ${tenant.user.email}`)
+      return tenant.user.email
     }
-  }
+  })()
 
-  return reasons
+  return { phone, email }
 }
 
 function isHighRiskCapability(capability: { level: string; risk?: string | null }) {
@@ -125,6 +117,32 @@ function isHighRiskCapability(capability: { level: string; risk?: string | null 
 export default async function DataQualityPage() {
   await requireSection("analytics", "view")
   const { orgId } = await requireOrgAccess()
+
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const date = (value: Date) => formatDateL(locale, value)
+  // Вид начисления из базы — строка: нет в словаре, показываем как есть.
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
+  }
+  // Где сидит арендатор: помещение, несколько помещений или целые этажи.
+  const tenantPlace = (tenant: {
+    space: { number: string } | null
+    tenantSpaces: Array<{ space: { number: string } }>
+    fullFloors: Array<{ name: string }>
+  }) => {
+    if (tenant.space) return t("adminSettings.dataQuality.spaceShort", { number: tenant.space.number })
+    if (tenant.tenantSpaces.length > 0) {
+      return tenant.tenantSpaces
+        .map((item) => t("adminSettings.dataQuality.spaceShort", { number: item.space.number }))
+        .join(", ")
+    }
+    if (tenant.fullFloors.length > 0) return tenant.fullFloors.map((floor) => floor.name).join(", ")
+    return t("adminSettings.dataQuality.noSpace")
+  }
 
   const buildingId = await getCurrentBuildingId().catch(() => null)
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
@@ -436,10 +454,14 @@ export default async function DataQualityPage() {
   ])
 
   const invalidContactItemsAll = contactCheckCandidates
-    .map((tenant) => ({
-      tenant,
-      reasons: invalidContactReasons(tenant),
-    }))
+    .map((tenant) => {
+      const invalid = invalidContactValues(tenant)
+      const reasons = [
+        ...(invalid.phone ? [t("adminSettings.dataQuality.reasonPhone", { value: invalid.phone })] : []),
+        ...(invalid.email ? [t("adminSettings.dataQuality.reasonEmail", { value: invalid.email })] : []),
+      ]
+      return { tenant, reasons }
+    })
     .filter((item) => item.reasons.length > 0)
   const accessUserByOverrideRole = new Map(accessUsers.map((user) => [userCapabilityRole(user.id), user]))
   const staffWithoutBuildingAccessItems = accessUsers
@@ -468,290 +490,358 @@ export default async function DataQualityPage() {
     }))
     .filter(({ user, capability }) => !!user && !!capability)
 
+  // Проверки качества: тексты — в словаре (adminSettings.dataQuality.issues),
+  // здесь только условия, счётчики и примеры записей.
   const issues: QualityIssue[] = [
     {
       key: "double-rent",
-      title: "Два индивидуальных способа аренды",
-      description: "У арендатора одновременно заполнены ставка за м² и фиксированная аренда. В расчетах должна остаться только одна логика.",
+      title: t("adminSettings.dataQuality.issues.doubleRent.title"),
+      description: t("adminSettings.dataQuality.issues.doubleRent.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: doubleRentCount,
-      actionLabel: "Открыть арендатора",
+      actionLabel: t("adminSettings.dataQuality.issues.doubleRent.action"),
       href: "/admin/tenants",
       items: doubleRentItems.map((tenant) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: `${tenantPlace(tenant)} · ставка ${formatMoney(tenant.customRate ?? 0)}/м² · фикс ${formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес`,
+        meta: t("adminSettings.dataQuality.issues.doubleRent.meta", {
+          place: tenantPlace(tenant),
+          rate: money(tenant.customRate ?? 0),
+          fixed: money(tenant.fixedMonthlyRent ?? 0),
+        }),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "missing-contact",
-      title: "Арендатор без телефона и email",
-      description: "Такой арендатор не сможет нормально войти в кабинет, получить счет, уведомление или ссылку на подпись.",
+      title: t("adminSettings.dataQuality.issues.missingContact.title"),
+      description: t("adminSettings.dataQuality.issues.missingContact.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: missingContactCount,
-      actionLabel: "Заполнить контакт",
+      actionLabel: t("adminSettings.dataQuality.issues.missingContact.action"),
       href: "/admin/tenants",
       items: missingContactItems.map((tenant) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: `${tenantPlace(tenant)} · нет телефона и email`,
+        meta: t("adminSettings.dataQuality.issues.missingContact.meta", { place: tenantPlace(tenant) }),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "invalid-contact",
-      title: "Некорректный телефон или email",
-      description: "Контакты должны быть рабочими: телефон только Казахстан +7, email латиницей с @ и доменом. Иначе вход, счета и уведомления могут не дойти.",
+      title: t("adminSettings.dataQuality.issues.invalidContact.title"),
+      description: t("adminSettings.dataQuality.issues.invalidContact.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: invalidContactItemsAll.length,
-      actionLabel: "Исправить контакт",
+      actionLabel: t("adminSettings.dataQuality.issues.invalidContact.action"),
       href: "/admin/tenants",
       items: invalidContactItemsAll.slice(0, SAMPLE_LIMIT).map(({ tenant, reasons }) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: `${tenantPlace(tenant)} · ${reasons.join(" · ")}`,
+        meta: t("adminSettings.dataQuality.issues.invalidContact.meta", {
+          place: tenantPlace(tenant),
+          reasons: reasons.join(" · "),
+        }),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "staff-without-building-access",
-      title: "Сотрудник без доступа к зданиям",
-      description: "Сотрудник или кастомная должность могут иметь права, но без привязки к зданиям не увидят объекты, помещения и арендаторов.",
+      title: t("adminSettings.dataQuality.issues.staffWithoutBuildings.title"),
+      description: t("adminSettings.dataQuality.issues.staffWithoutBuildings.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: staffWithoutBuildingAccessItems.length,
-      actionLabel: "Настроить доступ",
+      actionLabel: t("adminSettings.dataQuality.issues.staffWithoutBuildings.action"),
       href: "/admin/users",
       items: staffWithoutBuildingAccessItems.slice(0, SAMPLE_LIMIT).map((user) => ({
         id: user.id,
         label: user.name,
-        meta: `${displayRoleLabel(user.role)} · здания не назначены`,
+        meta: t("adminSettings.dataQuality.issues.staffWithoutBuildings.meta", { role: displayRoleLabel(user.role) }),
         href: "/admin/users",
       })),
     },
     {
       key: "high-risk-role-capabilities",
-      title: "У должностей включены рискованные права",
-      description: "Проверьте права на деньги, удаления, реквизиты, доступы и документы. Такие действия должны быть выданы только доверенным сотрудникам.",
+      title: t("adminSettings.dataQuality.issues.highRiskRoleCaps.title"),
+      description: t("adminSettings.dataQuality.issues.highRiskRoleCaps.description"),
       severity: "info",
+      severityLabel: t("adminSettings.dataQuality.severity.info"),
       count: highRiskRoleCapabilityItems.length,
-      actionLabel: "Открыть права",
+      actionLabel: t("adminSettings.dataQuality.issues.highRiskRoleCaps.action"),
       href: "/admin/roles",
       items: highRiskRoleCapabilityItems.slice(0, SAMPLE_LIMIT).map(({ row, capability }) => ({
         id: `${row.role}:${row.section}`,
         label: displayRoleLabel(row.role),
-        meta: `${capability?.label ?? row.section} · ${row.canEdit ? "полное действие" : "просмотр"}`,
+        meta: t("adminSettings.dataQuality.issues.highRiskRoleCaps.meta", {
+          capability: capability?.label ?? row.section,
+          mode: row.canEdit
+            ? t("adminSettings.dataQuality.issues.highRiskRoleCaps.modeFull")
+            : t("adminSettings.dataQuality.issues.highRiskRoleCaps.modeView"),
+        }),
         href: "/admin/roles",
       })),
     },
     {
       key: "personal-capability-overrides",
-      title: "Есть личные исключения прав",
-      description: "Личные исключения удобны для точечной настройки, но их нужно периодически пересматривать, чтобы доступы не накапливались случайно.",
+      title: t("adminSettings.dataQuality.issues.personalOverrides.title"),
+      description: t("adminSettings.dataQuality.issues.personalOverrides.description"),
       severity: "info",
+      severityLabel: t("adminSettings.dataQuality.severity.info"),
       count: personalCapabilityOverrideItems.length,
-      actionLabel: "Проверить сотрудников",
+      actionLabel: t("adminSettings.dataQuality.issues.personalOverrides.action"),
       href: "/admin/users",
       items: personalCapabilityOverrideItems.slice(0, SAMPLE_LIMIT).map(({ row, user, capability }) => ({
         id: `${row.role}:${row.section}`,
-        label: user?.name ?? "Пользователь",
-        meta: `${capability?.label ?? row.section} · ${row.canView || row.canEdit ? "лично разрешено" : "лично запрещено"}`,
+        label: user?.name ?? t("adminSettings.dataQuality.issues.personalOverrides.someUser"),
+        meta: t("adminSettings.dataQuality.issues.personalOverrides.meta", {
+          capability: capability?.label ?? row.section,
+          mode: row.canView || row.canEdit
+            ? t("adminSettings.dataQuality.issues.personalOverrides.modeAllow")
+            : t("adminSettings.dataQuality.issues.personalOverrides.modeDeny"),
+        }),
         href: "/admin/users",
       })),
     },
     {
       key: "vacant-with-tenant",
-      title: "Помещение свободно, но к нему привязан арендатор",
-      description: "Статус помещения противоречит карточке арендатора. Это ломает заполняемость и прогноз аренды.",
+      title: t("adminSettings.dataQuality.issues.vacantWithTenant.title"),
+      description: t("adminSettings.dataQuality.issues.vacantWithTenant.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: vacantWithTenantCount,
-      actionLabel: "Проверить помещение",
+      actionLabel: t("adminSettings.dataQuality.issues.vacantWithTenant.action"),
       href: "/admin/spaces",
       items: vacantWithTenantItems.map((space) => ({
         id: space.id,
-        label: `Каб. ${space.number}`,
-        meta: `${space.floor.name} · арендатор ${space.tenant?.companyName ?? "не указан"}`,
+        label: t("adminSettings.dataQuality.spaceShort", { number: space.number }),
+        meta: t("adminSettings.dataQuality.issues.vacantWithTenant.meta", {
+          floor: space.floor.name,
+          tenant: space.tenant?.companyName ?? t("adminSettings.dataQuality.notSpecifiedM"),
+        }),
         href: space.tenant ? tenantHref(space.tenant.id) : "/admin/spaces",
       })),
     },
     {
       key: "missing-place",
-      title: "Арендатор без помещения или этажа",
-      description: "Без помещения система не может корректно считать аренду, договоры, счета и заявки по объекту.",
+      title: t("adminSettings.dataQuality.issues.missingPlace.title"),
+      description: t("adminSettings.dataQuality.issues.missingPlace.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: missingPlaceCount,
-      actionLabel: "Назначить помещение",
+      actionLabel: t("adminSettings.dataQuality.issues.missingPlace.action"),
       href: "/admin/tenants",
       items: missingPlaceItems.map((tenant) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: "По всей организации · помещение не назначено",
+        meta: t("adminSettings.dataQuality.issues.missingPlace.meta"),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "occupied-without-tenant",
-      title: "Помещение занято, но арендатор не привязан",
-      description: "Помещение выглядит занятым, хотя карточки арендатора нет. Если это не аренда целого этажа, статус нужно исправить.",
+      title: t("adminSettings.dataQuality.issues.occupiedWithoutTenant.title"),
+      description: t("adminSettings.dataQuality.issues.occupiedWithoutTenant.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: occupiedWithoutTenantCount,
-      actionLabel: "Открыть помещения",
+      actionLabel: t("adminSettings.dataQuality.issues.occupiedWithoutTenant.action"),
       href: "/admin/spaces",
       items: occupiedWithoutTenantItems.map((space) => ({
         id: space.id,
-        label: `Каб. ${space.number}`,
-        meta: `${space.floor.name} · ${space.area} м² · нет арендатора`,
+        label: t("adminSettings.dataQuality.spaceShort", { number: space.number }),
+        meta: t("adminSettings.dataQuality.issues.occupiedWithoutTenant.meta", {
+          floor: space.floor.name,
+          area: space.area,
+        }),
         href: "/admin/spaces",
       })),
     },
     {
       key: "no-signed-contract",
-      title: "Арендатор без подписанного договора",
-      description: "Начисления и изменения условий лучше подкреплять подписанным договором или доп. соглашением.",
+      title: t("adminSettings.dataQuality.issues.noSignedContract.title"),
+      description: t("adminSettings.dataQuality.issues.noSignedContract.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: noSignedContractCount,
-      actionLabel: "Создать договор",
+      actionLabel: t("adminSettings.dataQuality.issues.noSignedContract.action"),
       href: "/admin/tenants",
       items: noSignedContractItems.map((tenant) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: `${tenantPlace(tenant)} · подписанного договора нет`,
+        meta: t("adminSettings.dataQuality.issues.noSignedContract.meta", { place: tenantPlace(tenant) }),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "signed-contract-missing-dates",
-      title: "Подписанный договор без дат",
-      description: "У подписанного договора должна быть дата начала и окончания, иначе нельзя надежно строить продления и напоминания.",
+      title: t("adminSettings.dataQuality.issues.contractMissingDates.title"),
+      description: t("adminSettings.dataQuality.issues.contractMissingDates.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: signedContractMissingDatesCount,
-      actionLabel: "Открыть договор",
+      actionLabel: t("adminSettings.dataQuality.issues.contractMissingDates.action"),
       href: "/admin/contracts",
       items: signedContractMissingDatesItems.map((contract) => ({
         id: contract.id,
-        label: `Договор № ${contract.number}`,
-        meta: `${contract.tenant.companyName} · начало ${contract.startDate ? formatDate(contract.startDate) : "не указано"} · конец ${contract.endDate ? formatDate(contract.endDate) : "не указан"}`,
+        label: t("adminSettings.dataQuality.contractNumber", { number: contract.number }),
+        meta: t("adminSettings.dataQuality.issues.contractMissingDates.meta", {
+          tenant: contract.tenant.companyName,
+          start: contract.startDate ? date(contract.startDate) : t("adminSettings.dataQuality.notSpecified"),
+          end: contract.endDate ? date(contract.endDate) : t("adminSettings.dataQuality.notSpecifiedM"),
+        }),
         href: tenantHref(contract.tenant.id),
       })),
     },
     {
       key: "charge-missing-due-date",
-      title: "Неоплаченный счет без срока оплаты",
-      description: "Без due date система не может корректно подсвечивать просрочки и начислять пеню.",
+      title: t("adminSettings.dataQuality.issues.chargeMissingDueDate.title"),
+      description: t("adminSettings.dataQuality.issues.chargeMissingDueDate.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: chargeMissingDueDateCount,
-      actionLabel: "Проверить финансы",
+      actionLabel: t("adminSettings.dataQuality.issues.chargeMissingDueDate.action"),
       href: "/admin/finances",
       items: chargeMissingDueDateItems.map((charge) => ({
         id: charge.id,
-        label: `${charge.tenant.companyName} · ${formatMoney(charge.amount)}`,
-        meta: `${charge.period} · ${charge.type} · срок оплаты не указан`,
+        label: `${charge.tenant.companyName} · ${money(charge.amount)}`,
+        meta: t("adminSettings.dataQuality.issues.chargeMissingDueDate.meta", {
+          period: charge.period,
+          type: chargeTypeLabel(charge.type),
+        }),
         href: tenantHref(charge.tenant.id),
       })),
     },
     {
       key: "overdue-charge",
-      title: "Есть просроченные неоплаченные счета",
-      description: "Просрочки должны быть видны администратору сразу: по ним строятся уведомления, пеня, сверка и работа с должниками.",
+      title: t("adminSettings.dataQuality.issues.overdueCharge.title"),
+      description: t("adminSettings.dataQuality.issues.overdueCharge.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: overdueChargeCount,
-      actionLabel: "Открыть финансы",
+      actionLabel: t("adminSettings.dataQuality.issues.overdueCharge.action"),
       href: "/admin/finances",
       items: overdueChargeItems.map((charge) => ({
         id: charge.id,
-        label: `${charge.tenant.companyName} · ${formatMoney(charge.amount)}`,
-        meta: `${charge.period} · ${charge.type} · срок ${charge.dueDate ? formatDate(charge.dueDate) : "не указан"}`,
+        label: `${charge.tenant.companyName} · ${money(charge.amount)}`,
+        meta: t("adminSettings.dataQuality.issues.overdueCharge.meta", {
+          period: charge.period,
+          type: chargeTypeLabel(charge.type),
+          due: charge.dueDate ? date(charge.dueDate) : t("adminSettings.dataQuality.notSpecifiedM"),
+        }),
         href: tenantHref(charge.tenant.id),
       })),
     },
     {
       key: "expired-contract",
-      title: "Арендатор работает с истекшим сроком договора",
-      description: "Если договор уже закончился, продление, новый договор или выселение нужно оформить явно, чтобы начисления и документы не висели без юридического основания.",
+      title: t("adminSettings.dataQuality.issues.expiredContract.title"),
+      description: t("adminSettings.dataQuality.issues.expiredContract.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: expiredContractCount,
-      actionLabel: "Продлить или оформить договор",
+      actionLabel: t("adminSettings.dataQuality.issues.expiredContract.action"),
       href: "/admin/tenants",
       items: expiredContractItems.map((tenant) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: `${tenantPlace(tenant)} · договор до ${tenant.contractEnd ? formatDate(tenant.contractEnd) : "не указано"}`,
+        meta: t("adminSettings.dataQuality.issues.expiredContract.meta", {
+          place: tenantPlace(tenant),
+          date: tenant.contractEnd ? date(tenant.contractEnd) : t("adminSettings.dataQuality.notSpecified"),
+        }),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "invalid-payment-rules",
-      title: "Некорректные правила оплаты или пени",
-      description: "День оплаты должен быть от 1 до 31, пеня не может быть отрицательной. Такие записи ломают cron-начисления, напоминания и просрочки.",
+      title: t("adminSettings.dataQuality.issues.invalidPaymentRules.title"),
+      description: t("adminSettings.dataQuality.issues.invalidPaymentRules.description"),
       severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
       count: invalidPaymentRulesCount,
-      actionLabel: "Исправить условия аренды",
+      actionLabel: t("adminSettings.dataQuality.issues.invalidPaymentRules.action"),
       href: "/admin/tenants",
       items: invalidPaymentRulesItems.map((tenant) => ({
         id: tenant.id,
         label: tenant.companyName,
-        meta: `${tenantPlace(tenant)} · день оплаты ${tenant.paymentDueDay} · пеня ${tenant.penaltyPercent}%`,
+        meta: t("adminSettings.dataQuality.issues.invalidPaymentRules.meta", {
+          place: tenantPlace(tenant),
+          day: tenant.paymentDueDay,
+          percent: tenant.penaltyPercent,
+        }),
         href: tenantHref(tenant.id),
       })),
     },
     {
       key: "pending-payment-report",
-      title: "Оплата арендатора долго ждет подтверждения",
-      description: "Если арендатор нажал “Я оплатил” и прикрепил чек, администратор должен подтвердить или отклонить платеж, иначе долг будет отображаться неверно.",
+      title: t("adminSettings.dataQuality.issues.pendingPaymentReport.title"),
+      description: t("adminSettings.dataQuality.issues.pendingPaymentReport.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: pendingPaymentReportCount,
-      actionLabel: "Проверить оплаты",
+      actionLabel: t("adminSettings.dataQuality.issues.pendingPaymentReport.action"),
       href: "/admin/finances",
       items: pendingPaymentReportItems.map((report) => ({
         id: report.id,
-        label: `${report.tenant.companyName} · ${formatMoney(report.amount)}`,
-        meta: `Ожидает с ${formatDate(report.createdAt)}`,
+        label: `${report.tenant.companyName} · ${money(report.amount)}`,
+        meta: t("adminSettings.dataQuality.issues.pendingPaymentReport.meta", { date: date(report.createdAt) }),
         href: tenantHref(report.tenant.id),
       })),
     },
     {
       key: "invalid-space-area",
-      title: "Арендопригодное помещение без корректной площади",
-      description: "Площадь должна быть больше нуля, иначе расчет аренды за м², заполняемость и аналитика по доходу на квадрат будут неверными.",
+      title: t("adminSettings.dataQuality.issues.invalidSpaceArea.title"),
+      description: t("adminSettings.dataQuality.issues.invalidSpaceArea.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: invalidRentableSpaceAreaCount,
-      actionLabel: "Открыть помещения",
+      actionLabel: t("adminSettings.dataQuality.issues.invalidSpaceArea.action"),
       href: "/admin/spaces",
       items: invalidRentableSpaceAreaItems.map((space) => ({
         id: space.id,
-        label: `Каб. ${space.number}`,
-        meta: `${space.floor.name} · площадь ${space.area} м²`,
+        label: t("adminSettings.dataQuality.spaceShort", { number: space.number }),
+        meta: t("adminSettings.dataQuality.issues.invalidSpaceArea.meta", {
+          floor: space.floor.name,
+          area: space.area,
+        }),
         href: "/admin/spaces",
       })),
     },
     {
       key: "floor-without-pricing",
-      title: "Этаж с помещениями без ставки аренды",
-      description: "Если у арендатора нет индивидуальной суммы, система берет ставку этажа. Нулевая ставка приводит к нулевым начислениям.",
+      title: t("adminSettings.dataQuality.issues.floorWithoutPricing.title"),
+      description: t("adminSettings.dataQuality.issues.floorWithoutPricing.description"),
       severity: "warning",
+      severityLabel: t("adminSettings.dataQuality.severity.warning"),
       count: floorWithoutPricingCount,
-      actionLabel: "Настроить этажи",
+      actionLabel: t("adminSettings.dataQuality.issues.floorWithoutPricing.action"),
       href: "/admin/buildings",
       items: floorWithoutPricingItems.map((floor) => ({
         id: floor.id,
         label: floor.name,
-        meta: `${floor.building.name} · ставка ${formatMoney(floor.ratePerSqm)}/м²`,
+        meta: t("adminSettings.dataQuality.issues.floorWithoutPricing.meta", {
+          building: floor.building.name,
+          rate: money(floor.ratePerSqm),
+        }),
         href: "/admin/buildings",
       })),
     },
     {
       key: "cash-accounts",
-      title: "Не настроен активный счет или касса",
-      description: "Без счета платежи можно принять вручную, но баланс, сверка и импорт банка будут менее надежными.",
+      title: t("adminSettings.dataQuality.issues.cashAccounts.title"),
+      description: t("adminSettings.dataQuality.issues.cashAccounts.description"),
       severity: "info",
+      severityLabel: t("adminSettings.dataQuality.severity.info"),
       count: activeCashAccountsCount === 0 ? 1 : 0,
-      actionLabel: "Добавить счет",
+      actionLabel: t("adminSettings.dataQuality.issues.cashAccounts.action"),
       href: "/admin/finances/balance",
       items: activeCashAccountsCount === 0
         ? [{
             id: "cash-accounts",
-            label: "Активные счета не найдены",
-            meta: "Добавьте банковский счет, карту или кассу организации",
+            label: t("adminSettings.dataQuality.issues.cashAccounts.itemLabel"),
+            meta: t("adminSettings.dataQuality.issues.cashAccounts.itemMeta"),
             href: "/admin/finances/balance",
           }]
         : [],
@@ -775,19 +865,26 @@ export default async function DataQualityPage() {
       <RouteTabs items={HEALTH_TABS} className="mb-2" />
       <PageHeader
         icon={ClipboardCheck}
-        title="Качество данных"
-        subtitle={building ? `Проверка по зданию ${building.name}` : "Проверка по всей организации"}
+        title={t("adminSettings.dataQuality.title")}
+        subtitle={building
+          ? t("adminSettings.dataQuality.subtitleBuilding", { building: building.name })
+          : t("adminSettings.dataQuality.subtitleOrg")}
       />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard icon={ClipboardCheck} label="Всего проблем" value={totalCount} tone={totalCount > 0 ? "slate" : "emerald"} />
-        <StatCard icon={AlertTriangle} label="Критично" value={criticalCount} tone="red" />
-        <StatCard icon={CircleAlert} label="Внимание" value={warningCount} tone="amber" />
-        <StatCard icon={Info} label="Контроль" value={infoCount} tone="blue" />
+        <StatCard icon={ClipboardCheck} label={t("adminSettings.dataQuality.statTotal")} value={totalCount} tone={totalCount > 0 ? "slate" : "emerald"} />
+        <StatCard icon={AlertTriangle} label={t("adminSettings.dataQuality.severity.critical")} value={criticalCount} tone="red" />
+        <StatCard icon={CircleAlert} label={t("adminSettings.dataQuality.severity.warning")} value={warningCount} tone="amber" />
+        <StatCard icon={Info} label={t("adminSettings.dataQuality.severity.info")} value={infoCount} tone="blue" />
       </div>
 
       {activeIssues.length > 0 && (
-        <PriorityFixPlan issues={activeIssues.slice(0, 3)} totalCount={totalCount} />
+        <PriorityFixPlan
+          issues={activeIssues.slice(0, 3)}
+          title={t("adminSettings.dataQuality.planTitle")}
+          hint={t("adminSettings.dataQuality.planHint")}
+          totalLabel={t("adminSettings.dataQuality.planTotal", { count: totalCount })}
+        />
       )}
 
       <RelationshipIntegrityPanelLazy overview={relationshipIntegrity} />
@@ -795,15 +892,20 @@ export default async function DataQualityPage() {
       {activeIssues.length === 0 && relationshipIntegrity.summary.total === 0 ? (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-500/30 dark:bg-emerald-500/10">
           <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-300" />
-          <h2 className="mt-3 text-lg font-semibold text-emerald-950 dark:text-emerald-100">Критичных проблем не найдено</h2>
+          <h2 className="mt-3 text-lg font-semibold text-emerald-950 dark:text-emerald-100">{t("adminSettings.dataQuality.allGoodTitle")}</h2>
           <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-200">
-            Можно продолжать работу: арендаторы, помещения, договоры и счета проходят базовые проверки качества.
+            {t("adminSettings.dataQuality.allGoodText")}
           </p>
         </div>
       ) : activeIssues.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {activeIssues.map((issue) => (
-            <IssueCard key={issue.key} issue={issue} />
+            <IssueCard
+              key={issue.key}
+              issue={issue}
+              foundLabel={t("adminSettings.dataQuality.found")}
+              shownLabel={t("adminSettings.dataQuality.shownOf", { shown: issue.items.length, count: issue.count })}
+            />
           ))}
         </div>
       ) : null}
@@ -811,18 +913,28 @@ export default async function DataQualityPage() {
   )
 }
 
-function PriorityFixPlan({ issues, totalCount }: { issues: QualityIssue[]; totalCount: number }) {
+function PriorityFixPlan({
+  issues,
+  title,
+  hint,
+  totalLabel,
+}: {
+  issues: QualityIssue[]
+  title: string
+  hint: string
+  totalLabel: string
+}) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Что исправить первым</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Система отсортировала проблемы по риску. Сначала закройте критичные ошибки, которые влияют на деньги, договоры и доступы.
+            {hint}
           </p>
         </div>
         <span className="inline-flex w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-          Всего: {totalCount}
+          {totalLabel}
         </span>
       </div>
 
@@ -850,7 +962,7 @@ function PriorityFixPlan({ issues, totalCount }: { issues: QualityIssue[]; total
               <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500 dark:text-slate-400">{issue.description}</p>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>
-                  {meta.label} · {issue.count}
+                  {issue.severityLabel} · {issue.count}
                 </span>
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-300">
                   {issue.actionLabel}
@@ -865,7 +977,7 @@ function PriorityFixPlan({ issues, totalCount }: { issues: QualityIssue[]; total
   )
 }
 
-function IssueCard({ issue }: { issue: QualityIssue }) {
+function IssueCard({ issue, foundLabel, shownLabel }: { issue: QualityIssue; foundLabel: string; shownLabel: string }) {
   const meta = severityMeta[issue.severity]
   const Icon = meta.icon
 
@@ -880,14 +992,14 @@ function IssueCard({ issue }: { issue: QualityIssue }) {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{issue.title}</h2>
               <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>
-                {meta.label}
+                {issue.severityLabel}
               </span>
             </div>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{issue.description}</p>
           </div>
           <div className="text-right">
             <p className="text-xl font-semibold text-slate-900 dark:text-slate-100">{issue.count}</p>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500">найдено</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">{foundLabel}</p>
           </div>
         </div>
       </div>
@@ -915,7 +1027,7 @@ function IssueCard({ issue }: { issue: QualityIssue }) {
         </Link>
         {issue.count > issue.items.length && (
           <span className="text-xs text-slate-400 dark:text-slate-500">
-            Показано {issue.items.length} из {issue.count}
+            {shownLabel}
           </span>
         )}
       </div>

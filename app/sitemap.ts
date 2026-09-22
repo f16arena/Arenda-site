@@ -6,9 +6,9 @@ const SITE_URL = "https://commrent.kz"
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date()
   const routes = [
+    // Главная — на государственном языке, русская версия на /ru.
     { path: "/", changeFrequency: "weekly", priority: 1 },
-    // Казахская главная — отдельный адрес, поиск должен её видеть.
-    { path: "/kk", changeFrequency: "weekly", priority: 1 },
+    { path: "/ru", changeFrequency: "weekly", priority: 1 },
     { path: "/blog", changeFrequency: "weekly", priority: 0.8 },
     { path: "/signup", changeFrequency: "monthly", priority: 0.7 },
     { path: "/offer", changeFrequency: "monthly", priority: 0.4 },

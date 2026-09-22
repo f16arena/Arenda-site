@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { updateFloor } from "@/app/actions/building"
+import { useT } from "@/lib/i18n/client"
 import { Button } from "@/components/ui/button"
 
 export function FloorSettingsForm({
@@ -14,6 +15,7 @@ export function FloorSettingsForm({
   initial: { name: string; ratePerSqm: number; totalArea: number | null }
   canEdit?: boolean
 }) {
+  const { t } = useT()
   const [name, setName] = useState(initial.name)
   const [ratePerSqm, setRatePerSqm] = useState(String(initial.ratePerSqm))
   const [totalArea, setTotalArea] = useState(initial.totalArea ? String(initial.totalArea) : "")
@@ -26,9 +28,9 @@ export function FloorSettingsForm({
     startTransition(async () => {
       try {
         await updateFloor(floorId, formData)
-        toast.success("Настройки этажа сохранены")
+        toast.success(t("adminObjects.floorSettings.saved"))
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось сохранить")
+        toast.error(e instanceof Error ? e.message : t("adminObjects.floorSettings.saveFailed"))
       }
     })
   }
@@ -37,18 +39,18 @@ export function FloorSettingsForm({
     <form action={onSubmit} className="p-5 space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Название этажа *</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminObjects.floorSettings.nameLabel")}</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
-            placeholder="1 этаж / Подвал / Цокольный"
+            placeholder={t("adminObjects.floorSettings.namePlaceholder")}
             className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-            Ставка ₸/м²/мес
+            {t("adminObjects.floorSettings.rateLabel")}
           </label>
           <input
             type="number"
@@ -63,8 +65,8 @@ export function FloorSettingsForm({
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Общая площадь этажа (м²)
-          <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">из тех. паспорта</span>
+          {t("adminObjects.floorSettings.totalAreaLabel")}
+          <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500">{t("adminObjects.floorSettings.totalAreaHint")}</span>
         </label>
         <input
           type="number"
@@ -72,12 +74,11 @@ export function FloorSettingsForm({
           min="0"
           value={totalArea}
           onChange={(e) => setTotalArea(e.target.value)}
-          placeholder="напр. 250"
+          placeholder={t("adminObjects.floorSettings.totalAreaPlaceholder")}
           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
         <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
-          Складывается с другими этажами в общую площадь здания.
-          Не может быть меньше суммы помещений на этаже.
+          {t("adminObjects.floorSettings.totalAreaNote")}
         </p>
       </div>
 
@@ -89,7 +90,7 @@ export function FloorSettingsForm({
             loading={pending}
             className="font-medium"
           >
-            {pending ? "Сохранение..." : "Сохранить"}
+            {pending ? t("common.actions.saving") : t("common.actions.save")}
           </Button>
         </div>
       )}

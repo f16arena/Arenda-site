@@ -58,6 +58,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
   autoOpen?: boolean
 }) {
   const { t } = useT()
+  const locale = useLocale()
   const accountLabel = useAccountLabel()
   const [open, setOpen] = useState(Boolean(autoOpen))
   const [pending, startTransition] = useTransition()
@@ -130,7 +131,7 @@ export function PaymentDialog({ tenants, unpaidCharges, cashAccounts, initialTen
                     {tenantCharges.map((c) => (
                       <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
                         <input type="checkbox" name="chargeIds" value={c.id} className="rounded" />
-                        <span>{c.type} · {c.period} · {c.amount.toLocaleString()} ₸</span>
+                        <span>{c.type} · {c.period} · {formatMoneyL(locale, c.amount)}</span>
                       </label>
                     ))}
                   </div>

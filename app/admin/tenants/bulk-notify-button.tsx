@@ -8,12 +8,14 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { useT } from "@/lib/i18n/client"
 
 /**
  * Кнопка «Рассылка арендаторам» + модалка. Если фича недоступна в тарифе —
  * сервер вернёт ошибку, и мы покажем toast со ссылкой на /admin/subscription.
  */
 export function BulkNotifyButton({ available, totalTenants }: { available: boolean; totalTenants: number }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [message, setMessage] = useState("")
@@ -27,7 +29,7 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
 
   function submit() {
     if (!title.trim() || !message.trim()) {
-      toast.error("Заполните заголовок и текст")
+      toast.error(t("adminTenants.bulkNotify.fillFields"))
       return
     }
     startTransition(async () => {
@@ -38,13 +40,15 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
         alsoEmail,
       })
       if (r.ok) {
-        toast.success(`Рассылка отправлена: ${r.sent} арендаторов${r.skipped ? ` (пропущено ${r.skipped})` : ""}`)
+        toast.success(r.skipped
+          ? t("adminTenants.bulkNotify.sentSkipped", { sent: r.sent ?? 0, skipped: r.skipped ?? 0 })
+          : t("adminTenants.bulkNotify.sent", { sent: r.sent ?? 0 }))
         setTitle("")
         setMessage("")
         setAlsoEmail(false)
         close()
       } else {
-        toast.error(r.error ?? "Не удалось отправить")
+        toast.error(r.error ?? t("adminTenants.bulkNotify.failed"))
       }
     })
   }
@@ -54,12 +58,12 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
     return (
       <button
         type="button"
-        onClick={() => toast.info("Массовые рассылки — на тарифе Starter и выше")}
+        onClick={() => toast.info(t("adminTenants.bulkNotify.lockedToast"))}
         className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 text-sm text-slate-400 dark:text-slate-500"
-        title="Доступно на Starter и выше"
+        title={t("adminTenants.bulkNotify.lockedHint")}
       >
         <Megaphone className="h-4 w-4" />
-        Рассылка
+        {t("adminTenants.bulkNotify.button")}
       </button>
     )
   }
@@ -72,57 +76,57 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
         onClick={() => setOpen(true)}
       >
         <Megaphone className="h-4 w-4" />
-        Рассылка
+        {t("adminTenants.bulkNotify.button")}
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Рассылка арендаторам</DialogTitle>
+            <DialogTitle>{t("adminTenants.bulkNotify.title")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {scope === "all"
-                ? <>Уведомление получат <b>все {totalTenants} арендаторов</b> текущей организации (в колокольчике; письмо — по галочке).</>
-                : <>Уведомление получат <b>только арендаторы с неоплаченными начислениями</b> (в колокольчике; письмо — по галочке).</>}
+                ? t("adminTenants.bulkNotify.noteAll", { count: totalTenants })
+                : t("adminTenants.bulkNotify.noteDebtors")}
             </p>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Кому</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t("adminTenants.bulkNotify.scope")}</label>
               <select
                 value={scope}
                 onChange={(e) => setScope(e.target.value === "debtors" ? "debtors" : "all")}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               >
-                <option value="all">Всем арендаторам</option>
-                <option value="debtors">Только должникам (есть неоплаченные начисления)</option>
+                <option value="all">{t("adminTenants.bulkNotify.scopeAll")}</option>
+                <option value="debtors">{t("adminTenants.bulkNotify.scopeDebtors")}</option>
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Заголовок</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t("adminTenants.bulkNotify.subject")}</label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={120}
-                placeholder="Напр.: Изменение реквизитов"
+                placeholder={t("adminTenants.bulkNotify.subjectPlaceholder")}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Текст</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t("adminTenants.bulkNotify.message")}</label>
               <Textarea
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 rows={5}
                 maxLength={1500}
-                placeholder="Текст сообщения для арендаторов…"
+                placeholder={t("adminTenants.bulkNotify.messagePlaceholder")}
               />
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
               <input type="checkbox" checked={alsoEmail} onChange={(e) => setAlsoEmail(e.target.checked)} />
-              Также отправить email
+              {t("adminTenants.bulkNotify.alsoEmail")}
             </label>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>Отмена</Button>
+            <Button type="button" variant="outline" onClick={close}>{t("common.actions.cancel")}</Button>
             <Button
               type="button"
               onClick={submit}
@@ -130,7 +134,11 @@ export function BulkNotifyButton({ available, totalTenants }: { available: boole
               loading={pending}
               leftIcon={<Megaphone className="h-4 w-4" />}
             >
-              {pending ? "Отправляю…" : scope === "all" ? `Отправить ${totalTenants}` : "Отправить должникам"}
+              {pending
+                ? t("adminTenants.bulkNotify.sending")
+                : scope === "all"
+                  ? t("adminTenants.bulkNotify.submitAll", { count: totalTenants })
+                  : t("adminTenants.bulkNotify.submitDebtors")}
             </Button>
           </DialogFooter>
         </DialogContent>

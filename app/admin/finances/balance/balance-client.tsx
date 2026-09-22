@@ -116,19 +116,19 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
                   className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-1.5 text-xs font-medium"
                 >
                   <ArrowDown className="h-3.5 w-3.5" />
-                  Внести
+                  {t("adminFinance.balance.deposit")}
                 </button>
                 <button
                   onClick={() => setDialog({ kind: "withdraw", accountId: acc.id, accountName: acc.name })}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 px-2 py-1.5 text-xs font-medium"
                 >
                   <ArrowUp className="h-3.5 w-3.5" />
-                  Списать
+                  {t("adminFinance.balance.withdraw")}
                 </button>
                 <button
                   onClick={() => setDialog({ kind: "adjust", accountId: acc.id, accountName: acc.name, current: acc.balance })}
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-600 dark:text-slate-300 px-2 py-1.5 text-xs"
-                  title="Корректировка баланса"
+                  title={t("adminFinance.balance.adjustTitle")}
                 >
                   <Settings className="h-3.5 w-3.5" />
                 </button>
@@ -173,10 +173,10 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
         {accounts.length === 0 && (
           <Card className="md:col-span-2 block p-10 text-center">
             <Wallet className="h-10 w-10 text-slate-300 dark:text-slate-500 mx-auto mb-3" />
-            <p className="text-sm text-slate-500 dark:text-slate-400">У вас пока нет счетов</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminFinance.balance.noAccounts")}</p>
             <Button onClick={() => setDialog({ kind: "create" })} className="mt-3">
               <Plus className="h-4 w-4" />
-              Создать счёт
+              {t("adminFinance.balance.createAccount")}
             </Button>
           </Card>
         )}
@@ -184,109 +184,133 @@ export function BalanceClient({ accounts }: { accounts: Account[] }) {
 
       {/* Dialogs */}
       {dialog?.kind === "deposit" && (
-        <Dialog title={`Внести деньги · ${dialog.accountName}`} onClose={close}>
+        <Dialog title={t("adminFinance.balance.dialogs.depositTitle", { account: dialog.accountName })} onClose={close}>
           <form
             action={(fd) => startTransition(async () => {
               fd.set("accountId", dialog.accountId)
               const r = await depositToAccount(fd)
-              if (r.ok) { toast.success("Зачислено"); close() }
-              else toast.error(r.error ?? "Ошибка")
+              if (r.ok) { toast.success(t("adminFinance.balance.dialogs.depositDone")); close() }
+              else toast.error(r.error ?? t("adminFinance.balance.dialogs.error"))
             })}
             className="space-y-4"
           >
-            <Field label="Сумма (₸)" name="amount" type="number" step="0.01" required min="0.01" />
-            <Field label="Описание (необязательно)" name="description" placeholder="Например: внесение наличных, поступление от арендатора" />
-            <SubmitBtn label="Зачислить" pending={pending} />
+            <Field label={t("adminFinance.balance.dialogs.amount")} name="amount" type="number" step="0.01" required min="0.01" />
+            <Field
+              label={t("adminFinance.balance.dialogs.description")}
+              name="description"
+              placeholder={t("adminFinance.balance.dialogs.depositPlaceholder")}
+            />
+            <SubmitBtn label={t("adminFinance.balance.dialogs.depositSubmit")} pending={pending} />
           </form>
         </Dialog>
       )}
 
       {dialog?.kind === "withdraw" && (
-        <Dialog title={`Списать · ${dialog.accountName}`} onClose={close}>
+        <Dialog title={t("adminFinance.balance.dialogs.withdrawTitle", { account: dialog.accountName })} onClose={close}>
           <form
             action={(fd) => startTransition(async () => {
               fd.set("accountId", dialog.accountId)
               const r = await withdrawFromAccount(fd)
-              if (r.ok) { toast.success("Списано"); close() }
-              else toast.error(r.error ?? "Ошибка")
+              if (r.ok) { toast.success(t("adminFinance.balance.dialogs.withdrawDone")); close() }
+              else toast.error(r.error ?? t("adminFinance.balance.dialogs.error"))
             })}
             className="space-y-4"
           >
-            <Field label="Сумма (₸)" name="amount" type="number" step="0.01" required min="0.01" />
-            <Field label="Описание (необязательно)" name="description" placeholder="Например: оплата коммуналки, выдача зп" />
-            <SubmitBtn label="Списать" pending={pending} />
+            <Field label={t("adminFinance.balance.dialogs.amount")} name="amount" type="number" step="0.01" required min="0.01" />
+            <Field
+              label={t("adminFinance.balance.dialogs.description")}
+              name="description"
+              placeholder={t("adminFinance.balance.dialogs.withdrawPlaceholder")}
+            />
+            <SubmitBtn label={t("adminFinance.balance.dialogs.withdrawSubmit")} pending={pending} />
           </form>
         </Dialog>
       )}
 
       {dialog?.kind === "adjust" && (
-        <Dialog title={`Корректировка · ${dialog.accountName}`} onClose={close}>
+        <Dialog title={t("adminFinance.balance.dialogs.adjustTitle", { account: dialog.accountName })} onClose={close}>
           <form
             action={(fd) => startTransition(async () => {
               fd.set("accountId", dialog.accountId)
               const r = await adjustAccountBalance(fd)
-              if (r.ok) { toast.success("Баланс обновлён"); close() }
-              else toast.error(r.error ?? "Ошибка")
+              if (r.ok) { toast.success(t("adminFinance.balance.dialogs.adjustDone")); close() }
+              else toast.error(r.error ?? t("adminFinance.balance.dialogs.error"))
             })}
             className="space-y-4"
           >
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Текущий баланс: <span className="font-semibold">{money(dialog.current)}</span>.
-              Введите фактическую сумму — разница будет записана как корректировка.
+              {t("adminFinance.balance.dialogs.adjustHint", { amount: money(dialog.current) })}
             </p>
-            <Field label="Новый баланс (₸)" name="newBalance" type="number" step="0.01" defaultValue={String(dialog.current)} />
-            <Field label="Причина корректировки" name="description" placeholder="Например: пересчёт кассы" />
-            <SubmitBtn label="Применить" pending={pending} />
+            <Field label={t("adminFinance.balance.dialogs.adjustBalance")} name="newBalance" type="number" step="0.01" defaultValue={String(dialog.current)} />
+            <Field
+              label={t("adminFinance.balance.dialogs.adjustReason")}
+              name="description"
+              placeholder={t("adminFinance.balance.dialogs.adjustPlaceholder")}
+            />
+            <SubmitBtn label={t("adminFinance.balance.dialogs.adjustSubmit")} pending={pending} />
           </form>
         </Dialog>
       )}
 
       {dialog?.kind === "transfer" && (
-        <Dialog title="Перевод между счетами" onClose={close}>
+        <Dialog title={t("adminFinance.balance.dialogs.transferTitle")} onClose={close}>
           <form
             action={(fd) => startTransition(async () => {
               const r = await transferBetweenAccounts(fd)
-              if (r.ok) { toast.success("Перевод выполнен"); close() }
-              else toast.error(r.error ?? "Ошибка")
+              if (r.ok) { toast.success(t("adminFinance.balance.dialogs.transferDone")); close() }
+              else toast.error(r.error ?? t("adminFinance.balance.dialogs.error"))
             })}
             className="space-y-4"
           >
-            <Select label="Откуда" name="fromId" required>
+            <Select label={t("adminFinance.balance.dialogs.transferFrom")} name="fromId" required>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name} · {money(a.balance)}</option>
               ))}
             </Select>
-            <Select label="Куда" name="toId" required>
+            <Select label={t("adminFinance.balance.dialogs.transferTo")} name="toId" required>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>{a.name} · {money(a.balance)}</option>
               ))}
             </Select>
-            <Field label="Сумма (₸)" name="amount" type="number" step="0.01" required min="0.01" />
-            <Field label="Описание (необязательно)" name="description" placeholder="Например: инкассация" />
-            <SubmitBtn label="Перевести" pending={pending} />
+            <Field label={t("adminFinance.balance.dialogs.amount")} name="amount" type="number" step="0.01" required min="0.01" />
+            <Field
+              label={t("adminFinance.balance.dialogs.description")}
+              name="description"
+              placeholder={t("adminFinance.balance.dialogs.transferPlaceholder")}
+            />
+            <SubmitBtn label={t("adminFinance.balance.dialogs.transferSubmit")} pending={pending} />
           </form>
         </Dialog>
       )}
 
       {dialog?.kind === "create" && (
-        <Dialog title="Новый счёт" onClose={close}>
+        <Dialog title={t("adminFinance.balance.dialogs.createTitle")} onClose={close}>
           <form
             action={(fd) => startTransition(async () => {
               const r = await createCashAccount(fd)
-              if (r.ok) { toast.success("Счёт создан"); close() }
-              else toast.error(r.error ?? "Ошибка")
+              if (r.ok) { toast.success(t("adminFinance.balance.dialogs.createDone")); close() }
+              else toast.error(r.error ?? t("adminFinance.balance.dialogs.error"))
             })}
             className="space-y-4"
           >
-            <Field label="Название" name="name" required placeholder="Например: Каспи Бизнес, Halyk Расчётный" />
-            <Select label="Тип" name="type" defaultValue="BANK">
-              <option value="BANK">Банковский счёт</option>
-              <option value="CASH">Наличка / касса</option>
-              <option value="CARD">Карта</option>
+            <Field
+              label={t("adminFinance.balance.dialogs.createName")}
+              name="name"
+              required
+              placeholder={t("adminFinance.balance.dialogs.createNamePlaceholder")}
+            />
+            <Select label={t("adminFinance.balance.dialogs.createType")} name="type" defaultValue="BANK">
+              <option value="BANK">{t("adminFinance.balance.dialogs.typeBank")}</option>
+              <option value="CASH">{t("adminFinance.balance.dialogs.typeCash")}</option>
+              <option value="CARD">{t("adminFinance.balance.dialogs.typeCard")}</option>
             </Select>
-            <Field label="Начальный баланс (₸)" name="balance" type="number" step="0.01" defaultValue="0" />
-            <Field label="Заметка (необязательно)" name="notes" placeholder="Например: основной счёт для аренды" />
-            <SubmitBtn label="Создать" pending={pending} />
+            <Field label={t("adminFinance.balance.dialogs.createBalance")} name="balance" type="number" step="0.01" defaultValue="0" />
+            <Field
+              label={t("adminFinance.balance.dialogs.createNotes")}
+              name="notes"
+              placeholder={t("adminFinance.balance.dialogs.createNotesPlaceholder")}
+            />
+            <SubmitBtn label={t("adminFinance.balance.dialogs.createSubmit")} pending={pending} />
           </form>
         </Dialog>
       )}

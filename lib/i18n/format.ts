@@ -78,3 +78,14 @@ export function weekdayNamesL(locale: Locale): string[] {
     return name.charAt(0).toUpperCase() + name.slice(1)
   })
 }
+
+/**
+ * Подпись идентификатора налогоплательщика. В казахском это не транслит, а
+ * свои аббревиатуры: БИН → БСН, ИИН → ЖСН. В реквизитах пишут именно так.
+ */
+export function taxIdLabelL(locale: Locale, label: string): string {
+  if (locale === "ru") return label
+  return label
+    .replace(/БИН/g, "БСН")
+    .replace(/ИИН/g, "ЖСН")
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { createTranslator, plural } from "./translate"
 import { formatDateL, formatPeriodL, formatMoneyL } from "./format"
 import { ru, kk } from "./messages"
+import { DEFAULT_LOCALE, LOCALES } from "./config"
 
 const sample = {
   docs: {
@@ -90,5 +91,15 @@ describe("даты и деньги", () => {
   it("деньги в тенге", () => {
     // Intl ставит неразрывные пробелы — сравниваем без них.
     expect(formatMoneyL("kk", 120000).replace(/\s/g, " ")).toBe("120 000 ₸")
+  })
+})
+
+describe("язык по умолчанию", () => {
+  it("государственный — основной", () => {
+    expect(DEFAULT_LOCALE).toBe("kk")
+  })
+
+  it("в переключателе казахский стоит первым", () => {
+    expect(LOCALES[0]).toBe("kk")
   })
 })

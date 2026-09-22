@@ -16,6 +16,7 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { safeServerValue } from "@/lib/server-fallback"
 import { getT, getLocale } from "@/lib/i18n/server"
 import { formatMoneyL, formatDateL, formatDateShortL } from "@/lib/i18n/format"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 
 // Системные роли: подписи из словаря, свои должности — как есть.
 const STAFF_ROLE_KEYS = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"] as const
@@ -283,7 +284,7 @@ export default async function StaffDetailPage({
                         <b>{log.action}</b> · {log.entity}
                       </span>
                       <span className="text-slate-400 dark:text-slate-500">
-                        {new Date(log.createdAt).toLocaleString(locale === "kk" ? "kk-KZ" : "ru-RU", {
+                        {new Date(log.createdAt).toLocaleString(INTL_LOCALE[locale], {
                           day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
                         })}
                       </span>

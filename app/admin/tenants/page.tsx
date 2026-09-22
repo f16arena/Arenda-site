@@ -5,7 +5,8 @@ import { auth } from "@/auth"
 import { Suspense } from "react"
 import { Users, Wallet, CalendarClock, FileWarning } from "lucide-react"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
-import { formatMoney } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { PageHeader, StatGrid, StatCard } from "@/components/ui/page"
 import { MoveInTenantButton } from "./move-in-button"
 import { TenantDialog } from "./tenant-dialog"
@@ -27,6 +28,8 @@ type TenantsPageProps = {
 }
 
 export default async function TenantsPage(props: TenantsPageProps) {
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
   const { orgId } = await requireOrgAccess()
   const session = await auth()
   const buildingId = await getCurrentBuildingId()
@@ -132,7 +135,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
     db.tenant.count({ where: tenantWhere }),
   ])
 
-  const tenantIds = tenants.map((t) => t.id)
+  const tenantIds = tenants.map((item) => item.id)
   const debtRows = tenantIds.length > 0
     ? await db.charge.groupBy({
         by: ["tenantId"],
@@ -179,38 +182,38 @@ export default async function TenantsPage(props: TenantsPageProps) {
     orderBy: [{ floor: { number: "asc" } }, { number: "asc" }],
   })
 
-  const rows: TenantRow[] = tenants.map((t) => ({
-    id: t.id,
-    companyName: t.companyName,
-    legalType: t.legalType,
-    bin: t.bin,
-    iin: t.iin,
-    category: t.category,
-    placementNote: t.placementNote,
-    user: { name: t.user.name, phone: t.user.phone, email: t.user.email },
-    space: t.space,
-    tenantSpaces: t.tenantSpaces,
-    fullFloors: t.fullFloors.map((f) => ({
+  const rows: TenantRow[] = tenants.map((item) => ({
+    id: item.id,
+    companyName: item.companyName,
+    legalType: item.legalType,
+    bin: item.bin,
+    iin: item.iin,
+    category: item.category,
+    placementNote: item.placementNote,
+    user: { name: item.user.name, phone: item.user.phone, email: item.user.email },
+    space: item.space,
+    tenantSpaces: item.tenantSpaces,
+    fullFloors: item.fullFloors.map((f) => ({
       id: f.id,
       name: f.name,
       totalArea: f.totalArea,
       fixedMonthlyRent: f.fixedMonthlyRent,
     })),
-    debt: debtMap.get(t.id) ?? 0,
-    rent: calculateTenantMonthlyRent(t),
-    contractEnd: t.contractEnd ? t.contractEnd.toISOString() : null,
-    hasSignedContract: t.contracts[0]?.status === "SIGNED",
+    debt: debtMap.get(item.id) ?? 0,
+    rent: calculateTenantMonthlyRent(item),
+    contractEnd: item.contractEnd ? item.contractEnd.toISOString() : null,
+    hasSignedContract: item.contracts[0]?.status === "SIGNED",
     // Договор может быть уже отправлен и ждать подписи — это не то же самое,
     // что «договора нет»: второй создавать не нужно.
-    contractStatus: t.contracts[0]?.status ?? null,
+    contractStatus: item.contracts[0]?.status ?? null,
   }))
 
   return (
     <div className="space-y-5">
       <PageHeader
         icon={Users}
-        title="Арендаторы"
-        subtitle={`${totalTenants} зарегистрировано`}
+        title={t("adminTenants.list.title")}
+        subtitle={t("adminTenants.list.subtitle", { count: totalTenants })}
         actions={
           <>
             {allowedCapabilities.has("messages.send") && (
@@ -233,7 +236,7 @@ export default async function TenantsPage(props: TenantsPageProps) {
             )}
             {allowedCapabilities.has("tenants.create") && (
               <TenantDialog
-                label="Только карточка"
+                label={t("adminTenants.list.onlyCard")}
                 variant="outline"
                 buildingId={buildingId}
                 vacantSpaces={vacantSpaces.map((s) => ({
@@ -251,28 +254,34 @@ export default async function TenantsPage(props: TenantsPageProps) {
       />
 
       <StatGrid>
-        <StatCard icon={Users} label="Арендаторов" value={totalTenants} tone="blue" sub={buildingId ? "в выбранном здании" : "во всех зданиях"} />
+        <StatCard
+          icon={Users}
+          label={t("adminTenants.list.stats.tenants")}
+          value={totalTenants}
+          tone="blue"
+          sub={buildingId ? t("adminTenants.list.stats.inBuilding") : t("adminTenants.list.stats.allBuildings")}
+        />
         <StatCard
           icon={Wallet}
-          label="Долг"
-          value={formatMoney(totalDebt)}
-          sub={debtorsCount > 0 ? `у ${debtorsCount} арендатор${debtorsCount === 1 ? "а" : "ов"}` : "все платят вовремя"}
+          label={t("adminTenants.list.stats.debt")}
+          value={formatMoneyL(locale, totalDebt)}
+          sub={debtorsCount > 0 ? tp("adminTenants.list.stats.debtors", debtorsCount) : t("adminTenants.list.stats.noDebtors")}
           tone={totalDebt > 0 ? "red" : "emerald"}
           href={totalDebt > 0 ? "/admin/tenants?debt=debt" : undefined}
         />
         <StatCard
           icon={CalendarClock}
-          label="Договор кончается"
+          label={t("adminTenants.list.stats.expiring")}
           value={expiringCount}
-          sub="в ближайшие 60 дней — продлите заранее"
+          sub={t("adminTenants.list.stats.expiringHint")}
           tone={expiringCount > 0 ? "amber" : "slate"}
           href={expiringCount > 0 ? "/admin/tenants?contract=expiring" : undefined}
         />
         <StatCard
           icon={FileWarning}
-          label="Без подписанного договора"
+          label={t("adminTenants.list.stats.unsigned")}
           value={unsignedCount}
-          sub={unsignedCount > 0 ? "счета по ним выставить нельзя" : "у всех есть договор"}
+          sub={unsignedCount > 0 ? t("adminTenants.list.stats.unsignedHint") : t("adminTenants.list.stats.allSigned")}
           tone={unsignedCount > 0 ? "amber" : "emerald"}
           href={unsignedCount > 0 ? "/admin/tenants?contract=none" : undefined}
         />

@@ -89,7 +89,7 @@ export function CreateBuildingButton() {
                   className="font-mono uppercase"
                 />
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                  {t("adminObjects.buildingForm.contractPrefixHint", { pattern: PREFIX_PATTERN })}
+                  {t("adminObjects.buildingForm.contractPrefixHint", { pattern: t("adminObjects.buildingForm.prefixPattern") })}
                 </p>
               </div>
               <div className="flex gap-3 pt-2">
@@ -103,9 +103,6 @@ export function CreateBuildingButton() {
     </>
   )
 }
-
-// Шаблон номера договора одинаков в обоих языках — это формат, а не текст.
-const PREFIX_PATTERN = "{префикс}-{год}-{№}"
 
 export function BuildingActions({
   buildingId, isCurrent, isActive, canEdit, canToggle, canDelete, building,
@@ -284,7 +281,7 @@ export function BuildingActions({
                 />
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
                   {t("adminObjects.buildingForm.contractPrefixFormat", {
-                    pattern: PREFIX_PATTERN,
+                    pattern: t("adminObjects.buildingForm.prefixPattern"),
                     example: `${building.contractPrefix || "F16"}-${new Date().getFullYear()}-001`,
                   })}
                 </p>
@@ -299,6 +296,15 @@ export function BuildingActions({
           </ModalShell>
     </div>
   )
+}
+
+/**
+ * Этаж уже назван «Крыша» / «Шатыр» — бейдж рядом дублирует название.
+ * Сверяем и с русским словом (так названы старые записи), и с текущим языком.
+ */
+function namedAs(name: string, ...words: string[]): boolean {
+  const value = name.trim().toLowerCase()
+  return words.some((word) => value === word.trim().toLowerCase())
 }
 
 export function FloorsList({
@@ -349,12 +355,12 @@ export function FloorsList({
                           ? t("adminObjects.floors.numberedName", { number: f.name.trim() })
                           : f.name}
                       </span>
-                      {f.kind === "ROOF" && f.name.trim().toLowerCase() !== "крыша" && (
+                      {f.kind === "ROOF" && !namedAs(f.name, "крыша", t("adminObjects.floors.roofBadge")) && (
                         <Badge className="shrink-0 bg-sky-100 dark:bg-sky-500/20 px-1.5 text-[10px] text-sky-700 dark:text-sky-300">
                           {t("adminObjects.floors.roofBadge")}
                         </Badge>
                       )}
-                      {f.kind === "TERRITORY" && f.name.trim().toLowerCase() !== "территория" && (
+                      {f.kind === "TERRITORY" && !namedAs(f.name, "территория", t("adminObjects.floors.territoryBadge")) && (
                         <Badge className="shrink-0 bg-lime-100 dark:bg-lime-500/20 px-1.5 text-[10px] text-lime-700 dark:text-lime-300">
                           {t("adminObjects.floors.territoryBadge")}
                         </Badge>

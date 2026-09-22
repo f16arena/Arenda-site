@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { fallbackCanEdit, fallbackCanView, requireSection } from "@/lib/acl"
-import { ROLE_COLORS, cn, formatDate } from "@/lib/utils"
+import { ROLE_COLORS, cn } from "@/lib/utils"
 import { AlertTriangle, CheckCircle2, History, Shield, Users as UsersIcon } from "lucide-react"
 import { requireOrgAccess } from "@/lib/org"
 import {
@@ -31,10 +31,23 @@ import {
   ToggleActiveButton,
   UserRow,
 } from "./user-actions"
-import { APPROVAL_PENDING, APPROVAL_REJECTED, approvalLabel } from "@/lib/approval"
+import { APPROVAL_PENDING, APPROVAL_REJECTED } from "@/lib/approval"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { TEAM_TABS } from "@/lib/hub-tabs"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatDateL } from "@/lib/i18n/format"
+
+// Системные роли: подписи берём из словаря, свои должности организации —
+// как их назвал владелец (перевод им не нужен).
+const SYSTEM_ROLE_KEYS = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE", "TENANT"] as const
+type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number]
+function isSystemRoleKey(role: string): role is SystemRoleKey {
+  return (SYSTEM_ROLE_KEYS as readonly string[]).includes(role)
+}
+
+// Переводчик страницы: нужен и вложенным компонентам (ячейка итоговых прав).
+type PageTranslator = Awaited<ReturnType<typeof getT>>
 
 type EffectiveCapabilityState = {
   allowed: boolean
@@ -63,6 +76,11 @@ type AccessReviewItem = {
 export default async function UsersPage() {
   const session = await requireSection("users", "view")
   const { orgId } = await requireOrgAccess()
+  const translator = await getT()
+  const { t } = translator
+  const locale = await getLocale()
+  const roleLabel = (role: string) =>
+    isSystemRoleKey(role) ? t(`adminSettings.roles.systemRoles.${role}`) : displayRoleLabel(role)
 
   const [users, buildings, roleRows, org, currentCapabilityKeys] = await Promise.all([
     db.user.findMany({
@@ -219,16 +237,16 @@ export default async function UsersPage() {
       const staffWithoutBuildings = user.isActive && isStaffLikeRole(user.role) && user.buildingAccess.length === 0
 
       if (user.role !== "OWNER" && summary.highRisk > 0) {
-        reasons.push({ label: `Рискованных прав: ${summary.highRisk}`, tone: "amber" })
+        reasons.push({ label: t("adminSettings.users.reasons.highRisk", { count: summary.highRisk }), tone: "amber" })
       }
       if (personalCount > 0) {
-        reasons.push({ label: `Личных исключений: ${personalCount}`, tone: "purple" })
+        reasons.push({ label: t("adminSettings.users.reasons.personal", { count: personalCount }), tone: "purple" })
       }
       if (staffWithoutBuildings) {
-        reasons.push({ label: "Нет привязки к зданиям", tone: "red" })
+        reasons.push({ label: t("adminSettings.users.reasons.noBuildings"), tone: "red" })
       }
       if (!user.isActive && personalCount > 0) {
-        reasons.push({ label: "Неактивен, но есть личные права", tone: "red" })
+        reasons.push({ label: t("adminSettings.users.reasons.inactiveWithRights"), tone: "red" })
       }
 
       if (reasons.length === 0) return null
@@ -237,7 +255,7 @@ export default async function UsersPage() {
         userId: user.id,
         name: user.name,
         role: user.role,
-        roleLabel: displayRoleLabel(user.role),
+        roleLabel: roleLabel(user.role),
         reasons,
         score: (user.role !== "OWNER" ? summary.highRisk : 0) + personalCount * 2 + (staffWithoutBuildings ? 10 : 0),
       }
@@ -267,8 +285,8 @@ export default async function UsersPage() {
       <PageHeader
         icon={Shield}
         tone="violet"
-        title="Пользователи и доступ"
-        subtitle="Назначайте должности, здания и доступы. Свои должности создаются в разделе «Должности и права»."
+        title={t("adminSettings.users.title")}
+        subtitle={t("adminSettings.users.subtitle")}
         actions={
           <>
             <Link
@@ -276,7 +294,7 @@ export default async function UsersPage() {
               className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <History className="h-4 w-4" />
-              Журнал прав
+              {t("adminSettings.users.permissionsLog")}
             </Link>
             {currentCapabilities.has("users.invite") && (
               <CreateUserDialog buildings={buildings} roleOptions={roleOptions} />
@@ -289,21 +307,21 @@ export default async function UsersPage() {
         {roleOptions.slice(0, 10).map((role) => (
           <div key={role.value} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
             <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{byRole[role.value] ?? 0}</p>
-            <p className="mt-0.5 truncate text-xs text-slate-500">{role.label}</p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{roleLabel(role.value)}</p>
           </div>
         ))}
       </div>
 
       {pendingUsers.length > 0 && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-          <p className="text-sm font-semibold text-amber-700 dark:text-amber-100">Пользователи ожидают подтверждения</p>
+          <p className="text-sm font-semibold text-amber-700 dark:text-amber-100">{t("adminSettings.users.pendingTitle")}</p>
           <p className="mt-1 text-xs text-amber-200/75">
-            Подтвердите только тех администраторов и арендаторов, которых вы реально подключали к организации.
+            {t("adminSettings.users.pendingHint")}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {pendingUsers.slice(0, 6).map((user) => (
               <span key={user.id} className="rounded-full border border-amber-500/30 bg-slate-50 dark:bg-slate-950/40 px-3 py-1 text-xs text-amber-700 dark:text-amber-100">
-                {user.name} · {displayRoleLabel(user.role)}
+                {user.name} · {roleLabel(user.role)}
               </span>
             ))}
             {pendingUsers.length > 6 && (
@@ -320,32 +338,32 @@ export default async function UsersPage() {
           <div>
             <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
               <Shield className="h-4 w-4 text-blue-700 dark:text-blue-300" />
-              Ревизия доступов
+              {t("adminSettings.users.reviewTitle")}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Быстрая проверка: кому выдали рискованные действия, личные исключения и где забыли привязать здания.
+              {t("adminSettings.users.reviewHint")}
             </p>
           </div>
           <Link
             href="/admin/data-quality"
             className="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 px-3 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors hover:border-slate-600 hover:text-slate-100"
           >
-            Открыть качество данных
+            {t("adminSettings.users.dataQuality")}
           </Link>
         </div>
 
         <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-          <AccessReviewMetric label="Сотрудников с риском" value={accessReviewStats.riskyUsers} tone={accessReviewStats.riskyUsers > 0 ? "amber" : "emerald"} />
-          <AccessReviewMetric label="Личных исключений" value={accessReviewStats.personalOverrides} tone={accessReviewStats.personalOverrides > 0 ? "purple" : "emerald"} />
-          <AccessReviewMetric label="Без зданий" value={accessReviewStats.staffWithoutBuildings} tone={accessReviewStats.staffWithoutBuildings > 0 ? "red" : "emerald"} />
-          <AccessReviewMetric label="Закрыто тарифом" value={accessReviewStats.lockedByPlan} tone="slate" />
+          <AccessReviewMetric label={t("adminSettings.users.metrics.risky")} value={accessReviewStats.riskyUsers} tone={accessReviewStats.riskyUsers > 0 ? "amber" : "emerald"} />
+          <AccessReviewMetric label={t("adminSettings.users.metrics.personal")} value={accessReviewStats.personalOverrides} tone={accessReviewStats.personalOverrides > 0 ? "purple" : "emerald"} />
+          <AccessReviewMetric label={t("adminSettings.users.metrics.withoutBuildings")} value={accessReviewStats.staffWithoutBuildings} tone={accessReviewStats.staffWithoutBuildings > 0 ? "red" : "emerald"} />
+          <AccessReviewMetric label={t("adminSettings.users.metrics.lockedByPlan")} value={accessReviewStats.lockedByPlan} tone="slate" />
         </div>
 
         {accessReviewItems.length > 0 ? (
           <div className="border-t border-slate-200 dark:border-slate-800 p-4">
             <p className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
               <AlertTriangle className="h-4 w-4" />
-              Проверить в первую очередь
+              {t("adminSettings.users.checkFirst")}
             </p>
             <div className="grid gap-2 lg:grid-cols-2">
               {accessReviewItems.slice(0, 6).map((item) => (
@@ -376,9 +394,9 @@ export default async function UsersPage() {
             <div className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-3">
               <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-700 dark:text-emerald-300" />
               <div>
-                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-100">Критичных отклонений по доступам не найдено</p>
+                <p className="text-sm font-medium text-emerald-700 dark:text-emerald-100">{t("adminSettings.users.allGoodTitle")}</p>
                 <p className="mt-1 text-xs text-emerald-200/70">
-                  Все активные сотрудники привязаны к зданиям, а личные исключения и рискованные права не требуют внимания.
+                  {t("adminSettings.users.allGoodHint")}
                 </p>
               </div>
             </div>
@@ -390,14 +408,14 @@ export default async function UsersPage() {
         <table className="w-full min-w-[720px] text-sm">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50">
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Пользователь</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Должность</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Контакты</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Здания</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Профиль</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Итоговые права</th>
-              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">Создан</th>
-              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">Действия</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.user")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.role")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.contacts")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.buildings")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.profile")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.rights")}</th>
+              <th className="px-5 py-3 text-left text-xs font-medium text-slate-500">{t("adminSettings.users.columns.created")}</th>
+              <th className="px-5 py-3 text-right text-xs font-medium text-slate-500">{t("adminSettings.users.columns.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -416,15 +434,15 @@ export default async function UsersPage() {
                         <p className="flex items-center gap-2 font-medium text-slate-900 dark:text-slate-100">
                           {user.name}
                           {isSelf && (
-                            <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:text-purple-300">вы</span>
+                            <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-purple-700 dark:text-purple-300">{t("adminSettings.users.you")}</span>
                           )}
                           <RowInactiveBadge />
                           {user.approvalStatus === APPROVAL_PENDING && (
-                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-200">на подтверждении</span>
+                            <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-200">{t("adminSettings.users.pendingApproval")}</span>
                           )}
                           {user.approvalStatus === APPROVAL_REJECTED && (
                             <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-200">
-                              {approvalLabel(user.approvalStatus)}
+                              {t("adminSettings.users.approval.rejectedBadge")}
                             </span>
                           )}
                         </p>
@@ -437,7 +455,7 @@ export default async function UsersPage() {
                       "rounded-full px-2 py-0.5 text-xs font-medium",
                       ROLE_COLORS[user.role] ?? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300",
                     )}>
-                      {displayRoleLabel(user.role)}
+                      {roleLabel(user.role)}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-slate-400">
@@ -449,20 +467,20 @@ export default async function UsersPage() {
                   </td>
                   <td className="px-5 py-3.5 text-slate-400">
                     {user.role === "OWNER" ? (
-                      <span className="text-xs text-emerald-400">Все здания</span>
+                      <span className="text-xs text-emerald-400">{t("adminSettings.users.allBuildings")}</span>
                     ) : isStaffLikeRole(user.role) ? (
                       user.buildingAccess.length > 0 ? (
                         <span className="text-xs">{user.buildingAccess.map((access) => access.building.name).join(", ")}</span>
                       ) : (
-                        <span className="text-xs text-amber-400">Не назначено</span>
+                        <span className="text-xs text-amber-400">{t("adminSettings.users.notAssigned")}</span>
                       )
                     ) : (
-                      <span className="text-xs text-slate-500">По профилю</span>
+                      <span className="text-xs text-slate-500">{t("adminSettings.users.byProfile")}</span>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-slate-400">
                     {user.tenant ? (
-                      <span className="text-xs">Арендатор: {user.tenant.companyName}</span>
+                      <span className="text-xs">{t("adminSettings.users.tenantProfile", { name: user.tenant.companyName })}</span>
                     ) : user.staff ? (
                       <span className="text-xs">{user.staff.position}</span>
                     ) : (
@@ -471,13 +489,13 @@ export default async function UsersPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     {effectiveRights ? (
-                      <EffectiveRightsCell summary={effectiveRights} />
+                      <EffectiveRightsCell summary={effectiveRights} tr={translator} />
                     ) : (
                       <span className="text-xs text-slate-500">-</span>
                     )}
                   </td>
                   <td className="px-5 py-3.5 text-xs text-slate-500">
-                    {formatDate(user.createdAt)}
+                    {formatDateL(locale, user.createdAt)}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-2">
@@ -508,7 +526,7 @@ export default async function UsersPage() {
                           effectiveSummary={effectiveRights}
                           effectiveStates={effectiveRights?.states ?? {}}
                           inheritedStates={inheritedRights?.states ?? {}}
-                          roleLabel={displayRoleLabel(user.role)}
+                          roleLabel={roleLabel(user.role)}
                         />
                       )}
                       {currentCapabilities.has("users.resetPassword") && (
@@ -529,7 +547,7 @@ export default async function UsersPage() {
               <tr>
                 <td colSpan={8} className="px-5 py-16 text-center">
                   <UsersIcon className="mx-auto mb-2 h-8 w-8 text-slate-700" />
-                  <p className="text-sm text-slate-500">Нет пользователей</p>
+                  <p className="text-sm text-slate-500">{t("adminSettings.users.empty")}</p>
                 </td>
               </tr>
             )}
@@ -633,26 +651,26 @@ function resolveCapabilityState({
   }
 }
 
-function EffectiveRightsCell({ summary }: { summary: EffectiveRightsSummary }) {
+function EffectiveRightsCell({ summary, tr }: { summary: EffectiveRightsSummary; tr: PageTranslator }) {
   const personalCount = summary.personalAllow + summary.personalDeny
   return (
     <div className="flex max-w-52 flex-wrap gap-1.5">
       <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:text-blue-200">
-        {summary.allowed} действий
+        {tr.tp("adminSettings.users.rights.allowed", summary.allowed)}
       </span>
       {summary.highRisk > 0 && (
         <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-200">
-          риск {summary.highRisk}
+          {tr.t("adminSettings.users.rights.risk", { count: summary.highRisk })}
         </span>
       )}
       {personalCount > 0 && (
         <span className="rounded-full border border-purple-500/30 bg-purple-500/10 px-2 py-0.5 text-[11px] font-medium text-purple-700 dark:text-purple-200">
-          личные {personalCount}
+          {tr.t("adminSettings.users.rights.personal", { count: personalCount })}
         </span>
       )}
       {summary.locked > 0 && (
         <span className="rounded-full border border-slate-200 dark:border-slate-700 bg-slate-800/70 px-2 py-0.5 text-[11px] font-medium text-slate-400">
-          тариф {summary.locked}
+          {tr.t("adminSettings.users.rights.plan", { count: summary.locked })}
         </span>
       )}
     </div>

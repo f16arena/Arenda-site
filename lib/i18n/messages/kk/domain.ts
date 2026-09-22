@@ -19,6 +19,14 @@ export const domain: typeof ru = {
     SERVICE_DELIVERED: "Көрсетілген қызмет",
     OTHER: "Басқа",
   },
+  roles: {
+    OWNER: "Иесі",
+    ADMIN: "Әкімші",
+    MANAGER: "Менеджер",
+    ACCOUNTANT: "Бухгалтер",
+    STAFF: "Қызметкер",
+    TENANT: "Жалға алушы",
+  },
   statuses: {
     NEW: "Жаңа",
     IN_PROGRESS: "Жұмыста",

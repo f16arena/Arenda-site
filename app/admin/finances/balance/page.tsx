@@ -101,12 +101,13 @@ export default async function BalancePage() {
           balance: a.balance,
           currency: a.currency,
           notes: a.notes,
-          recentTransactions: a.transactions.map((t) => ({
-            id: t.id,
-            amount: t.amount,
-            type: t.type,
-            description: t.description,
-            date: t.date.toISOString(),
+          // Транзакция названа tx, а не t: иначе перекрывает переводчик t.
+          recentTransactions: a.transactions.map((tx) => ({
+            id: tx.id,
+            amount: tx.amount,
+            type: tx.type,
+            description: tx.description,
+            date: tx.date.toISOString(),
           })),
         }))}
       />

@@ -8,9 +8,10 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
-import { formatMoney } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
-import { computeDepositStatus, DEPOSIT_STATUS_LABELS, type DepositStatus } from "@/lib/deposit"
+import { computeDepositStatus, type DepositStatus } from "@/lib/deposit"
 import { ShieldCheck, ShieldAlert, Wallet, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { DepositsTable, type DepositRow } from "./deposits-table"
@@ -36,6 +37,9 @@ export default async function DepositsPage() {
     redirect("/admin")
   }
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
 
   const bIds = await restrictedBuildingIds(orgId)
   const tenants = await db.tenant.findMany({
@@ -64,60 +68,60 @@ export default async function DepositsPage() {
     },
   })
 
+  // Арендатор в колбэках назван tx, а не t: иначе перекрывает переводчик t.
   const rows: DepositRow[] = tenants
     // Показываем только «реальных» арендаторов: с размещением, договором или депозитными записями.
-    .filter((t) =>
-      t.space || t.tenantSpaces.length > 0 || t.fullFloors.length > 0 ||
-      t.contracts.length > 0 || t.charges.length > 0,
+    .filter((tx) =>
+      tx.space || tx.tenantSpaces.length > 0 || tx.fullFloors.length > 0 ||
+      tx.contracts.length > 0 || tx.charges.length > 0,
     )
-    .map((t) => {
+    .map((tx) => {
       // Приоритет «требуется»: выставленные DEPOSIT-начисления (сумма из
       // договора) → depositAmount карточки (0 = явно не требуется) → 1 мес.
       // аренды как дефолт-оценка.
       const issuedDeposit = Math.round(
-        t.charges.filter((c) => c.type === "DEPOSIT").reduce((sum, c) => sum + c.amount, 0) * 100,
+        tx.charges.filter((c) => c.type === "DEPOSIT").reduce((sum, c) => sum + c.amount, 0) * 100,
       ) / 100
       const required = issuedDeposit > 0
         ? issuedDeposit
-        : t.depositAmount === 0
+        : tx.depositAmount === 0
           ? 0
-          : Math.round((t.depositAmount ?? calculateTenantMonthlyRent(t)) * 100) / 100
+          : Math.round((tx.depositAmount ?? calculateTenantMonthlyRent(tx)) * 100) / 100
       // Удерживается = оплаченные DEPOSIT − DEPOSIT_REFUND (возвраты — отдельным типом).
       const held = Math.round(
-        t.charges.reduce((sum, c) => {
+        tx.charges.reduce((sum, c) => {
           if (c.type === "DEPOSIT_REFUND") return sum - c.amount
           return c.isPaid ? sum + c.amount : sum
         }, 0) * 100,
       ) / 100
-      const unpaidCharge = t.charges.find((c) => c.type === "DEPOSIT" && !c.isPaid && c.amount > 0) ?? null
-      const hasRefund = t.charges.some((c) => c.type === "DEPOSIT_REFUND")
+      const unpaidCharge = tx.charges.find((c) => c.type === "DEPOSIT" && !c.isPaid && c.amount > 0) ?? null
+      const hasRefund = tx.charges.some((c) => c.type === "DEPOSIT_REFUND")
       const status = computeDepositStatus({
         required,
         held,
         hasUnpaid: !!unpaidCharge,
-        hasAnyCharge: t.charges.length > 0,
+        hasAnyCharge: tx.charges.length > 0,
         hasRefund,
       })
 
-      const spaces = t.tenantSpaces.length > 0 ? t.tenantSpaces.map((x) => x.space) : t.space ? [t.space] : []
+      const spaces = tx.tenantSpaces.length > 0 ? tx.tenantSpaces.map((x) => x.space) : tx.space ? [tx.space] : []
       const placement = [
-        ...spaces.map((s) => `Пом. ${s.number}`),
-        ...t.fullFloors.map((f) => f.name?.trim() || `Этаж ${f.number} целиком`),
+        ...spaces.map((s) => t("adminFinance.deposits.room", { number: s.number })),
+        ...tx.fullFloors.map((f) => f.name?.trim() || t("adminFinance.deposits.wholeFloor", { number: f.number })),
       ].join(", ")
 
       return {
-        tenantId: t.id,
-        companyName: t.companyName,
+        tenantId: tx.id,
+        companyName: tx.companyName,
         placement,
-        contractNumber: t.contracts[0]?.number ?? null,
+        contractNumber: tx.contracts[0]?.number ?? null,
         required,
         held,
         status,
-        statusLabel: DEPOSIT_STATUS_LABELS[status],
         unpaidChargeId: unpaidCharge?.id ?? null,
       }
     })
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.companyName.localeCompare(b.companyName, "ru"))
+    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.companyName.localeCompare(b.companyName, locale))
 
   const active = rows.filter((r) => r.status !== "NOT_REQUIRED" && r.status !== "RETURNED")
   const heldTotal = rows.reduce((sum, r) => sum + Math.max(0, r.held), 0)
@@ -138,27 +142,30 @@ export default async function DepositsPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <ShieldCheck className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-            Гарантийные депозиты
+            {t("adminFinance.deposits.title")}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            Кто внёс депозит, кто нет, и сколько удерживается
+            {t("adminFinance.deposits.subtitle")}
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <SummaryCard icon={Wallet} label="Удерживается депозитов" value={formatMoney(heldTotal)} color="slate" big />
-        <SummaryCard icon={ShieldCheck} label="Внесли депозит" value={`${paidCount} из ${active.length}`} color="emerald" />
-        <SummaryCard icon={ShieldAlert} label="Не внесли / частично" value={String(missingRows.length)} color="red" />
-        <SummaryCard icon={Wallet} label="Недополучено" value={formatMoney(missingTotal)} color="amber" />
+        <SummaryCard icon={Wallet} label={t("adminFinance.deposits.held")} value={money(heldTotal)} color="slate" big />
+        <SummaryCard
+          icon={ShieldCheck}
+          label={t("adminFinance.deposits.paidCount")}
+          value={t("adminFinance.deposits.paidCountValue", { paid: paidCount, total: active.length })}
+          color="emerald"
+        />
+        <SummaryCard icon={ShieldAlert} label={t("adminFinance.deposits.missingCount")} value={String(missingRows.length)} color="red" />
+        <SummaryCard icon={Wallet} label={t("adminFinance.deposits.missingTotal")} value={money(missingTotal)} color="amber" />
       </div>
 
       <DepositsTable rows={rows} />
 
       <p className="text-xs text-slate-400 dark:text-slate-500">
-        Начисление депозита создаётся автоматически при подписании договора (если депозит не отключён в
-        конструкторе). Оплата засчитывается платежом на странице «Финансы» или кнопкой «Отметить внесённым».
-        Возврат при выезде фиксируется кнопкой «Вернуть».
+        {t("adminFinance.deposits.footnote")}
       </p>
     </div>
   )

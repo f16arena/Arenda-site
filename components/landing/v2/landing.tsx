@@ -33,8 +33,8 @@ export function LandingV2({
   // Переключатель языка в шапке: вёрстка лендинга — готовая строка,
   // поэтому вставляем ссылку рядом с кнопкой «Войти».
   const languageLink = locale === "kk"
-    ? '<a href="/" class="btn btn-ghost" hreflang="ru" lang="ru">RU</a>'
-    : '<a href="/kk" class="btn btn-ghost" hreflang="kk" lang="kk">ҚАЗ</a>' 
+    ? '<a href="/ru" class="btn btn-ghost" hreflang="ru" lang="ru">RU</a>'
+    : '<a href="/" class="btn btn-ghost" hreflang="kk" lang="kk">ҚАЗ</a>' 
   const bodyAfter = locale === "kk" ? LANDING_BODY_AFTER_KK : LANDING_BODY_AFTER
   const screenshotPlaceholder = locale === "kk"
     ? '<div class="img-ph">Ғимараттың 3D-редакторының скриншоты</div>'

@@ -23,8 +23,26 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { isStaffLikeRole, type RoleOption } from "@/lib/role-capabilities"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
+import { useT } from "@/lib/i18n/client"
 
 type BuildingOption = { id: string; name: string }
+
+// Системные роли: подписи из словаря, свои должности организации — как их
+// назвал владелец (перевод им не нужен).
+const SYSTEM_ROLE_KEYS = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE", "TENANT"] as const
+type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number]
+function isSystemRoleKey(role: string): role is SystemRoleKey {
+  return (SYSTEM_ROLE_KEYS as readonly string[]).includes(role)
+}
+
+/** Подпись должности для выпадающего списка и подсказок. */
+function useRoleLabel() {
+  const { t } = useT()
+  return (option: RoleOption) =>
+    isSystemRoleKey(option.value)
+      ? t(`adminSettings.roles.systemRoles.${option.value}`)
+      : option.label
+}
 
 // Контекст строки пользователя: позволяет кнопкам внутри строки (вкл/выкл,
 // удаление) мгновенно менять её вид без перезагрузки всей страницы.
@@ -51,10 +69,11 @@ export function UserRow({ initialActive, children }: { initialActive: boolean; c
 
 /** Бейдж «неактивен» в ячейке имени — реагирует на оптимистичный статус строки. */
 export function RowInactiveBadge() {
+  const { t } = useT()
   const row = useContext(RowStatusContext)
   if (!row || row.active) return null
   return (
-    <span className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">неактивен</span>
+    <span className="rounded bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">{t("adminSettings.users.inactive")}</span>
   )
 }
 
@@ -65,13 +84,16 @@ export function CreateUserDialog({
   buildings: BuildingOption[]
   roleOptions: RoleOption[]
 }) {
+  const { t } = useT()
+  const labelOf = useRoleLabel()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const defaultRole = roleOptions.find((role) => role.value === "ADMIN")?.value ?? roleOptions[0]?.value ?? "ADMIN"
   const [role, setRole] = useState(defaultRole)
 
   const isStaff = isStaffLikeRole(role)
-  const roleLabel = roleOptions.find((item) => item.value === role)?.label ?? role
+  const selectedOption = roleOptions.find((item) => item.value === role)
+  const roleLabel = selectedOption ? labelOf(selectedOption) : role
 
   return (
     <>
@@ -80,47 +102,47 @@ export function CreateUserDialog({
         className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
       >
         <Plus className="h-4 w-4" />
-        Добавить пользователя
+        {t("adminSettings.users.dialog.add")}
       </button>
 
       {open && (
-        <Modal title="Новый пользователь" onClose={() => setOpen(false)}>
+        <Modal title={t("adminSettings.users.dialog.newTitle")} onClose={() => setOpen(false)}>
           <form
             action={(fd) =>
               startTransition(async () => {
                 try {
                   fd.set("role", role)
                   await createUserAdmin(fd)
-                  toast.success("Пользователь создан")
+                  toast.success(t("adminSettings.users.dialog.created"))
                   setOpen(false)
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Не удалось создать пользователя")
+                  toast.error(error instanceof Error ? error.message : t("adminSettings.users.dialog.createError"))
                 }
               })
             }
             className="space-y-4 p-6"
           >
-            <Field label="Имя *" name="name" required />
+            <Field label={`${t("adminSettings.users.dialog.name")} *`} name="name" required />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Email" name="email" type="email" placeholder="user@example.com" />
-              <Field label="Телефон" name="phone" type="tel" placeholder="+7 700 000 00 00" />
+              <Field label={t("adminSettings.users.dialog.email")} name="email" type="email" placeholder="user@example.com" />
+              <Field label={t("adminSettings.users.dialog.phone")} name="phone" type="tel" placeholder="+7 700 000 00 00" />
             </div>
             <RoleSelect role={role} setRole={setRole} roleOptions={roleOptions} />
             {isStaff && (
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Должность" name="position" placeholder={roleLabel} />
-                <Field label="Оклад, ₸" name="salary" type="number" />
+                <Field label={t("adminSettings.users.dialog.position")} name="position" placeholder={roleLabel} />
+                <Field label={t("adminSettings.users.dialog.salary")} name="salary" type="number" />
               </div>
             )}
             {isStaff && <BuildingAccessField buildings={buildings} />}
-            <PasswordWithGenerate label="Пароль *" name="password" />
+            <PasswordWithGenerate label={`${t("adminSettings.users.dialog.password")} *`} name="password" />
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">
-                Отмена
+                {t("common.actions.cancel")}
               </button>
               <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white disabled:opacity-60">
-                {pending ? "Создание..." : "Создать"}
+                {pending ? t("adminSettings.users.dialog.creating") : t("adminSettings.users.dialog.create")}
               </button>
             </div>
           </form>
@@ -131,6 +153,7 @@ export function CreateUserDialog({
 }
 
 export function UserApprovalButtons({ userId, userName }: { userId: string; userName: string }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -142,36 +165,41 @@ export function UserApprovalButtons({ userId, userName }: { userId: string; user
           startTransition(async () => {
             try {
               await approveUserRegistration(userId)
-              toast.success(`Пользователь ${userName} подтвержден`)
+              toast.success(t("adminSettings.users.approval.approved", { name: userName }))
             } catch (error) {
-              toast.error(error instanceof Error ? error.message : "Не удалось подтвердить пользователя")
+              toast.error(error instanceof Error ? error.message : t("adminSettings.users.approval.approveError"))
             }
           })
         }}
         className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-emerald-700 disabled:opacity-60"
       >
-        Подтвердить
+        {t("adminSettings.users.approval.approve")}
       </button>
       <button
         type="button"
         disabled={pending}
         onClick={async () => {
-          const reason = (await askText({ title: `Почему отклоняем заявку ${userName}?`, label: "Причина (необязательно)", optional: true, confirmLabel: "Отклонить" }))?.trim()
+          const reason = (await askText({
+            title: t("adminSettings.users.approval.rejectTitle", { name: userName }),
+            label: t("adminSettings.users.approval.rejectReason"),
+            optional: true,
+            confirmLabel: t("adminSettings.users.approval.reject"),
+          }))?.trim()
           if (reason === undefined) return
           const formData = new FormData()
-          formData.set("reason", reason || "Отклонено владельцем")
+          formData.set("reason", reason || t("adminSettings.users.approval.rejectDefault"))
           startTransition(async () => {
             try {
               await rejectUserRegistration(userId, formData)
-              toast.success(`Заявка ${userName} отклонена`)
+              toast.success(t("adminSettings.users.approval.rejected", { name: userName }))
             } catch (error) {
-              toast.error(error instanceof Error ? error.message : "Не удалось отклонить пользователя")
+              toast.error(error instanceof Error ? error.message : t("adminSettings.users.approval.rejectError"))
             }
           })
         }}
         className="rounded-md border border-red-500/40 px-2.5 py-1.5 text-[11px] font-medium text-red-700 dark:text-red-300 transition hover:bg-red-500/10 disabled:opacity-60"
       >
-        Отклонить
+        {t("adminSettings.users.approval.reject")}
       </button>
     </>
   )
@@ -186,6 +214,7 @@ export function EditUserDialog({
   buildings: BuildingOption[]
   roleOptions: RoleOption[]
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [role, setRole] = useState(user.role)
@@ -195,46 +224,46 @@ export function EditUserDialog({
       <button
         onClick={() => setOpen(true)}
         className="text-blue-400 hover:text-blue-700 dark:hover:text-blue-200"
-        aria-label="Редактировать"
-        title="Редактировать"
+        aria-label={t("adminSettings.users.editAria")}
+        title={t("adminSettings.users.editAria")}
       >
         <Edit2 className="h-4 w-4" />
       </button>
 
       {open && (
-        <Modal title="Редактировать пользователя" onClose={() => setOpen(false)}>
+        <Modal title={t("adminSettings.users.dialog.editTitle")} onClose={() => setOpen(false)}>
           <form
             action={(fd) =>
               startTransition(async () => {
                 try {
                   fd.set("role", role)
                   await updateUserAdmin(user.id, fd)
-                  toast.success("Изменения сохранены")
+                  toast.success(t("adminSettings.users.dialog.saved"))
                   setOpen(false)
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Не удалось сохранить")
+                  toast.error(error instanceof Error ? error.message : t("adminSettings.users.dialog.saveError"))
                 }
               })
             }
             className="space-y-4 p-6"
           >
-            <Field label="Имя *" name="name" defaultValue={user.name} required />
+            <Field label={`${t("adminSettings.users.dialog.name")} *`} name="name" defaultValue={user.name} required />
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Email" name="email" type="email" defaultValue={user.email ?? ""} />
-              <Field label="Телефон" name="phone" type="tel" defaultValue={user.phone ?? ""} />
+              <Field label={t("adminSettings.users.dialog.email")} name="email" type="email" defaultValue={user.email ?? ""} />
+              <Field label={t("adminSettings.users.dialog.phone")} name="phone" type="tel" defaultValue={user.phone ?? ""} />
             </div>
             <RoleSelect role={role} setRole={setRole} roleOptions={roleOptions} />
             {isStaffLikeRole(role) && (
               <BuildingAccessField buildings={buildings} selectedIds={user.buildingIds} />
             )}
-            <Field label="Новый пароль" name="newPassword" type="password" placeholder="Оставьте пустым, если не меняете" />
+            <Field label={t("adminSettings.users.dialog.newPassword")} name="newPassword" type="password" placeholder={t("adminSettings.users.dialog.newPasswordPlaceholder")} />
 
             <div className="flex gap-3 pt-2">
               <button type="button" onClick={() => setOpen(false)} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">
-                Отмена
+                {t("common.actions.cancel")}
               </button>
               <button type="submit" disabled={pending} className="flex-1 rounded-lg bg-blue-600 py-2 text-sm text-white disabled:opacity-60">
-                {pending ? "Сохранение..." : "Сохранить"}
+                {pending ? t("common.actions.saving") : t("common.actions.save")}
               </button>
             </div>
           </form>
@@ -300,6 +329,7 @@ export function UserCapabilitiesDialog({
   inheritedStates: Record<string, EffectiveCapabilityState>
   roleLabel: string
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [query, setQuery] = useState("")
@@ -372,7 +402,9 @@ export function UserCapabilitiesDialog({
 
   function updateOverride(capability: UserCapabilityInfo, mode: OverrideMode) {
     if (capability.locked) {
-      toast.info(`Действие закрыто тарифом: ${capability.requiredFeatureLabel ?? capability.requiredFeature}`)
+      toast.info(t("adminSettings.users.caps.lockedToast", {
+        feature: capability.requiredFeatureLabel ?? capability.requiredFeature ?? "",
+      }))
       return
     }
 
@@ -387,7 +419,9 @@ export function UserCapabilitiesDialog({
     startTransition(async () => {
       try {
         await setUserCapabilityOverride(userId, capability.key, mode)
-        toast.success(mode === "INHERIT" ? "Личное исключение снято" : "Личное исключение сохранено")
+        toast.success(mode === "INHERIT"
+          ? t("adminSettings.users.caps.overrideRemoved")
+          : t("adminSettings.users.caps.overrideSaved"))
       } catch (error) {
         setLocalOverrides((current) => {
           const next = { ...current }
@@ -395,7 +429,7 @@ export function UserCapabilitiesDialog({
           else delete next[capability.key]
           return next
         })
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить личное право")
+        toast.error(error instanceof Error ? error.message : t("adminSettings.users.caps.overrideError"))
       }
     })
   }
@@ -405,26 +439,26 @@ export function UserCapabilitiesDialog({
       <button
         onClick={() => setOpen(true)}
         className="text-purple-400 hover:text-purple-700 dark:hover:text-purple-200"
-        aria-label="Личные права"
-        title="Личные права"
+        aria-label={t("adminSettings.users.caps.button")}
+        title={t("adminSettings.users.caps.button")}
       >
         <SlidersHorizontal className="h-4 w-4" />
       </button>
 
       {open && (
-        <Modal title="Личные права сотрудника" onClose={() => setOpen(false)} wide>
+        <Modal title={t("adminSettings.users.caps.title")} onClose={() => setOpen(false)} wide>
           <div className="space-y-4 p-6">
             <div className="rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-xs text-purple-700 dark:text-purple-100">
-              Эти настройки применяются только к пользователю «{userName}» и имеют приоритет над должностью «{roleLabel}».
+              {t("adminSettings.users.caps.note", { user: userName, role: roleLabel })}
             </div>
 
             {effectiveSummary && (
               <div className="grid gap-2 sm:grid-cols-5">
-                <RightsStat label="Итог разрешено" value={displaySummary.allowed} tone="blue" />
-                <RightsStat label="Рискованных" value={displaySummary.highRisk} tone={displaySummary.highRisk > 0 ? "amber" : "slate"} />
-                <RightsStat label="Лично разрешено" value={displaySummary.personalAllow} tone="emerald" />
-                <RightsStat label="Лично запрещено" value={displaySummary.personalDeny} tone="red" />
-                <RightsStat label="Закрыто тарифом" value={displaySummary.locked} tone="slate" />
+                <RightsStat label={t("adminSettings.users.caps.statAllowed")} value={displaySummary.allowed} tone="blue" />
+                <RightsStat label={t("adminSettings.users.caps.statRisky")} value={displaySummary.highRisk} tone={displaySummary.highRisk > 0 ? "amber" : "slate"} />
+                <RightsStat label={t("adminSettings.users.caps.statPersonalAllow")} value={displaySummary.personalAllow} tone="emerald" />
+                <RightsStat label={t("adminSettings.users.caps.statPersonalDeny")} value={displaySummary.personalDeny} tone="red" />
+                <RightsStat label={t("adminSettings.users.caps.statLocked")} value={displaySummary.locked} tone="slate" />
               </div>
             )}
 
@@ -433,7 +467,7 @@ export function UserCapabilitiesDialog({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Поиск действия..."
+                placeholder={t("adminSettings.users.caps.search")}
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 py-2 pl-9 pr-3 text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
               />
             </div>
@@ -463,30 +497,37 @@ export function UserCapabilitiesDialog({
                               <p className="mt-1 text-xs text-slate-500">{capability.description}</p>
                               {effectiveState && (
                                 <p className="mt-2 text-[11px] text-slate-500">
-                                  Итог: {effectiveState.allowed && !effectiveState.locked ? "разрешено" : "запрещено"} · {effectiveSourceLabel(effectiveState.source)}
+                                  {t("adminSettings.users.caps.result", {
+                                    state: effectiveState.allowed && !effectiveState.locked
+                                      ? t("adminSettings.users.caps.allowed")
+                                      : t("adminSettings.users.caps.denied"),
+                                    source: t(`adminSettings.users.caps.sources.${CAPABILITY_SOURCE_KEYS[effectiveState.source]}`),
+                                  })}
                                 </p>
                               )}
                               {capability.locked && (
                                 <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
-                                  Закрыто тарифом: {capability.requiredFeatureLabel ?? capability.requiredFeature}
+                                  {t("adminSettings.users.caps.lockedBy", {
+                                    feature: capability.requiredFeatureLabel ?? capability.requiredFeature ?? "",
+                                  })}
                                 </p>
                               )}
                             </div>
                             {mode !== "INHERIT" && (
                               <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${ mode === "ALLOW" ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-200" : "bg-red-500/20 text-red-700 dark:text-red-200" }`}>
-                                {mode === "ALLOW" ? "разрешено" : "запрещено"}
+                                {mode === "ALLOW" ? t("adminSettings.users.caps.allowed") : t("adminSettings.users.caps.denied")}
                               </span>
                             )}
                           </div>
                           <div className="mt-3 grid grid-cols-3 gap-2">
                             <ModeButton active={mode === "INHERIT"} disabled={pending} onClick={() => updateOverride(capability, "INHERIT")}>
-                              По должности
+                              {t("adminSettings.users.caps.modeInherit")}
                             </ModeButton>
                             <ModeButton active={mode === "ALLOW"} disabled={pending || capability.locked} onClick={() => updateOverride(capability, "ALLOW")} tone="allow">
-                              Разрешить
+                              {t("adminSettings.users.caps.modeAllow")}
                             </ModeButton>
                             <ModeButton active={mode === "DENY"} disabled={pending || capability.locked} onClick={() => updateOverride(capability, "DENY")} tone="deny">
-                              Запретить
+                              {t("adminSettings.users.caps.modeDeny")}
                             </ModeButton>
                           </div>
                         </div>
@@ -502,7 +543,7 @@ export function UserCapabilitiesDialog({
               onClick={() => setOpen(false)}
               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300"
             >
-              Закрыть
+              {t("common.actions.close")}
             </button>
           </div>
         </Modal>
@@ -537,29 +578,33 @@ function RightsStat({
 }
 
 function EffectiveStatePill({ state }: { state: EffectiveCapabilityState }) {
+  const { t } = useT()
   const allowed = state.allowed && !state.locked
   return (
     <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${ state.locked ? "border-slate-200 dark:border-slate-700 text-slate-500" : allowed ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200" : "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-200" }`}>
       {state.locked ? <Lock className="h-3 w-3" /> : allowed ? <ShieldCheck className="h-3 w-3" /> : <X className="h-3 w-3" />}
-      {state.locked ? "тариф" : allowed ? "разрешено" : "запрещено"}
+      {state.locked
+        ? t("adminSettings.users.caps.plan")
+        : allowed
+          ? t("adminSettings.users.caps.allowed")
+          : t("adminSettings.users.caps.denied")}
     </span>
   )
 }
 
-function effectiveSourceLabel(source: EffectiveCapabilityState["source"]) {
-  const labels: Record<EffectiveCapabilityState["source"], string> = {
-    owner: "владелец имеет полный доступ",
-    personal_allow: "личное разрешение",
-    personal_deny: "личный запрет",
-    role_action: "точное право должности",
-    role_section: "доступ к разделу",
-    fallback: "базовые права роли",
-    locked: "закрыто тарифом",
-  }
-  return labels[source]
-}
+// Откуда взялось итоговое право — ключ подписи в словаре (caps.sources).
+const CAPABILITY_SOURCE_KEYS = {
+  owner: "owner",
+  personal_allow: "personalAllow",
+  personal_deny: "personalDeny",
+  role_action: "roleAction",
+  role_section: "roleSection",
+  fallback: "fallback",
+  locked: "locked",
+} as const satisfies Record<EffectiveCapabilityState["source"], string>
 
 export function ResetPasswordDialog({ userId, userName }: { userId: string; userName: string }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
   const [password, setPassword] = useState("")
@@ -579,7 +624,7 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      toast.error("Не удалось скопировать")
+      toast.error(t("adminSettings.users.reset.copyError"))
     }
   }
 
@@ -588,25 +633,24 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
       <button
         onClick={() => setOpen(true)}
         className="text-amber-400 hover:text-amber-700 dark:hover:text-amber-200"
-        aria-label="Сбросить пароль"
-        title="Сбросить пароль"
+        aria-label={t("adminSettings.users.reset.button")}
+        title={t("adminSettings.users.reset.button")}
       >
         <Key className="h-4 w-4" />
       </button>
 
       {open && (
-        <Modal title="Сброс пароля" onClose={close} narrow>
+        <Modal title={t("adminSettings.users.reset.title")} onClose={close} narrow>
           <div className="space-y-4 p-6">
             {!done ? (
               <>
                 <p className="text-sm text-slate-400">
-                  Новый пароль для <span className="font-medium text-slate-800 dark:text-slate-200">{userName}</span>. Можно сгенерировать
-                  и передать пользователю — при первом входе он будет обязан сменить его.
+                  {t("adminSettings.users.reset.hintBefore")} <span className="font-medium text-slate-800 dark:text-slate-200">{userName}</span>{t("adminSettings.users.reset.hintAfter")}
                 </p>
                 <div className="flex gap-2">
                   <input
                     type="text"
-                    placeholder="Минимум 6 символов"
+                    placeholder={t("adminSettings.users.reset.placeholder")}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100"
@@ -617,34 +661,34 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
                     onClick={() => setPassword(genPassword())}
                     className="shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
-                    Сгенерировать
+                    {t("adminSettings.users.reset.generate")}
                   </button>
                 </div>
                 <div className="flex gap-3">
-                  <button onClick={close} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">Отмена</button>
+                  <button onClick={close} className="flex-1 rounded-lg border border-slate-200 dark:border-slate-700 py-2 text-sm text-slate-700 dark:text-slate-300">{t("common.actions.cancel")}</button>
                   <button
                     disabled={pending || password.length < 6}
                     onClick={() => {
                       startTransition(async () => {
                         try {
                           await resetUserPassword(userId, password)
-                          toast.success("Пароль обновлён")
+                          toast.success(t("adminSettings.users.reset.updated"))
                           setDone(true)
                         } catch (error) {
-                          toast.error(error instanceof Error ? error.message : "Не удалось сбросить пароль")
+                          toast.error(error instanceof Error ? error.message : t("adminSettings.users.reset.error"))
                         }
                       })
                     }}
                     className="flex-1 rounded-lg bg-amber-600 py-2 text-sm text-white disabled:opacity-60"
                   >
-                    {pending ? "..." : "Сбросить"}
+                    {pending ? "…" : t("adminSettings.users.reset.submit")}
                   </button>
                 </div>
               </>
             ) : (
               <>
                 <p className="text-sm text-slate-400">
-                  Пароль обновлён. Передайте его пользователю — при первом входе система попросит сменить пароль.
+                  {t("adminSettings.users.reset.doneHint")}
                 </p>
                 <div className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-3">
                   <code className="min-w-0 flex-1 break-all font-mono text-sm text-slate-900 dark:text-slate-100">{password}</code>
@@ -653,11 +697,11 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
                     onClick={copy}
                     className="shrink-0 rounded-md border border-slate-200 dark:border-slate-700 px-2 py-1 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                   >
-                    {copied ? "Скопировано" : "Копировать"}
+                    {copied ? t("adminSettings.users.reset.copied") : t("adminSettings.users.reset.copy")}
                   </button>
                 </div>
                 <button onClick={close} className="w-full rounded-lg bg-slate-100 py-2 text-sm font-medium text-slate-900 hover:bg-white">
-                  Готово
+                  {t("adminSettings.users.reset.done")}
                 </button>
               </>
             )}
@@ -669,6 +713,7 @@ export function ResetPasswordDialog({ userId, userName }: { userId: string; user
 }
 
 export function ToggleActiveButton({ userId, isActive, disabled }: { userId: string; isActive: boolean; disabled?: boolean }) {
+  const { t } = useT()
   const [, startTransition] = useTransition()
   // Статус строки берём из контекста — тогда вся строка (затемнение, бейдж)
   // меняется мгновенно без перезагрузки страницы. Откатываем при ошибке.
@@ -679,10 +724,10 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
 
   return (
     <ConfirmDialog
-      title={active ? "Деактивировать пользователя?" : "Активировать пользователя?"}
-      description={active ? "Пользователь не сможет войти в систему." : "Пользователь снова сможет войти."}
+      title={active ? t("adminSettings.users.toggle.deactivateTitle") : t("adminSettings.users.toggle.activateTitle")}
+      description={active ? t("adminSettings.users.toggle.deactivateDesc") : t("adminSettings.users.toggle.activateDesc")}
       variant={active ? "danger" : "default"}
-      confirmLabel={active ? "Деактивировать" : "Активировать"}
+      confirmLabel={active ? t("adminSettings.users.toggle.deactivate") : t("adminSettings.users.toggle.activate")}
       onConfirm={() =>
         new Promise<void>((resolve) => {
           const next = !active
@@ -690,10 +735,10 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
           startTransition(async () => {
             try {
               await toggleUserActive(userId, next)
-              toast.success(next ? "Активирован" : "Деактивирован")
+              toast.success(next ? t("adminSettings.users.toggle.activated") : t("adminSettings.users.toggle.deactivated"))
             } catch (error) {
               setActive(!next) // откат при ошибке
-              toast.error(error instanceof Error ? error.message : "Ошибка")
+              toast.error(error instanceof Error ? error.message : t("adminSettings.users.toggle.error"))
             } finally {
               resolve()
             }
@@ -703,8 +748,8 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
       trigger={
         <button
           className={active ? "text-slate-500 hover:text-slate-800 dark:hover:text-slate-300" : "text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-200"}
-          aria-label={active ? "Деактивировать" : "Активировать"}
-          title={active ? "Активен — нажмите, чтобы деактивировать" : "Неактивен — нажмите, чтобы активировать"}
+          aria-label={active ? t("adminSettings.users.toggle.deactivate") : t("adminSettings.users.toggle.activate")}
+          title={active ? t("adminSettings.users.toggle.activeHint") : t("adminSettings.users.toggle.inactiveHint")}
         >
           <Power className="h-4 w-4" />
         </button>
@@ -714,13 +759,14 @@ export function ToggleActiveButton({ userId, isActive, disabled }: { userId: str
 }
 
 export function DeleteUserButton({ userId, userName, disabled }: { userId: string; userName: string; disabled?: boolean }) {
+  const { t } = useT()
   const row = useContext(RowStatusContext)
   return (
     <DeleteAction
       action={() => deleteUserAdmin(userId)}
-      entity="пользователя"
-      description={`Связанные профильные данные будут обработаны безопасно. Пользователь «${userName}» будет деактивирован.`}
-      successMessage="Пользователь удалён"
+      entity={t("adminSettings.users.remove.entity")}
+      description={t("adminSettings.users.remove.description", { name: userName })}
+      successMessage={t("adminSettings.users.remove.done")}
       disabled={disabled}
       onSuccess={() => row?.removeRow()}
     />
@@ -736,16 +782,18 @@ function RoleSelect({
   setRole: (role: string) => void
   roleOptions: RoleOption[]
 }) {
+  const { t } = useT()
+  const labelOf = useRoleLabel()
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-medium text-slate-500">Должность *</label>
+      <label className="mb-1.5 block text-xs font-medium text-slate-500">{t("adminSettings.users.dialog.role")} *</label>
       <select
         value={role}
         onChange={(event) => setRole(event.target.value)}
         className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"
       >
         {roleOptions.map((item) => (
-          <option key={item.value} value={item.value}>{item.label}</option>
+          <option key={item.value} value={item.value}>{labelOf(item)}</option>
         ))}
       </select>
     </div>
@@ -759,14 +807,15 @@ function BuildingAccessField({
   buildings: BuildingOption[]
   selectedIds?: string[]
 }) {
+  const { t } = useT()
   const selected = new Set(selectedIds)
 
   return (
     <div>
-      <label className="mb-1.5 block text-xs font-medium text-slate-500">Здания *</label>
+      <label className="mb-1.5 block text-xs font-medium text-slate-500">{t("adminSettings.users.dialog.buildings")} *</label>
       {buildings.length === 0 ? (
         <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
-          Сначала создайте здание, затем назначьте сотрудника.
+          {t("adminSettings.users.dialog.noBuildingsHint")}
         </p>
       ) : (
         <div className="max-h-36 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 p-2">
@@ -785,7 +834,7 @@ function BuildingAccessField({
         </div>
       )}
       <p className="mt-1 text-[11px] text-slate-500">
-        Владелец видит все здания, сотрудники видят только назначенные.
+        {t("adminSettings.users.dialog.buildingsHint")}
       </p>
     </div>
   )
@@ -840,6 +889,7 @@ function genPassword(): string {
 }
 
 function PasswordWithGenerate({ label, name }: { label: string; name: string }) {
+  const { t } = useT()
   const [value, setValue] = useState("")
   return (
     <div>
@@ -852,7 +902,7 @@ function PasswordWithGenerate({ label, name }: { label: string; name: string }) 
           minLength={6}
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Минимум 6 символов"
+          placeholder={t("adminSettings.users.dialog.passwordPlaceholder")}
           className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 font-mono text-sm text-slate-900 dark:text-slate-100 outline-none focus:border-blue-500"
         />
         <button
@@ -860,11 +910,11 @@ function PasswordWithGenerate({ label, name }: { label: string; name: string }) 
           onClick={() => setValue(genPassword())}
           className="shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
-          Сгенерировать
+          {t("adminSettings.users.dialog.generate")}
         </button>
       </div>
       <p className="mt-1 text-[11px] text-slate-500">
-        Выдайте этот пароль пользователю. При первом входе он будет обязан сменить его.
+        {t("adminSettings.users.dialog.passwordHint")}
       </p>
     </div>
   )
@@ -914,11 +964,12 @@ function Modal({
   narrow?: boolean
   wide?: boolean
 }) {
+  const { t } = useT()
   return (
     <ModalShell open onClose={onClose} title={title} className={`w-full rounded-2xl bg-white shadow-2xl dark:bg-slate-900 ${wide ? "max-w-3xl" : narrow ? "max-w-sm" : "max-w-md"}`}>
         <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
           <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
-          <button onClick={onClose} aria-label="Закрыть">
+          <button onClick={onClose} aria-label={t("common.actions.close")}>
             <X className="h-5 w-5 text-slate-500" />
           </button>
         </div>

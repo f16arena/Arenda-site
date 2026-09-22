@@ -13,6 +13,8 @@ import { requireOrgAccess } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { PageHeader } from "@/components/ui/page"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 const CALENDAR_EVENT_SOURCE_LIMIT = 80
 
@@ -33,6 +35,8 @@ async function renderCalendarPage({
   if (!session || session.user.role === "TENANT") redirect("/login")
 
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin/calendar", orgId, userId: session.user.id })
 
@@ -169,7 +173,12 @@ async function renderCalendarPage({
   // от 9-го в полночь по Алматы попадал в календарь на 8-е.
   const dayKey = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Almaty" }).format(d)
   const todayKey = dayKey(today)
-  const TYPE_LABEL: Record<string, string> = { RENT: "Аренда", SERVICE_FEE: "Эксплуатационные", ELECTRICITY: "Электроэнергия", WATER: "Вода", HEATING: "Отопление", PENALTY: "Пеня", DEPOSIT: "Депозит", CLEANING: "Уборка" }
+  // Вид начисления — из общего словаря; неизвестный вид показываем как «Начисление».
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? t("adminService.calendar.charge") : label
+  }
 
   const events: CalendarEvent[] = []
 
@@ -183,7 +192,10 @@ async function renderCalendarPage({
       day,
       amount: charge.amount,
       title: charge.tenant.companyName,
-      subtitle: `${TYPE_LABEL[charge.type] ?? "Начисление"} · ${charge.amount.toLocaleString("ru-RU")} ₸${isOverdue ? " · просрочено" : ""}`,
+      subtitle: t(
+        isOverdue ? "adminService.calendar.chargeOverdueSubtitle" : "adminService.calendar.chargeSubtitle",
+        { type: chargeTypeLabel(charge.type), amount: formatMoneyL(locale, charge.amount) },
+      ),
       href: `/admin/tenants/${charge.tenant.id}`,
     })
   }
@@ -195,7 +207,7 @@ async function renderCalendarPage({
       day: dayKey(payment.paymentDate),
       amount: payment.amount,
       title: payment.tenant.companyName,
-      subtitle: `Оплата получена · ${payment.amount.toLocaleString("ru-RU")} ₸`,
+      subtitle: t("adminService.calendar.paymentSubtitle", { amount: formatMoneyL(locale, payment.amount) }),
       href: `/admin/tenants/${payment.tenant.id}`,
     })
   }
@@ -207,7 +219,7 @@ async function renderCalendarPage({
       type: "contract_ending",
       day: dayKey(tenant.contractEnd),
       title: tenant.companyName,
-      subtitle: "Заканчивается договор — продлите или найдите нового арендатора",
+      subtitle: t("adminService.calendar.contractSubtitle"),
       href: `/admin/tenants/${tenant.id}`,
     })
   }
@@ -219,7 +231,9 @@ async function renderCalendarPage({
       type: "task",
       day: dayKey(task.dueDate),
       title: task.title,
-      subtitle: task.priority === "HIGH" || task.priority === "URGENT" ? "Срочная задача" : "Задача",
+      subtitle: task.priority === "HIGH" || task.priority === "URGENT"
+        ? t("adminService.calendar.taskUrgent")
+        : t("adminService.calendar.eventTypes.task"),
       href: "/admin/tasks",
     })
   }
@@ -245,14 +259,13 @@ async function renderCalendarPage({
     <div className="space-y-5">
       <PageHeader
         icon={CalendarIcon}
-        title="Календарь"
-        subtitle={`Когда ждать деньги, когда кончаются договоры и что по задачам${isCalendarCapped ? " · показаны первые события" : ""}`}
+        title={t("adminService.calendar.title")}
+        subtitle={t("adminService.calendar.subtitle") + (isCalendarCapped ? t("adminService.calendar.subtitleCapped") : "")}
       />
 
       {isCalendarCapped && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-200">
-          В месяце больше событий, чем безопасный лимит загрузки. Чтобы страница открывалась быстро,
-          календарь показывает первые события по датам; уточните месяц или выберите конкретное здание.
+          {t("adminService.calendar.cappedNotice")}
         </div>
       )}
 

@@ -424,7 +424,10 @@ export const adminFinance: typeof ru = {
     matched: "сәйкестендірілді: {count}",
     unmatched: "қолмен таңдауды қажет етеді: {count}",
     clear: "Тазалау",
-    applyTitle: "{count} төлемді импорттау керек пе?",
+    applyTitle: plural({
+      one: "{count} төлемді импорттау керек пе?",
+      other: "{count} төлемді импорттау керек пе?",
+    }),
     applyText: "Төлемдер жасалады және сәйкес есептеулер автоматты жабылады.",
     apply: "Импорттау",
     applyShort: "Қолдану",
@@ -531,6 +534,18 @@ export const adminFinance: typeof ru = {
   analytics: {
     title: "Талдау",
     subtitleAll: " · барлық ғимарат",
+    periods: {
+      month: "Осы ай",
+      prev: "Өткен ай",
+      quarter: "Тоқсан",
+      year: "Жыл",
+    },
+    // Кезең фраза ішінде тұрады: «қыркүйек айында түсті» — сондықтан жатыс септік.
+    captions: {
+      month: "{month} айында",
+      quarter: "{year} жылдың {quarter}-тоқсанында", // проверить
+      year: "{year} жылы",
+    },
     noBuildings: "Қолжетімді ғимарат жоқ",
     exportExcel: "Есеп — Excel-ге",
     received: "{period} түсті",

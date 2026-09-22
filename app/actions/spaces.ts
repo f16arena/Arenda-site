@@ -316,8 +316,11 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
-  if (confirmation.trim().toLowerCase() !== "удалить") {
-    throw new Error("Для очистки помещений нужно ввести слово «удалить»")
+  // Принимаем слово на любом из языков интерфейса: казахскому пользователю
+  // показывается «жою», и требовать от него русское «удалить» — тупик.
+  const CONFIRM_WORDS = ["удалить", "жою"]
+  if (!CONFIRM_WORDS.includes(confirmation.trim().toLowerCase())) {
+    throw new Error("Для очистки помещений нужно ввести слово «удалить» / «жою»")
   }
 
   const floors = await db.floor.findMany({

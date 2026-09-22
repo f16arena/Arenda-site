@@ -4,7 +4,6 @@ import { useMemo, useCallback, useState, useRef, useEffect } from "react"
 import Link from "next/link"
 import { useSearchParams, useRouter, usePathname } from "next/navigation"
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, FileText, UsersRound, Antenna } from "lucide-react"
-import { formatMoney, LEGAL_TYPE_LABELS } from "@/lib/utils"
 import { tenantTaxIdValue } from "@/lib/tenant-identity"
 import { DeleteTenantButton } from "./delete-tenant-button"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -15,6 +14,9 @@ import { Input } from "@/components/ui/input"
 import { TONE_CHIP, TONE_BADGE, type Tone } from "@/lib/ui-tones"
 import { cn } from "@/lib/utils"
 import { shortCompanyName } from "@/lib/company-name"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
 
 export interface TenantRow {
   id: string
@@ -42,6 +44,9 @@ export interface TenantRow {
   contractStatus: string | null
 }
 
+/** Переводчик из useT() — таблица тащит его в свои вспомогательные функции. */
+type Translate = ReturnType<typeof useT>["t"]
+
 type SortKey = "companyName" | "legalType" | "space" | "area" | "debt" | "phone" | "rent" | "contractEnd"
 type SortDir = "asc" | "desc"
 
@@ -50,10 +55,19 @@ function parseSortKey(value: string | null): SortKey {
   return value && (SORT_KEYS as string[]).includes(value) ? (value as SortKey) : "companyName"
 }
 
+/** Название правовой формы: ключи adminTenants.legalTypes, иначе — код как есть. */
+function legalTypeLabel(t: Translate, legalType: string): string {
+  const key = `adminTenants.legalTypes.${legalType}` as Parameters<Translate>[0]
+  const label = t(key)
+  return label === key ? legalType : label
+}
+
 export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRow[]; canDelete?: boolean }) {
   const sp = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+  const { t, tp } = useT()
+  const locale = useLocale()
 
   const search = sp.get("q") ?? ""
   const legalFilter = sp.get("legal") ?? ""
@@ -102,37 +116,37 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
     if (search) {
       const lower = search.toLowerCase()
       list = list.filter(
-        (t) => {
-          const taxId = tenantTaxIdValue({ legalType: t.legalType, bin: t.bin, iin: t.iin })
+        (row) => {
+          const taxId = tenantTaxIdValue({ legalType: row.legalType, bin: row.bin, iin: row.iin })
           return (
-            t.companyName.toLowerCase().includes(lower) ||
+            row.companyName.toLowerCase().includes(lower) ||
             taxId.includes(search) ||
-            t.user.name.toLowerCase().includes(lower) ||
-            t.user.phone?.includes(search) ||
-            t.user.email?.toLowerCase().includes(lower)
+            row.user.name.toLowerCase().includes(lower) ||
+            row.user.phone?.includes(search) ||
+            row.user.email?.toLowerCase().includes(lower)
           )
         }
       )
     }
-    if (legalFilter) list = list.filter((t) => t.legalType === legalFilter)
-    if (debtFilter === "debt") list = list.filter((t) => t.debt > 0)
-    if (debtFilter === "ok") list = list.filter((t) => t.debt === 0)
-    if (contractFilter === "none") list = list.filter((t) => !t.hasSignedContract)
-    if (contractFilter === "expiring") list = list.filter((t) => contractState(t.contractEnd) === "soon")
+    if (legalFilter) list = list.filter((row) => row.legalType === legalFilter)
+    if (debtFilter === "debt") list = list.filter((row) => row.debt > 0)
+    if (debtFilter === "ok") list = list.filter((row) => row.debt === 0)
+    if (contractFilter === "none") list = list.filter((row) => !row.hasSignedContract)
+    if (contractFilter === "expiring") list = list.filter((row) => contractState(row.contractEnd) === "soon")
 
     // Сортировка
     const sorted = [...list].sort((a, b) => {
       let cmp = 0
       switch (sortKey) {
         case "companyName":
-          cmp = a.companyName.localeCompare(b.companyName, "ru")
+          cmp = a.companyName.localeCompare(b.companyName, locale)
           break
         case "legalType":
           cmp = a.legalType.localeCompare(b.legalType)
           break
         case "space": {
-          const av = tenantSpaceLabel(a)
-          const bv = tenantSpaceLabel(b)
+          const av = tenantSpaceLabel(t, a)
+          const bv = tenantSpaceLabel(t, b)
           cmp = av.localeCompare(bv, undefined, { numeric: true })
           break
         }
@@ -155,7 +169,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
       return sortDir === "asc" ? cmp : -cmp
     })
     return sorted
-  }, [tenants, search, legalFilter, debtFilter, contractFilter, sortKey, sortDir])
+  }, [tenants, search, legalFilter, debtFilter, contractFilter, sortKey, sortDir, locale, t])
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -174,22 +188,33 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
 
   function exportCSV() {
     const rows = [
-      ["Компания", "Тип", "БИН/ИИН", "Контактное лицо", "Телефон", "Email", "Помещение", "Этаж", "Площадь м²", "Задолженность"],
-      ...filtered.map((t) => [
-        t.companyName,
-        LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType,
-        tenantTaxIdValue({ legalType: t.legalType, bin: t.bin, iin: t.iin }),
-        t.user.name,
-        t.user.phone ?? "",
-        t.user.email ?? "",
-        t.fullFloors.length > 0
-          ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
-          : tenantSpaceLabel(t),
-        t.fullFloors.length > 0
-          ? t.fullFloors.map((f) => f.name).join(", ")
-          : t.tenantSpaces[0]?.space.floor.name ?? t.space?.floor.name ?? "",
-        String(tenantArea(t) || ""),
-        String(t.debt),
+      [
+        t("adminTenants.table.export.company"),
+        t("adminTenants.table.export.type"),
+        t("adminTenants.table.export.taxId"),
+        t("adminTenants.table.export.contactPerson"),
+        t("adminTenants.table.export.phone"),
+        t("adminTenants.table.export.email"),
+        t("adminTenants.table.export.space"),
+        t("adminTenants.table.export.floor"),
+        t("adminTenants.table.export.areaM2"),
+        t("adminTenants.table.export.debt"),
+      ],
+      ...filtered.map((row) => [
+        row.companyName,
+        legalTypeLabel(t, row.legalType),
+        tenantTaxIdValue({ legalType: row.legalType, bin: row.bin, iin: row.iin }),
+        row.user.name,
+        row.user.phone ?? "",
+        row.user.email ?? "",
+        row.fullFloors.length > 0
+          ? t("adminTenants.table.export.fullFloor", { floors: row.fullFloors.map((f) => f.name).join(", ") })
+          : tenantSpaceLabel(t, row),
+        row.fullFloors.length > 0
+          ? row.fullFloors.map((f) => f.name).join(", ")
+          : row.tenantSpaces[0]?.space.floor.name ?? row.space?.floor.name ?? "",
+        String(tenantArea(row) || ""),
+        String(row.debt),
       ]),
     ]
     const csv = "﻿" + rows.map((r) =>
@@ -202,7 +227,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `арендаторы_${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `${t("adminTenants.table.export.fileName")}_${new Date().toISOString().slice(0, 10)}.csv`
     document.body.appendChild(a)
     a.click()
     a.remove()
@@ -213,25 +238,25 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
     // Простая печать в PDF через window.print с печатным CSS
     const w = window.open("", "_blank")
     if (!w) return
-    const today = new Date().toLocaleDateString("ru-RU")
-    const tableRows = filtered.map((t) => `
+    const today = formatDateShortL(locale, new Date())
+    const tableRows = filtered.map((row) => `
       <tr>
-        <td>${t.companyName}</td>
-        <td>${LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}</td>
-        <td>${tenantTaxIdValue({ legalType: t.legalType, bin: t.bin, iin: t.iin })}</td>
-        <td>${t.user.phone ?? t.user.email ?? ""}</td>
+        <td>${row.companyName}</td>
+        <td>${legalTypeLabel(t, row.legalType)}</td>
+        <td>${tenantTaxIdValue({ legalType: row.legalType, bin: row.bin, iin: row.iin })}</td>
+        <td>${row.user.phone ?? row.user.email ?? ""}</td>
         <td>${
-          t.fullFloors.length > 0
-            ? `Этаж целиком: ${t.fullFloors.map((f) => f.name).join(", ")}`
-            : tenantSpaceLabel(t) || "—"
+          row.fullFloors.length > 0
+            ? t("adminTenants.table.export.fullFloor", { floors: row.fullFloors.map((f) => f.name).join(", ") })
+            : tenantSpaceLabel(t, row) || "—"
         }</td>
-        <td style="text-align:right">${tenantArea(t) ? tenantArea(t).toFixed(0) : "—"} м²</td>
-        <td style="text-align:right">${t.debt > 0 ? formatMoney(t.debt) : "—"}</td>
+        <td style="text-align:right">${tenantArea(row) ? tenantArea(row).toFixed(0) : "—"} м²</td>
+        <td style="text-align:right">${row.debt > 0 ? formatMoneyL(locale, row.debt) : "—"}</td>
       </tr>
     `).join("")
     w.document.write(`
       <!DOCTYPE html><html><head><meta charset="UTF-8">
-      <title>Арендаторы — ${today}</title>
+      <title>${t("adminTenants.list.title")} — ${today}</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #0f172a; }
         h1 { font-size: 18px; margin-bottom: 4px; }
@@ -241,12 +266,17 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
         th { background: #f8fafc; font-weight: 600; }
         @media print { body { margin: 0; } }
       </style></head><body>
-      <h1>Арендаторы</h1>
-      <p>На ${today} · ${filtered.length} записей</p>
+      <h1>${t("adminTenants.list.title")}</h1>
+      <p>${t("adminTenants.table.export.asOf", { date: today })} · ${tp("adminTenants.table.export.rows", filtered.length)}</p>
       <table>
         <thead><tr>
-          <th>Компания</th><th>Тип</th><th>БИН/ИИН</th><th>Контакт</th>
-          <th>Помещение</th><th>Площадь</th><th>Долг</th>
+          <th>${t("adminTenants.table.export.company")}</th>
+          <th>${t("adminTenants.table.export.type")}</th>
+          <th>${t("adminTenants.table.export.taxId")}</th>
+          <th>${t("adminTenants.table.export.contact")}</th>
+          <th>${t("adminTenants.table.export.space")}</th>
+          <th>${t("adminTenants.table.export.area")}</th>
+          <th>${t("adminTenants.table.export.debtShort")}</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -266,7 +296,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
             type="text"
             value={displayedSearch}
             onChange={(e) => handleSearchChange(e.target.value)}
-            placeholder="Поиск: компания, БИН, ФИО, телефон..."
+            placeholder={t("adminTenants.table.searchPlaceholder")}
             className="pl-9"
           />
         </div>
@@ -275,38 +305,38 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
           onChange={(e) => updateParam("legal", e.target.value || null)}
           className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
         >
-          <option value="">Все типы</option>
-          <option value="IP">ИП</option>
-          <option value="CHSI">ЧСИ</option>
-          <option value="TOO">ТОО</option>
-          <option value="AO">АО</option>
-          <option value="GP">ГП/ГКП</option>
-          <option value="PHYSICAL">Физ. лицо</option>
+          <option value="">{t("adminTenants.table.allTypes")}</option>
+          <option value="IP">{t("adminTenants.legalTypes.IP")}</option>
+          <option value="CHSI">{t("adminTenants.legalTypes.CHSI")}</option>
+          <option value="TOO">{t("adminTenants.legalTypes.TOO")}</option>
+          <option value="AO">{t("adminTenants.legalTypes.AO")}</option>
+          <option value="GP">{t("adminTenants.legalTypes.GP")}</option>
+          <option value="PHYSICAL">{t("adminTenants.legalTypes.PHYSICAL")}</option>
         </select>
         <select
           value={debtFilter}
           onChange={(e) => updateParam("debt", e.target.value || null)}
           className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
         >
-          <option value="">Все статусы</option>
-          <option value="debt">С долгом</option>
-          <option value="ok">Без долга</option>
+          <option value="">{t("adminTenants.table.allDebtStates")}</option>
+          <option value="debt">{t("adminTenants.table.withDebt")}</option>
+          <option value="ok">{t("adminTenants.table.withoutDebt")}</option>
         </select>
         <select
           value={contractFilter}
           onChange={(e) => updateParam("contract", e.target.value || null)}
           className="rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
         >
-          <option value="">Все договоры</option>
-          <option value="expiring">Кончается в 60 дней</option>
-          <option value="none">Без подписанного договора</option>
+          <option value="">{t("adminTenants.table.allContracts")}</option>
+          <option value="expiring">{t("adminTenants.table.expiring60")}</option>
+          <option value="none">{t("adminTenants.table.withoutSigned")}</option>
         </select>
 
         <div className="ml-auto flex items-center gap-2">
           <Button
             variant="outline"
             onClick={exportCSV}
-            title="Экспорт в CSV (открывается в Excel)"
+            title={t("adminTenants.table.exportExcelHint")}
           >
             <FileSpreadsheet className="h-4 w-4" />
             Excel
@@ -314,7 +344,7 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
           <Button
             variant="outline"
             onClick={exportPDF}
-            title="Экспорт в PDF (через печать)"
+            title={t("adminTenants.table.exportPdfHint")}
           >
             <FileText className="h-4 w-4" />
             PDF
@@ -323,35 +353,39 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
       </div>
 
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Показано {filtered.length} из {tenants.length}
+        {t("adminTenants.table.shown", { shown: filtered.length, total: tenants.length })}
       </p>
 
       {/* Мобильные карточки (узкие экраны) — таблица режется, поэтому карточный вид */}
       <div className="space-y-2.5 sm:hidden">
-        {filtered.map((t) => (
-          <Card key={t.id} className="block p-3.5">
+        {filtered.map((row) => (
+          <Card key={row.id} className="block p-3.5">
             <div className="flex items-start justify-between gap-2">
-              <Link href={`/admin/tenants/${t.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
-                <Avatar name={shortCompanyName(t.companyName)} legalType={t.legalType} size="sm" />
+              <Link href={`/admin/tenants/${row.id}`} className="flex min-w-0 flex-1 items-center gap-2.5">
+                <Avatar name={shortCompanyName(row.companyName)} legalType={row.legalType} size="sm" />
                 <span className="min-w-0">
-                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{shortCompanyName(t.companyName)}</p>
-                  <p className="truncate text-xs text-slate-400 dark:text-slate-500">{t.category ?? "Вид деятельности не указан"}</p>
+                  <p className="truncate font-medium text-slate-900 dark:text-slate-100">{shortCompanyName(row.companyName)}</p>
+                  <p className="truncate text-xs text-slate-400 dark:text-slate-500">{row.category ?? t("adminTenants.table.noCategory")}</p>
                 </span>
               </Link>
               <span className="shrink-0">
-                <LegalBadge legalType={t.legalType} />
+                <LegalBadge legalType={row.legalType} />
               </span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-              <span className="inline-flex items-center"><SpaceCell tenant={t} /></span>
-              {tenantArea(t) > 0 && <span>{tenantArea(t).toFixed(0)} м²</span>}
-              {t.rent > 0 && <span className="font-medium text-slate-700 dark:text-slate-200">{formatMoney(t.rent)}/мес</span>}
-              <ContractCell tenant={t} />
-              {(t.user.phone || t.user.email) && <span className="font-mono">{t.user.phone ?? t.user.email}</span>}
+              <span className="inline-flex items-center"><SpaceCell tenant={row} /></span>
+              {tenantArea(row) > 0 && <span>{tenantArea(row).toFixed(0)} м²</span>}
+              {row.rent > 0 && (
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  {formatMoneyL(locale, row.rent)}{t("common.money.perMonth")}
+                </span>
+              )}
+              <ContractCell tenant={row} />
+              {(row.user.phone || row.user.email) && <span className="font-mono">{row.user.phone ?? row.user.email}</span>}
             </div>
             <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2.5 dark:border-slate-800">
-              <DebtPill debt={t.debt} />
-              {canDelete && <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />}
+              <DebtPill debt={row.debt} />
+              {canDelete && <DeleteTenantButton tenantId={row.id} companyName={row.companyName} />}
             </div>
           </Card>
         ))}
@@ -359,8 +393,8 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
           <Card className="block p-6">
             <EmptyState
               icon={<Search className="h-5 w-5" />}
-              title={tenants.length === 0 ? "Арендаторы ещё не добавлены" : "По фильтрам ничего не найдено"}
-              description={tenants.length === 0 ? "Начните с первого арендатора или импорта из Excel." : "Измените поиск или фильтры."}
+              title={tenants.length === 0 ? t("adminTenants.table.empty.noneTitle") : t("adminTenants.table.empty.filterTitle")}
+              description={tenants.length === 0 ? t("adminTenants.table.empty.noneShort") : t("adminTenants.table.empty.filterShort")}
             />
           </Card>
         )}
@@ -371,61 +405,61 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
         <table className="w-full min-w-[1040px] text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-800/80 backdrop-blur supports-[backdrop-filter]:bg-slate-50/95 supports-[backdrop-filter]:dark:bg-slate-800/70">
             <tr className="border-b border-slate-100 dark:border-slate-800">
-              <SortHeader k="companyName" label="Арендатор" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="space" label="Помещение" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="area" label="Площадь" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="rent" label="Аренда в месяц" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="contractEnd" label="Договор до" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="phone" label="Телефон" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
-              <SortHeader k="debt" label="Долг" align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="companyName" label={t("adminTenants.table.columns.tenant")} sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="space" label={t("adminTenants.table.columns.space")} sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="area" label={t("adminTenants.table.columns.area")} align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="rent" label={t("adminTenants.table.columns.rent")} align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="contractEnd" label={t("adminTenants.table.columns.contractEnd")} sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="phone" label={t("adminTenants.table.columns.phone")} sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
+              <SortHeader k="debt" label={t("adminTenants.table.columns.debt")} align="right" sortKey={sortKey} sortDir={sortDir} onClick={toggleSort} />
               <th className="px-5 py-3" />
             </tr>
           </thead>
           <tbody>
-            {filtered.map((t) => (
+            {filtered.map((row) => (
               <tr
-                key={t.id}
+                key={row.id}
                 className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
               >
                 <td className="px-5 py-3.5">
-                  <Link href={`/admin/tenants/${t.id}`} className="group flex items-center gap-3" title={t.category ? `${t.companyName}\n${t.category}` : t.companyName}>
-                    <Avatar name={shortCompanyName(t.companyName)} legalType={t.legalType} />
+                  <Link href={`/admin/tenants/${row.id}`} className="group flex items-center gap-3" title={row.category ? `${row.companyName}\n${row.category}` : row.companyName}>
+                    <Avatar name={shortCompanyName(row.companyName)} legalType={row.legalType} />
                     {/* max-w — иначе длинный вид деятельности по ОКЭД растягивает всю таблицу */}
                     <span className="min-w-0 max-w-[340px]">
-                      <p className="truncate font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{shortCompanyName(t.companyName)}</p>
+                      <p className="truncate font-medium text-slate-900 dark:text-slate-100 group-hover:text-blue-600">{shortCompanyName(row.companyName)}</p>
                       <p className="truncate text-xs text-slate-400 dark:text-slate-500">
-                        {LEGAL_TYPE_LABELS[t.legalType] ?? t.legalType}{t.category ? ` · ${t.category}` : ""}
+                        {legalTypeLabel(t, row.legalType)}{row.category ? ` · ${row.category}` : ""}
                       </p>
                     </span>
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400">
-                  <SpaceCell tenant={t} />
+                  <SpaceCell tenant={row} />
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-right tabular-nums text-slate-600 dark:text-slate-400">
-                  {tenantArea(t) ? `${tenantArea(t).toFixed(0)} м²` : "—"}
+                  {tenantArea(row) ? `${tenantArea(row).toFixed(0)} м²` : "—"}
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-right tabular-nums font-medium text-slate-900 dark:text-slate-100">
-                  {t.rent > 0 ? formatMoney(t.rent) : <span className="font-normal text-slate-400">—</span>}
+                  {row.rent > 0 ? formatMoneyL(locale, row.rent) : <span className="font-normal text-slate-400">—</span>}
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5">
-                  <ContractCell tenant={t} />
+                  <ContractCell tenant={row} />
                 </td>
                 <td className="whitespace-nowrap px-5 py-3.5 text-slate-600 dark:text-slate-400 font-mono text-xs">
-                  {t.user.phone ?? t.user.email ?? "—"}
+                  {row.user.phone ?? row.user.email ?? "—"}
                 </td>
                 <td className="px-5 py-3.5 text-right">
-                  <DebtPill debt={t.debt} />
+                  <DebtPill debt={row.debt} />
                 </td>
                 <td className="px-5 py-3.5">
                   <div className="flex items-center justify-end gap-3">
                     <Link
-                      href={`/admin/tenants/${t.id}`}
+                      href={`/admin/tenants/${row.id}`}
                       className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
                     >
-                      Открыть
+                      {t("common.actions.open")}
                     </Link>
-                    {canDelete && <DeleteTenantButton tenantId={t.id} companyName={t.companyName} />}
+                    {canDelete && <DeleteTenantButton tenantId={row.id} companyName={row.companyName} />}
                   </div>
                 </td>
               </tr>
@@ -436,18 +470,18 @@ export function TenantsTable({ tenants, canDelete = false }: { tenants: TenantRo
                   {tenants.length === 0 ? (
                     <EmptyState
                       icon={<UsersRound className="h-5 w-5" />}
-                      title="Арендаторы еще не добавлены"
-                      description="Начните с первого арендатора или загрузите список из Excel. Перед созданием проверьте, что свободные помещения уже заведены по нужному зданию."
+                      title={t("adminTenants.table.empty.noneTitle")}
+                      description={t("adminTenants.table.empty.noneLong")}
                       actions={[
-                        { href: "/admin/import/tenants", label: "Импорт Excel" },
-                        { href: "/admin/spaces", label: "Проверить помещения", variant: "secondary" },
+                        { href: "/admin/import/tenants", label: t("adminTenants.table.empty.importExcel") },
+                        { href: "/admin/spaces", label: t("adminTenants.table.empty.checkSpaces"), variant: "secondary" },
                       ]}
                     />
                   ) : (
                     <EmptyState
                       icon={<Search className="h-5 w-5" />}
-                      title="По фильтрам ничего не найдено"
-                      description="Измените поиск, тип арендатора или фильтр долга, чтобы снова увидеть список."
+                      title={t("adminTenants.table.empty.filterTitle")}
+                      description={t("adminTenants.table.empty.filterLong")}
                     />
                   )}
                 </td>
@@ -465,10 +499,10 @@ function tenantSpaces(tenant: TenantRow) {
   return tenant.space ? [tenant.space] : []
 }
 
-function tenantSpaceLabel(tenant: TenantRow) {
+function tenantSpaceLabel(t: Translate, tenant: TenantRow) {
   if (tenant.fullFloors.length > 0) return tenant.fullFloors.map((floor) => floor.name).join(", ")
   const spaces = tenantSpaces(tenant)
-  return spaces.map((space) => `${spaceLabel(space.number)} · ${floorLabel(space.floor.name)}`).join(", ")
+  return spaces.map((space) => `${spaceLabel(t, space.number)} · ${floorLabel(t, space.floor.name)}`).join(", ")
 }
 
 function tenantArea(tenant: TenantRow) {
@@ -510,37 +544,41 @@ function Avatar({ name, legalType, size = "md" }: { name: string; legalType: str
 }
 
 function LegalBadge({ legalType }: { legalType: string }) {
+  const { t } = useT()
   return (
     <Badge className={TONE_BADGE[legalTone(legalType)]}>
-      {LEGAL_TYPE_LABELS[legalType] ?? legalType}
+      {legalTypeLabel(t, legalType)}
     </Badge>
   )
 }
 
 function DebtPill({ debt }: { debt: number }) {
+  const { t } = useT()
+  const locale = useLocale()
   if (debt > 0) {
     return (
       <Badge className={cn("font-semibold", TONE_BADGE.red)}>
-        {formatMoney(debt)}
+        {formatMoneyL(locale, debt)}
       </Badge>
     )
   }
   return (
     <Badge className={TONE_BADGE.emerald}>
-      Нет долга
+      {t("adminTenants.table.noDebtBadge")}
     </Badge>
   )
 }
 
 function SpaceCell({ tenant }: { tenant: TenantRow }) {
+  const { t } = useT()
   if (tenant.fullFloors.length > 0) {
     return (
       <span>
         <span className="font-medium text-violet-700 dark:text-violet-300">
-          {tenant.fullFloors.slice(0, 2).map((floor) => floorLabel(floor.name)).join(", ")}
+          {tenant.fullFloors.slice(0, 2).map((floor) => floorLabel(t, floor.name)).join(", ")}
         </span>
         {tenant.fullFloors.length > 2 && <span className="ml-1 text-slate-400 dark:text-slate-500">+{tenant.fullFloors.length - 2}</span>}
-        <span className="text-slate-400 dark:text-slate-500"> · целиком</span>
+        <span className="text-slate-400 dark:text-slate-500"> · {t("adminTenants.table.wholeFloor")}</span>
       </span>
     )
   }
@@ -556,7 +594,7 @@ function SpaceCell({ tenant }: { tenant: TenantRow }) {
         </span>
       )
     }
-    return <span className="text-slate-400 dark:text-slate-500">Не назначено</span>
+    return <span className="text-slate-400 dark:text-slate-500">{t("adminTenants.table.notAssigned")}</span>
   }
 
   return (
@@ -564,8 +602,8 @@ function SpaceCell({ tenant }: { tenant: TenantRow }) {
       {spaces.slice(0, 2).map((space, index) => (
         <span key={space.id ?? `${space.number}-${index}`}>
           {index > 0 && <span className="text-slate-400 dark:text-slate-500">, </span>}
-          {spaceLabel(space.number)}
-          <span className="text-slate-400 dark:text-slate-500 ml-1">· {floorLabel(space.floor.name)}</span>
+          {spaceLabel(t, space.number)}
+          <span className="text-slate-400 dark:text-slate-500 ml-1">· {floorLabel(t, space.floor.name)}</span>
         </span>
       ))}
       {spaces.length > 2 && (
@@ -609,13 +647,13 @@ function SortHeader({
 
 // «Каб.» — только у кабинетов с номером («Каб. 101»). Места вроде «Киоск»,
 // «Кар-Тел» (антенна) называются как есть.
-function spaceLabel(number: string): string {
-  return /^\d/.test(number.trim()) ? `Каб. ${number}` : number
+function spaceLabel(t: Translate, number: string): string {
+  return /^\d/.test(number.trim()) ? t("adminTenants.table.spaceLabel", { number }) : number
 }
 
-// Этаж с названием-цифрой («3») — «3 этаж»
-function floorLabel(name: string): string {
-  return /^-?\d+$/.test(name.trim()) ? `${name.trim()} этаж` : name
+// Этаж с названием-цифрой («3») — «3 этаж» / «3-қабат»
+function floorLabel(t: Translate, name: string): string {
+  return /^-?\d+$/.test(name.trim()) ? t("adminTenants.table.floorLabel", { name: name.trim() }) : name
 }
 
 
@@ -629,20 +667,22 @@ function contractState(end: string | null): "none" | "expired" | "soon" | "ok" {
 }
 
 function ContractCell({ tenant }: { tenant: TenantRow }) {
+  const { t } = useT()
+  const locale: Locale = useLocale()
   if (!tenant.hasSignedContract) {
     const waiting = tenant.contractStatus === "SENT"
-      ? "ждёт подписи арендатора"
+      ? t("adminTenants.table.contract.waitingTenant")
       : tenant.contractStatus === "SIGNED_BY_TENANT"
-        ? "ждёт вашей подписи"
+        ? t("adminTenants.table.contract.waitingYou")
         : tenant.contractStatus === "DRAFT"
-          ? "черновик"
-          : "договора нет"
+          ? t("adminTenants.table.contract.draft")
+          : t("adminTenants.table.contract.none")
     return <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{waiting}</span>
   }
   const state = contractState(tenant.contractEnd)
-  if (state === "none") return <span className="text-xs text-slate-400 dark:text-slate-500">без срока</span>
-  const d = new Date(tenant.contractEnd!).toLocaleDateString("ru-RU")
-  if (state === "expired") return <span className="text-xs font-medium text-red-600 dark:text-red-400">истёк {d}</span>
+  if (state === "none") return <span className="text-xs text-slate-400 dark:text-slate-500">{t("adminTenants.table.contract.noTerm")}</span>
+  const d = formatDateShortL(locale, tenant.contractEnd!)
+  if (state === "expired") return <span className="text-xs font-medium text-red-600 dark:text-red-400">{t("adminTenants.table.contract.expired", { date: d })}</span>
   if (state === "soon") return <span className="text-xs font-medium text-amber-600 dark:text-amber-400">{d}</span>
   return <span className="text-xs text-slate-600 dark:text-slate-300">{d}</span>
 }

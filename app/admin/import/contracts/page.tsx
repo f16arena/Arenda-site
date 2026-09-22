@@ -1,21 +1,23 @@
 export const dynamic = "force-dynamic"
 
 import { ImportPage } from "@/components/import/import-page"
+import { getT } from "@/lib/i18n/server"
 import { ImportContractsClient } from "./import-client"
 
-export default function ImportContractsPage() {
+export default async function ImportContractsPage() {
+  const { t } = await getT()
   return (
     <ImportPage
-      title="Импорт договоров"
-      subtitle="Реестр договоров из Excel или CSV. Арендатор находится по БИН/ИИН или названию."
-      warning="Сначала загрузите арендаторов, потом договоры — иначе договор не к кому привязать."
+      title={t("adminSettings.import.contracts.title")}
+      subtitle={t("adminSettings.import.contracts.subtitle")}
+      warning={t("adminSettings.import.contracts.warning")}
       columns={
         <>
-          <p><b>Номер договора</b> (обязательно) — «Номер», «№» или «Договор».</p>
-          <p><b>Арендатор</b> — БИН/ИИН (точнее) либо название. Должен уже быть в системе.</p>
-          <p><b>Даты</b> — «Дата начала» и «Дата окончания» в ДД.ММ.ГГГГ или ГГГГ-ММ-ДД.</p>
-          <p><b>Статус</b> — подписан, черновик, истёк или расторгнут. По умолчанию «Подписан».</p>
-          <p>Повтор того же номера у того же арендатора пропускается.</p>
+          <p><b>{t("adminSettings.import.contracts.col1Label")}</b> {t("adminSettings.import.contracts.col1Text")}</p>
+          <p><b>{t("adminSettings.import.contracts.col2Label")}</b> {t("adminSettings.import.contracts.col2Text")}</p>
+          <p><b>{t("adminSettings.import.contracts.col3Label")}</b> {t("adminSettings.import.contracts.col3Text")}</p>
+          <p><b>{t("adminSettings.import.contracts.col4Label")}</b> {t("adminSettings.import.contracts.col4Text")}</p>
+          <p>{t("adminSettings.import.contracts.col5")}</p>
         </>
       }
     >

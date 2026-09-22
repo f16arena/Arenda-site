@@ -5,6 +5,9 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { AdminSidebar } from "@/components/layout/admin-sidebar"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 import { NotificationBell } from "@/components/layout/notification-bell"
 import { BuildingSwitcher } from "@/components/layout/building-switcher"
 import { CommandPaletteLoader } from "@/components/layout/command-palette-loader"
@@ -13,6 +16,7 @@ import { PlatformViewBanner } from "@/components/layout/platform-view-banner"
 import { SubscriptionBanner } from "@/components/layout/subscription-banner"
 import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-banner"
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
 import { AdminSelectOrg } from "@/components/superadmin/admin-select-org"
 import { db } from "@/lib/db"
 import { CURRENT_BUILDING_COOKIE, resolveCurrentBuildingIdFromSelection } from "@/lib/current-building"
@@ -105,7 +109,12 @@ async function renderAdminLayout(children: React.ReactNode) {
   // Каркас отдаётся сразу; данные сайдбара и шапки (кешируются) стримятся
   // через Suspense, поэтому страница (children) начинает рендериться немедленно,
   // а не ждёт shell-данные. Это резко снижает TTFB всех /admin-страниц.
+  const locale = await getLocale()
+
   return (
+    // Общие слова, предметные названия и каркас — в браузер уходит только это,
+    // словари конкретных разделов подключают их собственные layout-файлы.
+    <I18nProvider locale={locale} messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminShell"])}>
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <CommandPaletteLoader />
       <Suspense fallback={<aside className="hidden lg:block w-64 shrink-0 bg-slate-900" />}>
@@ -131,6 +140,7 @@ async function renderAdminLayout(children: React.ReactNode) {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
+    </I18nProvider>
   )
 }
 
@@ -204,6 +214,7 @@ async function HeaderChrome({
   currentOrgId: string | null
   isImpersonating: boolean
 }) {
+  const { t } = await getT()
   const [currentOrg, freshUser, allBuildings, unreadNotifications] = await measureServerStep("/admin/layout", "header-data", Promise.all([
     currentOrgId
       ? safeServerValue(
@@ -280,14 +291,15 @@ async function HeaderChrome({
         />
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-4">
           <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 dark:border-slate-700">
-            Ctrl+K — поиск
+            Ctrl+K — {t("adminShell.shell.search")}
           </kbd>
+          <LocaleSwitcher />
           <ThemeIconToggle />
           <NotificationBell unreadCount={unreadNotifications} />
           <Link
             href="/admin/profile"
             className="flex items-center gap-2 rounded-lg px-1.5 py-1 sm:px-2 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
-            title="Открыть профиль"
+            title={t("adminShell.shell.profile")}
           >
             <div className="h-7 w-7 shrink-0 rounded-full bg-blue-600 flex items-center justify-center">
               <span className="text-[11px] font-semibold text-white">

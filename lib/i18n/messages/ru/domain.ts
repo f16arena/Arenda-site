@@ -20,6 +20,14 @@ export const domain = {
     SERVICE_DELIVERED: "Оказанная услуга",
     OTHER: "Прочее",
   },
+  roles: {
+    OWNER: "Владелец",
+    ADMIN: "Администратор",
+    MANAGER: "Менеджер",
+    ACCOUNTANT: "Бухгалтер",
+    STAFF: "Сотрудник",
+    TENANT: "Арендатор",
+  },
   statuses: {
     NEW: "Новая",
     IN_PROGRESS: "В работе",

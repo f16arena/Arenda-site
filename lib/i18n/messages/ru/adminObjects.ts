@@ -1,8 +1,10 @@
 import { plural } from "../../translate"
 
-// Раздел словаря: adminObjects — здания, этажи и помещения.
+// Раздел словаря: adminObjects — здания, этажи, помещения, объявления и
+// 3D-конструктор.
 // Страницы: /admin/buildings, /admin/buildings/[id]/map,
-// /admin/buildings/[id]/service-fee, /admin/spaces.
+// /admin/buildings/[id]/service-fee, /admin/spaces, /admin/floors/[id],
+// /admin/listings, /admin/builder/projects.
 
 export const adminObjects = {
   buildings: {
@@ -60,6 +62,8 @@ export const adminObjects = {
     email: "Email",
     responsible: "Ответственный",
     contractPrefix: "Префикс договоров",
+    // Схема номера договора: подставляется в подсказки ниже.
+    prefixPattern: "{префикс}-{год}-{№}",
     contractPrefixHint: "Используется в номере: {pattern}. Например F16-2026-001. Если пусто — будет сгенерирован из названия.",
     contractPrefixFormat: "Формат: {pattern} → {example}",
     totalAreaNote: "Общая площадь здания пересчитывается автоматически = сумма «общих площадей этажей». Текущее значение:",
@@ -397,6 +401,104 @@ export const adminObjects = {
     submit: "Удалить помещения",
     done: "Удалено помещений: {count}",
     failed: "Не удалось удалить помещения",
+  },
+
+  // Карточка этажа: /admin/floors/[id] — каркас, настройки, список помещений.
+  floorPage: {
+    backToBuildings: "К зданиям",
+    contractUntil: "(договор до {date})",
+    individualBlocked: "Помещения этажа недоступны для индивидуальной сдачи.",
+    settingsTitle: "Настройки этажа",
+    unitsSpaces: "Помещения",
+    unitsObjects: "Объекты",
+    statRentable: "Аренд.",
+    commonZones: plural({
+      one: "+ {count} общая зона ({area} м²)",
+      few: "+ {count} общие зоны ({area} м²)",
+      many: "+ {count} общих зон ({area} м²)",
+      other: "+ {count} общих зон ({area} м²)",
+    }),
+    thObject: "Объект",
+    thRoom: "Кабинет",
+    thArea: "Площадь",
+    thKind: "Тип",
+    thStatus: "Статус",
+    thTenant: "Арендатор",
+    thDebt: "Долг",
+    emptyZone: "На зоне нет объектов",
+    emptySpaces: "На этаже нет помещений",
+    roomPrefix: "Каб. {number}",
+    badgeObject: "Объект",
+    badgeRentableShort: "Аренд.",
+    notRented: "не сдаётся",
+    floorRented: "этаж сдан",
+    rateLine: "Ставка: {rate}/м²",
+    manageSpaces: "Управление помещениями →",
+  },
+
+  floorSettings: {
+    saved: "Настройки этажа сохранены",
+    saveFailed: "Не удалось сохранить",
+    nameLabel: "Название этажа *",
+    namePlaceholder: "1 этаж / Подвал / Цокольный",
+    rateLabel: "Ставка ₸/м²/мес",
+    totalAreaLabel: "Общая площадь этажа (м²)",
+    totalAreaHint: "из тех. паспорта",
+    totalAreaPlaceholder: "напр. 250",
+    totalAreaNote: "Складывается с другими этажами в общую площадь здания. Не может быть меньше суммы помещений на этаже.",
+  },
+
+  assignTenant: {
+    trigger: "Назначить",
+    triggerHint: "Назначить арендатора",
+    title: "Каб. {number} → арендатор",
+    search: "Поиск по названию...",
+    empty: "Нет арендаторов",
+    createNew: "Создать нового →",
+    currentSpace: "Сейчас: Каб. {number} · {floor} (переедет)",
+    moveTitle: "Переселить «{tenant}» в кабинет {number}?",
+    moveText: "Сейчас занимает Каб. {current} ({floor}). Старый кабинет освободится.",
+    moveConfirm: "Переселить",
+    assigned: "«{tenant}» назначен в Каб. {number}",
+    failed: "Не удалось назначить",
+  },
+
+  // Объявления на внешних площадках: /admin/listings.
+  listings: {
+    title: "Объявления",
+    subtitle: "Подготовка и учёт объявлений на внешних площадках (Krisha)",
+    intro: "Объявления готовятся на странице «Помещения» (кнопка Krisha у свободного помещения). Публикация — на стороне krisha (вход в аккаунт, SMS, модерация). XML-фид — старт для партнёрского импорта площадки.",
+    downloadFeed: "Скачать XML-фид вакансий",
+    feedReady: plural({
+      one: "Фид сформирован: {count} вакансия",
+      few: "Фид сформирован: {count} вакансии",
+      many: "Фид сформирован: {count} вакансий",
+      other: "Фид сформирован: {count} вакансий",
+    }),
+    empty: "Пока нет подготовленных объявлений. Откройте «Помещения» → у свободного помещения нажмите «Krisha».",
+    thListing: "Объявление",
+    thSpace: "Помещение",
+    thPrice: "Цена",
+    thStatus: "Статус",
+    thUpdated: "Обновлено",
+    statusCopied: "Готовится",
+    statusPublished: "Опубликовано",
+    archive: "В архив",
+  },
+
+  // 3D-конструктор, список зданий: /admin/builder/projects.
+  builder: {
+    title: "3D-конструктор",
+    subtitle: "У каждого здания одна модель. Открывается и сохраняется на месте, копий не плодит.",
+    empty: "Ещё нет ни одного здания.",
+    statSpaces: "помещений",
+    statVacantArea: "свободно, м²",
+    noLayouts: "Планов этажей пока нет — модель начнётся с контура по площадям",
+    layoutsDrawn: "{count} с планом",
+    layoutsSchema: "{count} со схемой",
+    layoutsNone: "{count} без плана",
+    openBuilder: "Открыть конструктор",
+    floorMap: "Карта этажа",
   },
 
   unassignFloor: {

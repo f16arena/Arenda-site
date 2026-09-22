@@ -2,9 +2,11 @@ export const dynamic = "force-dynamic"
 
 import { Megaphone } from "lucide-react"
 import { listListingDrafts } from "@/app/actions/krisha-listing"
+import { getT } from "@/lib/i18n/server"
 import { ListingsTable } from "./listings-client"
 
 export default async function ListingsPage() {
+  const { t } = await getT()
   const rows = await listListingDrafts()
 
   return (
@@ -14,8 +16,8 @@ export default async function ListingsPage() {
           <Megaphone className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Объявления</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Подготовка и учёт объявлений на внешних площадках (Krisha)</p>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t("adminObjects.listings.title")}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminObjects.listings.subtitle")}</p>
         </div>
       </div>
 

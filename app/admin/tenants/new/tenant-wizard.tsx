@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
-import { formatMoney } from "@/lib/utils"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 type WizardSpace = {
   id: string
@@ -26,31 +27,6 @@ type WizardSpace = {
 
 const inputCls = FIELD_CLS
 const labelCls = LABEL_CLS
-
-const STEPS = ["Контакты и компания", "Помещение и условия", "Проверка и создание"] as const
-
-const STEP_HINTS: string[][] = [
-  [
-    "Обязательно только ФИО, телефон и название компании.",
-    "По ИИН/БИН статус НДС подтянется из КГД сам.",
-    "Если указать email — арендатор получит доступ в личный кабинет.",
-  ],
-  [
-    "Выберите свободное помещение — аренда посчитается по ставке этажа.",
-    "Киоск, антенна, место без помещения — «Фикс. сумма/мес».",
-    "Сроки и депозит можно не заполнять сейчас — их задаст договор.",
-  ],
-  [
-    "Проверьте сводку — всё можно поправить кнопкой «Назад».",
-    "После создания сразу откроется путь к договору.",
-  ],
-]
-
-const OUTCOME: [string, string][] = [
-  ["Карточка арендатора", "контакты, реквизиты, НДС"],
-  ["Помещение и аренда", "занятость, начисления каждый месяц"],
-  ["Договор", "конструктор заполнит его сам — останется подписать"],
-]
 
 /** Поля, которые после создания арендатора уходят в updateTenantRentalTerms. */
 const RENTAL_TERMS_FIELDS = [
@@ -69,10 +45,43 @@ export function TenantWizard({
   /** Задан — мастер открыт в окне: есть кнопка «Закрыть», без заголовка страницы */
   onClose?: () => void
 }) {
+  const { t } = useT()
+  const locale = useLocale()
+  const money = (amount: number) => formatMoneyL(locale, amount)
   const formRef = useRef<HTMLFormElement>(null)
   const [step, setStep] = useState(0)
   const [pending, startTransition] = useTransition()
   const [createdTenantId, setCreatedTenantId] = useState<string | null>(null)
+  // Название компании запоминаем отдельно: экран «готово» больше не ищет его
+  // по подписи строки сводки (подпись переводится и меняется вместе с языком).
+  const [createdCompany, setCreatedCompany] = useState("")
+
+  const steps = [
+    t("adminTenants.wizard.steps.contacts"),
+    t("adminTenants.wizard.steps.space"),
+    t("adminTenants.wizard.steps.review"),
+  ]
+  const stepHints: string[][] = [
+    [
+      t("adminTenants.wizard.hints.contacts1"),
+      t("adminTenants.wizard.hints.contacts2"),
+      t("adminTenants.wizard.hints.contacts3"),
+    ],
+    [
+      t("adminTenants.wizard.hints.space1"),
+      t("adminTenants.wizard.hints.space2"),
+      t("adminTenants.wizard.hints.space3"),
+    ],
+    [
+      t("adminTenants.wizard.hints.review1"),
+      t("adminTenants.wizard.hints.review2"),
+    ],
+  ]
+  const outcome: [string, string][] = [
+    [t("adminTenants.wizard.outcome.cardTitle"), t("adminTenants.wizard.outcome.cardSub")],
+    [t("adminTenants.wizard.outcome.spaceTitle"), t("adminTenants.wizard.outcome.spaceSub")],
+    [t("adminTenants.wizard.outcome.contractTitle"), t("adminTenants.wizard.outcome.contractSub")],
+  ]
 
   // Предвыбранное помещение (вход «Заселить» со свободного помещения).
   const preset = initialSpaceId ? vacantSpaces.find((s) => s.id === initialSpaceId) : undefined
@@ -93,14 +102,14 @@ export function TenantWizard({
   function validateStep(current: number): string | null {
     const data = fd()
     if (current === 0) {
-      if (!String(data.get("name") ?? "").trim()) return "Введите ФИО контактного лица"
-      if (!String(data.get("phone") ?? "").trim()) return "Введите телефон"
-      if (!String(data.get("companyName") ?? "").trim()) return "Введите название компании"
+      if (!String(data.get("name") ?? "").trim()) return t("adminTenants.wizard.errors.name")
+      if (!String(data.get("phone") ?? "").trim()) return t("adminTenants.wizard.errors.phone")
+      if (!String(data.get("companyName") ?? "").trim()) return t("adminTenants.wizard.errors.company")
     }
     if (current === 1) {
-      if (rentMode === "RATE" && !String(data.get("customRate") ?? "").trim()) return "Укажите ставку ₸/м²"
-      if (rentMode === "FIXED" && !String(data.get("fixedMonthlyRent") ?? "").trim()) return "Укажите сумму аренды в месяц"
-      if (rentMode === "FLOOR" && selectedSpaceIds.length === 0) return "Выберите помещение или укажите индивидуальную ставку/сумму"
+      if (rentMode === "RATE" && !String(data.get("customRate") ?? "").trim()) return t("adminTenants.wizard.errors.rate")
+      if (rentMode === "FIXED" && !String(data.get("fixedMonthlyRent") ?? "").trim()) return t("adminTenants.wizard.errors.fixed")
+      if (rentMode === "FLOOR" && selectedSpaceIds.length === 0) return t("adminTenants.wizard.errors.space")
     }
     return null
   }
@@ -111,18 +120,33 @@ export function TenantWizard({
     const data = fd()
     const v = (k: string) => String(data.get(k) ?? "").trim()
     const rentLabel = rentMode === "FIXED"
-      ? `${formatMoney(Number(v("fixedMonthlyRent")) || 0)}/мес (фикс.)`
+      ? t("adminTenants.wizard.summary.rentFixed", { amount: money(Number(v("fixedMonthlyRent")) || 0) })
       : rentMode === "RATE"
-        ? `${formatMoney(Number(v("customRate")) || 0)}/м²`
-        : floorRent > 0 ? `по ставкам этажей ≈ ${formatMoney(floorRent)}/мес` : "по ставке этажа"
+        ? t("adminTenants.wizard.summary.rentRate", { amount: money(Number(v("customRate")) || 0) })
+        : floorRent > 0
+          ? t("adminTenants.wizard.summary.rentFloorSum", { amount: money(floorRent) })
+          : t("adminTenants.wizard.summary.rentFloor")
     return [
-      ["Контакт", `${v("name")} · ${v("phone")}${v("email") ? ` · ${v("email")}` : ""}`],
-      ["Компания", `${v("companyName")} (${v("legalType") || "ИП"})`],
-      ["Помещения", selectedSpaces.length > 0 ? selectedSpaces.map((s) => `Каб. ${s.number} (${s.buildingName})`).join(", ") : "без помещения"],
-      ["Аренда", rentLabel],
-      ["День оплаты", `${v("paymentDueDay") || "10"} числа`],
-      ["Депозит", v("depositAmount") ? formatMoney(Number(v("depositAmount"))) : "= 1 мес. аренды"],
-      ["Срок", v("contractStart") || v("contractEnd") ? `${v("contractStart") || "—"} → ${v("contractEnd") || "—"}` : "не указан"],
+      [t("adminTenants.wizard.summary.contact"), `${v("name")} · ${v("phone")}${v("email") ? ` · ${v("email")}` : ""}`],
+      [t("adminTenants.wizard.summary.company"), `${v("companyName")} (${v("legalType") || "IP"})`],
+      [
+        t("adminTenants.wizard.summary.spaces"),
+        selectedSpaces.length > 0
+          ? selectedSpaces.map((s) => `${t("adminTenants.table.spaceLabel", { number: s.number })} (${s.buildingName})`).join(", ")
+          : t("adminTenants.wizard.summary.noSpace"),
+      ],
+      [t("adminTenants.wizard.summary.rent"), rentLabel],
+      [t("adminTenants.wizard.summary.dueDay"), t("adminTenants.wizard.summary.dueDayValue", { day: v("paymentDueDay") || "10" })],
+      [
+        t("adminTenants.wizard.summary.deposit"),
+        v("depositAmount") ? money(Number(v("depositAmount"))) : t("adminTenants.wizard.summary.depositDefault"),
+      ],
+      [
+        t("adminTenants.wizard.summary.term"),
+        v("contractStart") || v("contractEnd")
+          ? `${v("contractStart") || "—"} → ${v("contractEnd") || "—"}`
+          : t("adminTenants.wizard.summary.noTerm"),
+      ],
     ]
   }
 
@@ -154,17 +178,18 @@ export function TenantWizard({
 
         // Сводка — из того, что реально ушло в базу (шаг 3 мог быть пропущен).
         setSummary(buildSummary())
+        setCreatedCompany(String(data.get("companyName") ?? "").trim())
         setCreatedTenantId(tenantId)
         window.scrollTo({ top: 0 })
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось создать арендатора")
+        toast.error(e instanceof Error ? e.message : t("adminTenants.wizard.errors.failed"))
       }
     })
   }
 
   // ── Готово: что сохранили + следующий шаг (договор) ─────────────────────
   if (createdTenantId) {
-    const company = summary.find(([k]) => k === "Компания")?.[1]?.replace(/\s*\([^)]*\)$/, "") ?? "Арендатор"
+    const company = createdCompany || t("adminTenants.wizard.done.fallbackCompany")
     return (
       <div className="mx-auto max-w-5xl space-y-5">
         <div className="flex items-center gap-3">
@@ -172,15 +197,19 @@ export function TenantWizard({
             <Check className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <h1 className="truncate text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">{company} заселён</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Карточка создана, условия аренды сохранены. Осталось оформить договор.</p>
+            <h1 className="truncate text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
+              {t("adminTenants.wizard.done.title", { company })}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminTenants.wizard.done.subtitle")}</p>
           </div>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-5">
           {/* Что сохранили */}
           <section className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:col-span-3">
-            <h2 className="border-b border-slate-100 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">Что сохранили</h2>
+            <h2 className="border-b border-slate-100 px-5 py-3.5 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">
+              {t("adminTenants.wizard.done.savedTitle")}
+            </h2>
             <dl className="divide-y divide-slate-100 dark:divide-slate-800">
               {summary.map(([k, val]) => (
                 <div key={k} className="grid grid-cols-[120px_1fr] gap-3 px-5 py-2.5 text-sm">
@@ -191,29 +220,37 @@ export function TenantWizard({
             </dl>
             <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
               <Link href={`/admin/tenants/${createdTenantId}`} className="text-sm font-medium text-blue-600 hover:underline dark:text-blue-400">
-                Открыть карточку и поправить →
+                {t("adminTenants.wizard.done.openCard")}
               </Link>
             </div>
           </section>
 
           {/* Следующий шаг */}
           <section className="flex flex-col rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/30 dark:bg-blue-500/5 lg:col-span-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Следующий шаг</p>
-            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">Договор аренды</h2>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+              {t("adminTenants.wizard.done.nextStep")}
+            </p>
+            <h2 className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+              {t("adminTenants.wizard.done.contractTitle")}
+            </h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Конструктор сам подставит реквизиты, помещение, сумму и срок — останется проверить и отправить на подпись.
+              {t("adminTenants.wizard.done.contractText")}
             </p>
             <Link
               href={`/admin/documents?create=contract&tenantId=${createdTenantId}`}
               className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700"
             >
               <FileSignature className="h-4 w-4" />
-              Создать договор
+              {t("adminTenants.wizard.done.createContract")}
             </Link>
             <div className="mt-auto flex flex-wrap gap-x-4 gap-y-1 pt-5 text-sm">
               {/* Полная перезагрузка: мастер начинается с чистой формы */}
-              <button type="button" onClick={() => window.location.assign("/admin/tenants/new")} className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100">Заселить ещё одного</button>
-              <Link href="/admin/tenants" className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100">К списку арендаторов</Link>
+              <button type="button" onClick={() => window.location.assign("/admin/tenants/new")} className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100">
+                {t("adminTenants.wizard.done.oneMore")}
+              </button>
+              <Link href="/admin/tenants" className="text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-400 dark:hover:text-slate-100">
+                {t("adminTenants.wizard.done.toList")}
+              </Link>
             </div>
           </section>
         </div>
@@ -227,17 +264,17 @@ export function TenantWizard({
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
           <UserPlus className="h-6 w-6 text-slate-400" />
-          Мастер заселения
+          {t("adminTenants.wizard.title")}
         </h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-          Три шага: контакты → помещение и условия → договор. Без повторного ввода данных.
+          {t("adminTenants.wizard.subtitle")}
         </p>
       </div>
       )}
 
       {/* Прогресс */}
       <div className="flex items-center gap-2">
-        {STEPS.map((title, i) => (
+        {steps.map((title, i) => (
           <div key={title} className="flex flex-1 items-center gap-2">
             <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
               i < step ? "bg-emerald-500 text-white" : i === step ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "bg-slate-200 text-slate-500 dark:bg-slate-800"}`}>
@@ -246,7 +283,7 @@ export function TenantWizard({
             <span className={`hidden text-xs sm:block ${i === step ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500"}`}>
               {title}
             </span>
-            {i < STEPS.length - 1 && <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />}
+            {i < steps.length - 1 && <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />}
           </div>
         ))}
       </div>
@@ -257,51 +294,57 @@ export function TenantWizard({
       <form ref={formRef} onSubmit={(e) => e.preventDefault()}>
         {/* ── Шаг 1: контакты и компания ── */}
         <div className={step === 0 ? "space-y-4" : "hidden"}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Контактное лицо</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {t("adminTenants.wizard.contactSection")}
+          </p>
           <div>
-            <label className={labelCls}>ФИО *</label>
-            <Input name="name" placeholder="Иванов Иван Иванович" />
+            <label className={labelCls}>{t("adminTenants.wizard.fullName")}</label>
+            <Input name="name" placeholder={t("adminTenants.wizard.fullNamePlaceholder")} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Телефон *</label>
+              <label className={labelCls}>{t("adminTenants.wizard.phone")}</label>
               <KzPhoneInput name="phone" className={inputCls} />
             </div>
             <div>
-              <label className={labelCls}>Email</label>
+              <label className={labelCls}>{t("adminTenants.wizard.email")}</label>
               <AsciiEmailInput name="email" className={inputCls} />
             </div>
           </div>
-          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Компания</p>
+          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {t("adminTenants.wizard.companySection")}
+          </p>
           <div>
-            <label className={labelCls}>Название компании *</label>
-            <Input name="companyName" placeholder="ТОО «Ромашка» / ИП Иванов" />
+            <label className={labelCls}>{t("adminTenants.wizard.companyName")}</label>
+            <Input name="companyName" placeholder={t("adminTenants.wizard.companyNamePlaceholder")} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TenantIdentityFields />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className={labelCls}>Вид деятельности</label>
-              <Input name="category" placeholder="розничная торговля, офис…" />
+              <label className={labelCls}>{t("adminTenants.wizard.category")}</label>
+              <Input name="category" placeholder={t("adminTenants.wizard.categoryPlaceholder")} />
             </div>
             <div>
-              <label className={labelCls}>Юридический адрес</label>
+              <label className={labelCls}>{t("adminTenants.wizard.legalAddress")}</label>
               <Input name="legalAddress" />
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-5 pt-1">
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input type="checkbox" name="sendWelcome" defaultChecked /> Отправить доступы в кабинет на email
+              <input type="checkbox" name="sendWelcome" defaultChecked /> {t("adminTenants.wizard.sendWelcome")}
             </label>
           </div>
         </div>
 
         {/* ── Шаг 2: помещение и условия ── */}
         <div className={step === 1 ? "space-y-4" : "hidden"}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Помещение</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {t("adminTenants.wizard.spaceSection")}
+          </p>
           {vacantSpaces.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Свободных помещений нет — арендатора можно создать без помещения и назначить его позже.</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{t("adminTenants.wizard.noVacant")}</p>
           ) : (
             <>
               <div className="flex flex-wrap gap-2">
@@ -334,28 +377,37 @@ export function TenantWizard({
                         }
                         className="sr-only"
                       />
-                      <p className="font-medium text-slate-900 dark:text-slate-100">Каб. {s.number}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{s.floorName} · {s.area} м² · {formatMoney(s.ratePerSqm)}/м²</p>
+                      <p className="font-medium text-slate-900 dark:text-slate-100">
+                        {t("adminTenants.table.spaceLabel", { number: s.number })}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{s.floorName} · {s.area} м² · {money(s.ratePerSqm)}/м²</p>
                     </label>
                   )
                 })}
               </div>
               {selectedSpaces.length > 0 && (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Выбрано: {selectedSpaces.map((s) => `Каб. ${s.number}`).join(", ")} · {selectedArea} м²
-                  {rentMode === "FLOOR" && floorRent > 0 ? ` · аренда по ставкам этажей ≈ ${formatMoney(floorRent)}/мес` : ""}
+                  {t("adminTenants.wizard.selected", {
+                    spaces: selectedSpaces.map((s) => t("adminTenants.table.spaceLabel", { number: s.number })).join(", "),
+                    area: selectedArea,
+                  })}
+                  {rentMode === "FLOOR" && floorRent > 0
+                    ? t("adminTenants.wizard.selectedRent", { amount: money(floorRent) })
+                    : ""}
                 </p>
               )}
             </>
           )}
 
-          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Аренда</p>
+          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {t("adminTenants.wizard.rentSection")}
+          </p>
           <input type="hidden" name="rentMode" value={rentMode} />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             {([
-              ["FLOOR", "По ставке этажа"],
-              ["RATE", "Своя ставка ₸/м²"],
-              ["FIXED", "Фикс. сумма/мес"],
+              ["FLOOR", t("adminTenants.wizard.rentModes.floor")],
+              ["RATE", t("adminTenants.wizard.rentModes.rate")],
+              ["FIXED", t("adminTenants.wizard.rentModes.fixed")],
             ] as const).map(([mode, label]) => (
               <button
                 key={mode}
@@ -370,63 +422,65 @@ export function TenantWizard({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {rentMode === "RATE" && (
               <div>
-                <label className={labelCls}>Ставка ₸/м² *</label>
+                <label className={labelCls}>{t("adminTenants.wizard.rate")}</label>
                 <Input name="customRate" type="number" step="0.01" min={0} />
               </div>
             )}
             {rentMode === "FIXED" && (
               <div>
-                <label className={labelCls}>Аренда ₸/мес *</label>
+                <label className={labelCls}>{t("adminTenants.wizard.fixedRent")}</label>
                 <Input name="fixedMonthlyRent" type="number" step="0.01" min={0} />
               </div>
             )}
             <div>
-              <label className={labelCls}>День оплаты</label>
+              <label className={labelCls}>{t("adminTenants.wizard.dueDay")}</label>
               <Input name="paymentDueDay" type="number" min={1} max={31} defaultValue={10} />
             </div>
             <div>
-              <label className={labelCls}>Депозит ₸</label>
-              <Input name="depositAmount" type="number" min={0} step="0.01" placeholder="= 1 мес. аренды" />
+              <label className={labelCls}>{t("adminTenants.wizard.deposit")}</label>
+              <Input name="depositAmount" type="number" min={0} step="0.01" placeholder={t("adminTenants.wizard.depositPlaceholder")} />
             </div>
             <div>
-              <label className={labelCls}>Пеня % в день</label>
+              <label className={labelCls}>{t("adminTenants.wizard.penalty")}</label>
               <Input name="penaltyPercent" type="number" step="0.1" min={0} max={100} defaultValue={0.5} />
             </div>
             <div>
-              <label className={labelCls}>Каникулы, мес.</label>
+              <label className={labelCls}>{t("adminTenants.wizard.rentFree")}</label>
               <Input name="rentFreeMonths" type="number" min={0} max={24} defaultValue={0} />
             </div>
             <div>
-              <label className={labelCls}>Индексация, %/год</label>
-              <Input name="indexationPct" type="number" step="0.1" min={0} max={100} placeholder="0 = нет" />
+              <label className={labelCls}>{t("adminTenants.wizard.indexation")}</label>
+              <Input name="indexationPct" type="number" step="0.1" min={0} max={100} placeholder={t("adminTenants.wizard.indexationPlaceholder")} />
             </div>
           </div>
 
-          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Срок</p>
+          <p className="pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            {t("adminTenants.wizard.termSection")}
+          </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
-              <label className={labelCls}>Начало договора</label>
+              <label className={labelCls}>{t("adminTenants.wizard.contractStart")}</label>
               <Input name="contractStart" type="date" />
             </div>
             <div>
-              <label className={labelCls}>Окончание</label>
+              <label className={labelCls}>{t("adminTenants.wizard.contractEnd")}</label>
               <Input name="contractEnd" type="date" />
             </div>
             <div>
-              <label className={labelCls}>Дата заселения</label>
+              <label className={labelCls}>{t("adminTenants.wizard.moveInDate")}</label>
               <Input name="moveInDate" type="date" />
             </div>
             <div>
-              <label className={labelCls}>Следующая индексация</label>
+              <label className={labelCls}>{t("adminTenants.wizard.nextIndexation")}</label>
               <Input name="nextIndexationAt" type="date" />
             </div>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <input type="checkbox" name="needsCleaning" /> Уборка помещения
+              <input type="checkbox" name="needsCleaning" /> {t("adminTenants.wizard.cleaning")}
             </label>
             <div className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-              <Input name="cleaningFee" type="number" min={0} step="0.01" placeholder="₸/мес" className="w-28" />
+              <Input name="cleaningFee" type="number" min={0} step="0.01" placeholder={t("adminTenants.wizard.cleaningPlaceholder")} className="w-28" />
             </div>
           </div>
         </div>
@@ -434,8 +488,7 @@ export function TenantWizard({
         {/* ── Шаг 3: проверка ── */}
         <div className={step === 2 ? "space-y-3" : "hidden"}>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Проверьте данные и нажмите «Создать». После создания конструктор договора
-            заполнится автоматически — останется проверить текст и отправить на подпись.
+            {t("adminTenants.wizard.reviewText")}
           </p>
           <dl className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
             {summary.map(([k, val]) => (
@@ -456,17 +509,17 @@ export function TenantWizard({
               onClick={() => setStep((s) => Math.max(0, s - 1))}
               disabled={step === 0 || pending}
             >
-              <ChevronLeft className="h-4 w-4" /> Назад
+              <ChevronLeft className="h-4 w-4" /> {t("common.actions.back")}
             </Button>
             {onClose && (
               <Button type="button" variant="ghost" onClick={onClose} disabled={pending}>
-                Закрыть
+                {t("common.actions.close")}
               </Button>
             )}
           </div>
           {step < 2 ? (
             <Button type="button" onClick={next}>
-              Далее <ChevronRight className="h-4 w-4" />
+              {t("adminTenants.wizard.next")} <ChevronRight className="h-4 w-4" />
             </Button>
           ) : (
             <button
@@ -476,7 +529,7 @@ export function TenantWizard({
               className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
             >
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              {pending ? "Создаю…" : "Создать арендатора"}
+              {pending ? t("adminTenants.wizard.submitting") : t("adminTenants.wizard.submit")}
             </button>
           )}
         </div>
@@ -486,18 +539,20 @@ export function TenantWizard({
       {/* Справа — подсказка к текущему шагу и что будет дальше */}
       <aside className="space-y-4 lg:sticky lg:top-20">
         <div className="rounded-2xl border border-blue-200 bg-blue-50/60 p-5 dark:border-blue-500/30 dark:bg-blue-500/5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Шаг {step + 1} из 3</p>
-          <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{STEPS[step]}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+            {t("adminTenants.wizard.stepOf", { step: step + 1 })}
+          </p>
+          <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{steps[step]}</p>
           <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
-            {STEP_HINTS[step].map((h) => (
+            {stepHints[step].map((h) => (
               <li key={h} className="flex gap-2"><span className="text-blue-500">•</span><span>{h}</span></li>
             ))}
           </ul>
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Что получится</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminTenants.wizard.outcomeTitle")}</p>
           <ol className="mt-3 space-y-3">
-            {OUTCOME.map(([title, sub], i) => (
+            {outcome.map(([title, sub], i) => (
               <li key={title} className="flex gap-3">
                 <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                   i < step ? "bg-emerald-500 text-white" : i === step ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"}`}>
@@ -516,4 +571,3 @@ export function TenantWizard({
     </div>
   )
 }
-

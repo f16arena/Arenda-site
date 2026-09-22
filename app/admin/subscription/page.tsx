@@ -29,11 +29,16 @@ import { ServicesSection } from "./services-section"
 import { addonsForPlan } from "@/lib/addons-catalog"
 import { servicesForPlan } from "@/lib/services-catalog"
 import { PageHeader } from "@/components/ui/page"
+import { getT, getLocale } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL, formatNumberL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
 
 export default async function SubscriptionPage() {
   // Доступ даже для suspended-организаций: они должны иметь возможность
   // продлить подписку, иначе попадают в замкнутый круг (см. AUDIT 2026-05-26).
   const { orgId, isSuspended } = await requireOrgAccessAllowSuspended()
+  const { t } = await getT()
+  const locale = await getLocale()
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
@@ -74,13 +79,14 @@ export default async function SubscriptionPage() {
     ? Math.max(0, Math.ceil((org.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
 
+  const pcs = t("adminSettings.subscription.usage.unitPcs")
   const usage = [
-    { key: "buildings", label: "Здания", current: buildings.length, max: org.plan?.maxBuildings ?? null, icon: Building2, unit: "шт." },
-    { key: "tenants", label: "Арендаторы", current: tenantsCount, max: org.plan?.maxTenants ?? null, icon: Users, unit: "шт." },
-    { key: "users", label: "Пользователи", current: usersCount, max: org.plan?.maxUsers ?? null, icon: Users, unit: "шт." },
-    { key: "leads", label: "Лиды", current: leadsCount, max: org.plan?.maxLeads ?? null, icon: MessageCircle, unit: "шт." },
-    { key: "storageGb", label: "Хранилище", current: storageGb, max: planFeatures.limits.storageGb, icon: Package, unit: "ГБ", precision: 2 },
-    { key: "documentsPerMonth", label: "Документы за месяц", current: generatedDocumentsCount, max: planFeatures.limits.documentsPerMonth, icon: FileText, unit: "шт." },
+    { key: "buildings", label: t("adminSettings.subscription.usage.buildings"), current: buildings.length, max: org.plan?.maxBuildings ?? null, icon: Building2, unit: pcs },
+    { key: "tenants", label: t("adminSettings.subscription.usage.tenants"), current: tenantsCount, max: org.plan?.maxTenants ?? null, icon: Users, unit: pcs },
+    { key: "users", label: t("adminSettings.subscription.usage.users"), current: usersCount, max: org.plan?.maxUsers ?? null, icon: Users, unit: pcs },
+    { key: "leads", label: t("adminSettings.subscription.usage.leads"), current: leadsCount, max: org.plan?.maxLeads ?? null, icon: MessageCircle, unit: pcs },
+    { key: "storageGb", label: t("adminSettings.subscription.usage.storage"), current: storageGb, max: planFeatures.limits.storageGb, icon: Package, unit: t("adminSettings.subscription.usage.unitGb"), precision: 2 },
+    { key: "documentsPerMonth", label: t("adminSettings.subscription.usage.documents"), current: generatedDocumentsCount, max: planFeatures.limits.documentsPerMonth, icon: FileText, unit: pcs },
   ]
 
   const enabledCount = Object.values(planFeatures.flags).filter(Boolean).length
@@ -108,11 +114,11 @@ export default async function SubscriptionPage() {
       <PageHeader
         icon={Package}
         tone="slate"
-        title="Подписка и возможности"
+        title={t("adminSettings.subscription.title")}
         subtitle={org.name}
         actions={
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Включено функций</p>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{t("adminSettings.subscription.enabledFeatures")}</p>
             <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{enabledCount} / {totalFeatureCount}</p>
           </div>
         }
@@ -120,19 +126,14 @@ export default async function SubscriptionPage() {
 
       {isSuspended && (
         <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-sm">
-          <p className="text-base font-semibold text-red-700 dark:text-red-300">Подписка приостановлена</p>
-          <p className="mt-1 text-red-700 dark:text-red-200">
-            Доступ к остальным разделам ограничен до продления. На этой странице вы можете
-            оформить продление — свяжитесь с супер-админом, он активирует доступ после оплаты.
-          </p>
+          <p className="text-base font-semibold text-red-700 dark:text-red-300">{t("adminSettings.subscription.suspendedTitle")}</p>
+          <p className="mt-1 text-red-700 dark:text-red-200">{t("adminSettings.subscription.suspendedText")}</p>
         </div>
       )}
 
       <div className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm dark:border-slate-800 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">Как продлить или сменить тариф</p>
-        <p className="mt-1 text-slate-600 dark:text-slate-400">
-          Свяжитесь с супер-админом платформы — он оформит продление, апгрейд или подключит дополнительные опции (здания, арендаторы, ГБ хранилища, брендирование и т.д.). Онлайн-оплата пока не подключена, всё оформляется вручную.
-        </p>
+        <p className="font-medium text-slate-900 dark:text-slate-100">{t("adminSettings.subscription.howTitle")}</p>
+        <p className="mt-1 text-slate-600 dark:text-slate-400">{t("adminSettings.subscription.howText")}</p>
       </div>
 
       <div className={cn(
@@ -145,11 +146,14 @@ export default async function SubscriptionPage() {
       )}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Текущий тариф</p>
-            <h2 className="mt-1 text-3xl font-bold text-slate-900 dark:text-slate-100">{org.plan?.name ?? "Не выбран"}</h2>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t("adminSettings.subscription.currentPlan")}</p>
+            <h2 className="mt-1 text-3xl font-bold text-slate-900 dark:text-slate-100">{org.plan?.name ?? t("adminSettings.subscription.planNotSelected")}</h2>
             {org.plan && (
               <p className="mt-1 text-lg text-slate-700 dark:text-slate-300">
-                {org.plan.priceMonthly.toLocaleString("ru-RU")} ₸/мес · {org.plan.priceYearly.toLocaleString("ru-RU")} ₸/год
+                {t("adminSettings.subscription.priceLine", {
+                  monthly: formatNumberL(locale, org.plan.priceMonthly),
+                  yearly: formatNumberL(locale, org.plan.priceYearly),
+                })}
               </p>
             )}
             {planFeatures.highlights.length > 0 && (
@@ -165,24 +169,29 @@ export default async function SubscriptionPage() {
           </div>
           <div className="text-left lg:text-right">
             {expired ? (
-              <p className="font-semibold text-red-700 dark:text-red-300"><AlertTriangle className="mr-1 inline h-5 w-5" /> Подписка истекла</p>
+              <p className="font-semibold text-red-700 dark:text-red-300"><AlertTriangle className="mr-1 inline h-5 w-5" /> {t("adminSettings.subscription.expired")}</p>
             ) : daysLeft !== null ? (
               <>
                 <p className="text-3xl font-bold text-slate-900 dark:text-slate-100">{daysLeft}</p>
-                <p className="text-xs text-slate-400">дней осталось</p>
+                <p className="text-xs text-slate-400">{t("adminSettings.subscription.daysLeft")}</p>
               </>
             ) : (
-              <p className="text-sm text-slate-400">Дата окончания не задана</p>
+              <p className="text-sm text-slate-400">{t("adminSettings.subscription.noEndDate")}</p>
             )}
             {org.planExpiresAt && (
-              <p className="mt-2 text-xs text-slate-500">до {org.planExpiresAt.toLocaleDateString("ru-RU")}</p>
+              <p className="mt-2 text-xs text-slate-500">
+                {t("adminSettings.subscription.until", { date: formatDateShortL(locale, org.planExpiresAt) })}
+              </p>
             )}
           </div>
         </div>
         {org.isFoundersMember && (
           <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
             <Sparkles className="h-3.5 w-3.5" />
-            Founding Member #{org.foundersSlotNumber ?? "?"} · −{org.foundersLockedPct ?? 40}% lifetime
+            {t("adminSettings.subscription.foundersBadge", {
+              slot: org.foundersSlotNumber ?? "?",
+              percent: org.foundersLockedPct ?? 40,
+            })}
           </div>
         )}
       </div>
@@ -202,7 +211,12 @@ export default async function SubscriptionPage() {
 
       <div className="grid gap-3 lg:grid-cols-3">
         {usage.map(({ key, ...item }) => (
-          <UsageCard key={key} {...item} />
+          <UsageCard
+            key={key}
+            {...item}
+            locale={locale}
+            noLimitLabel={t("adminSettings.subscription.usage.noLimit")}
+          />
         ))}
       </div>
 
@@ -246,7 +260,7 @@ export default async function SubscriptionPage() {
                           {capability.label}
                           {planned && !enabled && (
                             <span className="ml-2 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
-                              готовится — {planned}
+                              {t("adminSettings.subscription.planned", { quarter: planned })}
                             </span>
                           )}
                         </p>
@@ -265,28 +279,28 @@ export default async function SubscriptionPage() {
         <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-3.5">
           <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
             <Calendar className="h-4 w-4 text-slate-500" />
-            История подписок
+            {t("adminSettings.subscription.historyTitle")}
           </h2>
         </div>
         <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Период</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Сумма</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">{t("adminSettings.subscription.historyPlan")}</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">{t("adminSettings.subscription.historyPeriod")}</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">{t("adminSettings.subscription.historyAmount")}</th>
             </tr>
           </thead>
           <tbody>
             {org.subscriptions.length === 0 ? (
-              <tr><td colSpan={3} className="px-5 py-6 text-center text-sm text-slate-500">Нет записей</td></tr>
+              <tr><td colSpan={3} className="px-5 py-6 text-center text-sm text-slate-500">{t("adminSettings.subscription.historyEmpty")}</td></tr>
             ) : org.subscriptions.map((subscription) => (
               <tr key={subscription.id} className="border-b border-slate-100 dark:border-slate-800">
                 <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300">{subscription.plan.name}</td>
                 <td className="px-5 py-2.5 text-xs text-slate-500">
-                  {new Date(subscription.startedAt).toLocaleDateString("ru-RU")} → {new Date(subscription.expiresAt).toLocaleDateString("ru-RU")}
+                  {formatDateShortL(locale, subscription.startedAt)} → {formatDateShortL(locale, subscription.expiresAt)}
                 </td>
                 <td className="px-5 py-2.5 text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">
-                  {subscription.paidAmount.toLocaleString("ru-RU")} ₸
+                  {formatMoneyL(locale, subscription.paidAmount)}
                 </td>
               </tr>
             ))}
@@ -295,14 +309,18 @@ export default async function SubscriptionPage() {
       </div>
 
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Дополнительные лимиты тарифа</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.subscription.limitsTitle")}</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {PLAN_USAGE_LIMITS.map((limit) => (
             <div key={limit.key} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-3">
               <p className="text-sm text-slate-800 dark:text-slate-200">{limit.label}</p>
               <p className="mt-0.5 text-xs text-slate-500">{limit.description}</p>
               <p className="mt-2 text-xs font-medium text-slate-400">
-                Лимит: {planFeatures.limits[limit.key] === null ? "без ограничения" : `${planFeatures.limits[limit.key]} ${limit.unit}`}
+                {t("adminSettings.subscription.limit", {
+                  value: planFeatures.limits[limit.key] === null
+                    ? t("adminSettings.subscription.unlimited")
+                    : `${formatNumberL(locale, planFeatures.limits[limit.key] as number)} ${limit.unit}`,
+                })}
               </p>
             </div>
           ))}
@@ -312,6 +330,8 @@ export default async function SubscriptionPage() {
   )
 }
 
+// Карточка лимита: подписи и «без лимита» приходят готовыми из страницы —
+// сама карточка в словарь не ходит, ей хватает locale для чисел.
 function UsageCard({
   label,
   current,
@@ -319,6 +339,8 @@ function UsageCard({
   icon: Icon,
   unit,
   precision = 0,
+  locale,
+  noLimitLabel,
 }: {
   label: string
   current: number
@@ -326,12 +348,14 @@ function UsageCard({
   icon: React.ElementType
   unit: string
   precision?: number
+  locale: Locale
+  noLimitLabel: string
 }) {
   const percent = max === null || max === 0 ? 0 : Math.min(100, Math.round((current / max) * 100))
   const isFull = max !== null && max > 0 && current >= max
   const isWarning = max !== null && max > 0 && percent >= 80
-  const currentLabel = precision > 0 ? current.toFixed(precision) : Math.round(current).toLocaleString("ru-RU")
-  const maxLabel = max === null ? "∞" : precision > 0 ? max.toFixed(precision) : Math.round(max).toLocaleString("ru-RU")
+  const currentLabel = formatNumberL(locale, precision > 0 ? current : Math.round(current), precision)
+  const maxLabel = max === null ? "∞" : formatNumberL(locale, precision > 0 ? max : Math.round(max), precision)
 
   return (
     <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
@@ -344,7 +368,7 @@ function UsageCard({
           "rounded-full px-2 py-1 text-xs font-medium",
           isFull ? "bg-red-500/10 text-red-700 dark:text-red-300" : isWarning ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
         )}>
-          {max === null ? "без лимита" : `${percent}%`}
+          {max === null ? noLimitLabel : `${percent}%`}
         </span>
       </div>
       <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">

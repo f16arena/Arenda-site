@@ -6,8 +6,8 @@ import { FINANCE_TABS } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import { CalendarClock, ArrowLeft } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
-import { INSTALLMENT_STATUS_LABELS } from "@/lib/installments"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import { PageHeader, Card } from "@/components/ui/page"
 import { Badge } from "@/components/ui/badge"
 import { EmptyState } from "@/components/ui/empty-state"
@@ -27,6 +27,14 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function InstallmentsPage() {
   const { orgId } = await requireOrgAccess()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const statusLabel = (status: string) => {
+    const key = `adminFinance.installments.statuses.${status}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? status : label
+  }
   const bIds = await restrictedBuildingIds(orgId)
   const session = await auth()
   const caps = session?.user
@@ -89,7 +97,8 @@ export default async function InstallmentsPage() {
   const debtors = debtorAgg
     .map((d) => ({
       id: d.tenantId,
-      companyName: debtorNames.find((t) => t.id === d.tenantId)?.companyName ?? "—",
+      // Арендатор назван row, а не t: иначе перекрывает переводчик.
+      companyName: debtorNames.find((row) => row.id === d.tenantId)?.companyName ?? "—",
       debt: d._sum.amount ?? 0,
     }))
     .filter((d) => d.debt > 0)
@@ -101,8 +110,8 @@ export default async function InstallmentsPage() {
       <RouteTabs items={FINANCE_TABS} className="mb-2" />
       <PageHeader
         icon={CalendarClock}
-        title="Рассрочка по долгу"
-        subtitle="Реструктуризация задолженности в график платежей"
+        title={t("adminFinance.installments.title")}
+        subtitle={t("adminFinance.installments.subtitle")}
         actions={
           <>
             <Link
@@ -110,7 +119,7 @@ export default async function InstallmentsPage() {
               className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
             >
               <ArrowLeft className="h-4 w-4" />
-              К финансам
+              {t("adminFinance.installments.toFinances")}
             </Link>
             {canInstallments && <CreateInstallmentDialog debtors={debtors} />}
           </>
@@ -121,13 +130,15 @@ export default async function InstallmentsPage() {
         <Card>
           <EmptyState
             icon={<CalendarClock className="h-5 w-5" />}
-            title="Рассрочек пока нет"
-            description="Оформите рассрочку для должника: выберите неоплаченные начисления и число платежей. Пока рассрочка соблюдается, пеня по этим начислениям не начисляется."
+            title={t("adminFinance.installments.emptyTitle")}
+            description={t("adminFinance.installments.emptyText")}
           />
         </Card>
       ) : (
         <>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Активных планов: {activeCount} из {plans.length}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {t("adminFinance.installments.activeCount", { active: activeCount, total: plans.length })}
+          </p>
           <div className="space-y-4">
             {plans.map((plan) => {
               const paidCount = plan.installments.filter((i) => i.isPaid).length
@@ -139,15 +150,25 @@ export default async function InstallmentsPage() {
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{plan.tenant.companyName}</span>
                       <Badge className={STATUS_STYLES[plan.status] ?? STATUS_STYLES.CANCELLED}>
-                        {INSTALLMENT_STATUS_LABELS[plan.status] ?? plan.status}
+                        {statusLabel(plan.status)}
                       </Badge>
                     </div>
                     <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                       <span>
-                        Погашено: <span className="font-medium text-emerald-600 dark:text-emerald-400">{formatMoney(paidAmount)}</span> / {formatMoney(plan.totalAmount)} ({paidCount}/{plan.installments.length})
+                        {t("adminFinance.installments.repaid", {
+                          paid: money(paidAmount),
+                          total: money(plan.totalAmount),
+                          paidCount,
+                          totalCount: plan.installments.length,
+                        })}
                       </span>
                       {nextDue && plan.status === "ACTIVE" && (
-                        <span>Следующий: {new Date(nextDue.dueDate).toLocaleDateString("ru-RU")} — {formatMoney(nextDue.amount)}</span>
+                        <span>
+                          {t("adminFinance.installments.nextPayment", {
+                            date: formatDateShortL(locale, nextDue.dueDate),
+                            amount: money(nextDue.amount),
+                          })}
+                        </span>
                       )}
                       {canInstallments && (plan.status === "ACTIVE" || plan.status === "BROKEN") && <CancelPlanButton planId={plan.id} />}
                     </div>
@@ -169,16 +190,16 @@ export default async function InstallmentsPage() {
                         >
                           <div className="flex items-center justify-between">
                             <span className="font-medium text-slate-700 dark:text-slate-300">№{inst.seq}</span>
-                            <span className="text-slate-500 dark:text-slate-400">{new Date(inst.dueDate).toLocaleDateString("ru-RU")}</span>
+                            <span className="text-slate-500 dark:text-slate-400">{formatDateShortL(locale, inst.dueDate)}</span>
                           </div>
-                          <div className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{formatMoney(inst.amount)}</div>
+                          <div className="mt-1 font-semibold text-slate-900 dark:text-slate-100">{money(inst.amount)}</div>
                           <div className="mt-1.5">
                             {inst.isPaid ? (
-                              <span className="text-[11px] text-emerald-600 dark:text-emerald-400">оплачен ✓</span>
+                              <span className="text-[11px] text-emerald-600 dark:text-emerald-400">{t("adminFinance.installments.installmentPaid")}</span>
                             ) : canInstallments ? (
                               <MarkInstallmentPaidButton installmentId={inst.id} />
                             ) : (
-                              <span className="text-[11px] text-slate-400 dark:text-slate-500">не оплачен</span>
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">{t("adminFinance.installments.installmentUnpaid")}</span>
                             )}
                           </div>
                         </div>

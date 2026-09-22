@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react"
 import { EyeOff, Plus, RotateCcw, Save } from "lucide-react"
 import { archiveFaqArticle, restoreDefaultFaqArticles, saveFaqArticle } from "@/app/actions/faq"
-import { faqAudienceLabels, type FaqAudience } from "@/lib/faq"
+import { type FaqAudience } from "@/lib/faq"
 import type { FaqArticleForAdmin } from "@/lib/faq-db"
+import { useT } from "@/lib/i18n/client"
+import { formatDateShortL } from "@/lib/i18n/format"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,7 +23,12 @@ type FaqManagerProps = {
 
 const NEW_ID = "__new__"
 
+// Аудитория FAQ — это те же роли, что и в общем словаре: владелец,
+// администратор, арендатор.
+const AUDIENCE_ROLE = { owner: "OWNER", admin: "ADMIN", tenant: "TENANT" } as const
+
 export function FaqManager({ articles, audiences, defaultAudience, canManage }: FaqManagerProps) {
+  const { t } = useT()
   const [activeAudience, setActiveAudience] = useState<FaqAudience>(defaultAudience)
   const [selectedId, setSelectedId] = useState(articles.find((item) => item.audience === defaultAudience)?.id ?? NEW_ID)
 
@@ -38,9 +45,9 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
     <Card className="block p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Управление FAQ</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t("adminService.faq.manager.title")}</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Вопросы хранятся в базе данных этой организации. Изменения сразу видны в FAQ владельца, администратора и арендатора.
+            {t("adminService.faq.manager.hint")}
           </p>
         </div>
         {canManage && (
@@ -50,7 +57,7 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
               variant="outline"
               leftIcon={<RotateCcw className="h-4 w-4" />}
             >
-              Вернуть базовые вопросы
+              {t("adminService.faq.manager.restore")}
             </Button>
           </form>
         )}
@@ -71,7 +78,7 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             }`}
           >
-            {faqAudienceLabels[audience]}
+            {t(`domain.roles.${AUDIENCE_ROLE[audience]}`)}
           </button>
         ))}
         {canManage && (
@@ -81,7 +88,7 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
           >
             <Plus className="h-4 w-4" />
-            Новый вопрос
+            {t("adminService.faq.manager.newQuestion")}
           </button>
         )}
       </div>
@@ -104,7 +111,7 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
                   <p className="line-clamp-2 text-sm font-medium text-slate-900 dark:text-slate-100">{item.question}</p>
                   {!item.isActive && (
                     <Badge className="shrink-0 bg-slate-100 text-[10px] font-normal text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                      скрыт
+                      {t("adminService.faq.manager.hidden")}
                     </Badge>
                   )}
                 </div>
@@ -113,7 +120,7 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
             ))
           ) : (
             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-              Пока нет вопросов для этой аудитории.
+              {t("adminService.faq.manager.noQuestions")}
             </div>
           )}
         </div>
@@ -133,6 +140,7 @@ function FaqArticleForm({
   activeAudience: FaqAudience
   canManage: boolean
 }) {
+  const { t, locale } = useT()
   const isNew = !article
 
   return (
@@ -142,7 +150,7 @@ function FaqArticleForm({
 
         <div className="grid gap-3 lg:grid-cols-[180px_1fr_120px]">
           <label className="space-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Аудитория</span>
+            <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.audience")}</span>
             <select
               name="audience"
               defaultValue={article?.audience ?? activeAudience}
@@ -150,24 +158,24 @@ function FaqArticleForm({
             >
               {(["owner", "admin", "tenant"] as FaqAudience[]).map((audience) => (
                 <option key={audience} value={audience}>
-                  {faqAudienceLabels[audience]}
+                  {t(`domain.roles.${AUDIENCE_ROLE[audience]}`)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Раздел</span>
+            <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.category")}</span>
             <Input
               name="category"
               required
               defaultValue={article?.category ?? ""}
-              placeholder="Например: Финансы"
+              placeholder={t("adminService.faq.manager.categoryPlaceholder")}
             />
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Порядок</span>
+            <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.order")}</span>
             <Input
               name="sortOrder"
               type="number"
@@ -177,17 +185,17 @@ function FaqArticleForm({
         </div>
 
         <label className="space-y-1 text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Вопрос</span>
+          <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.question")}</span>
           <Input
             name="question"
             required
             defaultValue={article?.question ?? ""}
-            placeholder="Как арендатору отправить чек об оплате?"
+            placeholder={t("adminService.faq.manager.questionPlaceholder")}
           />
         </label>
 
         <label className="space-y-1 text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Ответ</span>
+          <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.answer")}</span>
           <Textarea
             name="answer"
             required
@@ -198,7 +206,7 @@ function FaqArticleForm({
         </label>
 
         <label className="space-y-1 text-sm">
-          <span className="text-slate-500 dark:text-slate-400">Шаги, каждый с новой строки</span>
+          <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.steps")}</span>
           <Textarea
             name="steps"
             rows={4}
@@ -209,11 +217,11 @@ function FaqArticleForm({
 
         <div className="grid gap-3 lg:grid-cols-2">
           <label className="space-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Теги через запятую</span>
+            <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.tags")}</span>
             <Input
               name="tags"
               defaultValue={article?.tags?.join(", ") ?? ""}
-              placeholder="оплата, договор, пароль"
+              placeholder={t("adminService.faq.manager.tagsPlaceholder")}
             />
           </label>
 
@@ -224,37 +232,39 @@ function FaqArticleForm({
               defaultChecked={article?.isActive ?? true}
               className="h-4 w-4 rounded border-slate-300"
             />
-            Показывать в FAQ
+            {t("adminService.faq.manager.showInFaq")}
           </label>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-2">
           <label className="space-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Ссылка</span>
+            <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.href")}</span>
             <Input
               name="href"
               defaultValue={article?.href ?? ""}
-              placeholder="/admin/finances"
+              placeholder={t("adminService.faq.manager.hrefPlaceholder")}
             />
           </label>
 
           <label className="space-y-1 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Текст ссылки</span>
+            <span className="text-slate-500 dark:text-slate-400">{t("adminService.faq.manager.hrefLabel")}</span>
             <Input
               name="hrefLabel"
               defaultValue={article?.hrefLabel ?? ""}
-              placeholder="Открыть финансы"
+              placeholder={t("adminService.faq.manager.hrefLabelPlaceholder")}
             />
           </label>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {isNew ? "Новая запись будет сохранена в БД." : `Обновлено: ${new Date(article.updatedAt).toLocaleString("ru-RU")}`}
+            {isNew
+              ? t("adminService.faq.manager.newRecord")
+              : t("adminService.faq.manager.updated", { date: formatDateShortL(locale, article.updatedAt) })}
           </p>
           {canManage && (
             <Button type="submit" leftIcon={<Save className="h-4 w-4" />}>
-              Сохранить
+              {t("common.actions.save")}
             </Button>
           )}
         </div>
@@ -264,9 +274,9 @@ function FaqArticleForm({
         <div className="mt-3 border-t border-slate-200 pt-3 dark:border-slate-800">
           <ConfirmDialog
             variant="danger"
-            title="Скрыть вопрос из FAQ?"
-            description="Его можно будет снова включить галочкой «Показывать в FAQ»."
-            confirmLabel="Скрыть"
+            title={t("adminService.faq.manager.hideTitle")}
+            description={t("adminService.faq.manager.hideDescription")}
+            confirmLabel={t("adminService.faq.manager.hideConfirm")}
             onConfirm={async () => {
               const formData = new FormData()
               formData.set("id", article.id)
@@ -278,7 +288,7 @@ function FaqArticleForm({
                 className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:border-red-500/30 dark:text-red-300 dark:hover:bg-red-500/10"
               >
                 <EyeOff className="h-4 w-4" />
-                Скрыть вопрос
+                {t("adminService.faq.manager.hideButton")}
               </button>
             }
           />

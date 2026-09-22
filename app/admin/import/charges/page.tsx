@@ -1,22 +1,24 @@
 export const dynamic = "force-dynamic"
 
 import { ImportPage } from "@/components/import/import-page"
+import { getT } from "@/lib/i18n/server"
 import { ImportChargesClient } from "./import-client"
 
-export default function ImportChargesPage() {
+export default async function ImportChargesPage() {
+  const { t } = await getT()
   return (
     <ImportPage
-      title="Импорт начислений за прошлые месяцы"
-      subtitle="Перенос истории из 1С или Excel, чтобы долг считался с самого начала."
-      warning="Неоплаченные начисления сразу увеличат долг арендатора — проверьте список перед загрузкой."
+      title={t("adminSettings.import.charges.title")}
+      subtitle={t("adminSettings.import.charges.subtitle")}
+      warning={t("adminSettings.import.charges.warning")}
       columns={
         <>
-          <p><b>Арендатор</b> — БИН/ИИН (точнее) либо название. Должен уже быть в системе.</p>
-          <p><b>Период</b> (обязательно) — ГГГГ-ММ, ММ.ГГГГ или любая дата месяца.</p>
-          <p><b>Сумма</b> (обязательно) — положительное число.</p>
-          <p><b>Тип</b> — аренда, электричество, вода, отопление, уборка. По умолчанию «Аренда».</p>
-          <p><b>Оплачено</b> — «да» или «оплачено»: такое начисление в долг не попадёт.</p>
-          <p>Повтор «арендатор + период + тип» пропускается.</p>
+          <p><b>{t("adminSettings.import.charges.col1Label")}</b> {t("adminSettings.import.charges.col1Text")}</p>
+          <p><b>{t("adminSettings.import.charges.col2Label")}</b> {t("adminSettings.import.charges.col2Text")}</p>
+          <p><b>{t("adminSettings.import.charges.col3Label")}</b> {t("adminSettings.import.charges.col3Text")}</p>
+          <p><b>{t("adminSettings.import.charges.col4Label")}</b> {t("adminSettings.import.charges.col4Text")}</p>
+          <p><b>{t("adminSettings.import.charges.col5Label")}</b> {t("adminSettings.import.charges.col5Text")}</p>
+          <p>{t("adminSettings.import.charges.col6")}</p>
         </>
       }
     >

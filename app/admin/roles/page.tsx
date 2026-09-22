@@ -24,6 +24,12 @@ import { PermissionsMatrix } from "./permissions-matrix"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { TEAM_TABS } from "@/lib/hub-tabs"
+import { getT } from "@/lib/i18n/server"
+
+// Системные роли: подписи из словаря. Свои должности владелец назвал сам —
+// их метку не переводим, показываем как есть.
+const SYSTEM_ROLE_KEYS = ["OWNER", "ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE", "TENANT"] as const
+type SystemRoleKey = (typeof SYSTEM_ROLE_KEYS)[number]
 
 const ROLE_COLORS: Record<string, string> = {
   OWNER: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
@@ -38,7 +44,14 @@ export default async function RolesPage() {
   if (!session || !["OWNER", "ADMIN"].includes(session.user.role)) redirect("/admin")
 
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
   const isOwner = session.user.role === "OWNER"
+
+  // Метка должности: системная — из словаря, своя — как её назвал владелец.
+  const labelForRole = (role: string, custom?: string) =>
+    SYSTEM_ROLE_KEYS.includes(role as SystemRoleKey)
+      ? t(`adminSettings.roles.systemRoles.${role as SystemRoleKey}`)
+      : custom?.trim() || displayRoleLabel(role)
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
@@ -83,7 +96,7 @@ export default async function RolesPage() {
       name: user.name,
       email: user.email,
       role: user.role,
-      roleLabel: displayRoleLabel(user.role),
+      roleLabel: labelForRole(user.role),
       isActive: user.isActive,
     }))
 
@@ -148,8 +161,8 @@ export default async function RolesPage() {
       <PageHeader
         icon={Shield}
         tone="violet"
-        title="Должности и права"
-        subtitle="Роль теперь работает как набор разрешений: страницы, кнопки и серверные действия проверяются отдельно."
+        title={t("adminSettings.roles.title")}
+        subtitle={t("adminSettings.roles.subtitle")}
         actions={
           <>
             <Link
@@ -157,12 +170,12 @@ export default async function RolesPage() {
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 text-sm font-medium text-slate-800 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <History className="h-4 w-4" />
-              Журнал прав
+              {t("adminSettings.roles.permissionsLog")}
             </Link>
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
-              <p className="font-medium text-slate-900 dark:text-slate-100">{org?.plan?.name ?? "Тариф не выбран"}</p>
+              <p className="font-medium text-slate-900 dark:text-slate-100">{org?.plan?.name ?? t("adminSettings.roles.planNotSelected")}</p>
               <p className="mt-1 text-xs text-slate-500">
-                Конструктор должностей: {roleBuilderEnabled ? "включен" : "недоступен в тарифе"}
+                {roleBuilderEnabled ? t("adminSettings.roles.builderOn") : t("adminSettings.roles.builderOff")}
               </p>
             </div>
           </>
@@ -172,16 +185,16 @@ export default async function RolesPage() {
       {migrationMissing && (
         <Notice
           tone="amber"
-          title="Таблица прав не создана"
-          text="Система использует старые fallback-права. Запустите миграции или deploy-script, затем обновите страницу."
+          title={t("adminSettings.roles.migrationTitle")}
+          text={t("adminSettings.roles.migrationText")}
         />
       )}
 
       {!roleBuilderEnabled && (
         <Notice
           tone="blue"
-          title="Функция закрыта тарифом"
-          text="Владелец видит текущие права, но менять должности сможет только после включения возможности «Конструктор должностей» в тарифе."
+          title={t("adminSettings.roles.lockedTitle")}
+          text={t("adminSettings.roles.lockedText")}
           icon={Lock}
         />
       )}
@@ -189,7 +202,7 @@ export default async function RolesPage() {
       <PermissionsMatrix
         roles={roles.map((role) => ({
           key: role.value,
-          label: role.label || displayRoleLabel(role.value),
+          label: labelForRole(role.value, role.label),
           color: ROLE_COLORS[role.value] ?? "bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/30",
           system: role.system,
           userCount: userCounts[role.value] ?? 0,

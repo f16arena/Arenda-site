@@ -9,7 +9,9 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { formatMoney } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL, monthNamesL, weekdayNamesL } from "@/lib/i18n/format"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
 export type CalendarEventType =
   | "payment_due"
@@ -36,27 +38,23 @@ export interface CalendarSummary {
   contracts: number
 }
 
-const EVENT_META: Record<CalendarEventType, { dot: string; chip: string; icon: React.ElementType; label: string }> = {
-  payment_overdue: { dot: "bg-red-500", chip: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300", icon: AlertTriangle, label: "Просрочено" },
-  payment_due: { dot: "bg-blue-500", chip: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300", icon: Wallet, label: "Ждём оплату" },
-  payment_done: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", icon: Wallet, label: "Оплата получена" },
-  contract_ending: { dot: "bg-amber-500", chip: "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200", icon: FileClock, label: "Кончается договор" },
-  task: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300", icon: CheckSquare, label: "Задача" },
+// Только оформление; подписи типов событий — в словаре (calendar.eventTypes).
+const EVENT_META: Record<CalendarEventType, { dot: string; chip: string; icon: React.ElementType }> = {
+  payment_overdue: { dot: "bg-red-500", chip: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300", icon: AlertTriangle },
+  payment_due: { dot: "bg-blue-500", chip: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300", icon: Wallet },
+  payment_done: { dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", icon: Wallet },
+  contract_ending: { dot: "bg-amber-500", chip: "bg-amber-50 text-amber-800 dark:bg-amber-500/15 dark:text-amber-200", icon: FileClock },
+  task: { dot: "bg-violet-500", chip: "bg-violet-50 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300", icon: CheckSquare },
 }
 // Порядок в клетке и в списках: сначала то, что требует действия
 const ORDER: CalendarEventType[] = ["payment_overdue", "contract_ending", "task", "payment_due", "payment_done"]
 
-const MONTHS = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-]
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-
 const keyOf = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`
 const byOrder = (a: CalendarEvent, b: CalendarEvent) => ORDER.indexOf(a.type) - ORDER.indexOf(b.type)
-function dayLabel(day: string, opts: Intl.DateTimeFormatOptions) {
+// Дата дня «YYYY-MM-DD» словами — на языке пользователя.
+function dayLabel(locale: Locale, day: string, opts: Intl.DateTimeFormatOptions) {
   const [y, m, d] = day.split("-").map(Number)
-  return new Date(y, m - 1, d).toLocaleDateString("ru-RU", opts)
+  return new Date(y, m - 1, d).toLocaleDateString(INTL_LOCALE[locale], opts)
 }
 
 export function CalendarView({
@@ -68,6 +66,7 @@ export function CalendarView({
   todayKey: string
   summary: CalendarSummary
 }) {
+  const { t, locale } = useT()
   const router = useRouter()
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [activeFilters, setActiveFilters] = useState<Set<CalendarEventType>>(
@@ -123,27 +122,27 @@ export function CalendarView({
     <div className="space-y-4">
       {/* Итог месяца — главное, ради чего открывают календарь */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SummaryTile label="Ждём оплату" value={formatMoney(summary.expected)} tone="blue" />
-        <SummaryTile label="Просрочено" value={formatMoney(summary.overdue)} tone={summary.overdue > 0 ? "red" : "slate"} />
-        <SummaryTile label="Получено" value={formatMoney(summary.received)} tone="emerald" />
-        <SummaryTile label="Кончаются договоры" value={String(summary.contracts)} tone={summary.contracts > 0 ? "amber" : "slate"} />
+        <SummaryTile label={t("adminService.calendar.summary.expected")} value={formatMoneyL(locale, summary.expected)} tone="blue" />
+        <SummaryTile label={t("adminService.calendar.summary.overdue")} value={formatMoneyL(locale, summary.overdue)} tone={summary.overdue > 0 ? "red" : "slate"} />
+        <SummaryTile label={t("adminService.calendar.summary.received")} value={formatMoneyL(locale, summary.received)} tone="emerald" />
+        <SummaryTile label={t("adminService.calendar.summary.contracts")} value={String(summary.contracts)} tone={summary.contracts > 0 ? "amber" : "slate"} />
       </div>
 
       <Card className="block space-y-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Button type="button" variant="outline" size="icon-sm" onClick={() => navigateMonth(-1)} aria-label="Предыдущий месяц" title="Предыдущий месяц">
+            <Button type="button" variant="outline" size="icon-sm" onClick={() => navigateMonth(-1)} aria-label={t("adminService.calendar.prevMonth")} title={t("adminService.calendar.prevMonth")}>
               <ChevronLeft className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </Button>
             <h2 className="min-w-[170px] text-center text-lg font-semibold text-slate-900 dark:text-slate-100">
-              {MONTHS[currentMonth - 1]} {currentYear}
+              {monthNamesL(locale)[currentMonth - 1]} {currentYear}
             </h2>
-            <Button type="button" variant="outline" size="icon-sm" onClick={() => navigateMonth(1)} aria-label="Следующий месяц" title="Следующий месяц">
+            <Button type="button" variant="outline" size="icon-sm" onClick={() => navigateMonth(1)} aria-label={t("adminService.calendar.nextMonth")} title={t("adminService.calendar.nextMonth")}>
               <ChevronRight className="h-4 w-4 text-slate-600 dark:text-slate-400" />
             </Button>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => { setSelectedDate(null); router.push("?") }}>
-            Сегодня
+            {t("adminService.calendar.today")}
           </Button>
         </div>
 
@@ -164,7 +163,7 @@ export function CalendarView({
                 }`}
               >
                 <span className={`inline-block h-2 w-2 rounded-full ${meta.dot}`} />
-                {meta.label}
+                {t(`adminService.calendar.eventTypes.${type}`)}
               </button>
             )
           })}
@@ -174,8 +173,8 @@ export function CalendarView({
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
         <Card className="block overflow-hidden p-0">
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="px-2 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{d}</div>
+            {weekdayNamesL(locale).map((weekday) => (
+              <div key={weekday} className="px-2 py-2 text-center text-xs font-medium text-slate-500 dark:text-slate-400">{weekday}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">
@@ -211,7 +210,7 @@ export function CalendarView({
                     </span>
                   ))}
                   {dayEvents.length > 2 && (
-                    <span className="px-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">ещё {dayEvents.length - 2}</span>
+                    <span className="px-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">{t("adminService.calendar.moreEvents", { count: dayEvents.length - 2 })}</span>
                   )}
                 </button>
               )
@@ -224,25 +223,25 @@ export function CalendarView({
             <>
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold capitalize text-slate-900 dark:text-slate-100">
-                  {dayLabel(selectedDate, { weekday: "long", day: "numeric", month: "long" })}
+                  {dayLabel(locale, selectedDate, { weekday: "long", day: "numeric", month: "long" })}
                 </h3>
-                <button type="button" onClick={() => setSelectedDate(null)} aria-label="Закрыть выбранную дату" title="Закрыть" className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
+                <button type="button" onClick={() => setSelectedDate(null)} aria-label={t("adminService.calendar.closeDate")} title={t("common.actions.close")} className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300">
                   <X className="h-4 w-4" />
                 </button>
               </div>
               {selectedEvents.length === 0
-                ? <p className="text-sm text-slate-400 dark:text-slate-500">В этот день ничего нет.</p>
+                ? <p className="text-sm text-slate-400 dark:text-slate-500">{t("adminService.calendar.dayEmpty")}</p>
                 : <EventList events={selectedEvents} />}
             </>
           ) : (
             <>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">Впереди</h3>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-300">{t("adminService.calendar.upcoming")}</h3>
               {upcoming.length === 0 ? (
-                <p className="text-sm text-slate-400 dark:text-slate-500">До конца месяца ничего не запланировано.</p>
+                <p className="text-sm text-slate-400 dark:text-slate-500">{t("adminService.calendar.upcomingEmpty")}</p>
               ) : (
                 <EventList events={upcoming} showDate />
               )}
-              <p className="pt-1 text-[11px] text-slate-400 dark:text-slate-500">Нажмите на день в календаре, чтобы увидеть всё, что в нём.</p>
+              <p className="pt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("adminService.calendar.hint")}</p>
             </>
           )}
         </Card>
@@ -252,6 +251,7 @@ export function CalendarView({
 }
 
 function EventList({ events, showDate = false }: { events: CalendarEvent[]; showDate?: boolean }) {
+  const { locale } = useT()
   return (
     <ul className="space-y-2">
       {events.map((e) => {
@@ -265,7 +265,7 @@ function EventList({ events, showDate = false }: { events: CalendarEvent[]; show
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">{e.title}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                {showDate && <>{dayLabel(e.day, { day: "numeric", month: "short" })} · </>}
+                {showDate && <>{dayLabel(locale, e.day, { day: "numeric", month: "short" })} · </>}
                 {e.subtitle}
               </p>
             </div>
@@ -288,7 +288,8 @@ function SummaryTile({ label, value, tone }: { label: string; value: string; ton
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
       <p className={`truncate text-xl font-bold tabular-nums ${color}`}>{value}</p>
-      <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">{label} в этом месяце</p>
+      {/* Подпись приходит целиком из словаря — «…в этом месяце» уже внутри. */}
+      <p className="mt-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
     </div>
   )
 }
