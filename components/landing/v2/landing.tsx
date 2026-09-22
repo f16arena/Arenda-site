@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react"
 import { LANDING_BODY_AFTER, LANDING_BODY_BEFORE, LANDING_CSS } from "./landing-data"
+import { LANDING_BODY_AFTER_KK, LANDING_BODY_BEFORE_KK } from "./landing-data.kk"
+import type { Locale } from "@/lib/i18n/config"
 import { PricingDesignSection } from "./pricing-design-section"
 import type { PricingPlan, PricingPeriod, PricingMatrix } from "@/components/landing/pricing-data"
 
@@ -17,13 +19,26 @@ export function LandingV2({
   founding,
   editorImageUrl,
   dashboardUrl,
+  locale = "ru",
 }: {
   pricing: { plans: PricingPlan[]; periods: PricingPeriod[]; matrix: PricingMatrix } | null
   founding: { remaining: number; total: number; isActive: boolean } | null
   editorImageUrl?: string | null
   dashboardUrl?: string | null
+  /** Язык страницы: вёрстка одна, текст берётся из своего файла. */
+  locale?: Locale
 }) {
   const rootRef = useRef<HTMLElement>(null)
+  const bodyBefore = locale === "kk" ? LANDING_BODY_BEFORE_KK : LANDING_BODY_BEFORE
+  // Переключатель языка в шапке: вёрстка лендинга — готовая строка,
+  // поэтому вставляем ссылку рядом с кнопкой «Войти».
+  const languageLink = locale === "kk"
+    ? '<a href="/" class="btn btn-ghost" hreflang="ru" lang="ru">RU</a>'
+    : '<a href="/kk" class="btn btn-ghost" hreflang="kk" lang="kk">ҚАЗ</a>' 
+  const bodyAfter = locale === "kk" ? LANDING_BODY_AFTER_KK : LANDING_BODY_AFTER
+  const screenshotPlaceholder = locale === "kk"
+    ? '<div class="img-ph">Ғимараттың 3D-редакторының скриншоты</div>'
+    : '<div class="img-ph">Скриншот 3D-редактора здания</div>' 
   // Для залогиненного пользователя CTA входа/регистрации (Войти/Начать/Попробовать)
   // ведут прямо в его рабочую зону (dashboardUrl), а не на /login — без петель.
   // /demo НЕ подменяем: демонстрация — отдельная песочница, доступна всем (в т.ч.
@@ -37,13 +52,13 @@ export function LandingV2({
   // Подстановка реального скриншота 3D-редактора (из БД) вместо плейсхолдера.
   const before = withCta(
     editorImageUrl
-      ? LANDING_BODY_BEFORE.replace(
-          '<div class="img-ph">Скриншот 3D-редактора здания</div>',
+      ? bodyBefore.replace(
+          screenshotPlaceholder,
           `<img src="${editorImageUrl}" alt="3D-редактор здания Commrent" style="width:100%;height:clamp(320px,38vw,420px);object-fit:cover;display:block" />`,
         )
-      : LANDING_BODY_BEFORE,
-  )
-  const after = withCta(LANDING_BODY_AFTER)
+      : bodyBefore,
+  ).replace('<div class="nav-cta">', `<div class="nav-cta">${languageLink}`)
+  const after = withCta(bodyAfter)
 
   useEffect(() => {
     const root = rootRef.current

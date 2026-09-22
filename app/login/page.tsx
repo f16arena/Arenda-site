@@ -5,6 +5,9 @@ import { redirect } from "next/navigation"
 import { headers } from "next/headers"
 import { parseHost, ROOT_HOST } from "@/lib/host"
 import { LoginForm } from "./login-form"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getLocale } from "@/lib/i18n/server"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +20,7 @@ export const dynamic = "force-dynamic"
 // Если уже на нужном поддомене — обычный относительный редирект.
 export default async function LoginPage() {
   const session = await auth()
+  const locale = await getLocale()
 
   if (session?.user) {
     // Платформенный админ — на /superadmin (всегда на root домене)
@@ -52,7 +56,9 @@ export default async function LoginPage() {
   return (
     <div className="min-h-screen bg-[#f6f8fb] flex items-center justify-center p-4">
       <ForceLight />
-      <LoginForm />
+      <I18nProvider locale={locale} messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}>
+        <LoginForm />
+      </I18nProvider>
     </div>
   )
 }

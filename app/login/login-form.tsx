@@ -8,8 +8,10 @@ import { AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 export function LoginForm() {
+  const { t } = useT()
   const [state, action, isPending] = useActionState(login, undefined)
 
   return (
@@ -25,7 +27,7 @@ export function LoginForm() {
           priority
           className="h-14 w-auto object-contain mx-auto"
         />
-        <p className="text-sm text-slate-500 mt-3">Войдите в свой аккаунт</p>
+        <p className="text-sm text-slate-500 mt-3">{t("auth.login.subtitle")}</p>
       </Link>
 
       {/* Card */}
@@ -33,7 +35,7 @@ export function LoginForm() {
         <form action={action} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Телефон или Email
+              {t("auth.login.loginField")}
             </label>
             <Input
               name="login"
@@ -46,10 +48,10 @@ export function LoginForm() {
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-sm font-medium text-slate-700">
-                Пароль
+                {t("auth.login.password")}
               </label>
               <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline font-medium">
-                Забыли пароль?
+                {t("auth.login.forgot")}
               </Link>
             </div>
             <Input
@@ -65,9 +67,9 @@ export function LoginForm() {
               <div className="flex items-start gap-2 mb-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-900">Двухфакторная аутентификация</p>
+                  <p className="text-sm font-semibold text-emerald-900">{t("auth.login.twoFactor")}</p>
                   <p className="text-xs text-emerald-700 mt-0.5">
-                    Введите 6-значный код из приложения или резервный код XXXX-XXXX.
+                    {t("auth.login.twoFactorHint")}
                   </p>
                 </div>
               </div>
@@ -75,7 +77,7 @@ export function LoginForm() {
                 name="totp"
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="000000 или XXXX-XXXX"
+                placeholder={t("auth.login.twoFactorPlaceholder")}
                 autoFocus
                 className="border-emerald-300 bg-white text-center font-mono text-base tracking-widest focus-visible:border-emerald-500 focus-visible:ring-emerald-500/20"
               />
@@ -97,7 +99,7 @@ export function LoginForm() {
             loading={isPending}
             className="w-full font-semibold"
           >
-            {isPending ? "Вход..." : "Войти"}
+            {isPending ? t("auth.login.submitting") : t("auth.login.submit")}
           </Button>
         </form>
       </Card>

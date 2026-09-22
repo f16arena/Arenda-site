@@ -7,6 +7,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date()
   const routes = [
     { path: "/", changeFrequency: "weekly", priority: 1 },
+    // Казахская главная — отдельный адрес, поиск должен её видеть.
+    { path: "/kk", changeFrequency: "weekly", priority: 1 },
     { path: "/blog", changeFrequency: "weekly", priority: 0.8 },
     { path: "/signup", changeFrequency: "monthly", priority: 0.7 },
     { path: "/offer", changeFrequency: "monthly", priority: 0.4 },

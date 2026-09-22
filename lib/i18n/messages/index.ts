@@ -23,6 +23,8 @@ import { cabinetSupport as ruCabinetSupport } from "./ru/cabinetSupport"
 import { cabinetSupport as kkCabinetSupport } from "./kk/cabinetSupport"
 import { cabinetCalendar as ruCabinetCalendar, cabinetProfile as ruCabinetProfile, cabinetPayDocs as ruCabinetPayDocs } from "./ru/cabinetCalendar"
 import { cabinetCalendar as kkCabinetCalendar, cabinetProfile as kkCabinetProfile, cabinetPayDocs as kkCabinetPayDocs } from "./kk/cabinetCalendar"
+import { auth as ruAuth } from "./ru/auth"
+import { auth as kkAuth } from "./kk/auth"
 import { emails as ruEmails } from "./ru/emails"
 import { emails as kkEmails } from "./kk/emails"
 import { adminShell as ruAdminShell } from "./ru/adminShell"
@@ -57,6 +59,7 @@ export const ru = {
   cabinetProfile: ruCabinetProfile,
   cabinetPayDocs: ruCabinetPayDocs,
   emails: ruEmails,
+  auth: ruAuth,
   adminShell: ruAdminShell,
   adminObjects: ruAdminObjects,
   adminTenants: ruAdminTenants,
@@ -83,6 +86,7 @@ export const kk: Messages = {
   cabinetProfile: kkCabinetProfile,
   cabinetPayDocs: kkCabinetPayDocs,
   emails: kkEmails,
+  auth: kkAuth,
   adminShell: kkAdminShell,
   adminObjects: kkAdminObjects,
   adminTenants: kkAdminTenants,
