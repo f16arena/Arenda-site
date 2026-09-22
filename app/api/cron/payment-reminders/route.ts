@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server"
+import { getT } from "@/lib/i18n/server"
+import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n/config"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
@@ -28,15 +31,6 @@ function formatChargeType(type: string): string {
   return CHARGE_TYPE_LABELS[type] ?? type
 }
 
-function formatDueDate(date: Date | null): string {
-  if (!date) return "—"
-  return date.toLocaleDateString("ru-RU")
-}
-
-function formatMoney(amount: number): string {
-  return `${amount.toLocaleString("ru-RU")} ₸`
-}
-
 export async function GET(req: Request) {
   if (!authorizeCronRequest(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -45,11 +39,13 @@ export async function GET(req: Request) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
+  // Подпись «через 3 дня / завтра / сегодня» — ключ словаря: письмо уходит
+  // на языке получателя, а не на языке того, кто запустил задачу.
   const targets = [
-    { days: 3, label: "через 3 дня" },
-    { days: 1, label: "завтра" },
-    { days: 0, label: "сегодня" },
-  ]
+    { days: 3, key: "in3days" },
+    { days: 1, key: "tomorrow" },
+    { days: 0, key: "today" },
+  ] as const
 
   const stats = { sent: 0, failed: 0, skipped: 0 }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || ""
@@ -77,32 +73,39 @@ export async function GET(req: Request) {
         continue
       }
 
-      const safeType = htmlEscape(formatChargeType(charge.type))
+      const locale = isLocale(user.locale) ? user.locale : DEFAULT_LOCALE
+      const { t } = await getT(locale)
+      const when = t(`emails.reminder.when.${target.key}` as Parameters<typeof t>[0])
+      const amount = formatMoneyL(locale, charge.amount)
+
+      const chargeTypeKey = `domain.chargeTypes.${charge.type}` as Parameters<typeof t>[0]
+      const chargeTypeLabel = t(chargeTypeKey)
+      const safeType = htmlEscape(chargeTypeLabel === chargeTypeKey ? formatChargeType(charge.type) : chargeTypeLabel)
       const safePeriod = htmlEscape(charge.period)
-      const safeAmount = htmlEscape(formatMoney(charge.amount))
-      const safeDue = htmlEscape(formatDueDate(charge.dueDate))
-      const safeLabel = htmlEscape(target.label)
+      const safeAmount = htmlEscape(amount)
+      const safeDue = htmlEscape(charge.dueDate ? formatDateShortL(locale, charge.dueDate) : "—")
 
       const html = basicEmailTemplate({
-        title: `Срок оплаты ${target.label}`,
-        body: `<p>Уважаемый клиент,</p>
-<p>Напоминаем что срок оплаты ${safeLabel}:</p>
+        lang: locale,
+        title: t("emails.reminder.title", { when }),
+        body: `<p>${htmlEscape(t("emails.reminder.greeting"))}</p>
+<p>${htmlEscape(t("emails.reminder.lead", { when }))}</p>
 <ul>
-  <li><strong>Период:</strong> ${safePeriod}</li>
-  <li><strong>Тип:</strong> ${safeType}</li>
-  <li><strong>Сумма:</strong> ${safeAmount}</li>
-  <li><strong>Срок:</strong> ${safeDue}</li>
+  <li><strong>${htmlEscape(t("emails.reminder.period"))}:</strong> ${safePeriod}</li>
+  <li><strong>${htmlEscape(t("emails.reminder.type"))}:</strong> ${safeType}</li>
+  <li><strong>${htmlEscape(t("emails.reminder.amount"))}:</strong> ${safeAmount}</li>
+  <li><strong>${htmlEscape(t("emails.reminder.due"))}:</strong> ${safeDue}</li>
 </ul>`,
-        buttonText: "Открыть кабинет",
+        buttonText: t("emails.common.openCabinet"),
         buttonUrl: `${appUrl}/cabinet/finances`,
-        footer: "Если уже оплатили — игнорируйте это сообщение.",
+        footer: t("emails.reminder.footer"),
       })
 
       const result = await sendEmail({
         to: user.email,
-        subject: `Напоминание об оплате (${target.label})`,
+        subject: t("emails.reminder.subject", { when }),
         html,
-        text: `Срок оплаты ${target.label}. Сумма: ${formatMoney(charge.amount)}. Период: ${charge.period}.`,
+        text: t("emails.reminder.text", { when, amount, period: charge.period }),
       })
 
       if (result.ok) stats.sent++

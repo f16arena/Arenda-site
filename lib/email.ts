@@ -101,14 +101,16 @@ export function basicEmailTemplate(params: {
   buttonText?: string
   buttonUrl?: string
   footer?: string
+  /** Язык письма — для <html lang> и экранных дикторов. */
+  lang?: string
 }): string {
-  const { title, body, buttonText, buttonUrl, footer } = params
+  const { title, body, buttonText, buttonUrl, footer, lang } = params
   const safeTitle = escapeHtml(title)
   const safeFooter = footer ? escapeHtml(footer) : "Это автоматическое письмо от системы управления арендой. По вопросам свяжитесь с администрацией."
   const safeButtonText = buttonText ? escapeHtml(buttonText) : ""
   const safeButtonUrl = buttonUrl ? safeUrl(buttonUrl) : ""
   return `<!DOCTYPE html>
-<html lang="ru">
+<html lang="${lang === "kk" ? "kk" : "ru"}">
 <head><meta charset="UTF-8"><title>${safeTitle}</title></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="padding:24px 0;">

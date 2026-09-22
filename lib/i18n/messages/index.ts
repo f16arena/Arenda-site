@@ -23,6 +23,8 @@ import { cabinetSupport as ruCabinetSupport } from "./ru/cabinetSupport"
 import { cabinetSupport as kkCabinetSupport } from "./kk/cabinetSupport"
 import { cabinetCalendar as ruCabinetCalendar, cabinetProfile as ruCabinetProfile, cabinetPayDocs as ruCabinetPayDocs } from "./ru/cabinetCalendar"
 import { cabinetCalendar as kkCabinetCalendar, cabinetProfile as kkCabinetProfile, cabinetPayDocs as kkCabinetPayDocs } from "./kk/cabinetCalendar"
+import { emails as ruEmails } from "./ru/emails"
+import { emails as kkEmails } from "./kk/emails"
 import { domain as ruDomain } from "./ru/domain"
 import { domain as kkDomain } from "./kk/domain"
 
@@ -38,6 +40,7 @@ export const ru = {
   cabinetCalendar: ruCabinetCalendar,
   cabinetProfile: ruCabinetProfile,
   cabinetPayDocs: ruCabinetPayDocs,
+  emails: ruEmails,
 }
 
 export type Messages = typeof ru
@@ -55,6 +58,7 @@ export const kk: Messages = {
   cabinetCalendar: kkCabinetCalendar,
   cabinetProfile: kkCabinetProfile,
   cabinetPayDocs: kkCabinetPayDocs,
+  emails: kkEmails,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }

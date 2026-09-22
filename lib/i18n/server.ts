@@ -22,3 +22,19 @@ export async function getT(locale?: Locale) {
   const current = locale ?? (await getLocale())
   return createTranslator<Messages>(current, dictionaries[current], ru)
 }
+
+/**
+ * Язык получателя письма. Письмо читает арендатор, а отправляет его владелец
+ * или ночной cron — cookie запроса тут не годится, берём язык из профиля.
+ */
+export async function localeForUser(userId: string | null | undefined): Promise<Locale> {
+  if (!userId) return DEFAULT_LOCALE
+  const { db } = await import("@/lib/db")
+  const user = await db.user.findUnique({ where: { id: userId }, select: { locale: true } }).catch(() => null)
+  return isLocale(user?.locale) ? user.locale : DEFAULT_LOCALE
+}
+
+/** Переводчик для письма конкретному человеку. */
+export async function getTForUser(userId: string | null | undefined) {
+  return getT(await localeForUser(userId))
+}
