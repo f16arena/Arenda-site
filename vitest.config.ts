@@ -9,7 +9,7 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./", import.meta.url)) },
   },
   test: {
-    include: ["core/**/*.test.ts", "lib/builder/**/*.test.ts", "lib/indoor-map/**/*.test.ts", "lib/security/**/*.test.ts", "lib/contract-engine/**/*.test.ts"],
+    include: ["core/**/*.test.ts", "lib/builder/**/*.test.ts", "lib/indoor-map/**/*.test.ts", "lib/security/**/*.test.ts", "lib/contract-engine/**/*.test.ts", "lib/i18n/**/*.test.ts"],
     environment: "node",
   },
 })

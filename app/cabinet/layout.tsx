@@ -7,6 +7,10 @@ import { EmailNotVerifiedBanner } from "@/components/layout/email-not-verified-b
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { db } from "@/lib/db"
 import { formatPersonShortName, getDisplayInitial } from "@/lib/display-name"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
+import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
 
 export default async function CabinetLayout({
   children,
@@ -20,6 +24,8 @@ export default async function CabinetLayout({
   if (session.user.isPlatformOwner) redirect("/superadmin")
   if (session.user.role !== "TENANT") redirect("/admin")
   const displayUserName = formatPersonShortName(session.user.name)
+  const locale = await getLocale()
+  const { t } = await getT(locale)
 
   const [tenant, unreadNotifications, userMail, org] = await Promise.all([
     db.tenant.findUnique({
@@ -52,6 +58,8 @@ export default async function CabinetLayout({
   }
 
   return (
+    // В браузер уходят только общие слова и кабинет — не словарь админки.
+    <I18nProvider locale={locale} messages={pickNamespaces(dictionaries[locale], ["common", "cabinet"])}>
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <TenantSidebar companyName={tenant?.companyName} />
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -61,12 +69,13 @@ export default async function CabinetLayout({
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 pl-16 dark:border-slate-800 dark:bg-slate-900 sm:px-6 lg:pl-6">
           <div />
           <div className="flex items-center gap-4">
+            <LocaleSwitcher />
             <ThemeIconToggle />
             <NotificationBell unreadCount={unreadNotifications} />
             <Link
               href="/cabinet/profile"
               className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-800 transition"
-              title="Открыть профиль"
+              title={t("cabinet.shell.openProfile")}
             >
               <div className="h-7 w-7 rounded-full bg-teal-600 flex items-center justify-center">
                 <span className="text-[11px] font-semibold text-white">
@@ -82,5 +91,6 @@ export default async function CabinetLayout({
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
+    </I18nProvider>
   )
 }

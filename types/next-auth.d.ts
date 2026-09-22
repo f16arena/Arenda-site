@@ -7,12 +7,15 @@ declare module "next-auth" {
       role: string
       organizationId: string | null
       isPlatformOwner: boolean
+      /** Язык из профиля — нужен, когда cookie языка ещё нет (новое устройство). */
+      locale: string
     } & DefaultSession["user"]
   }
   interface User {
     role: string
     organizationId: string | null
     isPlatformOwner: boolean
+    locale?: string
   }
 }
 
@@ -22,5 +25,6 @@ declare module "next-auth/jwt" {
     role: string
     organizationId: string | null
     isPlatformOwner: boolean
+    locale?: string
   }
 }

@@ -6,13 +6,16 @@ import { DialogHost } from "@/components/ui/dialog-host"
 import { ClientErrorMonitor } from "@/components/errors/client-error-monitor"
 import { WebVitalsReporter } from "@/components/performance/web-vitals-reporter"
 import { themeInitScript } from "@/components/theme-toggle"
+import { localeInitScript } from "@/lib/i18n/config"
 import "./globals.css"
 
 // Manrope — современный, минималистичный, премиальный sans-serif с
 // отличной кириллицей. Цифры — табличные (хорошо для финансов).
+// cyrillic-ext — казахские Ә Ғ Қ Ң Ө Ұ Ү Һ І: без него они рисовались бы
+// запасным шрифтом, и слово выглядело бы собранным из разных букв.
 const manrope = Manrope({
   variable: "--font-manrope",
-  subsets: ["latin", "cyrillic"],
+  subsets: ["latin", "cyrillic", "cyrillic-ext"],
   display: "swap",
   weight: ["400", "500", "600", "700", "800"],
 })
@@ -86,6 +89,11 @@ export default function RootLayout({
           id="theme-init"
           strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
+        <Script
+          id="locale-init"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: localeInitScript }}
         />
       </head>
       <body className="h-full font-sans antialiased">

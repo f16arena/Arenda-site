@@ -9,33 +9,44 @@ import {
   Menu, X, CircleHelp,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
+import type { TextKey } from "@/lib/i18n/translate"
+import type { Messages } from "@/lib/i18n/messages"
 
-const nav = [
+type NavKey = TextKey<Messages>
+type NavSection = {
+  title?: NavKey
+  items: { href: string; label: NavKey; icon: React.ElementType; exact?: boolean }[]
+}
+
+// Подписи — ключи словаря (lib/i18n/messages/*/cabinet.ts).
+const nav: NavSection[] = [
   {
     items: [
-      { href: "/cabinet", label: "Главная", icon: LayoutDashboard, exact: true },
+      { href: "/cabinet", label: "cabinet.nav.home", icon: LayoutDashboard, exact: true },
     ],
   },
   {
-    title: "МОЙ КАБИНЕТ",
+    title: "cabinet.nav.sectionMine",
     items: [
-      { href: "/cabinet/finances", label: "Финансы", icon: CreditCard },
-      { href: "/cabinet/meters", label: "Счётчики", icon: Gauge },
-      { href: "/cabinet/documents", label: "Документы", icon: FileText },
+      { href: "/cabinet/finances", label: "cabinet.nav.finances", icon: CreditCard },
+      { href: "/cabinet/meters", label: "cabinet.nav.meters", icon: Gauge },
+      { href: "/cabinet/documents", label: "cabinet.nav.documents", icon: FileText },
     ],
   },
   {
-    title: "ПОДДЕРЖКА",
+    title: "cabinet.nav.sectionSupport",
     items: [
-      { href: "/cabinet/requests", label: "Заявки", icon: ClipboardList },
-      { href: "/cabinet/messages", label: "Сообщения", icon: MessageSquare },
-      { href: "/cabinet/profile", label: "Мой профиль", icon: User },
-      { href: "/cabinet/faq", label: "FAQ", icon: CircleHelp },
+      { href: "/cabinet/requests", label: "cabinet.nav.requests", icon: ClipboardList },
+      { href: "/cabinet/messages", label: "cabinet.nav.messages", icon: MessageSquare },
+      { href: "/cabinet/profile", label: "cabinet.nav.profile", icon: User },
+      { href: "/cabinet/faq", label: "cabinet.nav.faq", icon: CircleHelp },
     ],
   },
 ]
 
 export function TenantSidebar({ companyName }: { companyName?: string }) {
+  const { t } = useT()
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -54,7 +65,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
       <button
         onClick={() => setMobileOpen(true)}
         className="lg:hidden fixed top-3 left-3 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-900 border border-slate-200 dark:bg-slate-900 dark:text-white dark:border-transparent shadow-lg"
-        aria-label="Открыть меню"
+        aria-label={t("cabinet.shell.openMenu")}
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -75,7 +86,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
       <button
         onClick={() => setMobileOpen(false)}
         className="lg:hidden absolute top-3 right-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-        aria-label="Закрыть меню"
+        aria-label={t("cabinet.shell.closeMenu")}
       >
         <X className="h-5 w-5" />
       </button>
@@ -85,9 +96,9 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-            {companyName ?? "Личный кабинет"}
+            {companyName ?? t("cabinet.shell.cabinetTitle")}
           </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">Арендатор</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">{t("cabinet.shell.tenantRole")}</p>
         </div>
       </div>
 
@@ -96,7 +107,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
           <div key={si}>
             {section.title && (
               <p className="px-2 mb-1 text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
-                {section.title}
+                {t(section.title)}
               </p>
             )}
             <ul className="space-y-0.5">
@@ -106,13 +117,13 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
                     href={item.href}
                     className={cn(
                       "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                      isActive(item.href, "exact" in item ? item.exact : undefined)
+                      isActive(item.href, item.exact)
                         ? "bg-teal-600/10 text-teal-700 dark:bg-teal-600/20 dark:text-white border-l-2 border-teal-500 pl-[10px]"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    {item.label}
+                    {t(item.label)}
                   </Link>
                 </li>
               ))}
@@ -128,7 +139,7 @@ export function TenantSidebar({ companyName }: { companyName?: string }) {
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
           >
             <LogOut className="h-4 w-4" />
-            Выйти
+            {t("common.actions.logout")}
           </button>
         </form>
       </div>

@@ -16,6 +16,9 @@ const SESSION_COOKIE_DOMAIN = isProduction && ROOT_HOST_FOR_COOKIE
   ? `.${ROOT_HOST_FOR_COOKIE}`
   : undefined
 
+/** Тот же домен для cookie языка: выбор на commrent.kz/login нужен и на поддомене. */
+export const SHARED_COOKIE_DOMAIN = SESSION_COOKIE_DOMAIN
+
 const SESSION_COOKIE_NAME = isProduction
   ? "__Secure-commrent.session-token"
   : "commrent.session-token"
@@ -51,6 +54,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
               role: true,
               organizationId: true,
               isPlatformOwner: true,
+              locale: true,
               approvalStatus: true,
               rejectionReason: true,
               totpEnabledAt: true,
@@ -139,7 +143,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             role: user.role,
             organizationId: user.organizationId ?? null,
             isPlatformOwner: user.isPlatformOwner ?? false,
-          } as { id: string; name: string; email: string | undefined; role: string; organizationId: string | null; isPlatformOwner: boolean }
+            locale: user.locale,
+          } as { id: string; name: string; email: string | undefined; role: string; organizationId: string | null; isPlatformOwner: boolean; locale: string }
         } catch (e) {
           // TOTP_REQUIRED / TOTP_INVALID должны пробрасываться, остальные обезличиваем
           if (e instanceof Error && (e.message === "TOTP_REQUIRED" || e.message === "TOTP_INVALID")) {
@@ -160,6 +165,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = (user as { role: string }).role
         token.organizationId = (user as { organizationId?: string | null }).organizationId ?? null
         token.isPlatformOwner = (user as { isPlatformOwner?: boolean }).isPlatformOwner ?? false
+        token.locale = (user as { locale?: string }).locale ?? "ru"
       }
       return token
     },
@@ -168,6 +174,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       session.user.role = token.role as string
       session.user.organizationId = (token.organizationId as string | null) ?? null
       session.user.isPlatformOwner = (token.isPlatformOwner as boolean) ?? false
+      session.user.locale = (token.locale as string | undefined) ?? "ru"
       return session
     },
   },
