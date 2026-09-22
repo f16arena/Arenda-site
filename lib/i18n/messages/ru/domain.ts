@@ -1,0 +1,40 @@
+// Предметные названия: виды начислений, виды документов, реквизиты.
+// Нужны и арендатору, и владельцу — поэтому отдельным разделом.
+
+export const domain = {
+  chargeTypes: {
+    RENT: "Аренда",
+    DEPOSIT: "Гарантийный депозит",
+    DEPOSIT_REFUND: "Возврат депозита",
+    SERVICE_FEE: "Эксплуатационный сбор",
+    SERVICE_FEE_INDEXED: "Эксплуатационный сбор (с индексацией)",
+    ELECTRICITY: "Электричество",
+    WATER: "Вода",
+    HEATING: "Отопление",
+    GARBAGE: "Вывоз мусора",
+    SECURITY: "Охрана",
+    INTERNET: "Интернет",
+    GAS: "Газ",
+    CLEANING: "Уборка",
+    PENALTY: "Штраф/пеня",
+    SERVICE_DELIVERED: "Оказанная услуга",
+    OTHER: "Прочее",
+  },
+  docTypes: {
+    INVOICE: "Счёт на оплату",
+    ACT: "Акт услуг",
+    RECONCILIATION: "Акт сверки",
+    HANDOVER: "Акт приёма-передачи",
+    CONTRACT: "Договор",
+    ADDENDUM: "Дополнительное соглашение",
+  },
+  requisites: {
+    recipient: "Получатель",
+    taxId: "ИИН/БИН",
+    bank: "Банк",
+    bik: "БИК",
+    iik: "ИИК",
+    amount: "Сумма",
+    purpose: "Назначение платежа",
+  },
+}

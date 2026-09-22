@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { formatMoney, CHARGE_TYPES } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import {
   CreditCard, FileText, ClipboardList, Building2, Calendar,
   AlertCircle, MessageSquare, Download, ArrowRight, Receipt,
@@ -16,10 +17,15 @@ import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { formatPersonShortName } from "@/lib/display-name"
 import { Card } from "@/components/ui/page"
+import type { Locale } from "@/lib/i18n/config"
 
 export default async function CabinetDashboard() {
   return measureServerRoute("/cabinet", async () => {
   const session = await auth()
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const day = (value: Date | string) => formatDateShortL(locale, value)
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, {
       source,
@@ -68,8 +74,8 @@ export default async function CabinetDashboard() {
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <AlertCircle className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-600 dark:text-slate-400">Данные арендатора не найдены.</p>
-          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">Обратитесь к администратору.</p>
+          <p className="text-slate-600 dark:text-slate-400">{t("cabinetHome.noTenant.title")}</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">{t("cabinetHome.noTenant.hint")}</p>
         </div>
       </div>
     )
@@ -164,7 +170,7 @@ export default async function CabinetDashboard() {
       : Promise.resolve(null),
   ]))
   const primaryBankAccount = landlord?.bankAccounts[0] ?? null
-  const paymentPurpose = `Аренда ${tenant.companyName}, период ${currentPeriod}`
+  const paymentPurpose = t("cabinetHome.payCard.purposeValue", { company: tenant.companyName, period: currentPeriod })
   const pendingContracts = tenant.contracts
   const pendingPaymentReports = tenant.paymentReports
   const tenantMustSignCount = pendingContracts.filter((contract) => (
@@ -192,19 +198,25 @@ export default async function CabinetDashboard() {
   )
   const pendingSignDocs = signableDocs.filter((d) => !signedDocIds.has(d.id))
 
-  const docTypeLabels: Record<string, string> = {
-    INVOICE: "Счёт на оплату",
-    ACT: "Акт услуг",
-    RECONCILIATION: "Акт сверки",
-    HANDOVER: "Передача",
-    CONTRACT: "Договор",
+  const docTypeLabel = (type: string) =>
+    type === "INVOICE" ? t("domain.docTypes.INVOICE")
+    : type === "ACT" ? t("domain.docTypes.ACT")
+    : type === "RECONCILIATION" ? t("domain.docTypes.RECONCILIATION")
+    : type === "HANDOVER" ? t("domain.docTypes.HANDOVER")
+    : type === "CONTRACT" ? t("domain.docTypes.CONTRACT")
+    : type
+
+  const chargeTypeLabel = (type: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? type : label
   }
 
   return (
     <div className="space-y-5 pb-20 sm:space-y-6 sm:pb-0">
       <div>
         <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100 sm:text-2xl">
-          Здравствуйте, {formatPersonShortName(session?.user.name)}
+          {t("cabinetHome.greeting", { name: formatPersonShortName(session?.user.name) })}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
           {tenant.companyName}{building?.name ? ` · ${building.name}` : ""}
@@ -222,18 +234,20 @@ export default async function CabinetDashboard() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wide">
-              {overdueTotal > 0 ? "Просрочка платежа" : totalDebt > 0 ? "К оплате" : "Состояние счёта"}
+              {overdueTotal > 0
+                ? t("cabinetHome.balance.overdueLabel")
+                : totalDebt > 0 ? t("cabinetHome.balance.dueLabel") : t("cabinetHome.balance.okLabel")}
             </p>
             <p className={`text-3xl md:text-4xl font-bold mt-2 ${
               overdueTotal > 0 ? "text-red-700 dark:text-red-300" : totalDebt > 0 ? "text-amber-700 dark:text-amber-300" : "text-emerald-700 dark:text-emerald-300"
             }`}>
-              {totalDebt > 0 ? formatMoney(totalDebt) : "Задолженности нет"}
+              {totalDebt > 0 ? money(totalDebt) : t("cabinetHome.balance.noDebt")}
             </p>
             {nextCharge && nextCharge.dueDate && (
               <p className="text-sm text-slate-700 dark:text-slate-300 mt-2">
                 {overdueTotal > 0
-                  ? <span><b>Просрочено:</b> {formatMoney(overdueTotal)} · оплатите как можно скорее</span>
-                  : <span><b>Срок оплаты:</b> до {new Date(nextCharge.dueDate).toLocaleDateString("ru-RU")}</span>}
+                  ? t("cabinetHome.balance.overdueLine", { amount: money(overdueTotal) })
+                  : t("cabinetHome.balance.dueLine", { date: day(nextCharge.dueDate) })}
               </p>
             )}
             {totalDebt > 0 && (
@@ -243,7 +257,7 @@ export default async function CabinetDashboard() {
                   className="inline-flex items-center gap-2 rounded-lg bg-slate-900 hover:bg-slate-800 px-4 py-2 text-sm font-medium text-white"
                 >
                   <Wallet className="h-4 w-4" />
-                  Перейти к оплате
+                  {t("cabinetHome.balance.pay")}
                 </Link>
                 {recentDocs.find((d) => d.documentType === "INVOICE") && (
                   <a
@@ -252,7 +266,7 @@ export default async function CabinetDashboard() {
                     className="inline-flex items-center gap-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300"
                   >
                     <Download className="h-4 w-4" />
-                    Скачать счёт
+                    {t("cabinetHome.balance.downloadInvoice")}
                   </a>
                 )}
               </div>
@@ -270,6 +284,7 @@ export default async function CabinetDashboard() {
 
       {/* Информация по объекту + договору */}
       <PaymentQuickCard
+        locale={locale}
         totalDebt={totalDebt}
         monthlyRent={calculateTenantMonthlyRent(tenant)}
         account={primaryBankAccount}
@@ -282,9 +297,9 @@ export default async function CabinetDashboard() {
         <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-500/30 dark:bg-blue-500/10">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Ожидает вашего действия</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("cabinetHome.waiting.title")}</h2>
               <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                Всё, что может задержать оплату, подпись или обработку заявки.
+                {t("cabinetHome.waiting.subtitle")}
               </p>
             </div>
           </div>
@@ -299,10 +314,12 @@ export default async function CabinetDashboard() {
                   <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900 dark:text-slate-100">
-                      {contract.status === "SIGNED_BY_TENANT" ? "Ждёт арендодателя" : "Нужно подписать"}
+                      {contract.status === "SIGNED_BY_TENANT"
+                        ? t("cabinetHome.waiting.contractWaitsLandlord")
+                        : t("cabinetHome.waiting.contractNeedsSign")}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      {contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"} № {contract.number}
+                      {contract.type === "ADDENDUM" ? t("domain.docTypes.ADDENDUM") : t("domain.docTypes.CONTRACT")} № {contract.number}
                     </p>
                   </div>
                 </div>
@@ -318,10 +335,12 @@ export default async function CabinetDashboard() {
                   <Receipt className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900 dark:text-slate-100">
-                      {report.status === "DISPUTED" ? "Оплата требует уточнения" : "Оплата на проверке"}
+                      {report.status === "DISPUTED"
+                        ? t("cabinetHome.waiting.paymentDisputed")
+                        : t("cabinetHome.waiting.paymentChecking")}
                     </p>
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      {formatMoney(report.amount)} · {new Date(report.createdAt).toLocaleDateString("ru-RU")}
+                      {money(report.amount)} · {day(report.createdAt)}
                     </p>
                   </div>
                 </div>
@@ -335,8 +354,10 @@ export default async function CabinetDashboard() {
                 <div className="flex items-start gap-2">
                   <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-300" />
                   <div className="min-w-0">
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">Акты ждут вашей подписи</p>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{pendingSignDocs.length} шт. · АВР / акт сверки — подпишите в «Документах»</p>
+                    <p className="font-semibold text-slate-900 dark:text-slate-100">{t("cabinetHome.waiting.actsNeedSign")}</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {tp("cabinetHome.waiting.actsCount", pendingSignDocs.length)} · {t("cabinetHome.waiting.actsNeedSignHint")}
+                    </p>
                   </div>
                 </div>
               </Link>
@@ -348,9 +369,9 @@ export default async function CabinetDashboard() {
       <section className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Что сделать сейчас</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t("cabinetHome.actions.title")}</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Самые частые действия вынесены сюда, чтобы не искать их в меню.
+              {t("cabinetHome.actions.subtitle")}
             </p>
           </div>
         </div>
@@ -358,26 +379,30 @@ export default async function CabinetDashboard() {
           <TenantNextAction
             href="/cabinet/finances#payment"
             icon={Wallet}
-            title={totalDebt > 0 ? "Оплатить аренду" : "Посмотреть реквизиты"}
-            text={totalDebt > 0 ? `К оплате ${formatMoney(totalDebt)}` : "Долга нет, реквизиты доступны заранее"}
+            title={totalDebt > 0 ? t("cabinetHome.actions.payTitle") : t("cabinetHome.actions.payTitleNoDebt")}
+            text={totalDebt > 0
+              ? t("cabinetHome.actions.payText", { amount: money(totalDebt) })
+              : t("cabinetHome.actions.payTextNoDebt")}
           />
           <TenantNextAction
             href="/cabinet/finances#report-payment"
             icon={Receipt}
-            title="Я оплатил"
-            text="Отправьте чек, чтобы администратор подтвердил платеж."
+            title={t("cabinetHome.actions.reportTitle")}
+            text={t("cabinetHome.actions.reportText")}
           />
           <TenantNextAction
             href="/cabinet/requests"
             icon={Camera}
-            title="Создать заявку"
-            text={activeRequestsCount > 0 ? `${activeRequestsCount} заявок уже в работе. Можно приложить фото.` : "Ремонт, обслуживание или вопрос администратору с фото."}
+            title={t("cabinetHome.actions.requestTitle")}
+            text={activeRequestsCount > 0
+              ? t("cabinetHome.actions.requestTextActive", { count: activeRequestsCount })
+              : t("cabinetHome.actions.requestText")}
           />
           <TenantNextAction
             href="/cabinet/faq"
             icon={CircleHelp}
-            title="FAQ арендатора"
-            text="Как оплатить, подписать документ, отправить чек или создать заявку."
+            title={t("cabinetHome.actions.faqTitle")}
+            text={t("cabinetHome.actions.faqText")}
           />
         </div>
       </section>
@@ -385,36 +410,38 @@ export default async function CabinetDashboard() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <InfoCard
           icon={Building2}
-          label="Помещения"
-          value={assignedSpaces.length > 1 ? `${assignedSpaces.length} помещ.` : primarySpace ? `Каб. ${primarySpace.number}` : "—"}
-          sub={assignedSpaces.length > 0 ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²` : "Не назначено"}
+          label={t("cabinetHome.info.spaces")}
+          value={assignedSpaces.length > 1
+            ? tp("cabinetHome.info.spacesCount", assignedSpaces.length)
+            : primarySpace ? t("cabinetHome.info.room", { number: primarySpace.number }) : "—"}
+          sub={assignedSpaces.length > 0
+            ? `${assignedSpaces.reduce((sum, space) => sum + space.area, 0)} м²`
+            : t("cabinetHome.info.notAssigned")}
         />
         <InfoCard
           icon={Building2}
-          label="Этаж"
+          label={t("cabinetHome.info.floor")}
           value={primarySpace?.floor.name ?? "—"}
           sub={building?.name}
         />
         <InfoCard
           icon={Calendar}
-          label="Договор до"
-          value={tenant.contractEnd
-            ? new Date(tenant.contractEnd).toLocaleDateString("ru-RU")
-            : "—"}
+          label={t("cabinetHome.info.contractUntil")}
+          value={tenant.contractEnd ? day(tenant.contractEnd) : "—"}
           sub={daysToContractEnd === null
-            ? "Не указан"
+            ? t("cabinetHome.info.contractNotSet")
             : daysToContractEnd < 0
-              ? "Истёк"
+              ? t("cabinetHome.info.contractExpired")
               : daysToContractEnd < 30
-                ? `Истекает через ${daysToContractEnd} дн.`
-                : `${daysToContractEnd} дн. осталось`}
+                ? t("cabinetHome.info.contractEndsIn", { count: daysToContractEnd })
+                : t("cabinetHome.info.contractDaysLeft", { count: daysToContractEnd })}
           highlight={daysToContractEnd !== null && daysToContractEnd < 30}
         />
         <InfoCard
           icon={ClipboardList}
-          label="Активные заявки"
+          label={t("cabinetHome.info.activeRequests")}
           value={String(activeRequestsCount)}
-          sub={activeRequestsCount > 0 ? "в работе" : "нет открытых"}
+          sub={activeRequestsCount > 0 ? t("cabinetHome.info.inProgress") : t("cabinetHome.info.noOpen")}
           href="/cabinet/requests"
         />
       </div>
@@ -428,17 +455,17 @@ export default async function CabinetDashboard() {
         <Card
           padded={false}
           icon={FileText}
-          title="Документы"
+          title={t("cabinetHome.documents.title")}
           actions={
             <Link href="/cabinet/documents" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-              Все <ArrowRight className="h-3 w-3" />
+              {t("cabinetHome.documents.all")} <ArrowRight className="h-3 w-3" />
             </Link>
           }
         >
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {recentDocs.length === 0 ? (
               <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
-                Документы появятся здесь после генерации арендодателем
+                {t("cabinetHome.documents.empty")}
               </p>
             ) : (
               recentDocs.map((d) => (
@@ -448,20 +475,20 @@ export default async function CabinetDashboard() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                      {docTypeLabels[d.documentType] ?? d.documentType}
+                      {docTypeLabel(d.documentType)}
                       {d.number && ` № ${d.number}`}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {d.period && <>{d.period} · </>}
-                      {d.totalAmount && <b>{formatMoney(d.totalAmount)}</b>}
-                      {!d.totalAmount && <>{new Date(d.generatedAt).toLocaleDateString("ru-RU")}</>}
+                      {d.totalAmount && <b>{money(d.totalAmount)}</b>}
+                      {!d.totalAmount && <>{day(d.generatedAt)}</>}
                     </p>
                   </div>
                   <a
                     href={`/api/documents/archive/${d.id}?format=pdf`}
                     download
                     className="text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 shrink-0"
-                    title="Скачать"
+                    title={t("common.actions.download")}
                   >
                     <Download className="h-4 w-4" />
                   </a>
@@ -477,7 +504,7 @@ export default async function CabinetDashboard() {
           icon={MessageSquare}
           title={
             <>
-              Сообщения
+              {t("cabinetHome.messages.title")}
               {unreadMessages > 0 && (
                 <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-blue-600 px-1 text-[10px] font-semibold text-white">
                   {unreadMessages}
@@ -487,14 +514,14 @@ export default async function CabinetDashboard() {
           }
           actions={
             <Link href="/cabinet/messages" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-              Все <ArrowRight className="h-3 w-3" />
+              {t("cabinetHome.messages.all")} <ArrowRight className="h-3 w-3" />
             </Link>
           }
         >
           <div className="divide-y divide-slate-50 dark:divide-slate-800">
             {recentMessages.length === 0 ? (
               <p className="px-5 py-10 text-sm text-slate-400 dark:text-slate-500 text-center">
-                Здесь будут сообщения от арендодателя
+                {t("cabinetHome.messages.empty")}
               </p>
             ) : (
               recentMessages.map((m) => (
@@ -510,7 +537,7 @@ export default async function CabinetDashboard() {
                         {m.from.name}
                       </p>
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 shrink-0 ml-2">
-                        {new Date(m.createdAt).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" })}
+                        {day(m.createdAt)}
                       </p>
                     </div>
                     {m.subject && (
@@ -529,10 +556,10 @@ export default async function CabinetDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card
           padded={false}
-          title="Неоплаченные начисления"
+          title={t("cabinetHome.charges.title")}
           actions={
             <Link href="/cabinet/finances" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-              Все <ArrowRight className="h-3 w-3" />
+              {t("cabinetHome.charges.all")} <ArrowRight className="h-3 w-3" />
             </Link>
           }
         >
@@ -543,31 +570,31 @@ export default async function CabinetDashboard() {
                 <div key={c.id} className="flex items-center justify-between px-5 py-3">
                   <div>
                     <p className="text-sm text-slate-900 dark:text-slate-100 font-medium">
-                      {CHARGE_TYPES[c.type] ?? c.type}
+                      {chargeTypeLabel(c.type)}
                     </p>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {c.period}
                       {c.dueDate && (
                         <span className={isOverdue ? "text-red-600 dark:text-red-400 font-medium ml-1" : "ml-1"}>
-                          · до {new Date(c.dueDate).toLocaleDateString("ru-RU")}
+                          · {t("cabinetHome.charges.due", { date: day(c.dueDate) })}
                         </span>
                       )}
                     </p>
                   </div>
                   <p className={`text-sm font-semibold ${isOverdue ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`}>
-                    {formatMoney(c.amount)}
+                    {money(c.amount)}
                   </p>
                 </div>
               )
             })}
             {debtCount > tenant.charges.length && (
               <p className="px-5 py-2 text-xs text-slate-400 dark:text-slate-500 text-center">
-                Показаны ближайшие {tenant.charges.length} из {debtCount} неоплаченных начислений.
+                {t("cabinetHome.charges.shown", { shown: tenant.charges.length, total: debtCount })}
               </p>
             )}
             {tenant.charges.length === 0 && (
               <p className="px-5 py-8 text-sm text-emerald-600 dark:text-emerald-400 text-center font-medium">
-                ✓ Нет неоплаченных начислений
+                ✓ {t("cabinetHome.charges.empty")}
               </p>
             )}
           </div>
@@ -575,10 +602,10 @@ export default async function CabinetDashboard() {
 
         <Card
           padded={false}
-          title="Последние оплаты"
+          title={t("cabinetHome.payments.title")}
           actions={
             <Link href="/cabinet/finances" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-              История <ArrowRight className="h-3 w-3" />
+              {t("cabinetHome.payments.history")} <ArrowRight className="h-3 w-3" />
             </Link>
           }
         >
@@ -588,20 +615,21 @@ export default async function CabinetDashboard() {
                 <div>
                   <p className="text-sm text-slate-900 dark:text-slate-100 font-medium">{p.method}</p>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(p.paymentDate).toLocaleDateString("ru-RU")}
+                    {day(p.paymentDate)}
                   </p>
                 </div>
-                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{formatMoney(p.amount)}</p>
+                <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">{money(p.amount)}</p>
               </div>
             ))}
             {tenant.payments.length === 0 && (
-              <p className="px-5 py-8 text-sm text-slate-400 dark:text-slate-500 text-center">Нет оплат</p>
+              <p className="px-5 py-8 text-sm text-slate-400 dark:text-slate-500 text-center">{t("cabinetHome.payments.empty")}</p>
             )}
           </div>
         </Card>
       </div>
 
       <MobileTenantActionBar
+        locale={locale}
         debt={totalDebt}
         pendingSignatures={tenantMustSignCount}
       />
@@ -610,7 +638,8 @@ export default async function CabinetDashboard() {
   })
 }
 
-function PaymentQuickCard({
+async function PaymentQuickCard({
+  locale,
   totalDebt,
   monthlyRent,
   account,
@@ -618,6 +647,7 @@ function PaymentQuickCard({
   taxId,
   paymentPurpose,
 }: {
+  locale: Locale
   totalDebt: number
   monthlyRent: number
   account: { label: string; bank: string; iik: string; bik: string; isPrimary: boolean } | null
@@ -625,6 +655,7 @@ function PaymentQuickCard({
   taxId: string | null
   paymentPurpose: string
 }) {
+  const { t } = await getT(locale)
   const amount = totalDebt > 0 ? totalDebt : monthlyRent
 
   return (
@@ -633,21 +664,21 @@ function PaymentQuickCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Wallet className="h-4 w-4 text-blue-500" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Куда оплатить</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("cabinetHome.payCard.title")}</h2>
           </div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Первый экран оплаты: сумма, назначение платежа и реквизиты без контактов владельца.
+            {t("cabinetHome.payCard.subtitle")}
           </p>
           <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <PaymentLine label="Сумма" value={formatMoney(amount)} strong />
-            <PaymentLine label="Получатель" value={recipient ?? "Реквизиты уточняются"} />
-            <PaymentLine label="ИИН/БИН" value={taxId ?? "—"} />
-            <PaymentLine label="Банк" value={account?.bank ?? "—"} />
-            <PaymentLine label="БИК" value={account?.bik ?? "—"} />
-            <PaymentLine label="ИИК" value={account?.iik ?? "—"} />
+            <PaymentLine label={t("domain.requisites.amount")} value={formatMoneyL(locale, amount)} strong />
+            <PaymentLine label={t("domain.requisites.recipient")} value={recipient ?? t("cabinetHome.payCard.recipientUnknown")} />
+            <PaymentLine label={t("domain.requisites.taxId")} value={taxId ?? "—"} />
+            <PaymentLine label={t("domain.requisites.bank")} value={account?.bank ?? "—"} />
+            <PaymentLine label={t("domain.requisites.bik")} value={account?.bik ?? "—"} />
+            <PaymentLine label={t("domain.requisites.iik")} value={account?.iik ?? "—"} />
           </div>
           <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
-            <span className="font-medium">Назначение:</span> {paymentPurpose}
+            <span className="font-medium">{t("domain.requisites.purpose")}:</span> {paymentPurpose}
           </div>
         </div>
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:flex-col">
@@ -656,14 +687,14 @@ function PaymentQuickCard({
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
           >
             <CreditCard className="h-4 w-4" />
-            QR / Kaspi
+            {t("cabinetHome.payCard.qr")}
           </Link>
           <Link
             href="/cabinet/finances#report-payment"
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Receipt className="h-4 w-4" />
-            Я оплатил
+            {t("cabinetHome.payCard.reported")}
           </Link>
         </div>
       </div>
@@ -733,13 +764,16 @@ function InfoCard({
   ) : inner
 }
 
-function MobileTenantActionBar({
+async function MobileTenantActionBar({
+  locale,
   debt,
   pendingSignatures,
 }: {
+  locale: Locale
   debt: number
   pendingSignatures: number
 }) {
+  const { t } = await getT(locale)
   return (
     <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 sm:hidden">
       <div className="grid grid-cols-3 gap-2">
@@ -748,21 +782,21 @@ function MobileTenantActionBar({
           className="flex flex-col items-center justify-center rounded-xl bg-blue-600 px-2 py-2 text-[11px] font-semibold text-white"
         >
           <Wallet className="mb-1 h-4 w-4" />
-          {debt > 0 ? "Оплатить" : "Реквизиты"}
+          {debt > 0 ? t("cabinetHome.mobileBar.pay") : t("cabinetHome.mobileBar.requisites")}
         </Link>
         <Link
           href="/cabinet/finances#report-payment"
           className="flex flex-col items-center justify-center rounded-xl border border-slate-200 px-2 py-2 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
         >
           <Receipt className="mb-1 h-4 w-4" />
-          Я оплатил
+          {t("cabinetHome.mobileBar.reported")}
         </Link>
         <Link
           href={pendingSignatures > 0 ? "/cabinet/documents" : "/cabinet/requests"}
           className="flex flex-col items-center justify-center rounded-xl border border-slate-200 px-2 py-2 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:text-slate-200"
         >
           {pendingSignatures > 0 ? <FileSignature className="mb-1 h-4 w-4" /> : <Camera className="mb-1 h-4 w-4" />}
-          {pendingSignatures > 0 ? "Подписать" : "Заявка"}
+          {pendingSignatures > 0 ? t("cabinetHome.mobileBar.sign") : t("cabinetHome.mobileBar.request")}
         </Link>
       </div>
     </div>
