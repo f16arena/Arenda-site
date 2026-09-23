@@ -1,11 +1,13 @@
 import type { Metadata } from "next"
 import { LandingScreen } from "@/components/landing/v2/landing-screen"
-import { getLocale } from "@/lib/i18n/server"
 
 /**
- * Главная — на государственном языке. Русская версия живёт на /ru и доступна
- * одним нажатием из шапки. Если человек уже выбрал русский, показываем его:
- * выбор пользователя важнее умолчания.
+ * Главная — всегда на государственном языке. Русская версия живёт на /ru.
+ *
+ * Язык здесь НЕ зависит от cookie и профиля: адрес сам называет язык, и
+ * страница обязана ему соответствовать. Иначе получалось странное — адрес и
+ * canonical заявляют казахскую версию, а вошедший русскоязычный пользователь
+ * видит по нему русский текст.
  */
 export const metadata: Metadata = {
   // absolute — чтобы не дублировался шаблон «… | Commrent» из layout.
@@ -34,6 +36,6 @@ export const metadata: Metadata = {
   },
 }
 
-export default async function Home() {
-  return <LandingScreen locale={await getLocale()} />
+export default function Home() {
+  return <LandingScreen locale="kk" />
 }

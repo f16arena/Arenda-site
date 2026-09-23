@@ -6,6 +6,7 @@ import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { PasswordChangeSchema, firstZodError } from "@/lib/schemas"
 import bcrypt from "bcryptjs"
+import { getT } from "@/lib/i18n/server"
 import type { Result } from "./my-account"
 
 /**

@@ -486,20 +486,8 @@ export const adminObjects = {
     archive: "В архив",
   },
 
-  // 3D-конструктор, список зданий: /admin/builder/projects.
-  builder: {
-    title: "3D-конструктор",
-    subtitle: "У каждого здания одна модель. Открывается и сохраняется на месте, копий не плодит.",
-    empty: "Ещё нет ни одного здания.",
-    statSpaces: "помещений",
-    statVacantArea: "свободно, м²",
-    noLayouts: "Планов этажей пока нет — модель начнётся с контура по площадям",
-    layoutsDrawn: "{count} с планом",
-    layoutsSchema: "{count} со схемой",
-    layoutsNone: "{count} без плана",
-    openBuilder: "Открыть конструктор",
-    floorMap: "Карта этажа",
-  },
+  // 3D-конструктор: список зданий (/admin/builder/projects) и сам редактор
+  // (components/builder/**) — инструменты, панели, каталог, чертежи.
 
   unassignFloor: {
     title: "Снять «{tenant}» с этажа «{floor}»?",

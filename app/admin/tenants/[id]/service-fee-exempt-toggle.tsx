@@ -4,6 +4,7 @@ import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { setTenantServiceFeeExempt } from "@/app/actions/tenant"
+import { useT } from "@/lib/i18n/client"
 
 /**
  * Переключатель «без эксплуатационного сбора» для арендатора. Работает даже при
@@ -18,16 +19,17 @@ export function ServiceFeeExemptToggle({
   exempt: boolean
   disabled?: boolean
 }) {
+  const { t } = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
   function onChange(next: boolean) {
     startTransition(async () => {
       const r = await setTenantServiceFeeExempt(tenantId, next)
-      if (!r.ok) { toast.error(r.error ?? "Не удалось сохранить"); return }
+      if (!r.ok) { toast.error(r.error ?? t("adminTenants.serviceFeeExempt.saveFailed")); return }
       toast.success(next
-        ? "Эксплуатационный сбор отключён для этого арендатора"
-        : "Эксплуатационный сбор включён для этого арендатора")
+        ? t("adminTenants.serviceFeeExempt.on")
+        : t("adminTenants.serviceFeeExempt.off"))
       router.refresh()
     })
   }
@@ -43,10 +45,9 @@ export function ServiceFeeExemptToggle({
           className="mt-0.5 rounded border-slate-300 disabled:cursor-not-allowed"
         />
         <span>
-          <span className="font-medium text-slate-900 dark:text-slate-100">Без эксплуатационного сбора</span>
+          <span className="font-medium text-slate-900 dark:text-slate-100">{t("adminTenants.serviceFeeExempt.label")}</span>
           <span className="mt-0.5 block text-[11px] text-slate-400 dark:text-slate-500">
-            Если включено — строка «Эксплуатационные расходы» не добавляется этому арендатору в счёт, АВР, ЭСФ
-            и авто-начисления. Сбор по зданию настраивается отдельно.
+            {t("adminTenants.serviceFeeExempt.hint")}
           </span>
         </span>
       </label>

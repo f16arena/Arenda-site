@@ -12,6 +12,7 @@ import { AddressAutocompleteInput } from "@/components/forms/address-autocomplet
 import { Input } from "@/components/ui/input"
 import { TenantIdentityFields } from "../tenant-identity-fields"
 import { normalizeTenantLegalType, type TenantLegalType } from "@/lib/tenant-identity"
+import { useT } from "@/lib/i18n/client"
 
 const inputCls = FIELD_CLS
 const labelCls = LABEL_CLS
@@ -35,18 +36,23 @@ export type PartyTenant = {
 }
 
 export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
+  const { t } = useT()
   const [legalType, setLegalType] = useState<TenantLegalType>(normalizeTenantLegalType(tenant.legalType))
   const isPhysical = legalType === "PHYSICAL"
 
   return (
     <>
       <div>
-        <label className={labelCls}>{isPhysical ? "ФИО арендатора" : "Название компании"}</label>
+        <label className={labelCls}>
+          {isPhysical ? t("adminTenants.party.personName") : t("adminTenants.party.companyName")}
+        </label>
         <Input
           name="companyName"
           defaultValue={tenant.companyName}
           required
-          placeholder={isPhysical ? "Иванов Иван Иванович" : "ТОО «Название» / ИП ФИО"}
+          placeholder={isPhysical
+            ? t("adminTenants.party.personNamePlaceholder")
+            : t("adminTenants.party.companyNamePlaceholder")}
         />
       </div>
 
@@ -64,24 +70,28 @@ export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
       />
 
       <div className="col-span-2">
-        <label className={labelCls}>{isPhysical ? "Адрес проживания" : "Юридический адрес"}</label>
+        <label className={labelCls}>
+          {isPhysical ? t("adminTenants.party.livingAddress") : t("adminTenants.party.legalAddress")}
+        </label>
         <AddressAutocompleteInput
           name="legalAddress"
           defaultValue={tenant.legalAddress ?? ""}
           includeStructuredFields={false}
-          placeholder={isPhysical ? "г. Усть-Каменогорск, ул. …, дом …, кв. …" : "г. Усть-Каменогорск, ул..."}
+          placeholder={isPhysical
+            ? t("adminTenants.party.livingAddressPlaceholder")
+            : t("adminTenants.party.legalAddressPlaceholder")}
           className={inputCls}
         />
       </div>
 
       {!isPhysical && (
         <div className="col-span-2">
-          <label className={labelCls}>Фактический адрес</label>
+          <label className={labelCls}>{t("adminTenants.party.actualAddress")}</label>
           <AddressAutocompleteInput
             name="actualAddress"
             defaultValue={tenant.actualAddress ?? ""}
             includeStructuredFields={false}
-            placeholder="Если совпадает с юридическим — оставьте пустым"
+            placeholder={t("adminTenants.party.actualAddressPlaceholder")}
             className={inputCls}
           />
         </div>
@@ -90,23 +100,22 @@ export function TenantPartyFields({ tenant }: { tenant: PartyTenant }) {
       {!isPhysical && (
         <>
           <div>
-            <label className={labelCls}>ФИО руководителя</label>
-            <Input name="directorName" defaultValue={tenant.directorName ?? ""} placeholder="Иванов Иван Иванович" />
+            <label className={labelCls}>{t("adminTenants.party.directorName")}</label>
+            <Input name="directorName" defaultValue={tenant.directorName ?? ""} placeholder={t("adminTenants.party.directorNamePlaceholder")} />
           </div>
           <div>
-            <label className={labelCls}>Должность руководителя</label>
-            <Input name="directorPosition" defaultValue={tenant.directorPosition ?? ""} placeholder="Директор / Учредитель" />
+            <label className={labelCls}>{t("adminTenants.party.directorPosition")}</label>
+            <Input name="directorPosition" defaultValue={tenant.directorPosition ?? ""} placeholder={t("adminTenants.party.directorPositionPlaceholder")} />
           </div>
           <div className="col-span-full">
-            <label className={labelCls}>Действует на основании</label>
+            <label className={labelCls}>{t("adminTenants.party.basis")}</label>
             <Input
               name="basisDocument"
               defaultValue={tenant.basisDocument ?? ""}
-              placeholder="ИП: Талона №… от … / ТОО: Устава / ЧСИ: лицензии №…"
+              placeholder={t("adminTenants.party.basisPlaceholder")}
             />
             <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-              Подставится в шапке договора: «…действующий <span className="font-mono">на основании [текст]</span>».
-              ИП — Талона, ТОО — Устава, ЧСИ — лицензии. Если пусто — фраза по форме собственности.
+              {t("adminTenants.party.basisHint")}
             </p>
           </div>
         </>

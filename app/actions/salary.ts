@@ -6,6 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { staffScope, salaryPaymentScope } from "@/lib/tenant-scope"
 import { assertStaffInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 export async function generateSalaryPayments(period: string) {
   await requireCapabilityAndFeature("staff.manageSalary")
@@ -40,7 +41,10 @@ export async function markSalaryPaid(salaryPaymentId: string) {
     where: { id: salaryPaymentId, ...salaryPaymentScope(orgId) },
     select: { id: true },
   })
-  if (!sp) throw new Error("Не найдено")
+  if (!sp) {
+    const { t } = await getT()
+    throw new Error(t("actions.common.notFound"))
+  }
 
   await db.salaryPayment.update({
     where: { id: salaryPaymentId },
@@ -61,7 +65,8 @@ export async function recordSalaryPayment(formData: FormData) {
 
   const amount = parseFloat(amountStr)
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Сумма зарплаты должна быть положительным числом")
+    const { t } = await getT()
+    throw new Error(t("actions.salary.invalidAmount"))
   }
 
   await db.salaryPayment.create({

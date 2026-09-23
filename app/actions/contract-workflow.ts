@@ -23,6 +23,11 @@ import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
 import { buildSignedAddendumDocxBuffer } from "@/lib/contract-engine/signed-addendum-docx"
 import { convertDocxToPdf } from "@/lib/pdf-convert"
+import { getT, getTForUser } from "@/lib/i18n/server"
+
+// Переводчик передаём во вспомогательные функции параметром: в файле с
+// "use server" экспортируемой может быть только async-функция.
+type T = Awaited<ReturnType<typeof getT>>["t"]
 
 // Жёсткие предупреждения, при которых подпись отклоняется (а не просто логируется).
 const BLOCKING_WARNINGS = ["Срок действия сертификата истёк", "Сертификат ещё не вступил в силу"]

@@ -7,12 +7,14 @@ import { updateTenantNotes } from "@/app/actions/tenant-notes"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
+import { useT } from "@/lib/i18n/client"
 
 /**
  * Внутренние заметки по арендатору на карточке: журнал общения, договорённости.
  * Арендатору не видны.
  */
 export function TenantNotes({ tenantId, initial }: { tenantId: string; initial: string }) {
+  const { t } = useT()
   const [value, setValue] = useState(initial)
   const [savedValue, setSavedValue] = useState(initial)
   const [pending, startTransition] = useTransition()
@@ -23,7 +25,7 @@ export function TenantNotes({ tenantId, initial }: { tenantId: string; initial: 
       const r = await updateTenantNotes(tenantId, value)
       if (!r.ok) { toast.error(r.error); return }
       setSavedValue(value)
-      toast.success("Заметки сохранены")
+      toast.success(t("adminTenants.notes.saved"))
     })
   }
 
@@ -32,8 +34,8 @@ export function TenantNotes({ tenantId, initial }: { tenantId: string; initial: 
       <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-800">
         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <StickyNote className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          Заметки
-          <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500">видны только вам</span>
+          {t("adminTenants.notes.title")}
+          <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500">{t("adminTenants.notes.hint")}</span>
         </p>
         {dirty && (
           <Button
@@ -43,7 +45,7 @@ export function TenantNotes({ tenantId, initial }: { tenantId: string; initial: 
             disabled={pending}
           >
             {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-            Сохранить
+            {t("common.actions.save")}
           </Button>
         )}
       </div>
@@ -53,7 +55,7 @@ export function TenantNotes({ tenantId, initial }: { tenantId: string; initial: 
           onChange={(e) => setValue(e.target.value)}
           rows={4}
           maxLength={5000}
-          placeholder="Журнал общения и договорённости: «05.06 позвонил — обещал оплатить до 10-го», «просил счёт на другой email»…"
+          placeholder={t("adminTenants.notes.placeholder")}
           className="resize-y"
         />
       </div>

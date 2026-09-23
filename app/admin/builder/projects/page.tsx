@@ -63,16 +63,16 @@ export default async function BuilderObjectsPage() {
           <Boxes className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t("adminObjects.builder.title")}</h1>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t("adminBuilder.title")}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {t("adminObjects.builder.subtitle")}
+            {t("adminBuilder.subtitle")}
           </p>
         </div>
       </div>
 
       {objects.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-          {t("adminObjects.builder.empty")}{" "}
+          {t("adminBuilder.empty")}{" "}
           <Link href="/admin/buildings" className="font-medium text-blue-600 hover:underline">
             {t("adminObjects.buildingForm.addButton")}
           </Link>
@@ -96,23 +96,23 @@ export default async function BuilderObjectsPage() {
                 </div>
                 <div className="rounded-lg bg-slate-50 py-2 dark:bg-slate-800/60">
                   <div className="text-base font-semibold tabular-nums text-slate-900 dark:text-slate-100">{object.spaces}</div>
-                  <div className="text-[11px] text-slate-500">{t("adminObjects.builder.statSpaces")}</div>
+                  <div className="text-[11px] text-slate-500">{t("adminBuilder.statSpaces")}</div>
                 </div>
                 <div className="rounded-lg bg-slate-50 py-2 dark:bg-slate-800/60">
                   <div className="text-base font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                     {formatNumberL(locale, object.vacantArea)}
                   </div>
-                  <div className="text-[11px] text-slate-500">{t("adminObjects.builder.statVacantArea")}</div>
+                  <div className="text-[11px] text-slate-500">{t("adminBuilder.statVacantArea")}</div>
                 </div>
               </div>
 
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {object.layouts.drawn + object.layouts.schema === 0
-                  ? t("adminObjects.builder.noLayouts")
+                  ? t("adminBuilder.noLayouts")
                   : [
-                      object.layouts.drawn > 0 ? t("adminObjects.builder.layoutsDrawn", { count: object.layouts.drawn }) : null,
-                      object.layouts.schema > 0 ? t("adminObjects.builder.layoutsSchema", { count: object.layouts.schema }) : null,
-                      object.layouts.none > 0 ? t("adminObjects.builder.layoutsNone", { count: object.layouts.none }) : null,
+                      object.layouts.drawn > 0 ? t("adminBuilder.layoutsDrawn", { count: object.layouts.drawn }) : null,
+                      object.layouts.schema > 0 ? t("adminBuilder.layoutsSchema", { count: object.layouts.schema }) : null,
+                      object.layouts.none > 0 ? t("adminBuilder.layoutsNone", { count: object.layouts.none }) : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -123,13 +123,13 @@ export default async function BuilderObjectsPage() {
                   href={`/admin/builder/${object.id}`}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
                 >
-                  <Boxes className="h-3.5 w-3.5" /> {t("adminObjects.builder.openBuilder")}
+                  <Boxes className="h-3.5 w-3.5" /> {t("adminBuilder.openBuilder")}
                 </Link>
                 <Link
                   href={`/admin/buildings/${object.id}/map`}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  <MapIcon className="h-3.5 w-3.5" /> {t("adminObjects.builder.floorMap")}
+                  <MapIcon className="h-3.5 w-3.5" /> {t("adminBuilder.floorMap")}
                 </Link>
               </div>
             </div>

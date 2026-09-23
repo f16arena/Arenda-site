@@ -792,6 +792,17 @@ export const adminTenants = {
     needsSignature: "Изменения вступят только после подписи",
     downloadPdf: "Скачать PDF",
     noPdf: "PDF не приложен",
+    // Статусы договора в сайдбаре карточки: подписи короче общих (domain.statuses),
+    // чтобы бейдж не рвал правую колонку.
+    statuses: {
+      DRAFT: "Черновик",
+      SENT: "Отправлен",
+      VIEWED: "Открыт арендатором",
+      SIGNED_BY_TENANT: "Ждёт нашей подписи",
+      SIGNED: "Подписан",
+      REJECTED: "Отклонён",
+      ARCHIVED: "Архив",
+    },
     signedShort: "✓ Подписан",
     rejectedShort: "✕ Отклонён",
     docGenitive: {

@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Обновляет настройки эксплуатационного сбора на здании.
@@ -24,26 +25,27 @@ export async function updateBuildingServiceFee(input: {
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(input.buildingId, orgId)
+  const { t } = await getT()
 
   // Валидация.
   if (input.winterRate !== null && (!Number.isFinite(input.winterRate) || input.winterRate < 0)) {
-    return { ok: false, error: "Зимний тариф должен быть ≥ 0" }
+    return { ok: false, error: t("actions.serviceFee.invalidWinterRate") }
   }
   if (input.summerRate !== null && (!Number.isFinite(input.summerRate) || input.summerRate < 0)) {
-    return { ok: false, error: "Летний тариф должен быть ≥ 0" }
+    return { ok: false, error: t("actions.serviceFee.invalidSummerRate") }
   }
   if (input.indexationPct < 0 || input.indexationPct > 100) {
-    return { ok: false, error: "Процент индексации должен быть от 0 до 100" }
+    return { ok: false, error: t("actions.serviceFee.invalidIndexationPct") }
   }
   // Зимние месяцы — уникальный список чисел 1..12.
   const months = Array.from(new Set(input.winterMonths))
     .filter((m) => Number.isInteger(m) && m >= 1 && m <= 12)
     .sort((a, b) => a - b)
   if (months.length === 0) {
-    return { ok: false, error: "Выберите хотя бы один зимний месяц" }
+    return { ok: false, error: t("actions.serviceFee.winterMonthsRequired") }
   }
   if (months.length === 12) {
-    return { ok: false, error: "Если зимний период круглогодичный — летний тариф не нужен" }
+    return { ok: false, error: t("actions.serviceFee.winterMonthsAllYear") }
   }
 
   await db.building.update({

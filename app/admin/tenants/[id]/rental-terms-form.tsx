@@ -8,8 +8,9 @@ import { toast } from "sonner"
 import { updateTenantRentalTerms } from "@/app/actions/tenant"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { formatMoney } from "@/lib/utils"
 import { parseRentSchedule, type RentMode } from "@/lib/rent"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 
 type RentalTermsInitial = {
   customRate: number | null
@@ -37,10 +38,6 @@ type Props = {
   initial: RentalTermsInitial
 }
 
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Не удалось сохранить условия аренды"
-}
-
 function hasPositiveAmount(value: number | null) {
   return typeof value === "number" && Number.isFinite(value) && value > 0
 }
@@ -62,6 +59,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Props) {
+  const { t } = useT()
+  const locale = useLocale()
+  const money = (amount: number) => formatMoneyL(locale, amount)
+  const perMonth = t("common.money.perMonth")
   const router = useRouter()
   const [rentMode, setRentMode] = useState<RentMode>(() => initialRentMode(initial))
   const [customRate, setCustomRate] = useState(() => initialRentMode(initial) === "RATE" ? String(initial.customRate ?? "") : "")
@@ -78,10 +79,10 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
     startTransition(async () => {
       try {
         await updateTenantRentalTerms(tenantId, formData)
-        toast.success("Условия аренды сохранены")
+        toast.success(t("adminTenants.rentalTerms.saved"))
         router.refresh()
       } catch (error) {
-        toast.error(errorMessage(error))
+        toast.error(error instanceof Error ? error.message : t("adminTenants.rentalTerms.saveFailed"))
       }
     })
   }
@@ -89,11 +90,15 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
   // ── Закреплено договором → только просмотр; изменения только через ДС. ──────────
   if (locked) {
     const mode = initialRentMode(initial)
-    const methodLabel = mode === "FIXED" ? "Фиксированная сумма" : mode === "RATE" ? "Индивидуальная ставка ₸/м²" : "По ставке этажа"
-    const rentValue = mode === "FIXED"
-      ? `${formatMoney(initial.fixedMonthlyRent ?? 0)}/мес`
+    const methodLabel = mode === "FIXED"
+      ? t("adminTenants.rentalTerms.modes.fixed")
       : mode === "RATE"
-        ? `${formatMoney(initial.customRate ?? 0)}/м²`
+        ? t("adminTenants.rentalTerms.modes.rateLocked")
+        : t("adminTenants.rentalTerms.modes.floor")
+    const rentValue = mode === "FIXED"
+      ? `${money(initial.fixedMonthlyRent ?? 0)}${perMonth}`
+      : mode === "RATE"
+        ? `${money(initial.customRate ?? 0)}/м²`
         : "—"
     return (
       <div className="p-5 space-y-4">
@@ -102,9 +107,9 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
             <div className="flex gap-2">
               <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
               <div>
-                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Условия аренды закреплены договором</p>
+                <p className="text-sm font-medium text-amber-900 dark:text-amber-100">{t("adminTenants.rentalTerms.lockedTitle")}</p>
                 <p className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
-                  {lockedReason ?? "Эти данные берутся из договора. Изменить их можно только дополнительным соглашением (ДС) с подписью арендатора."}
+                  {lockedReason ?? t("adminTenants.rentalTerms.lockedDefault")}
                 </p>
               </div>
             </div>
@@ -113,40 +118,61 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
               className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-amber-900 px-3 py-2 text-xs font-medium text-white hover:bg-amber-800 dark:bg-amber-300 dark:text-amber-950 dark:hover:bg-amber-200"
             >
               <FileSignature className="h-3.5 w-3.5" />
-              Изменить через доп. соглашение
+              {t("adminTenants.rentalTerms.lockedAddendum")}
             </Link>
           </div>
         </div>
 
         <dl className="rounded-lg border border-slate-200 bg-white px-4 dark:border-slate-800 dark:bg-slate-900">
-          <Row label="Способ расчёта" value={methodLabel} />
-          {mode !== "FLOOR" && <Row label="Стоимость аренды" value={rentValue} />}
-          <Row label="Уборка" value={initial.needsCleaning ? `${formatMoney(initial.cleaningFee)}/мес` : "не требуется"} />
-          <Row label="День оплаты" value={`${initial.paymentDueDay} числа`} />
-          <Row label="Пеня за просрочку" value={initial.penaltyPercent > 0 ? `${initial.penaltyPercent}% в день` : "без пени"} />
+          <Row label={t("adminTenants.rentalTerms.method")} value={methodLabel} />
+          {mode !== "FLOOR" && <Row label={t("adminTenants.rentalTerms.rentValue")} value={rentValue} />}
+          <Row
+            label={t("adminTenants.rentalTerms.cleaning")}
+            value={initial.needsCleaning ? `${money(initial.cleaningFee)}${perMonth}` : t("adminTenants.rentalTerms.cleaningNotNeeded")}
+          />
+          <Row
+            label={t("adminTenants.rentalTerms.dueDay")}
+            value={t("adminTenants.rentalTerms.dueDayValue", { day: initial.paymentDueDay })}
+          />
+          <Row
+            label={t("adminTenants.rentalTerms.penalty")}
+            value={initial.penaltyPercent > 0
+              ? t("adminTenants.rentalTerms.penaltyValue", { percent: initial.penaltyPercent })
+              : t("adminTenants.rentalTerms.penaltyNone")}
+          />
           {typeof initial.depositAmount === "number" && initial.depositAmount > 0 && (
-            <Row label="Депозит" value={formatMoney(initial.depositAmount)} />
+            <Row label={t("adminTenants.rentalTerms.deposit")} value={money(initial.depositAmount)} />
           )}
           {typeof initial.rentFreeMonths === "number" && initial.rentFreeMonths > 0 && (
-            <Row label="Каникулы" value={`${initial.rentFreeMonths} мес.`} />
+            <Row
+              label={t("adminTenants.rentalTerms.rentFree")}
+              value={t("adminTenants.rentalTerms.rentFreeValue", { count: initial.rentFreeMonths })}
+            />
           )}
           {initial.moveInDate && (
-            <Row label="Дата заселения" value={new Date(initial.moveInDate).toLocaleDateString("ru-RU")} />
+            <Row label={t("adminTenants.rentalTerms.moveInDate")} value={formatDateShortL(locale, initial.moveInDate)} />
           )}
           {typeof initial.indexationPct === "number" && initial.indexationPct > 0 && (
             <Row
-              label="Индексация"
-              value={`${initial.indexationPct}% в год${initial.nextIndexationAt ? `, следующая ${new Date(initial.nextIndexationAt).toLocaleDateString("ru-RU")}` : ""}`}
+              label={t("adminTenants.rentalTerms.indexationRow")}
+              value={
+                t("adminTenants.rentalTerms.indexationValue", { percent: initial.indexationPct }) +
+                (initial.nextIndexationAt
+                  ? t("adminTenants.rentalTerms.indexationNext", { date: formatDateShortL(locale, initial.nextIndexationAt) })
+                  : "")
+              }
             />
           )}
           {parseRentSchedule(initial.rentSchedule).length > 0 && (
             <div className="border-b border-slate-100 py-2 text-sm dark:border-slate-800 last:border-0">
-              <dt className="mb-1 text-slate-500 dark:text-slate-400">График аренды (ступени)</dt>
+              <dt className="mb-1 text-slate-500 dark:text-slate-400">{t("adminTenants.rentalTerms.scheduleTitle")}</dt>
               <dd>
                 <ul className="space-y-0.5 text-right">
-                  {parseRentSchedule(initial.rentSchedule).map((s) => (
-                    <li key={s.from} className="font-medium tabular-nums text-slate-900 dark:text-slate-100">
-                      с {s.from}: {s.amount > 0 ? `${formatMoney(s.amount)}/мес` : "льготный (0 ₸)"}
+                  {parseRentSchedule(initial.rentSchedule).map((step) => (
+                    <li key={step.from} className="font-medium tabular-nums text-slate-900 dark:text-slate-100">
+                      {step.amount > 0
+                        ? t("adminTenants.rentalTerms.scheduleRow", { from: step.from, amount: money(step.amount) })
+                        : t("adminTenants.rentalTerms.scheduleFree", { from: step.from })}
                     </li>
                   ))}
                 </ul>
@@ -155,8 +181,7 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           )}
         </dl>
         <p className="text-[11px] text-slate-400 dark:text-slate-500">
-          Значения подтягиваются из договора и применённых ДС. Прямое редактирование отключено —
-          любое изменение оформляется доп. соглашением и вступает в силу после подписи арендатора.
+          {t("adminTenants.rentalTerms.lockedFooter")}
         </p>
       </div>
     )
@@ -169,14 +194,14 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
 
       <fieldset className="md:col-span-3" disabled={pending}>
         <legend className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Способ расчёта аренды
+          {t("adminTenants.rentalTerms.methodLegend")}
         </legend>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           {([
-            ["FLOOR", "По ставке этажа", "Площадь × ставка ₸/м² этажа"],
-            ["RATE", "Индивидуальная ставка м²", "Площадь × своя ставка"],
-            ["FIXED", "Фиксированная сумма", "Договорная сумма независимо от площади"],
-          ] as const).map(([mode, label, hint]) => (
+            ["FLOOR", "floor", "floorHint"],
+            ["RATE", "rate", "rateHint"],
+            ["FIXED", "fixed", "fixedHint"],
+          ] as const).map(([mode, labelKey, hintKey]) => (
             <label
               key={mode}
               className={`flex cursor-pointer flex-col items-start rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
@@ -194,18 +219,20 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
                 disabled={pending}
                 className="sr-only"
               />
-              <span>{label}</span>
-              <span className="mt-0.5 text-[11px] font-normal text-slate-500 dark:text-slate-400">{hint}</span>
+              <span>{t(`adminTenants.rentalTerms.modes.${labelKey}`)}</span>
+              <span className="mt-0.5 text-[11px] font-normal text-slate-500 dark:text-slate-400">
+                {t(`adminTenants.rentalTerms.modes.${hintKey}`)}
+              </span>
             </label>
           ))}
         </div>
         <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-          После подписания договора эти условия закрепляются и меняются только через ДС.
+          {t("adminTenants.rentalTerms.methodFooter")}
         </p>
       </fieldset>
 
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Индивид. ставка ₸/м²</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.rentalTerms.customRate")}</label>
         <Input
           name="customRate"
           type="number"
@@ -213,13 +240,13 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           min={0}
           value={customRate}
           onChange={(event) => setCustomRate(event.target.value)}
-          placeholder="Если отличается от этажной"
+          placeholder={t("adminTenants.rentalTerms.customRatePlaceholder")}
           disabled={pending || rentMode !== "RATE"}
           required={rentMode === "RATE"}
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Индивид. аренда ₸/мес</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.rentalTerms.fixedRent")}</label>
         <Input
           name="fixedMonthlyRent"
           type="number"
@@ -227,17 +254,17 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           min={0}
           value={fixedMonthlyRent}
           onChange={(event) => setFixedMonthlyRent(event.target.value)}
-          placeholder="Если договор на сумму"
+          placeholder={t("adminTenants.rentalTerms.fixedRentPlaceholder")}
           disabled={pending || rentMode !== "FIXED"}
           required={rentMode === "FIXED"}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Нельзя указать одновременно со ставкой за м²
+          {t("adminTenants.rentalTerms.fixedRentHint")}
         </p>
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Дата заселения
+          {t("adminTenants.rentalTerms.moveInDate")}
         </label>
         <Input
           name="moveInDate"
@@ -246,13 +273,13 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           disabled={pending}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Если пусто — = дата начала договора. Точка отсчёта каникул.
+          {t("adminTenants.rentalTerms.moveInHint")}
         </p>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Каникулы, мес.
+          {t("adminTenants.rentalTerms.rentFreeField")}
         </label>
         <Input
           name="rentFreeMonths"
@@ -265,13 +292,13 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           placeholder="0"
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Первые N мес. после начала договора — 0 ₸ (ремонт, заселение)
+          {t("adminTenants.rentalTerms.rentFreeHint")}
         </p>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Депозит ₸
+          {t("adminTenants.rentalTerms.depositField")}
         </label>
         <Input
           name="depositAmount"
@@ -280,15 +307,15 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           step="0.01"
           defaultValue={initial.depositAmount ?? ""}
           disabled={pending}
-          placeholder="по умолчанию = месячная аренда"
+          placeholder={t("adminTenants.rentalTerms.depositPlaceholder")}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Гарантийный депозит. Если пусто — = 1 месяцу аренды
+          {t("adminTenants.rentalTerms.depositHint")}
         </p>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Уборка ₸/мес</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.rentalTerms.cleaningFee")}</label>
         <Input
           name="cleaningFee"
           type="number"
@@ -306,13 +333,13 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
             disabled={pending}
             className="rounded border-slate-300 disabled:cursor-not-allowed"
           />
-          Требуется уборка
+          {t("adminTenants.rentalTerms.needsCleaning")}
         </label>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          День оплаты (1-31)
+          {t("adminTenants.rentalTerms.dueDayField")}
         </label>
         <Input
           name="paymentDueDay"
@@ -323,12 +350,12 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           disabled={pending}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Срок оплаты счета в каждом месяце
+          {t("adminTenants.rentalTerms.dueDayHint")}
         </p>
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Пеня % в день
+          {t("adminTenants.rentalTerms.penaltyField")}
         </label>
         <Input
           name="penaltyPercent"
@@ -340,13 +367,13 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           disabled={pending}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          При просрочке (0 = без пени)
+          {t("adminTenants.rentalTerms.penaltyHint")}
         </p>
       </div>
 
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Индексация, % в год
+          {t("adminTenants.rentalTerms.indexationField")}
         </label>
         <Input
           name="indexationPct"
@@ -356,15 +383,15 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           max={100}
           defaultValue={initial.indexationPct ?? ""}
           disabled={pending}
-          placeholder="0 = без индексации"
+          placeholder={t("adminTenants.rentalTerms.indexationPlaceholder")}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          Автоповышение ставки/суммы аренды раз в год
+          {t("adminTenants.rentalTerms.indexationHint")}
         </p>
       </div>
       <div>
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Дата следующей индексации
+          {t("adminTenants.rentalTerms.nextIndexation")}
         </label>
         <Input
           name="nextIndexationAt"
@@ -373,13 +400,13 @@ export function RentalTermsForm({ tenantId, locked, lockedReason, initial }: Pro
           disabled={pending}
         />
         <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
-          В эту дату аренда повысится автоматически, дата сдвинется на год
+          {t("adminTenants.rentalTerms.nextIndexationHint")}
         </p>
       </div>
 
       <div className="md:col-span-3 flex justify-end">
         <Button type="submit" disabled={pending}>
-          {pending ? "Сохранение..." : "Сохранить"}
+          {pending ? t("common.actions.saving") : t("common.actions.save")}
         </Button>
       </div>
     </form>

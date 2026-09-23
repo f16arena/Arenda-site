@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 import { TrendingUp, X } from "lucide-react"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatNumberL } from "@/lib/i18n/format"
 
 type Props = {
   initialContractEnd: string | null  // ISO yyyy-mm-dd или null
@@ -15,6 +17,8 @@ type Props = {
  * об индексации ставки (по типовому договору не более 10% годовых).
  */
 export function IndexationHint({ initialContractEnd, initialRate, monthlyRent }: Props) {
+  const { t } = useT()
+  const locale = useLocale()
   const [dismissed, setDismissed] = useState(false)
   const [extension, setExtension] = useState<{
     days: number
@@ -58,7 +62,7 @@ export function IndexationHint({ initialContractEnd, initialRate, monthlyRent }:
 
   if (dismissed || !extension) return <span ref={onMount as never} className="hidden" />
 
-  const fmt = (n: number) => n.toLocaleString("ru-RU")
+  const fmt = (n: number) => formatNumberL(locale, n)
 
   // Применяет индексацию к полю customRate в форме «Условия аренды».
   // Также включает radio «Индивидуальная ставка м²» если оно ещё не выбрано
@@ -92,51 +96,52 @@ export function IndexationHint({ initialContractEnd, initialRate, monthlyRent }:
         <TrendingUp className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
         <div className="flex-1 text-xs">
           <p className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
-            Договор продлевается на {extension.days} дн.{extension.years >= 1 ? ` (≈${extension.years.toFixed(1)} года)` : ""} — рекомендуется индексация ставки
+            {t("adminTenants.indexation.title", {
+              days: extension.days,
+              years: extension.years >= 1 ? t("adminTenants.indexation.years", { value: extension.years.toFixed(1) }) : "",
+            })}
           </p>
           <p className="text-amber-800 dark:text-amber-200 mb-1.5">
-            По типовому договору индексация не более <b>10% годовых</b> (по уровню инфляции НБ РК).
+            {t("adminTenants.indexation.limit")}
           </p>
           {initialRate && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-amber-900 dark:text-amber-200">
               <div className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-200 dark:border-amber-500/30">
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Текущая</p>
-                <p className="font-mono">{fmt(initialRate)} ₸/м²</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">{fmt(monthlyRent)} ₸/мес</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminTenants.indexation.current")}</p>
+                <p className="font-mono">{t("adminTenants.indexation.perSqm", { value: fmt(initialRate) })}</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminTenants.indexation.perMonth", { value: fmt(monthlyRent) })}</p>
               </div>
               <button
                 type="button"
                 onClick={() => applyIndexation(extension.rate5, extension.rent5)}
                 className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left transition-colors"
-                title="Применить индексацию +5% к индивидуальной ставке"
+                title={t("adminTenants.indexation.apply5Hint")}
               >
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Применить +5%</p>
-                <p className="font-mono text-amber-700 dark:text-amber-300">{fmt(extension.rate5)} ₸/м²</p>
-                <p className="text-[10px] text-amber-600 dark:text-amber-400">{fmt(extension.rent5)} ₸/мес</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminTenants.indexation.apply5")}</p>
+                <p className="font-mono text-amber-700 dark:text-amber-300">{t("adminTenants.indexation.perSqm", { value: fmt(extension.rate5) })}</p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">{t("adminTenants.indexation.perMonth", { value: fmt(extension.rent5) })}</p>
               </button>
               <button
                 type="button"
                 onClick={() => applyIndexation(extension.rate10, extension.rent10)}
                 className="bg-white dark:bg-slate-900 rounded px-2 py-1.5 border border-amber-300 dark:border-amber-500/40 hover:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 text-left transition-colors"
-                title="Применить индексацию +10% к индивидуальной ставке"
+                title={t("adminTenants.indexation.apply10Hint")}
               >
-                <p className="text-[10px] text-slate-500 dark:text-slate-400">Применить +10% (макс)</p>
-                <p className="font-mono text-amber-700 dark:text-amber-300">{fmt(extension.rate10)} ₸/м²</p>
-                <p className="text-[10px] text-amber-600 dark:text-amber-400">{fmt(extension.rent10)} ₸/мес</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400">{t("adminTenants.indexation.apply10")}</p>
+                <p className="font-mono text-amber-700 dark:text-amber-300">{t("adminTenants.indexation.perSqm", { value: fmt(extension.rate10) })}</p>
+                <p className="text-[10px] text-amber-600 dark:text-amber-400">{t("adminTenants.indexation.perMonth", { value: fmt(extension.rent10) })}</p>
               </button>
             </div>
           )}
           <p className="text-[10px] text-amber-700 dark:text-amber-300 mt-1.5">
-            Клик по кнопке — установит новую ставку в поле «Индивид. ставка ₸/м²».
-            После — сохраните форму («Сохранить» внизу). Если договор уже закреплён —
-            нужно будет создать доп. соглашение (форма предложит).
+            {t("adminTenants.indexation.footer")}
           </p>
         </div>
         <button
           onClick={() => setDismissed(true)}
-          aria-label="Закрыть подсказку"
+          aria-label={t("adminTenants.indexation.close")}
           className="text-amber-600 dark:text-amber-400 hover:text-amber-800 shrink-0"
-          title="Закрыть подсказку"
+          title={t("adminTenants.indexation.close")}
         >
           <X className="h-3.5 w-3.5" />
         </button>

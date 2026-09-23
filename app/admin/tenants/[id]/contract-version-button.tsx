@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 type Props = {
   contractId: string
@@ -32,6 +33,7 @@ type Props = {
  * Дальнейший workflow (DRAFT→SENT→SIGNED) запускается через существующие кнопки.
  */
 export function ContractVersionButton({ contractId, contractNumber, currentVersion, defaultStartDate, defaultEndDate }: Props) {
+  const { t } = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -43,7 +45,7 @@ export function ContractVersionButton({ contractId, contractNumber, currentVersi
         toast.error(r.error)
         return
       }
-      toast.success(`Создана версия № ${currentVersion + 1}`)
+      toast.success(t("adminTenants.contracts.newVersionCreated", { version: currentVersion + 1 }))
       setOpen(false)
       router.refresh()
     })
@@ -54,11 +56,11 @@ export function ContractVersionButton({ contractId, contractNumber, currentVersi
       <button
         type="button"
         onClick={() => setOpen(true)}
-        title="Создать новую версию (предыдущая будет архивирована)"
+        title={t("adminTenants.contracts.newVersionHint")}
         className="inline-flex items-center gap-1 text-[11px] text-slate-600 hover:text-slate-900 hover:underline dark:text-slate-300"
       >
         <GitBranch className="h-3 w-3" />
-        Новая версия
+        {t("adminTenants.contracts.newVersion")}
       </button>
 
       <Dialog
@@ -71,32 +73,30 @@ export function ContractVersionButton({ contractId, contractNumber, currentVersi
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Новая версия договора № {contractNumber}</DialogTitle>
+            <DialogTitle>{t("adminTenants.contracts.newVersionTitle", { number: contractNumber })}</DialogTitle>
           </DialogHeader>
 
           <form action={onSubmit} className="space-y-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Текущая версия (v{currentVersion}) будет архивирована. Новая версия v{currentVersion + 1}
-              {" "}создастся в статусе DRAFT — её нужно будет отправить на подпись отдельно.
+              {t("adminTenants.contracts.newVersionText", { current: currentVersion, next: currentVersion + 1 })}
             </p>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата начала</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.contracts.startDate")}</label>
               <Input type="date" name="startDate" defaultValue={defaultStartDate ?? ""} />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Дата окончания</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.contracts.endDate")}</label>
               <Input type="date" name="endDate" defaultValue={defaultEndDate ?? ""} />
             </div>
             <p className="text-xs text-slate-400 dark:text-slate-500">
-              Содержимое договора копируется из предыдущей версии. Изменить можно
-              позже через редактирование договора.
+              {t("adminTenants.contracts.newVersionFooter")}
             </p>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending} className="flex-1">
-                Отмена
+                {t("common.actions.cancel")}
               </Button>
               <Button type="submit" loading={pending} className="flex-1">
-                {pending ? "Создание…" : "Создать версию"}
+                {pending ? t("adminTenants.contracts.creatingVersion") : t("adminTenants.contracts.createVersion")}
               </Button>
             </DialogFooter>
           </form>

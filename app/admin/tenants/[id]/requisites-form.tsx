@@ -18,6 +18,12 @@ import { Input } from "@/components/ui/input"
 import { ActionMenu } from "@/components/ui/action-menu"
 import { ModalShell } from "@/components/ui/modal"
 import { askConfirm } from "@/components/ui/dialog-host"
+import { useT } from "@/lib/i18n/client"
+import type { Translator } from "@/lib/i18n/translate"
+import type { Messages } from "@/lib/i18n/messages"
+
+/** Переводчик, который приходится передавать в функции вне компонента. */
+type T = Translator<Messages>["t"]
 
 type BankAccount = {
   id: string
@@ -42,14 +48,15 @@ type Props = {
 }
 
 function StatusIcon({ ok }: { ok: boolean | null }) {
+  const { t } = useT()
   if (ok === null) return null
   return ok ? (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-      <Check className="h-3 w-3" /> OK
+      <Check className="h-3 w-3" /> {t("adminTenants.requisites.ok")}
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400">
-      <AlertTriangle className="h-3 w-3" /> Ошибка
+      <AlertTriangle className="h-3 w-3" /> {t("adminTenants.requisites.error")}
     </span>
   )
 }
@@ -67,20 +74,20 @@ function shouldReplaceBankName(currentBankName: string, initialBankName?: string
   return !value || value === initialBankName || isKnownBankName(value)
 }
 
-function getBankInputError(bankName: string, bik: string, iik: string) {
-  if (!bankName.trim()) return "Укажите название банка"
-  if (!bik.trim()) return "Укажите БИК"
-  if (!iik.trim()) return "Укажите ИИК"
+function getBankInputError(bankName: string, bik: string, iik: string, t: T) {
+  if (!bankName.trim()) return t("adminTenants.requisites.needBankName")
+  if (!bik.trim()) return t("adminTenants.requisites.needBik")
+  if (!iik.trim()) return t("adminTenants.requisites.needIik")
 
   const checks = validateRequisites({ bik, iik })
-  if (checks.bik && !checks.bik.ok) return checks.bik.warning ?? "Некорректный БИК"
-  if (checks.iik && !checks.iik.ok) return checks.iik.warning ?? "Некорректный ИИК"
+  if (checks.bik && !checks.bik.ok) return checks.bik.warning ?? t("adminTenants.requisites.badBik")
+  if (checks.iik && !checks.iik.ok) return checks.iik.warning ?? t("adminTenants.requisites.badIik")
   return null
 }
 
-function showActionError(result: { error?: string; errorId?: string }, fallback: string) {
+function showActionError(result: { error?: string; errorId?: string }, fallback: string, t: T) {
   const message = result.error ?? fallback
-  toast.error(result.errorId ? `${message}. Код ошибки #${result.errorId}` : message)
+  toast.error(result.errorId ? t("adminTenants.requisites.errorCode", { message, code: result.errorId }) : message)
 }
 
 function BankFields({
@@ -104,6 +111,7 @@ function BankFields({
   setBik: (value: string) => void
   initialBankName?: string
 }) {
+  const { t } = useT()
   const bikListId = useId()
   const bankNameListId = useId()
   const checks = useMemo(() => validateRequisites({ bik, iik }), [bik, iik])
@@ -140,18 +148,18 @@ function BankFields({
     <div className="grid gap-4 md:grid-cols-2">
       <div>
         <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
-          Название счета
+          {t("adminTenants.requisites.accountLabel")}
         </label>
         <Input
           value={label}
           onChange={(event) => setLabel(event.target.value.slice(0, 80))}
-          placeholder="Например: основной, Kaspi, Halyk"
+          placeholder={t("adminTenants.requisites.accountLabelPlaceholder")}
         />
       </div>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">БИК банка</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminTenants.requisites.bik")}</label>
           {bik && <StatusIcon ok={checks.bik?.ok ?? null} />}
         </div>
         <Input
@@ -180,7 +188,7 @@ function BankFields({
           ))}
         </datalist>
         {!bik && (
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">8-11 латинских букв в верхнем регистре</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("adminTenants.requisites.bikHint")}</p>
         )}
         {bankFromBik && (
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">{bankFromBik.name}</p>
@@ -194,14 +202,14 @@ function BankFields({
 
       <div>
         <label className="mb-1.5 block text-xs font-medium text-slate-500 dark:text-slate-400">
-          Название банка
+          {t("adminTenants.requisites.bankName")}
         </label>
         <Input
           value={bankName}
           onChange={(event) => handleBankNameChange(event.target.value)}
           onBlur={handleBankNameBlur}
           list={bankNameListId}
-          placeholder="Начните писать банк или выберите из списка"
+          placeholder={t("adminTenants.requisites.bankNamePlaceholder")}
         />
         <datalist id={bankNameListId}>
           {KZ_BANKS.map((bank) => (
@@ -210,7 +218,7 @@ function BankFields({
         </datalist>
         {bankNameSuggestion && (
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">
-            Найдено: {bankNameSuggestion.name}
+            {t("adminTenants.requisites.bankFound", { name: bankNameSuggestion.name })}
           </p>
         )}
       </div>
@@ -218,7 +226,7 @@ function BankFields({
       <div>
         <div className="mb-1.5 flex items-center justify-between">
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-            ИИК <span className="text-slate-400">20 символов</span>
+            {t("adminTenants.requisites.iik")} <span className="text-slate-400">{t("adminTenants.requisites.iikChars")}</span>
           </label>
           {iik && <StatusIcon ok={checks.iik?.ok ?? null} />}
         </div>
@@ -237,7 +245,7 @@ function BankFields({
                 : "border-red-300 focus:border-red-500 focus:ring-red-500/20 dark:border-red-500/40"
           }`}
         />
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Начинается с KZ, всего 20 символов · Длина: {iik.length}/20</p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("adminTenants.requisites.iikHint", { length: iik.length })}</p>
         {iik && checks.iik?.warning && (
           <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.iik.warning}</p>
         )}
@@ -248,6 +256,7 @@ function BankFields({
 
 /** Одна строка счёта: название, банк, ИИК и меню действий. */
 function AccountRow({ account }: { account: BankAccount }) {
+  const { t } = useT()
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -256,11 +265,11 @@ function AccountRow({ account }: { account: BankAccount }) {
     startTransition(async () => {
       try {
         const result = await setPrimaryTenantBankAccount(account.id)
-        if (!result.ok) { showActionError(result, "Не удалось выбрать основной счёт"); return }
+        if (!result.ok) { showActionError(result, t("adminTenants.requisites.primaryFailed"), t); return }
         router.refresh()
-        toast.success("Основной счёт обновлён")
+        toast.success(t("adminTenants.requisites.primaryDone"))
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось выбрать основной счёт")
+        toast.error(error instanceof Error ? error.message : t("adminTenants.requisites.primaryFailed"))
       }
     })
   }
@@ -269,11 +278,11 @@ function AccountRow({ account }: { account: BankAccount }) {
     startTransition(async () => {
       try {
         const result = await deleteTenantBankAccount(account.id)
-        if (!result.ok) { showActionError(result, "Не удалось удалить счёт"); return }
+        if (!result.ok) { showActionError(result, t("adminTenants.requisites.deleteFailed"), t); return }
         router.refresh()
-        toast.success("Счёт удалён")
+        toast.success(t("adminTenants.requisites.deleted"))
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось удалить счёт")
+        toast.error(error instanceof Error ? error.message : t("adminTenants.requisites.deleteFailed"))
       }
     })
   }
@@ -286,7 +295,7 @@ function AccountRow({ account }: { account: BankAccount }) {
             {account.label || account.bankName}
             {account.isPrimary && (
               <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                <Star className="h-3 w-3 fill-current" /> основной
+                <Star className="h-3 w-3 fill-current" /> {t("adminTenants.requisites.primary")}
               </Badge>
             )}
           </p>
@@ -297,21 +306,26 @@ function AccountRow({ account }: { account: BankAccount }) {
         <ActionMenu
           tone="icon"
           label="⋯"
-          ariaLabel="Действия со счётом"
+          ariaLabel={t("adminTenants.requisites.menuLabel")}
           align="end"
           width="w-56"
           items={[
-            { label: "Изменить", icon: <Save className="h-4 w-4 text-slate-400" />, onSelect: () => setEditing(true), disabled: pending },
-            ...(account.isPrimary ? [] : [{ label: "Сделать основным", icon: <Star className="h-4 w-4 text-slate-400" />, onSelect: makePrimary, disabled: pending }]),
+            { label: t("adminTenants.requisites.edit"), icon: <Save className="h-4 w-4 text-slate-400" />, onSelect: () => setEditing(true), disabled: pending },
+            ...(account.isPrimary ? [] : [{ label: t("adminTenants.requisites.makePrimary"), icon: <Star className="h-4 w-4 text-slate-400" />, onSelect: makePrimary, disabled: pending }]),
             {
-              label: "Удалить счёт",
+              label: t("adminTenants.requisites.deleteAccount"),
               icon: <Trash2 className="h-4 w-4" />,
               danger: true,
               separatorBefore: true,
               disabled: pending,
               onSelect: () => {
                 void (async () => {
-                  if (!(await askConfirm({ title: "Удалить этот счёт?", description: "Он пропадёт из договоров и счетов.", confirmLabel: "Удалить", danger: true }))) return
+                  if (!(await askConfirm({
+                    title: t("adminTenants.requisites.deleteTitle"),
+                    description: t("adminTenants.requisites.deleteText"),
+                    confirmLabel: t("common.actions.delete"),
+                    danger: true,
+                  }))) return
                   remove()
                 })()
               },
@@ -321,13 +335,13 @@ function AccountRow({ account }: { account: BankAccount }) {
       </div>
       {editing && (
         <AccountDialog
-          title="Счёт арендатора"
+          title={t("adminTenants.requisites.dialogEdit")}
           initial={account}
           onClose={() => setEditing(false)}
           onSave={async (fd) => {
             const result = await updateTenantBankAccount(account.id, fd)
-            if (!result.ok) { showActionError(result, "Не удалось сохранить счёт"); return false }
-            toast.success("Счёт сохранён")
+            if (!result.ok) { showActionError(result, t("adminTenants.requisites.saveFailed"), t); return false }
+            toast.success(t("adminTenants.requisites.saved"))
             router.refresh()
             return true
           }}
@@ -351,13 +365,14 @@ function AccountDialog({
   onClose: () => void
   onSave: (fd: FormData) => Promise<boolean>
 }) {
+  const { t } = useT()
   const [label, setLabel] = useState(initial?.label ?? "")
   const [bankName, setBankName] = useState(initial?.bankName ?? "")
   const [iik, setIik] = useState(initial?.iik ?? "")
   const [bik, setBik] = useState(initial?.bik ?? "")
   const [isPrimary, setIsPrimary] = useState(false)
   const [pending, startTransition] = useTransition()
-  const inputError = useMemo(() => getBankInputError(bankName, bik, iik), [bankName, bik, iik])
+  const inputError = useMemo(() => getBankInputError(bankName, bik, iik, t), [bankName, bik, iik, t])
 
   const submit = () => {
     if (inputError) { toast.error(inputError); return }
@@ -371,7 +386,7 @@ function AccountDialog({
       try {
         if (await onSave(fd)) onClose()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Не удалось сохранить счёт")
+        toast.error(error instanceof Error ? error.message : t("adminTenants.requisites.saveFailed"))
       }
     })
   }
@@ -394,13 +409,13 @@ function AccountDialog({
         {withPrimary && (
           <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
             <input type="checkbox" checked={isPrimary} onChange={(e) => setIsPrimary(e.target.checked)} />
-            Сделать основным — он подставляется в договоры и счета
+            {t("adminTenants.requisites.primaryCheckbox")}
           </label>
         )}
         {inputError && <p className="text-xs text-amber-600 dark:text-amber-400">{inputError}</p>}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-          <Button type="button" variant="outline" onClick={onClose}>Отмена</Button>
-          <Button type="button" onClick={submit} loading={pending} disabled={!!inputError}>Сохранить счёт</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.actions.cancel")}</Button>
+          <Button type="button" onClick={submit} loading={pending} disabled={!!inputError}>{t("adminTenants.requisites.saveAccount")}</Button>
         </div>
       </div>
     </ModalShell>
@@ -414,6 +429,7 @@ function AccountDialog({
  * отдельным списком с окном правки.
  */
 export function RequisitesForm({ tenantId, initial }: Props) {
+  const { t } = useT()
   const router = useRouter()
   const [adding, setAdding] = useState(false)
 
@@ -421,25 +437,25 @@ export function RequisitesForm({ tenantId, initial }: Props) {
     <div className="space-y-3 p-5">
       {initial.bankAccounts.length === 0 ? (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">
-          Счетов нет. Без них реквизиты не подставятся в договор и счёт на оплату.
+          {t("adminTenants.requisites.empty")}
         </p>
       ) : (
         initial.bankAccounts.map((account) => <AccountRow key={account.id} account={account} />)
       )}
 
       <Button type="button" variant="outline" size="sm" leftIcon={<Plus className="h-4 w-4" />} onClick={() => setAdding(true)}>
-        Добавить счёт
+        {t("adminTenants.requisites.add")}
       </Button>
 
       {adding && (
         <AccountDialog
-          title="Новый счёт"
+          title={t("adminTenants.requisites.dialogNew")}
           withPrimary
           onClose={() => setAdding(false)}
           onSave={async (fd) => {
             const result = await createTenantBankAccount(tenantId, fd)
-            if (!result.ok) { showActionError(result, "Не удалось добавить счёт"); return false }
-            toast.success("Счёт добавлен")
+            if (!result.ok) { showActionError(result, t("adminTenants.requisites.addFailed"), t); return false }
+            toast.success(t("adminTenants.requisites.added"))
             router.refresh()
             return true
           }}

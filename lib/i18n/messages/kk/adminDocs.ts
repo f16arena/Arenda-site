@@ -144,7 +144,7 @@ export const adminDocs: typeof ru = {
     term: "Жалдау мерзімі",
     rent: "Жалдау ақысы",
     rate: "(мөлшерлеме {rate}/м²)",
-    deposit: "Кепілдік жарна (депозит)",
+    deposit: "Кепілдік жарна",
     serviceFee: "Пайдалану шығындары",
     serviceFeeOn: "есептеледі",
     serviceFeeOff: "есептелмейді",
@@ -261,7 +261,7 @@ export const adminDocs: typeof ru = {
     parentVersion: "Алдыңғы нұсқа",
     versions: "Нұсқалар ({count})",
     addendaList: "Қосымша келісімдер ({count})",
-    addendumNumber: "Қосымша келісім № {number}",
+    addendumNumber: "Қос. келісім № {number}",
     changeKinds: {
       RENTAL_TERMS: "Жалдау шарттарын өзгерту",
       PROLONGATION: "Мерзімді ұзарту",

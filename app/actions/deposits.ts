@@ -7,6 +7,7 @@ import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { chargeScope, tenantScope } from "@/lib/tenant-scope"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { getT } from "@/lib/i18n/server"
 
 function currentPeriod(): string {
   const now = new Date()
@@ -27,6 +28,7 @@ function revalidateDepositPages(tenantId?: string) {
 export async function issueDepositCharge(
   tenantId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.createInvoice")
     const { orgId } = await requireOrgAccess()
@@ -36,7 +38,7 @@ export async function issueDepositCharge(
       where: { tenantId, type: "DEPOSIT", deletedAt: null },
       select: { id: true },
     })
-    if (existing) return { ok: false, error: "Начисление депозита уже существует" }
+    if (existing) return { ok: false, error: t("actions.deposits.alreadyExists") }
 
     const tenant = await db.tenant.findFirst({
       where: { AND: [tenantScope(orgId), { id: tenantId }] },
@@ -55,12 +57,12 @@ export async function issueDepositCharge(
         },
       },
     })
-    if (!tenant) return { ok: false, error: "Арендатор не найден" }
-    if (tenant.depositAmount === 0) return { ok: false, error: "У арендатора депозит отключён (сумма 0)" }
+    if (!tenant) return { ok: false, error: t("actions.common.tenantNotFound") }
+    if (tenant.depositAmount === 0) return { ok: false, error: t("actions.deposits.disabledForTenant") }
 
     const amount = tenant.depositAmount ?? calculateTenantMonthlyRent(tenant)
     if (!amount || amount <= 0) {
-      return { ok: false, error: "Не удалось определить сумму депозита: укажите её в условиях аренды" }
+      return { ok: false, error: t("actions.deposits.amountUnknown") }
     }
 
     const contract = tenant.contracts[0] ?? null
@@ -71,6 +73,8 @@ export async function issueDepositCharge(
         period: currentPeriod(),
         type: "DEPOSIT",
         amount: Math.round(amount * 100) / 100,
+        // description начисления — учётная запись в БД (попадает в счета и акты),
+        // поэтому остаётся на русском независимо от языка интерфейса.
         description: `Гарантийный депозит${contract?.number ? ` по договору № ${contract.number}` : ""}`,
         dueDate: new Date(),
       },
@@ -78,7 +82,7 @@ export async function issueDepositCharge(
     revalidateDepositPages(tenantId)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось выставить начисление" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.deposits.issueFailed") }
   }
 }
 
@@ -86,6 +90,7 @@ export async function issueDepositCharge(
 export async function markDepositPaid(
   chargeId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.recordPayment")
     const { orgId } = await requireOrgAccess()
@@ -93,11 +98,11 @@ export async function markDepositPaid(
       where: { AND: [chargeScope(orgId), { id: chargeId, type: "DEPOSIT", isPaid: false }] },
       data: { isPaid: true },
     })
-    if (result.count === 0) return { ok: false, error: "Начисление не найдено или уже оплачено" }
+    if (result.count === 0) return { ok: false, error: t("actions.deposits.chargeNotFoundOrPaid") }
     revalidateDepositPages()
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось отметить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.deposits.markPaidFailed") }
   }
 }
 
@@ -109,6 +114,7 @@ export async function markDepositPaid(
 export async function returnDeposit(
   tenantId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.recordPayment")
     const { orgId } = await requireOrgAccess()
@@ -125,7 +131,7 @@ export async function returnDeposit(
       }),
     ])
     const held = Math.round(((paid._sum.amount ?? 0) - (refunded._sum.amount ?? 0)) * 100) / 100
-    if (held <= 0) return { ok: false, error: "Удерживаемого депозита нет — возвращать нечего" }
+    if (held <= 0) return { ok: false, error: t("actions.deposits.nothingToReturn") }
 
     await db.charge.create({
       data: {
@@ -133,6 +139,7 @@ export async function returnDeposit(
         period: currentPeriod(),
         type: "DEPOSIT_REFUND",
         amount: held,
+        // description начисления — учётная запись в БД, не интерфейс: русский.
         description: "Возврат гарантийного депозита",
         isPaid: true,
         dueDate: new Date(),
@@ -141,6 +148,6 @@ export async function returnDeposit(
     revalidateDepositPages(tenantId)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось оформить возврат" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.deposits.returnFailed") }
   }
 }

@@ -11,6 +11,7 @@ import {
   getTenantStorageScope,
   storeUploadedFile,
 } from "@/lib/storage"
+import { getT } from "@/lib/i18n/server"
 
 export async function addTenantDocument(tenantId: string, formData: FormData) {
   await requireCapabilityAndFeature("storage.upload")
@@ -22,10 +23,11 @@ export async function addTenantDocument(tenantId: string, formData: FormData) {
   const fileUrl = String(formData.get("fileUrl") ?? "").trim()
   const file = formData.get("file")
   const storageScope = await getTenantStorageScope(tenantId)
+  const { t } = await getT()
 
-  if (!name) throw new Error("Название документа обязательно")
+  if (!name) throw new Error(t("actions.tenantDocs.nameRequired"))
   if (!(file instanceof File) || file.size === 0) {
-    if (!fileUrl) throw new Error("Прикрепите файл документа")
+    if (!fileUrl) throw new Error(t("actions.tenantDocs.fileRequired"))
   }
 
   let storedFile: { id: string; url: string } | null = null
@@ -84,7 +86,10 @@ export async function deleteTenantDocument(documentId: string) {
     where: { id: documentId },
     select: { tenantId: true, storageFileId: true },
   })
-  if (!doc) throw new Error("Документ не найден")
+  if (!doc) {
+    const { t } = await getT()
+    throw new Error(t("actions.common.documentNotFound"))
+  }
 
   await db.tenantDocument.delete({ where: { id: documentId } })
   if (doc.storageFileId) {

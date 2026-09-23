@@ -7,6 +7,7 @@ import { saveTenantServiceCharges } from "@/app/actions/finance"
 import { SERVICE_CHARGE_TYPES } from "@/lib/service-charges"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 type ExistingServiceCharge = {
   id: string
@@ -25,13 +26,17 @@ type Props = {
   utilitiesInServiceFee?: string[]
 }
 
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Не удалось сохранить начисления"
-}
-
 export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingCharges, utilitiesInServiceFee = [] }: Props) {
+  const { t } = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  // Название услуги — общее из domain.chargeTypes; в lib/service-charges текст
+  // русский, он остаётся запасным для кодов, которых нет в словаре.
+  const serviceLabel = (type: string, fallback: string) => {
+    const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? fallback : label
+  }
   const existingByType = useMemo(() => {
     return new Map(existingCharges.map((charge) => [charge.type, charge]))
   }, [existingCharges])
@@ -54,13 +59,15 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
       try {
         const result = await saveTenantServiceCharges(tenantId, formData)
         const parts = [
-          result.created > 0 ? `создано: ${result.created}` : null,
-          result.updated > 0 ? `обновлено: ${result.updated}` : null,
+          result.created > 0 ? t("adminTenants.serviceCharges.created", { count: result.created }) : null,
+          result.updated > 0 ? t("adminTenants.serviceCharges.updated", { count: result.updated }) : null,
         ].filter(Boolean)
-        toast.success(parts.length > 0 ? `Начисления сохранены (${parts.join(", ")})` : "Начисления сохранены")
+        toast.success(parts.length > 0
+          ? t("adminTenants.serviceCharges.savedDetails", { details: parts.join(", ") })
+          : t("adminTenants.serviceCharges.saved"))
         router.refresh()
       } catch (error) {
-        toast.error(getErrorMessage(error))
+        toast.error(error instanceof Error ? error.message : t("adminTenants.serviceCharges.saveFailed"))
       }
     })
   }
@@ -70,7 +77,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-            Период
+            {t("adminTenants.serviceCharges.period")}
           </label>
           <Input
             name="period"
@@ -80,7 +87,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-            Срок оплаты
+            {t("adminTenants.serviceCharges.dueDate")}
           </label>
           <Input
             name="dueDate"
@@ -92,15 +99,16 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
 
       {hiddenTypes.size > 0 && (
         <div className="rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2 text-xs text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
-          В эксп. сборе здания: {Array.from(hiddenTypes).join(", ")}.
-          Эти услуги не выставляются отдельно и скрыты из списка ниже (если они уже не были начислены ранее).
+          {t("adminTenants.serviceCharges.inServiceFee", {
+            types: Array.from(hiddenTypes).map((type) => serviceLabel(type, type)).join(", "),
+          })}
         </div>
       )}
       <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
         <div className="hidden gap-3 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-500 dark:bg-slate-800/50 dark:text-slate-400 md:grid md:grid-cols-[minmax(130px,1fr)_minmax(120px,180px)_minmax(160px,1fr)]">
-          <span>Услуга</span>
-          <span>Сумма</span>
-          <span>Комментарий</span>
+          <span>{t("adminTenants.serviceCharges.service")}</span>
+          <span>{t("adminTenants.serviceCharges.amount")}</span>
+          <span>{t("adminTenants.serviceCharges.comment")}</span>
         </div>
         <div className="divide-y divide-slate-100 dark:divide-slate-800">
           {visibleTypes.map((item) => {
@@ -122,7 +130,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
                     }}
                     className="rounded border-slate-300"
                   />
-                  {item.label}
+                  {serviceLabel(item.type, item.label)}
                 </label>
                 <Input
                   name={`amount_${item.type}`}
@@ -153,7 +161,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
           loading={pending}
           className="font-medium"
         >
-          {pending ? "Сохранение..." : "Сохранить начисления"}
+          {pending ? t("adminTenants.serviceCharges.saving") : t("adminTenants.serviceCharges.submit")}
         </Button>
       </div>
     </form>

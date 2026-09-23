@@ -8,6 +8,7 @@ import { assertTenantInOrg } from "@/lib/scope-guards"
 import { tenantScope } from "@/lib/tenant-scope"
 import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
 import { buildInstallmentSchedule, MIN_INSTALLMENTS, MAX_INSTALLMENTS } from "@/lib/installments"
+import { getT } from "@/lib/i18n/server"
 
 function revalidate() {
   revalidatePath("/admin/finances/installments")
@@ -45,25 +46,26 @@ export async function createInstallmentPlan(input: {
   await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(input.tenantId, orgId)
+  const { t } = await getT()
 
   const chargeIds = [...new Set(input.chargeIds)].filter(Boolean)
-  if (chargeIds.length === 0) return { error: "Выберите начисления для рассрочки" }
+  if (chargeIds.length === 0) return { error: t("actions.installments.chargesRequired") }
 
   const count = Math.trunc(Number(input.count))
   if (!(count >= MIN_INSTALLMENTS && count <= MAX_INSTALLMENTS)) {
-    return { error: `Число платежей: от ${MIN_INSTALLMENTS} до ${MAX_INSTALLMENTS}` }
+    return { error: t("actions.installments.countRange", { min: MIN_INSTALLMENTS, max: MAX_INSTALLMENTS }) }
   }
   const firstDue = new Date(input.firstDue)
-  if (Number.isNaN(firstDue.getTime())) return { error: "Некорректная дата первого платежа" }
+  if (Number.isNaN(firstDue.getTime())) return { error: t("actions.installments.invalidFirstDue") }
 
   // Только неоплаченные начисления этого арендатора, ещё не в плане.
   const charges = await db.charge.findMany({
     where: { id: { in: chargeIds }, tenantId: input.tenantId, isPaid: false, deletedAt: null, installmentPlanId: null },
     select: { id: true, amount: true },
   })
-  if (charges.length === 0) return { error: "Подходящих начислений не найдено" }
+  if (charges.length === 0) return { error: t("actions.installments.noEligibleCharges") }
   const total = Math.round(charges.reduce((s, c) => s + c.amount, 0) * 100) / 100
-  if (total <= 0) return { error: "Сумма долга должна быть положительной" }
+  if (total <= 0) return { error: t("actions.installments.totalMustBePositive") }
 
   const schedule = buildInstallmentSchedule(total, count, firstDue)
 
@@ -90,13 +92,14 @@ export async function createInstallmentPlan(input: {
 export async function markInstallmentPaid(installmentId: string, method = "TRANSFER") {
   await requireCapabilityAndFeature("finance.recordPayment")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   const inst = await db.debtInstallment.findFirst({
     where: { id: installmentId, plan: { tenant: tenantScope(orgId) } },
     select: { id: true, seq: true, amount: true, isPaid: true, planId: true, plan: { select: { tenantId: true } } },
   })
-  if (!inst) return { error: "Платёж не найден" }
-  if (inst.isPaid) return { error: "Платёж уже отмечен оплаченным" }
+  if (!inst) return { error: t("actions.common.paymentNotFound") }
+  if (inst.isPaid) return { error: t("actions.installments.alreadyPaid") }
 
   const tenantId = inst.plan.tenantId
   const payment = await db.payment.create({
@@ -105,6 +108,8 @@ export async function markInstallmentPaid(installmentId: string, method = "TRANS
       amount: inst.amount,
       paymentDate: new Date(),
       method,
+      // Назначение платежа — учётная запись в БД (попадает в счета и акты),
+      // поэтому остаётся на русском независимо от языка интерфейса.
       note: `Платёж по рассрочке №${inst.seq}`,
       unappliedAmount: inst.amount,
     },
@@ -135,7 +140,10 @@ export async function cancelInstallmentPlan(planId: string) {
     where: { id: planId, tenant: tenantScope(orgId) },
     select: { id: true },
   })
-  if (!plan) return { error: "План не найден" }
+  if (!plan) {
+    const { t } = await getT()
+    return { error: t("actions.installments.planNotFound") }
+  }
 
   await db.$transaction([
     db.charge.updateMany({ where: { installmentPlanId: planId }, data: { installmentPlanId: null } }),

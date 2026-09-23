@@ -29,6 +29,8 @@ import { emails as ruEmails } from "./ru/emails"
 import { emails as kkEmails } from "./kk/emails"
 import { adminShell as ruAdminShell } from "./ru/adminShell"
 import { adminShell as kkAdminShell } from "./kk/adminShell"
+import { adminBuilder as ruAdminBuilder } from "./ru/adminBuilder"
+import { adminBuilder as kkAdminBuilder } from "./kk/adminBuilder"
 import { adminObjects as ruAdminObjects } from "./ru/adminObjects"
 import { adminObjects as kkAdminObjects } from "./kk/adminObjects"
 import { adminTenants as ruAdminTenants } from "./ru/adminTenants"
@@ -45,6 +47,8 @@ import { landing as ruLanding } from "./ru/landing"
 import { landing as kkLanding } from "./kk/landing"
 import { domain as ruDomain } from "./ru/domain"
 import { domain as kkDomain } from "./kk/domain"
+import { actions as ruActions } from "./ru/actions"
+import { actions as kkActions } from "./kk/actions"
 
 export const ru = {
   common: ruCommon,
@@ -62,12 +66,14 @@ export const ru = {
   auth: ruAuth,
   adminShell: ruAdminShell,
   adminObjects: ruAdminObjects,
+  adminBuilder: ruAdminBuilder,
   adminTenants: ruAdminTenants,
   adminFinance: ruAdminFinance,
   adminDocs: ruAdminDocs,
   adminService: ruAdminService,
   adminSettings: ruAdminSettings,
   landing: ruLanding,
+  actions: ruActions,
 }
 
 export type Messages = typeof ru
@@ -89,12 +95,14 @@ export const kk: Messages = {
   auth: kkAuth,
   adminShell: kkAdminShell,
   adminObjects: kkAdminObjects,
+  adminBuilder: kkAdminBuilder,
   adminTenants: kkAdminTenants,
   adminFinance: kkAdminFinance,
   adminDocs: kkAdminDocs,
   adminService: kkAdminService,
   adminSettings: kkAdminSettings,
   landing: kkLanding,
+  actions: kkActions,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }

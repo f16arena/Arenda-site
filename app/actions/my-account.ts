@@ -10,6 +10,7 @@ import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 import { audit } from "@/lib/audit"
+import { getT, getTForUser } from "@/lib/i18n/server"
 
 export interface ResultOk { ok: true; message?: string }
 export interface ResultError { ok: false; error: string }
@@ -20,23 +21,24 @@ export type Result = ResultOk | ResultError
  * Требует ввода старого пароля.
  */
 export async function changeMyPassword(formData: FormData): Promise<Result> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  if (!session?.user) return { ok: false, error: t("actions.auth.notAuthorized") }
 
   const oldPassword = String(formData.get("oldPassword") ?? "")
   const newPassword = String(formData.get("newPassword") ?? "")
   const confirmPassword = String(formData.get("confirmPassword") ?? "")
 
-  if (!oldPassword) return { ok: false, error: "Введите текущий пароль" }
-  if (newPassword.length < 8) return { ok: false, error: "Новый пароль минимум 8 символов" }
-  if (newPassword !== confirmPassword) return { ok: false, error: "Пароли не совпадают" }
-  if (newPassword === oldPassword) return { ok: false, error: "Новый пароль совпадает со старым" }
+  if (!oldPassword) return { ok: false, error: t("actions.myAccount.enterCurrentPassword") }
+  if (newPassword.length < 8) return { ok: false, error: t("actions.myAccount.newPasswordTooShort") }
+  if (newPassword !== confirmPassword) return { ok: false, error: t("actions.myAccount.passwordsMismatch") }
+  if (newPassword === oldPassword) return { ok: false, error: t("actions.myAccount.newPasswordSameAsOld") }
 
   const user = await db.user.findUnique({ where: { id: session.user.id }, select: { password: true } })
-  if (!user) return { ok: false, error: "Пользователь не найден" }
+  if (!user) return { ok: false, error: t("actions.common.userNotFound") }
 
   const valid = await bcrypt.compare(oldPassword, user.password)
-  if (!valid) return { ok: false, error: "Текущий пароль неверный" }
+  if (!valid) return { ok: false, error: t("actions.myAccount.currentPasswordWrong") }
 
   const hash = await bcrypt.hash(newPassword, 10)
   await db.user.update({ where: { id: session.user.id }, data: { password: hash } })
@@ -51,17 +53,18 @@ export async function changeMyPassword(formData: FormData): Promise<Result> {
   revalidatePath("/admin/profile")
   revalidatePath("/superadmin/profile")
   revalidatePath("/cabinet/profile")
-  return { ok: true, message: "Пароль изменён" }
+  return { ok: true, message: t("actions.myAccount.passwordChanged") }
 }
 
 /**
  * Сменить имя.
  */
 export async function changeMyName(formData: FormData): Promise<Result> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  if (!session?.user) return { ok: false, error: t("actions.auth.notAuthorized") }
   const name = String(formData.get("name") ?? "").trim()
-  if (name.length < 2) return { ok: false, error: "Имя минимум 2 символа" }
+  if (name.length < 2) return { ok: false, error: t("actions.myAccount.nameTooShort") }
 
   await db.user.update({ where: { id: session.user.id }, data: { name } })
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
@@ -69,7 +72,7 @@ export async function changeMyName(formData: FormData): Promise<Result> {
   revalidatePath("/admin/profile")
   revalidatePath("/superadmin/profile")
   revalidatePath("/cabinet/profile")
-  return { ok: true, message: "Имя обновлено" }
+  return { ok: true, message: t("actions.myAccount.nameUpdated") }
 }
 
 /**
@@ -77,19 +80,20 @@ export async function changeMyName(formData: FormData): Promise<Result> {
  * на новый адрес. Реальное обновление email произойдёт при переходе по ссылке.
  */
 export async function requestEmailChange(formData: FormData): Promise<Result & { previewLink?: string }> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  if (!session?.user) return { ok: false, error: t("actions.auth.notAuthorized") }
 
   let newEmail: string
   try {
     newEmail = await normalizeEmailWithDns(formData.get("newEmail"), { required: true, fieldName: "Email" })
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Введите корректный email" }
+    return { ok: false, error: error instanceof Error ? error.message : t("actions.myAccount.invalidEmail") }
   }
 
   const conflict = await db.user.findUnique({ where: { email: newEmail }, select: { id: true } })
   if (conflict && conflict.id !== session.user.id) {
-    return { ok: false, error: "Email уже используется другим пользователем" }
+    return { ok: false, error: t("actions.myAccount.emailTaken") }
   }
 
   const token = crypto.randomBytes(32).toString("hex")
@@ -110,22 +114,25 @@ export async function requestEmailChange(formData: FormData): Promise<Result & {
   const proto = h.get("x-forwarded-proto") ?? "https"
   const link = `${proto}://${host}/verify-email?token=${token}`
 
+  // Письмо читает сам владелец аккаунта — язык берём из его профиля.
+  const { t: tMail } = await getTForUser(session.user.id)
+
   // Пытаемся отправить письмо
   const html = basicEmailTemplate({
-    title: "Подтверждение смены email",
-    body: `<p>Здравствуйте, ${session.user.name}!</p>
-<p>Вы запросили смену email на адрес <b>${newEmail}</b>.</p>
-<p>Для подтверждения перейдите по ссылке (действительна 24 часа):</p>`,
-    buttonText: "Подтвердить email",
+    title: tMail("actions.myAccount.mailChangeTitle"),
+    body: `<p>${tMail("actions.myAccount.mailGreeting", { name: session.user.name ?? "" })}</p>
+<p>${tMail("actions.myAccount.mailChangeLead", { email: newEmail })}</p>
+<p>${tMail("actions.myAccount.mailChangeAction")}</p>`,
+    buttonText: tMail("actions.myAccount.mailConfirmButton"),
     buttonUrl: link,
-    footer: "Если вы не запрашивали смену — проигнорируйте это письмо.",
+    footer: tMail("actions.myAccount.mailChangeFooter"),
   })
 
   const emailResult = await sendEmail({
     to: newEmail,
-    subject: "Подтверждение смены email на Commrent",
+    subject: tMail("actions.myAccount.mailChangeSubject"),
     html,
-    text: `Перейдите по ссылке для подтверждения: ${link}`,
+    text: tMail("actions.myAccount.mailChangeText", { link }),
   })
 
   // Если Resend не настроен — возвращаем ссылку прямо в UI
@@ -134,50 +141,52 @@ export async function requestEmailChange(formData: FormData): Promise<Result & {
       console.error("[email] email change delivery failed", emailResult.error)
       return {
         ok: true,
-        message: `Письмо отправлено на ${newEmail}. Перейдите по ссылке в письме для подтверждения.`,
+        message: t("actions.myAccount.mailSentConfirm", { email: newEmail }),
       }
     }
 
     return {
       ok: true,
-      message: `Email-отправка пока не настроена. Скопируйте ссылку для подтверждения вручную:`,
+      message: t("actions.myAccount.mailNotConfiguredConfirm"),
       previewLink: link,
     }
   }
 
-  return { ok: true, message: `Письмо отправлено на ${newEmail}. Перейдите по ссылке в письме для подтверждения.` }
+  return { ok: true, message: t("actions.myAccount.mailSentConfirm", { email: newEmail }) }
 }
 
 /**
  * Подтвердить смену email по токену (используется на /verify-email).
  */
 export async function confirmEmailChange(token: string): Promise<Result> {
-  const t = await db.verificationToken.findUnique({ where: { token } })
-  if (!t) return { ok: false, error: "Токен не найден" }
-  if (t.usedAt) return { ok: false, error: "Ссылка уже использована" }
-  if (t.expiresAt < new Date()) return { ok: false, error: "Срок действия ссылки истёк" }
-  if (t.type !== "EMAIL_CHANGE" && t.type !== "EMAIL_VERIFY") return { ok: false, error: "Неверный тип токена" }
-  if (!t.userId) return { ok: false, error: "Токен не привязан к пользователю" }
+  const { t } = await getT()
+  // vt, а не t: переменная с токеном раньше перекрывала переводчик.
+  const vt = await db.verificationToken.findUnique({ where: { token } })
+  if (!vt) return { ok: false, error: t("actions.myAccount.tokenNotFound") }
+  if (vt.usedAt) return { ok: false, error: t("actions.myAccount.linkAlreadyUsed") }
+  if (vt.expiresAt < new Date()) return { ok: false, error: t("actions.myAccount.linkExpired") }
+  if (vt.type !== "EMAIL_CHANGE" && vt.type !== "EMAIL_VERIFY") return { ok: false, error: t("actions.myAccount.tokenWrongType") }
+  if (!vt.userId) return { ok: false, error: t("actions.myAccount.tokenNoUser") }
 
   // Проверка что email всё ещё свободен
-  const conflict = await db.user.findUnique({ where: { email: t.target }, select: { id: true } })
-  if (conflict && conflict.id !== t.userId) {
-    return { ok: false, error: "Email тем временем занят другим пользователем" }
+  const conflict = await db.user.findUnique({ where: { email: vt.target }, select: { id: true } })
+  if (conflict && conflict.id !== vt.userId) {
+    return { ok: false, error: t("actions.myAccount.emailTakenMeanwhile") }
   }
 
   try {
     await db.user.update({
-      where: { id: t.userId },
-      data: { email: t.target, emailVerifiedAt: new Date() },
+      where: { id: vt.userId },
+      data: { email: vt.target, emailVerifiedAt: new Date() },
     })
     await db.verificationToken.update({
-      where: { id: t.id },
+      where: { id: vt.id },
       data: { usedAt: new Date() },
     })
   } catch {
     // Гонка (email заняли между проверкой и записью) или транзиентный сбой БД —
     // возвращаем мягкую ошибку, а не роняем рендер страницы /verify-email.
-    return { ok: false, error: "Email тем временем занят или произошёл сбой. Попробуйте ещё раз." }
+    return { ok: false, error: t("actions.myAccount.emailTakenOrFailed") }
   }
 
   // Сброс кэша админ-оболочки. confirmEmailChange вызывается СТРАНИЦЕЙ
@@ -188,22 +197,23 @@ export async function confirmEmailChange(token: string): Promise<Result> {
   try {
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
   } catch { /* вызвано во время рендера — игнорируем, не роняем подтверждение */ }
-  return { ok: true, message: "Email подтверждён и обновлён" }
+  return { ok: true, message: t("actions.myAccount.emailConfirmed") }
 }
 
 /**
  * Отправить письмо для верификации текущего email (если он не подтверждён).
  */
 export async function requestEmailVerification(): Promise<Result & { previewLink?: string }> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  if (!session?.user) return { ok: false, error: t("actions.auth.notAuthorized") }
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
     select: { email: true, name: true, emailVerifiedAt: true },
   })
-  if (!user || !user.email) return { ok: false, error: "У аккаунта нет email" }
-  if (user.emailVerifiedAt) return { ok: false, error: "Email уже подтверждён" }
+  if (!user || !user.email) return { ok: false, error: t("actions.myAccount.noEmailOnAccount") }
+  if (user.emailVerifiedAt) return { ok: false, error: t("actions.myAccount.emailAlreadyVerified") }
 
   const token = crypto.randomBytes(32).toString("hex")
   const expiresAt = new Date(Date.now() + 24 * 3600 * 1000)
@@ -223,33 +233,36 @@ export async function requestEmailVerification(): Promise<Result & { previewLink
   const proto = h.get("x-forwarded-proto") ?? "https"
   const link = `${proto}://${host}/verify-email?token=${token}`
 
+  // Письмо читает сам владелец аккаунта — язык берём из его профиля.
+  const { t: tMail } = await getTForUser(session.user.id)
+
   const html = basicEmailTemplate({
-    title: "Подтверждение email",
-    body: `<p>Здравствуйте, ${user.name}!</p>
-<p>Подтвердите свой email для аккаунта в Commrent. Ссылка действует 24 часа.</p>`,
-    buttonText: "Подтвердить email",
+    title: tMail("actions.myAccount.mailVerifyTitle"),
+    body: `<p>${tMail("actions.myAccount.mailGreeting", { name: user.name ?? "" })}</p>
+<p>${tMail("actions.myAccount.mailVerifyLead")}</p>`,
+    buttonText: tMail("actions.myAccount.mailConfirmButton"),
     buttonUrl: link,
   })
 
   const emailResult = await sendEmail({
     to: user.email,
-    subject: "Подтвердите email для Commrent",
+    subject: tMail("actions.myAccount.mailVerifySubject"),
     html,
-    text: `Перейдите по ссылке: ${link}`,
+    text: tMail("actions.myAccount.mailVerifyText", { link }),
   })
 
   if (!emailResult.ok) {
     if (process.env.NODE_ENV === "production") {
       console.error("[email] email verification delivery failed", emailResult.error)
-      return { ok: true, message: `Письмо отправлено на ${user.email}` }
+      return { ok: true, message: t("actions.myAccount.mailSent", { email: user.email }) }
     }
 
     return {
       ok: true,
-      message: "Email-отправка пока не настроена. Используйте ссылку:",
+      message: t("actions.myAccount.mailNotConfigured"),
       previewLink: link,
     }
   }
 
-  return { ok: true, message: `Письмо отправлено на ${user.email}` }
+  return { ok: true, message: t("actions.myAccount.mailSent", { email: user.email }) }
 }

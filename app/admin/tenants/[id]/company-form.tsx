@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { TenantPartyFields } from "./tenant-party-fields"
 import { IndexationHint } from "./indexation-hint"
 import { RentalPeriodCard } from "./rental-period-card"
+import { getT } from "@/lib/i18n/server"
 
 export type CompanyFormTenant = {
   id: string
@@ -32,7 +33,7 @@ export type CompanyFormTenant = {
   contractEnd: Date | null
 }
 
-export function CompanyForm({
+export async function CompanyForm({
   tenant,
   canEditCompany,
   activeContract,
@@ -46,6 +47,7 @@ export function CompanyForm({
   ratePerSqm: Parameters<typeof IndexationHint>[0]["initialRate"]
   monthlyRent: Parameters<typeof IndexationHint>[0]["monthlyRent"]
 }) {
+  const { t } = await getT()
   return (
     <form
       action={async (formData: FormData) => {
@@ -82,7 +84,7 @@ export function CompanyForm({
         }}
       />
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Вид деятельности</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.company.category")}</label>
         <Input
           name="category"
           defaultValue={tenant.category ?? ""}
@@ -99,9 +101,9 @@ export function CompanyForm({
             className="mt-1 rounded border-slate-300"
           />
           <span>
-            <span className="block font-medium text-slate-900 dark:text-slate-100">Выставлять ЭСФ в КГД</span>
+            <span className="block font-medium text-slate-900 dark:text-slate-100">{t("adminTenants.company.esf")}</span>
             <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-              Если выключено — у счетов этого арендатора не будет кнопки «В ЭСФ». Физлицам обычно не выставляется.
+              {t("adminTenants.company.esfHint")}
             </span>
           </span>
         </label>
@@ -109,15 +111,15 @@ export function CompanyForm({
       <input type="hidden" name="esfForm" value="1" />
       <div className="col-span-full">
         <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-          Целевое использование помещения
+          {t("adminTenants.company.usePurpose")}
         </label>
         <Input
           name="usePurpose"
           defaultValue={tenant.usePurpose ?? ""}
-          placeholder="например: офиса частного судебного исполнителя / розничной торговли / салона красоты"
+          placeholder={t("adminTenants.company.usePurposePlaceholder")}
         />
         <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-          Подставится в п. 1.1 договора: «для использования в целях <span className="font-mono">размещения [текст]</span>». Если пусто — «по согласованному Сторонами назначению».
+          {t("adminTenants.company.usePurposeHint")}
         </p>
       </div>
       {/* Период аренды — из активного Договора (вынесено в компонент). */}
@@ -131,10 +133,10 @@ export function CompanyForm({
           Счета и документы сохраняются каждый в своём окне. */}
       <div className="col-span-2 sticky bottom-0 -mx-5 -mb-5 mt-2 flex items-center justify-between gap-3 border-t border-slate-100 bg-white/95 px-5 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Изменения полей компании сохраняются этой кнопкой
+          {t("adminTenants.company.saveHint")}
         </p>
         <Button type="submit" size="lg" disabled={!canEditCompany} className="font-medium">
-          Сохранить данные компании
+          {t("adminTenants.company.save")}
         </Button>
       </div>
       </fieldset>

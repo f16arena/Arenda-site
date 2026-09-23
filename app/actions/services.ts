@@ -6,6 +6,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requirePlatformOwner } from "@/lib/org"
 import { notifyUser } from "@/lib/notify"
 import { SERVICES_CATALOG } from "@/lib/services-catalog"
+import { getT, getTForUser } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 
 /**
@@ -16,26 +17,27 @@ export async function requestService(input: {
   serviceCode: string
   notes?: string
 }): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
-    return { ok: false, error: "Не авторизован" }
+    return { ok: false, error: t("actions.common.noAccess") }
   }
   const { orgId } = await requireOrgAccess()
 
   const item = SERVICES_CATALOG.find((s) => s.code === input.serviceCode)
-  if (!item) return { ok: false, error: "Услуга не найдена" }
+  if (!item) return { ok: false, error: t("actions.services.notFound") }
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
     select: { name: true, plan: { select: { code: true } } },
   })
-  if (!org) return { ok: false, error: "Организация не найдена" }
+  if (!org) return { ok: false, error: t("actions.common.organizationNotFound") }
   const planCode = org.plan?.code ?? null
   if (item.requiresPlan && (!planCode || !item.requiresPlan.includes(planCode))) {
-    return { ok: false, error: `Услуга доступна на тарифах: ${item.requiresPlan.join(" / ")}` }
+    return { ok: false, error: t("actions.services.planRequired", { plans: item.requiresPlan.join(" / ") }) }
   }
   if (item.hiddenForPlans?.includes(planCode ?? "")) {
-    return { ok: false, error: "Эта услуга недоступна на вашем тарифе" }
+    return { ok: false, error: t("actions.services.unavailableOnPlan") }
   }
 
   await db.organizationService.create({
@@ -53,16 +55,23 @@ export async function requestService(input: {
     where: { isPlatformOwner: true, isActive: true },
     select: { id: true },
   })
-  await Promise.all(platformOwners.map((u) =>
-    notifyUser({
+  // Уведомление читает платформ-админ — язык берём у него, у каждого свой.
+  await Promise.all(platformOwners.map(async (u) => {
+    const { t: tOwner } = await getTForUser(u.id)
+    return notifyUser({
       userId: u.id,
       type: "SERVICE_REQUEST",
-      title: `Заявка на услугу: ${item.label}`,
-      message: `${org.name} запросил «${item.label}» (${item.price.toLocaleString("ru-RU")} ₸). Тариф: ${planCode ?? "—"}.`,
+      title: tOwner("actions.services.requestTitle", { service: item.label }),
+      message: tOwner("actions.services.requestMessage", {
+        org: org.name,
+        service: item.label,
+        price: item.price.toLocaleString("ru-RU"),
+        plan: planCode ?? "—",
+      }),
       link: "/superadmin/services",
       sendEmail: false,
-    }).catch(() => null),
-  ))
+    }).catch(() => null)
+  }))
 
   revalidatePath("/admin/subscription")
   return { ok: true }

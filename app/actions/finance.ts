@@ -31,6 +31,7 @@ import {
 import { assertBuildingAccess, assertTenantBuildingAccess, getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { PaymentCreateSchema, firstZodError } from "@/lib/schemas"
 import { isUniqueConstraintError } from "@/lib/prisma-errors"
+import { getT, getTForUser } from "@/lib/i18n/server"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 function parseChargeAmount(value: FormDataEntryValue | null) {
@@ -55,6 +56,7 @@ function parseDateOrNull(value: FormDataEntryValue | null) {
 export async function recordPayment(formData: FormData) {
   await requireCapabilityAndFeature("finance.recordPayment")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   // Валидация формы через Zod-схему. Пустые значения формы не должны попадать
   // в Zod как "" — приводим их к undefined чтобы оптиональные поля прошли.
@@ -92,7 +94,7 @@ export async function recordPayment(formData: FormData) {
       select: { organizationId: true },
     })
     if (!acc || acc.organizationId !== orgId) {
-      throw new Error("Указан недействительный счёт")
+      throw new Error(t("actions.finance.invalidCashAccount"))
     }
   }
 
@@ -148,6 +150,8 @@ export async function recordPayment(formData: FormData) {
     if (autoDistributed.ids.length > 0) {
       // Дописываем в payment.note информацию о покрытых начислениях.
       // Сортируем периоды для понятного диапазона.
+      // Не переводим: note — учётная запись в БД, её читают в выгрузках и в
+      // акте сверки. Перевод по языку нажавшего кнопку смешал бы два языка.
       const sortedPeriods = [...new Set(autoDistributed.periods)].sort()
       const periodSummary = sortedPeriods.length === 1
         ? sortedPeriods[0]
@@ -179,7 +183,7 @@ export async function recordPayment(formData: FormData) {
     const validIds = validCharges.map((c) => c.id)
 
     if (validIds.length !== chargeIds.length) {
-      throw new Error("Некоторые начисления недоступны для текущей организации")
+      throw new Error(t("actions.finance.chargesNotInOrg"))
     }
     chargeIdsToMark = validIds
     // Переплата сверх выбранных начислений — тоже аванс.
@@ -222,6 +226,7 @@ export async function recordPayment(formData: FormData) {
     }
 
     if (cashAccountId) {
+      // description кассовой проводки — учётная запись, не интерфейс: остаётся русской.
       await recordPaymentCash(tx, {
         paymentId: created.id,
         cashAccountId,
@@ -336,6 +341,7 @@ export async function generateMonthlyCharges(period: string, tenantIds?: string[
     }
 
     if (tenant.needsCleaning && tenant.cleaningFee > 0) {
+      // description начисления попадает в счёт и в акт сверки — оставляем русским.
       try {
         await db.charge.create({
           data: {
@@ -476,6 +482,7 @@ const PENALTY_SOURCE_RE = /начислени[юя]\s+([a-z0-9]+)/i
 export async function waivePenalty(
   chargeId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
     const { orgId } = await requireOrgAccess()
@@ -484,7 +491,7 @@ export async function waivePenalty(
       where: { id: chargeId, ...chargeScope(orgId), type: "PENALTY" },
       select: { id: true, tenantId: true, description: true },
     })
-    if (!penalty) return { ok: false, error: "Пеня не найдена или нет доступа" }
+    if (!penalty) return { ok: false, error: t("actions.finance.penaltyNotFoundOrNoAccess") }
 
     const srcId = penalty.description?.match(PENALTY_SOURCE_RE)?.[1]
     await db.$transaction(async (tx) => {
@@ -501,7 +508,7 @@ export async function waivePenalty(
     if (penalty.tenantId) revalidatePath(`/admin/tenants/${penalty.tenantId}`)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось отменить пеню" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.finance.waiveFailed") }
   }
 }
 
@@ -509,6 +516,7 @@ export async function waivePenalty(
 export async function unwaivePenalty(
   chargeId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
     const { orgId } = await requireOrgAccess()
@@ -517,7 +525,7 @@ export async function unwaivePenalty(
       where: { id: chargeId, deletedAt: { not: null }, type: "PENALTY", tenant: { user: { organizationId: orgId } } },
       select: { id: true, tenantId: true, description: true },
     })
-    if (!penalty) return { ok: false, error: "Пеня не найдена" }
+    if (!penalty) return { ok: false, error: t("actions.finance.penaltyNotFound") }
 
     const srcId = penalty.description?.match(PENALTY_SOURCE_RE)?.[1]
     await db.$transaction(async (tx) => {
@@ -533,7 +541,7 @@ export async function unwaivePenalty(
     if (penalty.tenantId) revalidatePath(`/admin/tenants/${penalty.tenantId}`)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось вернуть пеню" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.finance.unwaiveFailed") }
   }
 }
 
@@ -550,9 +558,10 @@ export async function addCharge(formData: FormData) {
   const period = formData.get("period") as string
   const dueDateStr = formData.get("dueDate") as string
 
+  const { t } = await getT()
   const amount = parseFloat(amountStr)
   if (!Number.isFinite(amount) || amount <= 0) {
-    throw new Error("Сумма начисления должна быть положительным числом")
+    throw new Error(t("actions.finance.chargeAmountPositive"))
   }
 
   await db.charge.create({
@@ -572,11 +581,21 @@ export async function addCharge(formData: FormData) {
   // Арендатор должен узнать о новом начислении сразу (аудит 2026-06-10, п.8).
   const tenantUser = await db.tenant.findUnique({ where: { id: tenantId }, select: { userId: true } })
   if (tenantUser?.userId) {
+    // Уведомление читает арендатор — берём язык получателя, а не автора начисления.
+    const { t: tRecipient } = await getTForUser(tenantUser.userId)
+    const chargeName = CHARGE_TYPES[type] ?? type
+    const money = amount.toLocaleString("ru-RU")
     await notifyUser({
       userId: tenantUser.userId,
       type: "PAYMENT_DUE",
-      title: `Новое начисление за ${period}`,
-      message: `${CHARGE_TYPES[type] ?? type}: ${amount.toLocaleString("ru-RU")} ₸${dueDateStr ? `, оплатить до ${new Date(dueDateStr).toLocaleDateString("ru-RU")}` : ""}.`,
+      title: tRecipient("actions.finance.chargeCreatedTitle", { period }),
+      message: dueDateStr
+        ? tRecipient("actions.finance.chargeCreatedMessageDue", {
+            type: chargeName,
+            amount: money,
+            date: new Date(dueDateStr).toLocaleDateString("ru-RU"),
+          })
+        : tRecipient("actions.finance.chargeCreatedMessage", { type: chargeName, amount: money }),
       link: "/cabinet/finances",
     }).catch(() => {})
   }

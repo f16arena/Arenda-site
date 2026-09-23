@@ -9,6 +9,7 @@ import { assertBuildingAccess } from "@/lib/building-access"
 import { assertRecurringExpenseInOrg } from "@/lib/scope-guards"
 import { EXPENSE_CATEGORIES, RECURRING_WINTER_MONTHS } from "@/lib/utils"
 import { generateRecurringExpensesForOrg, parseMonths } from "@/lib/recurring-expenses"
+import { getT } from "@/lib/i18n/server"
 
 const CURRENT_PERIOD = () => new Date().toISOString().slice(0, 7)
 
@@ -23,18 +24,19 @@ function revalidate() {
 export async function addRecurringExpense(formData: FormData) {
   await requireCapabilityAndFeature("finance.manageExpenses")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   const selectedBuildingId = String(formData.get("buildingId") ?? "").trim()
   const buildingId = (await getCurrentBuildingId()) ?? selectedBuildingId
-  if (!buildingId) return { error: "Здание не выбрано" }
+  if (!buildingId) return { error: t("actions.common.buildingNotSelected") }
   await assertBuildingAccess(buildingId, orgId)
 
   const category = String(formData.get("category") ?? "").trim()
-  if (!EXPENSE_CATEGORIES[category]) return { error: "Неизвестная категория расхода" }
+  if (!EXPENSE_CATEGORIES[category]) return { error: t("actions.recurringExpenses.unknownCategory") }
 
   const amount = parseFloat(String(formData.get("amount") ?? "").replace(",", "."))
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { error: "Сумма расхода должна быть положительным числом" }
+    return { error: t("actions.recurringExpenses.invalidAmount") }
   }
 
   const description = String(formData.get("description") ?? "").trim() || null
@@ -45,7 +47,7 @@ export async function addRecurringExpense(formData: FormData) {
   // schedule: "always" | "winter" — зимний период хранится как CSV месяцев.
   const schedule = String(formData.get("schedule") ?? "always")
   const months = schedule === "winter" ? RECURRING_WINTER_MONTHS : null
-  if (months && !parseMonths(months)) return { error: "Некорректный период" }
+  if (months && !parseMonths(months)) return { error: t("actions.recurringExpenses.invalidPeriod") }
 
   const cashAccountId = String(formData.get("cashAccountId") ?? "").trim() || null
   if (cashAccountId) {
@@ -54,7 +56,7 @@ export async function addRecurringExpense(formData: FormData) {
       select: { organizationId: true },
     })
     if (!acc || acc.organizationId !== orgId) {
-      return { error: "Указан недействительный счёт" }
+      return { error: t("actions.recurringExpenses.invalidCashAccount") }
     }
   }
 

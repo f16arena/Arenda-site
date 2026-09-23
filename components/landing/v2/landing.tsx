@@ -30,11 +30,12 @@ export function LandingV2({
 }) {
   const rootRef = useRef<HTMLElement>(null)
   const bodyBefore = locale === "kk" ? LANDING_BODY_BEFORE_KK : LANDING_BODY_BEFORE
-  // Переключатель языка в шапке: вёрстка лендинга — готовая строка,
-  // поэтому вставляем ссылку рядом с кнопкой «Войти».
+  // Переключатель языка в шапке: вёрстка лендинга — готовая строка, поэтому
+  // ссылку собираем здесь. Глобус — чтобы кнопка читалась как выбор языка, а
+  // не как случайные буквы рядом с «Войти».
   const languageLink = locale === "kk"
-    ? '<a href="/ru" class="btn btn-ghost" hreflang="ru" lang="ru">RU</a>'
-    : '<a href="/" class="btn btn-ghost" hreflang="kk" lang="kk">ҚАЗ</a>' 
+    ? '<a href="/ru" class="btn btn-ghost" hreflang="ru" lang="ru" title="Тілі: Қазақша → Русский" style="display:inline-flex;align-items:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"></path></svg>RU</a>'
+    : '<a href="/" class="btn btn-ghost" hreflang="kk" lang="kk" title="Язык: Русский → Қазақша" style="display:inline-flex;align-items:center"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"></path></svg>ҚАЗ</a>' 
   const bodyAfter = locale === "kk" ? LANDING_BODY_AFTER_KK : LANDING_BODY_AFTER
   const screenshotPlaceholder = locale === "kk"
     ? '<div class="img-ph">Ғимараттың 3D-редакторының скриншоты</div>'

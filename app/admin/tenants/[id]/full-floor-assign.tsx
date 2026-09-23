@@ -15,6 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { useLocale, useT } from "@/lib/i18n/client"
+import { formatNumberL } from "@/lib/i18n/format"
 
 type Floor = {
   id: string
@@ -33,6 +35,8 @@ export function FullFloorAssign({
   floors: Floor[]
   currentFloors: { id: string; name: string; fixedMonthlyRent: number | null }[]
 }) {
+  const { t } = useT()
+  const locale = useLocale()
   const availableFloors = floors.filter((f) => !f.fullFloorTenantId)
   const [open, setOpen] = useState(false)
   const [floorId, setFloorId] = useState(availableFloors[0]?.id ?? "")
@@ -41,9 +45,11 @@ export function FullFloorAssign({
 
   return (
     <CollapsibleCard
-      title="Аренда целого этажа"
+      title={t("adminTenants.fullFloor.title")}
       icon={Layers}
-      meta={currentFloors.length > 0 ? `${currentFloors.length} назначено` : "не назначено"}
+      meta={currentFloors.length > 0
+        ? t("adminTenants.fullFloor.metaAssigned", { count: currentFloors.length })
+        : t("adminTenants.fullFloor.metaEmpty")}
     >
       <div className="p-4">
         {availableFloors.length > 0 && (
@@ -52,12 +58,12 @@ export function FullFloorAssign({
             onClick={() => setOpen(true)}
             className="mb-3 text-xs text-blue-600 dark:text-blue-400 hover:underline"
           >
-            + Назначить
+            {t("adminTenants.fullFloor.assign")}
           </button>
         )}
 
         {currentFloors.length === 0 && (
-          <p className="text-sm text-slate-400 dark:text-slate-500">Не назначено</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t("adminTenants.fullFloor.empty")}</p>
         )}
 
         {currentFloors.map((f) => (
@@ -66,29 +72,31 @@ export function FullFloorAssign({
               <Layers className="h-4 w-4 text-slate-400 dark:text-slate-500" />
               <div>
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{f.name}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{f.fixedMonthlyRent?.toLocaleString("ru-RU")} ₸/мес</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {t("adminTenants.fullFloor.rentPerMonth", { amount: formatNumberL(locale, f.fixedMonthlyRent ?? 0) })}
+                </p>
               </div>
             </div>
             <ConfirmDialog
-              title="Снять с этажа?"
-              description="Этаж освободится. Помещения с индивидуальными арендаторами останутся."
+              title={t("adminTenants.fullFloor.unassignTitle")}
+              description={t("adminTenants.fullFloor.unassignText")}
               variant="danger"
-              confirmLabel="Снять"
+              confirmLabel={t("adminTenants.fullFloor.unassign")}
               onConfirm={() =>
                 new Promise<void>((resolve) => {
                   startTransition(async () => {
                     try {
                       await unassignFullFloor(f.id)
-                      toast.success("Снят с этажа")
+                      toast.success(t("adminTenants.fullFloor.unassigned"))
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Ошибка")
+                      toast.error(e instanceof Error ? e.message : t("adminTenants.fullFloor.error"))
                     } finally {
                       resolve()
                     }
                   })
                 })
               }
-              trigger={<button className="text-xs text-red-500 hover:underline">Снять</button>}
+              trigger={<button className="text-xs text-red-500 hover:underline">{t("adminTenants.fullFloor.unassign")}</button>}
             />
           </div>
         ))}
@@ -104,12 +112,12 @@ export function FullFloorAssign({
       >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Аренда целого этажа</DialogTitle>
+            <DialogTitle>{t("adminTenants.fullFloor.title")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Этаж *</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.fullFloor.floor")}</label>
               <select
                 value={floorId}
                 onChange={(e) => setFloorId(e.target.value)}
@@ -119,13 +127,13 @@ export function FullFloorAssign({
                   <option key={f.id} value={f.id}>
                     {f.name}
                     {f.totalArea ? ` · ${f.totalArea} м²` : ""}
-                    {` · базовая ставка ${f.ratePerSqm.toLocaleString("ru-RU")} ₸/м²`}
+                    {t("adminTenants.fullFloor.floorRate", { rate: formatNumberL(locale, f.ratePerSqm) })}
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Сумма аренды ₸/мес *</label>
+              <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("adminTenants.fullFloor.rent")}</label>
               <Input
                 type="number"
                 step="0.01"
@@ -133,13 +141,13 @@ export function FullFloorAssign({
                 onChange={(e) => setRent(e.target.value)}
                 placeholder="600000"
               />
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Фиксированная сумма независимо от площади</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{t("adminTenants.fullFloor.rentHint")}</p>
             </div>
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending} className="flex-1">
-              Отмена
+              {t("common.actions.cancel")}
             </Button>
             <Button
               type="button"
@@ -148,23 +156,23 @@ export function FullFloorAssign({
               onClick={() => {
                 const parsedRent = Number(rent.replace(",", "."))
                 if (!Number.isFinite(parsedRent) || parsedRent <= 0) {
-                  toast.error("Введите корректную сумму аренды за этаж")
+                  toast.error(t("adminTenants.fullFloor.badRent"))
                   return
                 }
                 startTransition(async () => {
                   try {
                     await assignFullFloor(floorId, tenantId, parsedRent)
-                    toast.success("Этаж назначен")
+                    toast.success(t("adminTenants.fullFloor.assigned"))
                     setOpen(false)
                     setRent("")
                   } catch (e) {
-                    toast.error(e instanceof Error ? e.message : "Ошибка")
+                    toast.error(e instanceof Error ? e.message : t("adminTenants.fullFloor.error"))
                   }
                 })
               }}
               className="flex-1"
             >
-              {pending ? "..." : "Назначить"}
+              {pending ? "..." : t("adminTenants.fullFloor.submit")}
             </Button>
           </DialogFooter>
         </DialogContent>
