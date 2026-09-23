@@ -5,6 +5,7 @@ import { AlertTriangle, Check } from "lucide-react"
 
 import { validateRequisites } from "@/lib/kz-validators"
 import { findBankByBik, findBankByName, findSingleBankSuggestion, isKnownBankName, KZ_BANKS } from "@/lib/kz-banks"
+import { useT } from "@/lib/i18n/client"
 
 type OrganizationBankFieldsProps = {
   bankNameName: string
@@ -27,6 +28,7 @@ export function OrganizationBankFields({
   labelClass,
   inputClass,
 }: OrganizationBankFieldsProps) {
+  const { t } = useT()
   const bikListId = useId()
   const bankNameListId = useId()
   const [bankName, setBankName] = useState(defaultBankName ?? "")
@@ -73,7 +75,7 @@ export function OrganizationBankFields({
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div>
-        <label className={labelClass}>Название банка</label>
+        <label className={labelClass}>{t("common.settings.bank.bankName")}</label>
         <input
           name={bankNameName}
           value={bankName}
@@ -81,7 +83,7 @@ export function OrganizationBankFields({
           onBlur={handleBankNameBlur}
           list={bankNameListId}
           className={inputClass}
-          placeholder="Начните писать банк или выберите из списка"
+          placeholder={t("common.settings.bank.bankPlaceholder")}
         />
         <datalist id={bankNameListId}>
           {KZ_BANKS.map((bank) => (
@@ -90,15 +92,15 @@ export function OrganizationBankFields({
         </datalist>
         {bankNameSuggestion && (
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">
-            Найдено: {bankNameSuggestion.name}
+            {t("common.settings.bank.found", { name: bankNameSuggestion.name })}
           </p>
         )}
       </div>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label className={labelClass}>БИК</label>
-          {bik && <StatusIcon ok={checks.bik?.ok ?? null} />}
+          <label className={labelClass}>{t("common.settings.bank.bik")}</label>
+          {bik && <StatusIcon ok={checks.bik?.ok ?? null} errorLabel={t("common.settings.bank.error")} />}
         </div>
         <input
           name={bikName}
@@ -121,17 +123,17 @@ export function OrganizationBankFields({
         {bankFromBik && (
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">{bankFromBik.name}</p>
         )}
-        {bik && checks.bik?.warning && (
+        {bik && checks.bik?.warningKey && (
           <p className={`mt-1 text-[10px] ${checks.bik.ok ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
-            {checks.bik.warning}
+            {t(`common.requisiteChecks.${checks.bik.warningKey}` as "common.requisiteChecks.bikFormat")}
           </p>
         )}
       </div>
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label className={labelClass}>ИИК / расчётный счёт</label>
-          {iik && <StatusIcon ok={checks.iik?.ok ?? null} />}
+          <label className={labelClass}>{t("common.settings.bank.iik")}</label>
+          {iik && <StatusIcon ok={checks.iik?.ok ?? null} errorLabel={t("common.settings.bank.error")} />}
         </div>
         <input
           name={iikName}
@@ -141,16 +143,18 @@ export function OrganizationBankFields({
           className={`${inputClass} font-mono uppercase`}
           placeholder="KZ86125KZT1001300335"
         />
-        <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">Длина: {iik.length}/20</p>
-        {iik && checks.iik?.warning && (
-          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.iik.warning}</p>
+        <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{t("common.settings.bank.length", { length: iik.length })}</p>
+        {iik && checks.iik?.warningKey && (
+          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">
+            {t(`common.requisiteChecks.${checks.iik.warningKey}` as "common.requisiteChecks.iikFormat")}
+          </p>
         )}
       </div>
     </div>
   )
 }
 
-function StatusIcon({ ok }: { ok: boolean | null }) {
+function StatusIcon({ ok, errorLabel }: { ok: boolean | null; errorLabel: string }) {
   if (ok === null) return null
   return ok ? (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -158,7 +162,7 @@ function StatusIcon({ ok }: { ok: boolean | null }) {
     </span>
   ) : (
     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-red-600 dark:text-red-400">
-      <AlertTriangle className="h-3 w-3" /> Ошибка
+      <AlertTriangle className="h-3 w-3" /> {errorLabel}
     </span>
   )
 }

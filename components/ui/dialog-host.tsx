@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { FIELD_CLS } from "@/lib/ui-fields"
+import { useT } from "@/lib/i18n/client"
 
 type ConfirmOpts = {
   title: string
@@ -59,6 +60,7 @@ export function askText(opts: TextOpts | string): Promise<string | null> {
 }
 
 export function DialogHost() {
+  const { t } = useT()
   const [req, setReq] = useState<Request | null>(null)
   const [value, setValue] = useState("")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -100,7 +102,7 @@ export function DialogHost() {
             >
               {(req.opts.label || req.opts.requireText) && (
                 <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {req.opts.requireText ? `Для подтверждения напишите «${req.opts.requireText}»` : req.opts.label}
+                  {req.opts.requireText ? t("common.dialog.requireTextPrompt", { word: req.opts.requireText }) : req.opts.label}
                 </label>
               )}
               <input
@@ -115,14 +117,14 @@ export function DialogHost() {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => close(false)}>
-              {req.kind === "confirm" ? req.opts.cancelLabel ?? "Отмена" : "Отмена"}
+              {(req.kind === "confirm" ? req.opts.cancelLabel : undefined) ?? t("common.actions.cancel")}
             </Button>
             <Button
               variant={danger ? "destructive" : "default"}
               disabled={!!textBlocked}
               onClick={() => close(true)}
             >
-              {req.opts.confirmLabel ?? (req.kind === "confirm" ? "Подтвердить" : "Готово")}
+              {req.opts.confirmLabel ?? (req.kind === "confirm" ? t("common.actions.confirm") : t("common.actions.done"))}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -4,6 +4,10 @@ import { canEdit, canView, fallbackCanEdit, fallbackCanView, getAllowedSections,
 import { parsePlanFeatures } from "@/lib/plan-capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import { capabilityKeyFromPermission, capabilityPermissionKey, userCapabilityRole } from "@/lib/capability-keys"
+import { planFeatureLabel } from "@/lib/plan-capabilities"
+import { getT } from "@/lib/i18n/server"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
 import { redirect } from "next/navigation"
 
 export {
@@ -33,6 +37,19 @@ export type ActionCapabilityGroup = {
   capabilities: readonly ActionCapability[]
 }
 
+/**
+ * Справочник точных прав.
+ *
+ * Ключ (`key`) — часть контракта: он лежит в таблице role_permissions, в ролях
+ * организаций и в проверках app/actions/**. Переводить и переименовывать его
+ * нельзя.
+ *
+ * Подписи для интерфейса живут в словаре — adminRefs.capabilities.<код>.label
+ * и .description (см. capabilityLabel ниже). Русский текст остаётся здесь по
+ * двум причинам: он идёт в журнал действий как исторический след (details.label
+ * в app/actions/permissions.ts) и работает запасным, если право появится
+ * раньше перевода.
+ */
 export const ACTION_CAPABILITY_GROUPS: readonly ActionCapabilityGroup[] = [
   {
     key: "access",
@@ -145,6 +162,34 @@ export const ACTION_CAPABILITY_GROUPS: readonly ActionCapabilityGroup[] = [
 
 export const ACTION_CAPABILITIES: readonly ActionCapability[] = ACTION_CAPABILITY_GROUPS.flatMap((group) => group.capabilities)
 
+/** Переводчик страницы: const { t } = await getT() или useT(). */
+type RefsTranslator = Translator<Messages>["t"]
+
+/** Строка словаря по собранному ключу; нет перевода — берём запасной текст. */
+function refText(t: RefsTranslator, key: string, fallback: string): string {
+  const value = t(key as Parameters<RefsTranslator>[0])
+  return value === key ? fallback : value
+}
+
+/** Подпись права на языке пользователя. */
+export function capabilityLabel(t: RefsTranslator, capability: { key: string; label: string }): string {
+  return refText(t, `adminRefs.capabilities.${capability.key}.label`, capability.label)
+}
+
+/** Пояснение к праву — строка под подписью в матрице. */
+export function capabilityDescription(t: RefsTranslator, capability: { key: string; description: string }): string {
+  return refText(t, `adminRefs.capabilities.${capability.key}.description`, capability.description)
+}
+
+/** Подпись группы прав («Финансы», «Документы»…). */
+export function capabilityGroupLabel(t: RefsTranslator, group: { key: string; label: string }): string {
+  return refText(t, `adminRefs.capabilityGroups.${group.key}.label`, group.label)
+}
+
+export function capabilityGroupDescription(t: RefsTranslator, group: { key: string; description: string }): string {
+  return refText(t, `adminRefs.capabilityGroups.${group.key}.description`, group.description)
+}
+
 export const ACTION_CAPABILITY_BY_KEY = new Map(ACTION_CAPABILITIES.map((capability) => [capability.key, capability]))
 
 export type ActionCapabilityKey = (typeof ACTION_CAPABILITIES)[number]["key"] | string
@@ -216,8 +261,12 @@ export async function requireCapability(capabilityKey: string) {
     session.user.organizationId ?? null,
   )
   if (!allowed) {
+    // Сообщение читает человек, а не разработчик: называем право на его языке.
+    const { t } = await getT()
     const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
-    throw new Error(`Нет права: ${capability?.label ?? capabilityKey}`)
+    throw new Error(t("adminRefs.errors.noCapability", {
+      capability: capability ? capabilityLabel(t, capability) : capabilityKey,
+    }))
   }
 
   return { id: session.user.id, role: session.user.role, isPlatformOwner: !!session.user.isPlatformOwner }
@@ -319,7 +368,8 @@ export async function requireCapabilityAndFeature(capabilityKey: string) {
   const session = await requireCapability(capabilityKey)
   const { orgId } = await requireOrgAccess()
   if (DEMO_BLOCKED_CAPABILITIES.has(capabilityKey) && (await isDemoOrg(orgId))) {
-    throw new Error("В демо-версии это действие недоступно. Зарегистрируйтесь, чтобы пользоваться полностью.")
+    const { t } = await getT()
+    throw new Error(t("adminRefs.errors.demoBlocked"))
   }
   const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
   if (capability?.requiredFeature) {
@@ -397,7 +447,11 @@ function isCapabilityLocked(capability: ActionCapability, planFeatures?: string 
 
 export async function requireOrgFeature(orgId: string, featureKey: string) {
   const available = await isOrgFeatureAvailable(orgId, featureKey)
-  if (!available) throw new Error(`Функция недоступна в текущем тарифе: ${featureKey}`)
+  if (!available) {
+    // Название возможности, а не её код: код владельцу ничего не говорит.
+    const { t } = await getT()
+    throw new Error(t("adminRefs.errors.featureLocked", { feature: planFeatureLabel(t, featureKey) }))
+  }
 }
 
 export async function isOrgFeatureAvailable(orgId: string, featureKey: string) {

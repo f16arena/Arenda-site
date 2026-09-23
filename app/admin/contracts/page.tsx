@@ -14,7 +14,7 @@ import { formatTenantPlacement } from "@/lib/tenant-placement"
 import { contractTypeShort } from "@/lib/contract-placement-types"
 import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { DOCUMENTS_TABS } from "@/lib/hub-tabs"
+import { documentsTabs } from "@/lib/hub-tabs"
 import { getLocale, getT } from "@/lib/i18n/server"
 import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import type { Locale } from "@/lib/i18n/config"
@@ -76,7 +76,7 @@ export default async function ContractsPage() {
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
+      <RouteTabs items={documentsTabs(t)} className="mb-2" />
       <PageHeader
         icon={FileText}
         title={t("adminDocs.contracts.title")}

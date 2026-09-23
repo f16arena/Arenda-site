@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic"
 
 import { Suspense } from "react"
 import { db } from "@/lib/db"
-import { formatMoney } from "@/lib/utils"
+import { formatMoneyL } from "@/lib/i18n/format"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import {
   Building2, AlertTriangle,
@@ -19,6 +20,7 @@ import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import { getOnboardingState } from "@/lib/onboarding"
+import { getT } from "@/lib/i18n/server"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { safeServerValue } from "@/lib/server-fallback"
 import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
@@ -98,14 +100,22 @@ async function DashboardBody() {
   const accessibleBuildingIds = await getAccessibleBuildingIdsForSession(orgId)
   const visibleBuildingIds = buildingId ? [buildingId] : accessibleBuildingIds
 
+  // Переводчик нужен и в раннем выходе «нет зданий», поэтому объявлен выше.
+  const { t, tp, locale } = await getT()
+  const money = (value: number) => formatMoneyL(locale, value)
+
   if (visibleBuildingIds.length === 0) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center">
         <Building2 className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-        <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">Нет доступных зданий</p>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Создайте здание или назначьте пользователя на нужные здания</p>
+        <p className="text-slate-700 dark:text-slate-300 font-semibold mb-1">
+          {t("adminShell.dashboard.noBuildingsTitle")}
+        </p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          {t("adminShell.dashboard.noBuildingsHint")}
+        </p>
         <Link href="/admin/buildings" className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">
-          К списку зданий
+          {t("adminShell.dashboard.toBuildings")}
         </Link>
       </div>
     )
@@ -192,36 +202,80 @@ async function DashboardBody() {
   const occupancyPct = spacesGroup?.pct ?? 0
   const totalDebt = chargesAgg._sum.amount ?? 0
   const debtCount = chargesAgg._count._all
-  const monthlyRevenue = activeTenants.reduce((sum, t) => {
-    return sum + calculateTenantMonthlyRent(t)
+  const monthlyRevenue = activeTenants.reduce((sum, tenant) => {
+    return sum + calculateTenantMonthlyRent(tenant)
   }, 0)
 
   const now = new Date()
-  const todayLabel = new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Almaty" }).format(now)
+  // Дата — на языке пользователя: «вторник, 23 сентября» ↔ «сейсенбі, 23 қыркүйек».
+  const todayLabel = new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "Asia/Almaty",
+  }).format(now)
   const need2fa = !!currentUser2fa && currentUser2fa.role === "OWNER" && !currentUser2fa.totpEnabledAt
   const needSetup = !onboarding.allDone && !!onboarding.nextStep
+  // Название шага настройки живёт в словаре проверок: модуль отдаёт код шага.
+  const nextStepTitle = onboarding.nextStep
+    ? t(`adminChecks.onboardingSteps.steps.${onboarding.nextStep.key}.title`).toLowerCase()
+    : ""
 
   return (
     <div className="space-y-5">
       <PageHeader
         icon={LayoutDashboard}
-        title="Обзор"
-        subtitle={<span className="capitalize">{todayLabel} · {buildingId ? "выбранное здание" : `все здания (${visibleBuildingIds.length})`}</span>}
+        title={t("adminShell.dashboard.title")}
+        subtitle={<span className="capitalize">{todayLabel} · {buildingId
+            ? t("adminShell.dashboard.scopeOne")
+            : t("adminShell.dashboard.scopeAll", { count: visibleBuildingIds.length })}</span>}
       />
 
       {/* Главные цифры: сколько денег и насколько занято здание */}
       <StatGrid>
-        <StatCard icon={Wallet} tone="blue" label="Доход в месяц" value={formatMoney(monthlyRevenue)} sub="по действующим условиям аренды" href="/admin/analytics" />
+        <StatCard
+          icon={Wallet}
+          tone="blue"
+          label={t("adminShell.dashboard.revenue")}
+          value={money(monthlyRevenue)}
+          sub={t("adminShell.dashboard.revenueSub")}
+          href="/admin/analytics"
+        />
         <StatCard
           icon={AlertTriangle}
           tone={totalDebt > 0 ? "red" : "emerald"}
-          label="Долг арендаторов"
-          value={formatMoney(totalDebt)}
-          sub={debtCount > 0 ? `${debtCount} неоплаченных начислений` : "долгов нет"}
+          label={t("adminShell.dashboard.debt")}
+          value={money(totalDebt)}
+          sub={
+            debtCount > 0
+              ? tp("adminShell.dashboard.debtSub", debtCount)
+              : t("adminShell.dashboard.debtNone")
+          }
           href="/admin/finances?chargeStatus=unpaid"
         />
-        <StatCard icon={Building2} tone="teal" label="Сдано площади" value={`${occupancyPct}%`} sub={`${occupiedSpaces} занято · ${vacantSpaces} свободно`} href="/admin/spaces" />
-        <StatCard icon={Users} tone="violet" label="Арендаторы" value={String(activeTenants.length)} sub={buildingId ? "в выбранном здании" : "во всех зданиях"} href="/admin/tenants" />
+        <StatCard
+          icon={Building2}
+          tone="teal"
+          label={t("adminShell.dashboard.occupancy")}
+          value={`${occupancyPct}%`}
+          sub={t("adminShell.dashboard.occupancySub", {
+            occupied: occupiedSpaces,
+            vacant: vacantSpaces,
+          })}
+          href="/admin/spaces"
+        />
+        <StatCard
+          icon={Users}
+          tone="violet"
+          label={t("adminShell.dashboard.tenants")}
+          value={String(activeTenants.length)}
+          sub={
+            buildingId
+              ? t("adminShell.dashboard.tenantsInBuilding")
+              : t("adminShell.dashboard.tenantsAll")
+          }
+          href="/admin/tenants"
+        />
       </StatGrid>
 
       {/* Незавершённая настройка — одной тонкой строкой, а не двумя плашками */}
@@ -229,16 +283,21 @@ async function DashboardBody() {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
           <span className="flex items-center gap-2 font-semibold">
             <ClipboardCheck className="h-4 w-4 text-blue-600 dark:text-blue-300" />
-            Настройка не закончена
+            {t("adminShell.dashboard.setupTitle")}
           </span>
           {needSetup && onboarding.nextStep && (
             <Link href="/admin/onboarding" className="inline-flex items-center gap-1 hover:underline">
-              готово {onboarding.percent}%, дальше: {onboarding.nextStep.title.toLowerCase()} <ArrowUpRight className="h-3.5 w-3.5" />
+              {t("adminShell.dashboard.setupProgress", {
+                percent: onboarding.percent,
+                step: nextStepTitle,
+              })}{}
+              <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           )}
           {need2fa && (
             <Link href="/admin/profile?tab=notifications" className="inline-flex items-center gap-1 hover:underline">
-              <ShieldAlert className="h-3.5 w-3.5" /> включите вход по коду (2FA) <ArrowUpRight className="h-3.5 w-3.5" />
+              <ShieldAlert className="h-3.5 w-3.5" /> {t("adminShell.dashboard.enable2fa")}{" "}
+              <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           )}
         </div>
@@ -264,6 +323,8 @@ async function DashboardOperational({
 }) {
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/admin", orgId })
+  const { t, locale } = await getT()
+  const money = (value: number) => formatMoneyL(locale, value)
   const { floorIds, tenantWhereInBuilding } = await loadFloorScope(orgId, visibleBuildingIds)
 
   const now = new Date()
@@ -451,35 +512,50 @@ async function DashboardOperational({
   ])
   const cycleSteps = [
     {
-      label: "Начисления",
-      hint: "Сколько каждый арендатор должен за месяц: аренда, эксплуатационные, свет.",
-      cta: "Создать начисления",
+      label: t("adminShell.dashboard.cycle.charges.label"),
+      hint: t("adminShell.dashboard.cycle.charges.hint"),
+      cta: t("adminShell.dashboard.cycle.charges.cta"),
       done: cycleCharges > 0,
-      value: cycleCharges > 0 ? `${cycleCharges} шт` : "не созданы",
+      value:
+        cycleCharges > 0
+          ? t("adminShell.dashboard.cycle.charges.value", { count: cycleCharges })
+          : t("adminShell.dashboard.cycle.charges.none"),
       href: "/admin/finances",
     },
     {
-      label: "Счета",
-      hint: "Счёт на оплату каждому арендатору по его начислениям.",
-      cta: "Выставить счета",
+      label: t("adminShell.dashboard.cycle.invoices.label"),
+      hint: t("adminShell.dashboard.cycle.invoices.hint"),
+      cta: t("adminShell.dashboard.cycle.invoices.cta"),
       done: cycleActiveTenants > 0 && cycleInvoices >= cycleActiveTenants,
-      value: `${cycleInvoices} из ${cycleActiveTenants}`,
+      value: t("adminShell.dashboard.cycle.progress", {
+        done: cycleInvoices,
+        total: cycleActiveTenants,
+      }),
       href: "/admin/documents?create=invoice",
     },
     {
-      label: "АВР",
-      hint: "Акт выполненных работ — закрывает месяц в бухгалтерии.",
-      cta: "Сформировать АВР",
+      label: t("adminShell.dashboard.cycle.acts.label"),
+      hint: t("adminShell.dashboard.cycle.acts.hint"),
+      cta: t("adminShell.dashboard.cycle.acts.cta"),
       done: cycleActiveTenants > 0 && cycleActs >= cycleActiveTenants,
-      value: `${cycleActs} из ${cycleActiveTenants}`,
+      value: t("adminShell.dashboard.cycle.progress", {
+        done: cycleActs,
+        total: cycleActiveTenants,
+      }),
       href: "/admin/documents?create=avr",
     },
     {
-      label: "Оплаты",
-      hint: "Отметьте поступившие деньги — долг пересчитается сам.",
-      cta: "Отметить оплаты",
+      label: t("adminShell.dashboard.cycle.payments.label"),
+      hint: t("adminShell.dashboard.cycle.payments.hint"),
+      cta: t("adminShell.dashboard.cycle.payments.cta"),
       done: cycleCharges > 0 && cyclePaidCharges >= cycleCharges,
-      value: cycleCharges > 0 ? `${cyclePaidCharges} из ${cycleCharges}` : "—",
+      value:
+        cycleCharges > 0
+          ? t("adminShell.dashboard.cycle.progress", {
+              done: cyclePaidCharges,
+              total: cycleCharges,
+            })
+          : "—",
       href: "/admin/finances?chargeStatus=unpaid",
     },
   ]
@@ -488,8 +564,11 @@ async function DashboardOperational({
   const actionsRaw: ActionItem[] = [
     {
       href: "/admin/finances?filter=overdue",
-      title: "Собрать просроченные платежи",
-      sub: (overdueCharges._sum.amount ?? 0) > 0 ? formatMoney(overdueCharges._sum.amount ?? 0) : "просрочек нет",
+      title: t("adminShell.dashboard.actions.overdue.title"),
+      sub:
+        (overdueCharges._sum.amount ?? 0) > 0
+          ? money(overdueCharges._sum.amount ?? 0)
+          : t("adminShell.dashboard.actions.overdue.none"),
       value: `${overdueCharges._count._all ?? 0}`,
       icon: AlertTriangle,
       tone: "red",
@@ -498,8 +577,13 @@ async function DashboardOperational({
     },
     {
       href: "/admin/finances",
-      title: "Проверить заявленные оплаты",
-      sub: (pendingPaymentReports._sum.amount ?? 0) > 0 ? `чеки на ${formatMoney(pendingPaymentReports._sum.amount ?? 0)}` : "новых чеков нет",
+      title: t("adminShell.dashboard.actions.reports.title"),
+      sub:
+        (pendingPaymentReports._sum.amount ?? 0) > 0
+          ? t("adminShell.dashboard.actions.reports.sub", {
+              amount: money(pendingPaymentReports._sum.amount ?? 0),
+            })
+          : t("adminShell.dashboard.actions.reports.none"),
       value: `${pendingPaymentReports._count._all ?? 0}`,
       icon: Wallet,
       tone: "emerald",
@@ -508,8 +592,8 @@ async function DashboardOperational({
     },
     {
       href: "/admin/documents",
-      title: "Довести подписи документов",
-      sub: "договоры и ДС ждут сторону",
+      title: t("adminShell.dashboard.actions.signatures.title"),
+      sub: t("adminShell.dashboard.actions.signatures.sub"),
       value: `${documentsOnSignature}`,
       icon: FileSignature,
       tone: "violet",
@@ -518,8 +602,11 @@ async function DashboardOperational({
     },
     {
       href: "/admin/finances/deposits",
-      title: "Получить депозиты",
-      sub: (unpaidDeposits._sum.amount ?? 0) > 0 ? formatMoney(unpaidDeposits._sum.amount ?? 0) : "все депозиты внесены",
+      title: t("adminShell.dashboard.actions.deposits.title"),
+      sub:
+        (unpaidDeposits._sum.amount ?? 0) > 0
+          ? money(unpaidDeposits._sum.amount ?? 0)
+          : t("adminShell.dashboard.actions.deposits.none"),
       value: `${unpaidDeposits._count._all ?? 0}`,
       icon: PiggyBank,
       tone: "amber",
@@ -528,8 +615,8 @@ async function DashboardOperational({
     },
     {
       href: "/admin/tenants?filter=expiring",
-      title: "Продлить истекающие договоры",
-      sub: "заканчиваются в ближайшие 30 дней",
+      title: t("adminShell.dashboard.actions.expiring.title"),
+      sub: t("adminShell.dashboard.actions.expiring.sub"),
       value: `${expiringContracts}`,
       icon: CalendarClock,
       tone: "blue",
@@ -538,8 +625,8 @@ async function DashboardOperational({
     },
     {
       href: "/admin/requests",
-      title: "Ответить на заявки",
-      sub: "арендаторы ждут реакции",
+      title: t("adminShell.dashboard.actions.requests.title"),
+      sub: t("adminShell.dashboard.actions.requests.sub"),
       value: `${openRequestsCount}`,
       icon: ClipboardList,
       tone: "blue",
@@ -548,8 +635,8 @@ async function DashboardOperational({
     },
     {
       href: "/admin/tasks",
-      title: "Закрыть задачи",
-      sub: "операционные задачи в работе",
+      title: t("adminShell.dashboard.actions.tasks.title"),
+      sub: t("adminShell.dashboard.actions.tasks.sub"),
       value: `${openTasksCount}`,
       icon: CheckSquare,
       tone: "blue",
@@ -558,8 +645,8 @@ async function DashboardOperational({
     },
     {
       href: "/admin/data-quality",
-      title: "Исправить ошибки в данных",
-      sub: "аренда, контакты, договоры",
+      title: t("adminShell.dashboard.actions.dataQuality.title"),
+      sub: t("adminShell.dashboard.actions.dataQuality.sub"),
       value: `${dataQualityIssues}`,
       icon: ShieldCheck,
       tone: "amber",
@@ -568,13 +655,21 @@ async function DashboardOperational({
     },
   ]
   const activeActions = [...actionsRaw].filter((a) => a.active).sort((a, b) => a.rank - b.rank)
-  const monthLabel = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(now)
+  const monthLabel = new Intl.DateTimeFormat(INTL_LOCALE[locale], {
+    month: "long",
+    year: "numeric",
+  }).format(now)
 
   return (
     <>
       {/* ── Этот месяц: четыре шага, которые закрывают любой месяц аренды ── */}
       <Card
-        title={<span>Этот месяц · <span className="capitalize">{monthLabel}</span></span>}
+        title={
+          <span>
+            {t("adminShell.dashboard.monthTitle")} ·{" "}
+            <span className="capitalize">{monthLabel}</span>
+          </span>
+        }
         icon={CalendarClock}
         padded={false}
         actions={
@@ -583,7 +678,7 @@ async function DashboardOperational({
             download
             className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
           >
-            <Download className="h-3.5 w-3.5" /> Документы месяца (ZIP)
+            <Download className="h-3.5 w-3.5" /> {t("adminShell.dashboard.monthZip")}
           </a>
         }
       >
@@ -606,7 +701,7 @@ async function DashboardOperational({
                     : "bg-blue-600 text-white hover:bg-blue-700"
                 }`}
               >
-                {step.done ? "Открыть" : step.cta}
+                {step.done ? t("adminShell.dashboard.open") : step.cta}
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </li>
@@ -615,13 +710,17 @@ async function DashboardOperational({
       </Card>
 
       {/* ── Требует внимания: только то, что реально ждёт действия ── */}
-      <Card title="Требует внимания" icon={AlertTriangle} padded={false}>
+      <Card title={t("adminShell.dashboard.attention")} icon={AlertTriangle} padded={false}>
         {activeActions.length === 0 ? (
           <div className="flex items-center gap-3 px-5 py-6">
             <CircleCheck className="h-6 w-6 shrink-0 text-emerald-500" />
             <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Всё в порядке</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Нет просрочек, неподписанных документов, заявок и ошибок в данных.</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                {t("adminShell.dashboard.allGood")}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("adminShell.dashboard.allGoodHint")}
+              </p>
             </div>
           </div>
         ) : (

@@ -5,6 +5,7 @@ import { requirePlatformOwner } from "@/lib/org"
 import { notifyUser } from "@/lib/notify"
 import { ADDON_CATALOG } from "@/lib/addons-catalog"
 import { revalidatePath } from "next/cache"
+import { getT, getTForUser } from "@/lib/i18n/server"
 
 /**
  * Активировать аддон (после ручной оплаты).
@@ -14,16 +15,17 @@ export async function activateAddon(input: {
   addonId: string
   expiresAt?: string | null
 }): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const addon = await db.organizationAddon.findUnique({
     where: { id: input.addonId },
     include: { organization: { select: { id: true, name: true, ownerUserId: true } } },
   })
-  if (!addon) return { ok: false, error: "Аддон не найден" }
+  if (!addon) return { ok: false, error: t("actions.addons.notFound") }
 
   const expiresAt = input.expiresAt ? new Date(input.expiresAt) : null
-  if (expiresAt && Number.isNaN(expiresAt.getTime())) return { ok: false, error: "Некорректная дата" }
+  if (expiresAt && Number.isNaN(expiresAt.getTime())) return { ok: false, error: t("actions.common.badDate") }
 
   await db.organizationAddon.update({
     where: { id: input.addonId },
@@ -37,11 +39,17 @@ export async function activateAddon(input: {
 
   if (addon.organization.ownerUserId) {
     const item = ADDON_CATALOG.find((a) => a.code === addon.addonCode)
+    // Уведомление читает владелец организации — берём язык получателя.
+    const { t: tOwner } = await getTForUser(addon.organization.ownerUserId)
     await notifyUser({
       userId: addon.organization.ownerUserId,
       type: "ADDON_ACTIVATED",
-      title: `Аддон активирован: ${item?.label ?? addon.addonCode}`,
-      message: `Ваш аддон «${item?.label ?? addon.addonCode}» (${addon.priceMonthly} ₸/мес × ${addon.quantity}) активирован.`,
+      title: tOwner("actions.addons.activatedTitle", { addon: item?.label ?? addon.addonCode }),
+      message: tOwner("actions.addons.activatedMessage", {
+        addon: item?.label ?? addon.addonCode,
+        price: addon.priceMonthly,
+        count: addon.quantity,
+      }),
       link: "/admin/subscription",
       sendEmail: false,
     }).catch(() => null)
@@ -59,13 +67,14 @@ export async function deactivateAddon(input: {
   reject?: boolean
   reason?: string
 }): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const addon = await db.organizationAddon.findUnique({
     where: { id: input.addonId },
     include: { organization: { select: { id: true, name: true, ownerUserId: true } } },
   })
-  if (!addon) return { ok: false, error: "Аддон не найден" }
+  if (!addon) return { ok: false, error: t("actions.addons.notFound") }
 
   if (input.reject && !addon.isActive) {
     // Заявка не подтверждена — удаляем.
@@ -85,13 +94,17 @@ export async function deactivateAddon(input: {
 
   if (addon.organization.ownerUserId) {
     const item = ADDON_CATALOG.find((a) => a.code === addon.addonCode)
+    // Уведомление читает владелец организации — берём язык получателя.
+    const { t: tOwner } = await getTForUser(addon.organization.ownerUserId)
     await notifyUser({
       userId: addon.organization.ownerUserId,
       type: input.reject ? "ADDON_REJECTED" : "ADDON_DEACTIVATED",
       title: input.reject
-        ? `Заявка отклонена: ${item?.label ?? addon.addonCode}`
-        : `Аддон деактивирован: ${item?.label ?? addon.addonCode}`,
-      message: input.reason ?? (input.reject ? "Заявка не была подтверждена." : "Аддон отключён."),
+        ? tOwner("actions.addons.rejectedTitle", { addon: item?.label ?? addon.addonCode })
+        : tOwner("actions.addons.deactivatedTitle", { addon: item?.label ?? addon.addonCode }),
+      message: input.reason ?? (input.reject
+        ? tOwner("actions.addons.rejectedMessage")
+        : tOwner("actions.addons.deactivatedMessage")),
       link: "/admin/subscription",
       sendEmail: false,
     }).catch(() => null)

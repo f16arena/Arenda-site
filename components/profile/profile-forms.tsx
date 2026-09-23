@@ -10,6 +10,7 @@ import {
   requestEmailVerification,
 } from "@/app/actions/my-account"
 import { AsciiEmailInput } from "@/components/forms/contact-inputs"
+import { useT } from "@/lib/i18n/client"
 import { Button } from "@/components/ui/button"
 
 interface Props {
@@ -32,6 +33,7 @@ export function ProfileForms({ currentName, currentEmail, emailVerified }: Props
 export { NameBlock, EmailBlock, PasswordBlock }
 
 function NameBlock({ currentName }: { currentName: string }) {
+  const { t } = useT()
   const [name, setName] = useState(currentName)
   const [pending, startTransition] = useTransition()
 
@@ -45,7 +47,7 @@ function NameBlock({ currentName }: { currentName: string }) {
         action={(fd) =>
           startTransition(async () => {
             const r = await changeMyName(fd)
-            if (r.ok) toast.success(r.message ?? "Сохранено")
+            if (r.ok) toast.success(r.message ?? t("common.state.saved"))
             else toast.error(r.error)
           })
         }
@@ -64,7 +66,7 @@ function NameBlock({ currentName }: { currentName: string }) {
           loading={pending}
           disabled={name.trim() === currentName}
         >
-          {pending ? "..." : "Сохранить"}
+          {pending ? "..." : t("common.actions.save")}
         </Button>
       </form>
     </div>
@@ -72,6 +74,7 @@ function NameBlock({ currentName }: { currentName: string }) {
 }
 
 function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | null; emailVerified: boolean }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [previewLink, setPreviewLink] = useState<string | null>(null)
   const [previewMsg, setPreviewMsg] = useState<string | null>(null)
@@ -109,7 +112,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                   startTransition(async () => {
                     const r = await requestEmailVerification()
                     if (r.ok) {
-                      toast.success(r.message ?? "Письмо отправлено")
+                      toast.success(r.message ?? t("common.profile.letterSent"))
                       if (r.previewLink) {
                         setPreviewLink(r.previewLink)
                         setPreviewMsg(r.message ?? null)
@@ -137,7 +140,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
               setPreviewMsg(null)
               const r = await requestEmailChange(fd)
               if (r.ok) {
-                toast.success(r.message ?? "Письмо отправлено")
+                toast.success(r.message ?? t("common.profile.letterSent"))
                 if (r.previewLink) {
                   setPreviewLink(r.previewLink)
                   setPreviewMsg(r.message ?? null)
@@ -161,7 +164,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
               loading={pending}
               className="font-medium"
             >
-              {pending ? "..." : "Отправить ссылку"}
+              {pending ? "..." : t("common.profile.sendLink")}
             </Button>
           </div>
           <p className="text-xs text-slate-400 dark:text-slate-500">
@@ -180,7 +183,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(previewLink)
-                  toast.success("Ссылка скопирована")
+                  toast.success(t("common.profile.linkCopied"))
                 }}
                 className="rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 py-1 text-xs text-slate-700 dark:text-slate-300"
               >
@@ -195,6 +198,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
 }
 
 function PasswordBlock() {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [show, setShow] = useState(false)
 
@@ -210,7 +214,7 @@ function PasswordBlock() {
           startTransition(async () => {
             const r = await changeMyPassword(fd)
             if (r.ok) {
-              toast.success(r.message ?? "Пароль изменён")
+              toast.success(r.message ?? t("common.profile.passwordChanged"))
               ;(document.getElementById("change-password-form") as HTMLFormElement | null)?.reset()
             } else {
               toast.error(r.error)
@@ -260,7 +264,7 @@ function PasswordBlock() {
             loading={pending}
             className="font-medium"
           >
-            {pending ? "..." : "Сменить пароль"}
+            {pending ? "..." : t("common.profile.changePassword")}
           </Button>
         </div>
       </form>

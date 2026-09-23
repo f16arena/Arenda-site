@@ -10,10 +10,14 @@ import { stairHoleWorld } from "./stair-hole"
 
 export type RoomUse = "rent" | "common" | "tech"
 
-export const ROOM_USE_LABEL: Record<RoomUse, string> = { rent: "Аренда", common: "МОП", tech: "Техническое" }
+/** Ключи авто-наименований в словаре (adminBuilder.roomNames). */
+export type RoomNameKey = "stairwell" | "elevatorHall" | "techShort" | "common"
 
-const COMMON_NAME = /коридор|холл|тамбур|лестн|вестибюл|лифт|фойе|лобби|санузел|с\/у|туалет|уборн|wc|переход|галере|крыльц|входн/i
-const TECH_NAME = /щитов|электрощит|венткамер|технич|насосн|тепловой|итп|серверн|кладов|уборочн|мусор|машинн|котельн|водомер/i
+// Наименование помещения пишет человек, и по нему же определяется назначение.
+// Поэтому в шаблоны добавлены казахские слова: иначе «Дәліз» не попал бы в МОП
+// и коридор оказался бы арендной площадью.
+const COMMON_NAME = /коридор|холл|тамбур|лестн|вестибюл|лифт|фойе|лобби|санузел|с\/у|туалет|уборн|wc|переход|галере|крыльц|входн|дәліз|баспалдақ|дәретхана|вестибюль|кіреберіс|өтпе/i
+const TECH_NAME = /щитов|электрощит|венткамер|технич|насосн|тепловой|итп|серверн|кладов|уборочн|мусор|машинн|котельн|водомер|қалқан|желдету камера|техникалық|сорғы|жылу торабы|сервер|қойма|қоқыс|қазандық|су өлшеу/i
 
 type RoomLike = { id: string; polygon: Vec2[] }
 type FloorLike = Pick<Floor, "stairs" | "height"> & Partial<Pick<Floor, "roomUse" | "roomNames">>
@@ -28,11 +32,15 @@ function stairInside(floor: FloorLike, room: RoomLike): "stair" | "elevator" | n
   return null
 }
 
-/** Автоматическое назначение и наименование по умолчанию. */
-export function autoRoomUse(floor: FloorLike, room: RoomLike): { use: RoomUse; name: string | null } {
+/**
+ * Автоматическое назначение и наименование по умолчанию. `name` — ключ
+ * словаря, а не готовая строка: наименование попадает и в интерфейс, и в
+ * экспликацию, где язык выбирает тот, кто печатает лист.
+ */
+export function autoRoomUse(floor: FloorLike, room: RoomLike): { use: RoomUse; name: RoomNameKey | null } {
   const inside = stairInside(floor, room)
-  if (inside === "stair") return { use: "common", name: "Лестничная клетка" }
-  if (inside === "elevator") return { use: "common", name: "Лифтовой холл" }
+  if (inside === "stair") return { use: "common", name: "stairwell" }
+  if (inside === "elevator") return { use: "common", name: "elevatorHall" }
   const name = floor.roomNames?.[room.id] ?? ""
   if (TECH_NAME.test(name)) return { use: "tech", name: null }
   if (COMMON_NAME.test(name)) return { use: "common", name: null }
@@ -43,7 +51,29 @@ export function roomUse(floor: FloorLike, room: RoomLike): RoomUse {
   return floor.roomUse?.[room.id] ?? autoRoomUse(floor, room).use
 }
 
-/** Наименование для подписи: заданное вручную, иначе авто («Лестничная клетка»), иначе пусто. */
-export function roomDisplayName(floor: FloorLike, room: RoomLike): string {
-  return floor.roomNames?.[room.id] || autoRoomUse(floor, room).name || (roomUse(floor, room) === "common" ? "МОП" : roomUse(floor, room) === "tech" ? "Техническое" : "")
+/**
+ * Наименование для подписи: заданное вручную — как есть, иначе ключ авто-имени
+ * («Лестничная клетка», «МОП», «Техническое»), иначе пусто. Ключ отличается от
+ * ручного имени тем, что его надо перевести — для этого есть roomName().
+ */
+export function roomNameOrKey(floor: FloorLike, room: RoomLike): { own: string } | { key: RoomNameKey } | null {
+  const own = floor.roomNames?.[room.id]
+  if (own) return { own }
+  const auto = autoRoomUse(floor, room).name
+  if (auto) return { key: auto }
+  const use = roomUse(floor, room)
+  if (use === "common") return { key: "common" }
+  if (use === "tech") return { key: "techShort" }
+  return null
+}
+
+/**
+ * Готовая подпись помещения. `names` переводит ключ авто-имени; без него
+ * возвращается сам ключ — так его видят только тесты и отладка.
+ */
+export function roomDisplayName(floor: FloorLike, room: RoomLike, names?: (key: RoomNameKey) => string): string {
+  const value = roomNameOrKey(floor, room)
+  if (!value) return ""
+  if ("own" in value) return value.own
+  return names ? names(value.key) : value.key
 }

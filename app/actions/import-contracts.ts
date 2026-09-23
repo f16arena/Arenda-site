@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 import { parseExcel, autoMapColumns, getField, parseFlexibleDate, extractBinIin } from "@/lib/excel-import"
 
 // Реестр договоров: номер + идентификатор арендатора (БИН/ИИН или название) + даты + статус.
@@ -50,12 +51,13 @@ export interface ContractPreviewResult {
 }
 
 export async function previewContractImport(formData: FormData): Promise<ContractPreviewResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
 
   const file = formData.get("file")
-  if (!file || !(file instanceof File)) throw new Error("Файл не передан")
-  if (file.size > 10 * 1024 * 1024) throw new Error("Размер файла превышает 10 МБ")
+  if (!file || !(file instanceof File)) throw new Error(t("actions.imports.fileMissing"))
+  if (file.size > 10 * 1024 * 1024) throw new Error(t("actions.imports.fileTooBig"))
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const sheet = await parseExcel(buffer)
@@ -87,14 +89,14 @@ export async function previewContractImport(formData: FormData): Promise<Contrac
     const rowIndex = i + 2
     const number = getField(row, mapping, "number").trim()
     if (!number) {
-      invalidRows.push({ rowIndex, error: "Пустой номер договора" })
+      invalidRows.push({ rowIndex, error: t("actions.imports.emptyContractNumber") })
       continue
     }
     const bin = extractBinIin(getField(row, mapping, "bin"))
     const tenantName = getField(row, mapping, "tenant").trim()
     const match = (bin && byTax.get(bin)) || (tenantName && byName.get(tenantName.toLowerCase())) || null
     if (!match) {
-      invalidRows.push({ rowIndex, error: `Арендатор не найден (${tenantName || bin || "нет идентификатора"})` })
+      invalidRows.push({ rowIndex, error: t("actions.imports.tenantNotFound", { hint: tenantName || bin || t("actions.imports.noIdentifier") }) })
       continue
     }
     const startDate = parseFlexibleDate(getField(row, mapping, "startDate"))
@@ -103,7 +105,7 @@ export async function previewContractImport(formData: FormData): Promise<Contrac
     const rawType = getField(row, mapping, "type").trim()
     const type = /внешн|external|pdf/i.test(rawType) ? "EXTERNAL" : "STANDARD"
     const warnings: string[] = []
-    if (endDate && startDate && endDate < startDate) warnings.push("Дата окончания раньше начала")
+    if (endDate && startDate && endDate < startDate) warnings.push(t("actions.common.endBeforeStart"))
 
     validRows.push({
       rowIndex,
@@ -122,6 +124,7 @@ export interface ContractImportResult {
 }
 
 export async function applyContractImport(rows: ParsedContractRow[]): Promise<ContractImportResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
 
@@ -133,7 +136,7 @@ export async function applyContractImport(rows: ParsedContractRow[]): Promise<Co
       // Защита: арендатор действительно в этой организации.
       const tenant = await db.tenant.findFirst({ where: { id: d.tenantId, user: { organizationId: orgId } }, select: { id: true } })
       if (!tenant) {
-        result.errors.push({ rowIndex: row.rowIndex, error: "Арендатор вне организации" })
+        result.errors.push({ rowIndex: row.rowIndex, error: t("actions.imports.tenantOutsideOrg") })
         continue
       }
       // Дедуп: договор с таким номером у этого арендатора уже есть.
@@ -147,7 +150,8 @@ export async function applyContractImport(rows: ParsedContractRow[]): Promise<Co
           tenantId: d.tenantId,
           number: d.number,
           type: d.type,
-          content: `Договор аренды № ${d.number}`,
+          // content — текст документа, остаётся русским (docs/i18n-documents-plan.md).
+        content: `Договор аренды № ${d.number}`,
           status: d.status,
           startDate: d.startDate,
           endDate: d.endDate,

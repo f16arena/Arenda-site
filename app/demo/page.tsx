@@ -3,40 +3,43 @@ export const dynamic = "force-dynamic"
 import { Building2, Check, RotateCcw, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { enterDemo } from "@/app/actions/demo"
+import { getT } from "@/lib/i18n/server"
 
-export const metadata = {
-  title: "Демо · Commrent",
-  description: "Попробуйте Commrent без регистрации: демо бизнес-центра с арендаторами, договорами и финансами.",
+export async function generateMetadata() {
+  const { t } = await getT()
+  return {
+    title: t("landing.demo.metaTitle"),
+    description: t("landing.demo.metaDescription"),
+  }
 }
 
 /**
  * Публичная демо-страница (как portal-demo.pro.rent): один клик — и посетитель
  * внутри готового демо-БЦ владельцем. Данные сбрасываются каждую ночь.
  */
-export default function DemoPage() {
+export default async function DemoPage() {
+  const { t } = await getT()
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
       <div className="w-full max-w-xl">
         <div className="rounded-3xl border border-slate-800 bg-slate-900 p-8 sm:p-10">
           <Badge className="mb-6 h-auto gap-2 border-purple-500/30 bg-purple-500/10 px-3 py-1 font-semibold text-purple-300">
             <Sparkles className="h-3.5 w-3.5" />
-            ДЕМО-РЕЖИМ
+            {t("landing.demo.badge")}
           </Badge>
           <h1 className="text-2xl sm:text-3xl font-bold text-white">
-            Попробуйте Commrent на готовом бизнес-центре
+            {t("landing.demo.title")}
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-slate-400">
-            Один клик — и вы владелец демо-БЦ «Алатау»: 2 этажа, территория с паркингом,
-            арендаторы с договорами, должник с просрочкой, депозиты, начисления и платежи.
-            Нажимайте всё подряд — сломать ничего нельзя.
+            {t("landing.demo.lead")}
           </p>
 
           <ul className="mt-6 space-y-2 text-sm text-slate-300">
             {[
-              "Арендаторы, договоры с ЭЦП, доп. соглашения и продление",
-              "Счета, АВР, акты сверки — конструкторы и автосоздание",
-              "Финансы: начисления, оплаты, долги, депозиты, авансы",
-              "План этажа 2D/3D, аналитика, заявки и уведомления",
+              t("landing.demo.features.tenants"),
+              t("landing.demo.features.documents"),
+              t("landing.demo.features.finance"),
+              t("landing.demo.features.plan"),
             ].map((line) => (
               <li key={line} className="flex items-start gap-2.5">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
@@ -51,13 +54,13 @@ export default function DemoPage() {
               className="w-full rounded-xl bg-white px-6 py-3.5 text-sm font-semibold text-slate-900 hover:bg-slate-200 transition-colors inline-flex items-center justify-center gap-2"
             >
               <Building2 className="h-4 w-4" />
-              Войти в демо
+              {t("landing.demo.enter")}
             </button>
           </form>
 
           <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-xs text-slate-500">
             <RotateCcw className="h-3 w-3" />
-            Все данные демо автоматически сбрасываются раз в сутки
+            {t("landing.demo.resetNote")}
           </p>
         </div>
       </div>

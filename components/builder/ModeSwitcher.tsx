@@ -6,18 +6,22 @@
 import { Hammer, Sofa, PaintBucket, Mountain, Waves, Trees, Cable } from "lucide-react"
 import { useEditorStore, type BuildMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
 
-const MODES: { id: BuildMode; label: string; Icon: typeof Hammer }[] = [
-  { id: "build", label: "Строить", Icon: Hammer },
-  { id: "buy", label: "Купить", Icon: Sofa },
-  { id: "material", label: "Материал", Icon: PaintBucket },
-  { id: "terrain", label: "Рельеф", Icon: Mountain },
-  { id: "water", label: "Вода", Icon: Waves },
-  { id: "landscape", label: "Ландшафт", Icon: Trees },
-  { id: "mep", label: "Сети", Icon: Cable },
+// Семь кнопок в одну строку по центру экрана: подписи в словаре короткие,
+// иначе переключатель наезжает на панель проекта.
+const MODES: { id: BuildMode; Icon: typeof Hammer }[] = [
+  { id: "build", Icon: Hammer },
+  { id: "buy", Icon: Sofa },
+  { id: "material", Icon: PaintBucket },
+  { id: "terrain", Icon: Mountain },
+  { id: "water", Icon: Waves },
+  { id: "landscape", Icon: Trees },
+  { id: "mep", Icon: Cable },
 ]
 
 export function ModeSwitcher() {
+  const { t } = useT()
   const mode = useEditorStore((s) => s.mode)
   const setMode = useEditorStore((s) => s.setMode)
   return (
@@ -36,7 +40,7 @@ export function ModeSwitcher() {
             style={{ background: active ? TOKENS.accent : "transparent", color: active ? "#0b1220" : TOKENS.text }}
           >
             <m.Icon className="h-4 w-4" />
-            {m.label}
+            {t(`adminBuilder.modes.${m.id}`)}
           </button>
         )
       })}

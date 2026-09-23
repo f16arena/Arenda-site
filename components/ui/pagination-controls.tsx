@@ -1,8 +1,9 @@
 import Link from "next/link"
 import { pageCount } from "@/lib/pagination"
 import { cn } from "@/lib/utils"
+import { getT } from "@/lib/i18n/server"
 
-export function PaginationControls({
+export async function PaginationControls({
   basePath,
   page,
   pageSize,
@@ -17,6 +18,7 @@ export function PaginationControls({
   params?: Record<string, string | number | null | undefined>
   pageParam?: string
 }) {
+  const { t } = await getT()
   const pages = pageCount(total, pageSize)
   if (pages <= 1) return null
 
@@ -27,14 +29,14 @@ export function PaginationControls({
   return (
     <div className="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 text-sm dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-xs text-slate-500 dark:text-slate-400">
-        Показано {from}-{to} из {total}
+        {t("common.pagination.shown", { from, to, total })}
       </p>
       <div className="flex items-center gap-2">
         <PageLink
           href={hrefFor(basePath, params, pageParam, current - 1)}
           disabled={current <= 1}
         >
-          Назад
+          {t("common.pagination.prev")}
         </PageLink>
         <span className="px-2 text-xs text-slate-500 dark:text-slate-400">
           {current} / {pages}
@@ -43,7 +45,7 @@ export function PaginationControls({
           href={hrefFor(basePath, params, pageParam, current + 1)}
           disabled={current >= pages}
         >
-          Далее
+          {t("common.pagination.next")}
         </PageLink>
       </div>
     </div>

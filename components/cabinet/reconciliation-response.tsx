@@ -6,6 +6,7 @@ import { CheckCircle2, AlertTriangle, X } from "lucide-react"
 import { respondToReconciliation } from "@/app/actions/reconciliation-response"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { useT } from "@/lib/i18n/client"
 
 export function ReconciliationResponse({
   documentId,
@@ -16,6 +17,7 @@ export function ReconciliationResponse({
   status: string | null
   note: string | null
 }) {
+  const { t } = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [showDispute, setShowDispute] = useState(false)
@@ -25,7 +27,7 @@ export function ReconciliationResponse({
   if (status === "AGREED") {
     return (
       <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-        <CheckCircle2 className="h-3.5 w-3.5" /> Сверка подтверждена
+        <CheckCircle2 className="h-3.5 w-3.5" /> {t("common.recon.confirmed")}
       </Badge>
     )
   }
@@ -37,7 +39,7 @@ export function ReconciliationResponse({
         className="bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300"
         title={note ?? undefined}
       >
-        <AlertTriangle className="h-3.5 w-3.5" /> Заявлено расхождение
+        <AlertTriangle className="h-3.5 w-3.5" /> {t("common.recon.disputed")}
       </Badge>
     )
   }
@@ -65,7 +67,7 @@ export function ReconciliationResponse({
           onClick={() => submit(true)}
           className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
         >
-          <CheckCircle2 className="h-3.5 w-3.5" /> Подтвердить сверку
+          <CheckCircle2 className="h-3.5 w-3.5" /> {t("common.recon.confirm")}
         </button>
         <button
           type="button"
@@ -73,15 +75,15 @@ export function ReconciliationResponse({
           onClick={() => setShowDispute((v) => !v)}
           className="inline-flex items-center gap-1 rounded-lg border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-500/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
         >
-          <AlertTriangle className="h-3.5 w-3.5" /> Есть расхождение
+          <AlertTriangle className="h-3.5 w-3.5" /> {t("common.recon.dispute")}
         </button>
       </div>
 
       {showDispute && (
         <div className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5 p-3">
           <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs font-medium text-amber-800 dark:text-amber-300">Опишите расхождение</label>
-            <button type="button" onClick={() => setShowDispute(false)} aria-label="Закрыть" title="Закрыть">
+            <label className="text-xs font-medium text-amber-800 dark:text-amber-300">{t("common.recon.describe")}</label>
+            <button type="button" onClick={() => setShowDispute(false)} aria-label={t("common.actions.close")} title={t("common.actions.close")}>
               <X className="h-3.5 w-3.5 text-amber-500" />
             </button>
           </div>
@@ -89,7 +91,7 @@ export function ReconciliationResponse({
             value={disputeNote}
             onChange={(e) => setDisputeNote(e.target.value)}
             rows={3}
-            placeholder="Например: не учтена оплата от 5 числа на 120 000 ₸"
+            placeholder={t("common.recon.placeholder")}
             className="border-amber-200 dark:border-amber-500/30 bg-white dark:bg-slate-900 text-xs md:text-xs"
           />
           <button
@@ -98,7 +100,7 @@ export function ReconciliationResponse({
             onClick={() => submit(false)}
             className="mt-2 inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60"
           >
-            {pending ? "Отправка…" : "Отправить расхождение"}
+            {pending ? t("common.actions.sending") : t("common.recon.submit")}
           </button>
         </div>
       )}

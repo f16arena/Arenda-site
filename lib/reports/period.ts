@@ -2,6 +2,8 @@
 
 export type ReportPeriod = "month" | "prev" | "quarter" | "year"
 
+// label — legacy: страница /admin/analytics берёт подписи из словаря
+// (adminFinance.analytics.periods) и отсюда использует только key.
 export const REPORT_PERIODS: { key: ReportPeriod; label: string }[] = [
   { key: "month", label: "Этот месяц" },
   { key: "prev", label: "Прошлый месяц" },
@@ -32,7 +34,13 @@ export function resolveReportRange(period: ReportPeriod, now: Date): { from: Dat
   }
 }
 
-/** «за сентябрь», «за 3 квартал», «за 2026 год» — для подписей. */
+/**
+ * «за сентябрь», «за 3 квартал», «за 2026 год» — для подписей.
+ *
+ * @deprecated Жёстко русская и вызовов не имеет. Переведённый вариант —
+ * periodCaption в app/admin/analytics/page.tsx (словарь
+ * adminFinance.analytics.captions). Новый код берёт его, а не эту функцию.
+ */
 export function reportPeriodCaption(period: ReportPeriod, now: Date): string {
   const { from } = resolveReportRange(period, now)
   if (period === "year") return `за ${from.getFullYear()} год`

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { assertTenantInOrg, assertRequestInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
+import { getT, getTForUser } from "@/lib/i18n/server"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 import {
@@ -18,6 +19,7 @@ import { RequestCreateSchema, firstZodError } from "@/lib/schemas"
 
 export async function createRequestAdmin(formData: FormData) {
   await requireCapabilityAndFeature("requests.manage")
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
 
   const tenantId = formData.get("tenantId") as string
@@ -36,7 +38,7 @@ export async function createRequestAdmin(formData: FormData) {
     where: { id: tenantId },
     select: { userId: true },
   })
-  if (!tenant) return { error: "Арендатор не найден" }
+  if (!tenant) return { error: t("actions.common.tenantNotFound") }
 
   await db.request.create({
     data: {
@@ -56,6 +58,7 @@ export async function createRequestAdmin(formData: FormData) {
 
 export async function updateRequestStatus(requestId: string, status: string, assigneeId?: string) {
   await requireCapabilityAndFeature("requests.manage")
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   await assertRequestInOrg(requestId, orgId)
 
@@ -74,18 +77,20 @@ export async function updateRequestStatus(requestId: string, status: string, ass
 
   // Уведомляем арендатора при изменении статуса (если статус действительно поменялся)
   if (before && before.status !== status && before.userId) {
+    // Уведомление читает арендатор — статус и текст берём на его языке.
+    const { t: tTenant } = await getTForUser(before.userId)
     const statusLabel: Record<string, string> = {
-      NEW: "Новая",
-      IN_PROGRESS: "В работе",
-      WAITING: "Ожидает",
-      RESOLVED: "Решена",
-      CLOSED: "Закрыта",
+      NEW: tTenant("actions.requests.statusNew"),
+      IN_PROGRESS: tTenant("actions.requests.statusInProgress"),
+      WAITING: tTenant("actions.requests.statusWaiting"),
+      RESOLVED: tTenant("actions.requests.statusResolved"),
+      CLOSED: tTenant("actions.requests.statusClosed"),
     }
     await notifyUser({
       userId: before.userId,
       type: "REQUEST_STATUS_CHANGED",
-      title: `Заявка обновлена: ${before.title}`,
-      message: `Статус: ${statusLabel[status] ?? status}`,
+      title: tTenant("actions.requests.updatedTitle", { title: before.title }),
+      message: tTenant("actions.requests.statusMessage", { status: statusLabel[status] ?? status }),
       link: `/cabinet/requests`,
       sendEmail: status === "RESOLVED" || status === "CLOSED",
     })
@@ -98,7 +103,8 @@ export async function updateRequestStatus(requestId: string, status: string, ass
 export async function addRequestComment(requestId: string, formData: FormData) {
   await requireCapabilityAndFeature("requests.manage")
   const session = await auth()
-  if (!session) return { error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session) return { error: t("actions.common.noAccess") }
 
   const { orgId } = await requireOrgAccess()
   await assertRequestInOrg(requestId, orgId)
@@ -130,9 +136,10 @@ export async function deleteRequest(requestId: string) {
 // так как мы строго берём tenant по userId сессии.
 export async function createRequestTenant(formData: FormData) {
   const session = await auth()
-  if (!session) return { error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session) return { error: t("actions.common.noAccess") }
   const organizationId = session.user.organizationId
-  if (!organizationId) return { error: "Организация не найдена" }
+  if (!organizationId) return { error: t("actions.common.organizationNotFound") }
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session.user.id },
@@ -141,13 +148,13 @@ export async function createRequestTenant(formData: FormData) {
       fullFloors: { select: { building: { select: { organizationId: true } } }, take: 1 },
     },
   })
-  if (!tenant) return { error: "Арендатор не найден" }
+  if (!tenant) return { error: t("actions.common.tenantNotFound") }
 
   const title = formData.get("title") as string
   const description = formData.get("description") as string
   const type = formData.get("type") as string
   const priority = formData.get("priority") as string
-  const attachment = await parseRequestAttachment(formData.get("attachment"))
+  const attachment = await parseRequestAttachment(formData.get("attachment"), t)
   if (attachment && "error" in attachment) return { error: attachment.error }
 
   const created = await db.request.create({
@@ -184,20 +191,27 @@ export async function createRequestTenant(formData: FormData) {
     }
   } catch (error) {
     await db.request.delete({ where: { id: created.id } }).catch(() => null)
-    return { error: error instanceof Error ? error.message : "Не удалось сохранить файл заявки" }
+    return { error: error instanceof Error ? error.message : t("actions.requests.attachmentSaveFailed") }
   }
 
   // Уведомляем только администратора здания/организации. OWNER не получает tenant-facing заявки напрямую.
   {
     const staff = await getTenantAdminContactsForUser(session.user.id)
     const isUrgent = priority === "HIGH" || priority === "URGENT"
-    const attachmentNote = storedAttachment ? " Фото/файл приложен." : ""
     for (const s of staff) {
+      // Уведомление читает сотрудник — берём язык получателя, а не арендатора.
+      const { t: tStaff } = await getTForUser(s.id)
+      const attachmentNote = storedAttachment ? ` ${tStaff("actions.requests.attachmentNote")}` : ""
       await notifyUser({
         userId: s.id,
         type: "NEW_REQUEST",
-        title: isUrgent ? `🔥 Срочная заявка: ${title}` : `Новая заявка: ${title}`,
-        message: `От «${tenant.companyName}»: ${description.length > 100 ? description.slice(0, 97) + "..." : description}${attachmentNote}`,
+        title: isUrgent
+          ? tStaff("actions.requests.urgentTitle", { title })
+          : tStaff("actions.requests.newTitle", { title }),
+        message: tStaff("actions.requests.newMessage", {
+          tenant: tenant.companyName,
+          text: description.length > 100 ? description.slice(0, 97) + "..." : description,
+        }) + attachmentNote,
         link: `/admin/requests/${created.id}`,
         // Email только для срочных — обычные заявки летят админам пачками,
         // не хочется забивать им инбокс.
@@ -214,16 +228,19 @@ export async function createRequestTenant(formData: FormData) {
   return { success: true }
 }
 
-async function parseRequestAttachment(fileValue: FormDataEntryValue | null) {
+// Переводчик приходит параметром: помощник сам его не добывает.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+async function parseRequestAttachment(fileValue: FormDataEntryValue | null, t: Tr) {
   if (!(fileValue instanceof File) || fileValue.size === 0) return null
 
   const mime = fileValue.type.trim().toLowerCase()
   if (!REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES.has(mime)) {
-    return { error: "К заявке можно приложить PDF, JPG, PNG или WebP" as const }
+    return { error: t("actions.requests.badAttachmentType") }
   }
 
   if (fileValue.size > REQUEST_ATTACHMENT_MAX_BYTES) {
-    return { error: "Файл заявки не должен быть больше 5 МБ" as const }
+    return { error: t("actions.requests.attachmentTooBig") }
   }
 
   return {

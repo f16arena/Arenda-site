@@ -6,11 +6,14 @@ import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { contractScope } from "@/lib/tenant-scope"
 import { sendContractForSignature } from "@/app/actions/contract-workflow"
 import { getT } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
 
 // Переводчик для вспомогательных синхронных функций: в файле с "use server"
 // экспортировать можно только async-функции, поэтому t передаём параметром.
 type T = Awaited<ReturnType<typeof getT>>["t"]
 
+/** Дата В ТЕЛЕ ДС. Документ остаётся русским — docs/i18n-documents-plan.md. */
 function fmt(d: Date | string): string {
   return new Date(d).toLocaleDateString("ru-RU")
 }
@@ -18,6 +21,7 @@ function fmt(d: Date | string): string {
 /** Железобетон: дата ДС не может быть раньше даты начала договора. */
 function notBeforeContractStart(
   t: T,
+  locale: Locale,
   date: Date,
   parentStart: Date | string | null,
   label: string,
@@ -29,8 +33,8 @@ function notBeforeContractStart(
   if (d0 < s0) {
     return t("actions.contractAddendums.dateBeforeContractStart", {
       label,
-      date: fmt(date),
-      start: fmt(s),
+      date: formatDateShortL(locale, date),
+      start: formatDateShortL(locale, s),
     })
   }
   return null
@@ -133,7 +137,7 @@ export async function createExtensionAddendum(
   contractId: string,
   newEndDate: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
-  const { t } = await getT()
+  const { t, locale } = await getT()
   try {
     await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
@@ -144,10 +148,10 @@ export async function createExtensionAddendum(
     if ("error" in r) return { ok: false, error: r.error }
     const parent = r.contract
 
-    const startErr = notBeforeContractStart(t, end, parent.startDate, t("actions.contractAddendums.labelNewEndDate"))
+    const startErr = notBeforeContractStart(t, locale, end, parent.startDate, t("actions.contractAddendums.labelNewEndDate"))
     if (startErr) return { ok: false, error: startErr }
     if (parent.endDate && new Date(end.getFullYear(), end.getMonth(), end.getDate()) <= new Date(new Date(parent.endDate).getFullYear(), new Date(parent.endDate).getMonth(), new Date(parent.endDate).getDate())) {
-      return { ok: false, error: t("actions.contractAddendums.endDateMustBeLater", { date: fmt(parent.endDate) }) }
+      return { ok: false, error: t("actions.contractAddendums.endDateMustBeLater", { date: formatDateShortL(locale, parent.endDate) }) }
     }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
@@ -195,7 +199,7 @@ export async function createTerminationAddendum(
   terminationDate: string,
   reason?: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
-  const { t } = await getT()
+  const { t, locale } = await getT()
   try {
     await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
@@ -206,7 +210,7 @@ export async function createTerminationAddendum(
     if ("error" in r) return { ok: false, error: r.error }
     const parent = r.contract
 
-    const termErr = notBeforeContractStart(t, term, parent.startDate, t("actions.contractAddendums.labelTerminationDate"))
+    const termErr = notBeforeContractStart(t, locale, term, parent.startDate, t("actions.contractAddendums.labelTerminationDate"))
     if (termErr) return { ok: false, error: termErr }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
@@ -274,7 +278,7 @@ export async function createRentalTermsAddendum(
   terms: RentalTermsChange,
   effectiveDateStr?: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
-  const { t } = await getT()
+  const { t, locale } = await getT()
   try {
     await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
@@ -291,7 +295,7 @@ export async function createRentalTermsAddendum(
 
     const eff = effectiveDateStr ? new Date(effectiveDateStr) : new Date()
     if (Number.isNaN(eff.getTime())) return { ok: false, error: t("actions.contractAddendums.invalidEffectiveDate") }
-    const effErr = notBeforeContractStart(t, eff, parent.startDate, t("actions.contractAddendums.labelEffectiveDate"))
+    const effErr = notBeforeContractStart(t, locale, eff, parent.startDate, t("actions.contractAddendums.labelEffectiveDate"))
     if (effErr) return { ok: false, error: effErr }
 
     const number = await nextAddendumNumber(parent.id, parent.number)
@@ -380,7 +384,7 @@ export async function createServicesAddendum(
   services: ServicesChange,
   effectiveDateStr?: string,
 ): Promise<{ ok: boolean; error?: string; contractId?: string; signUrl?: string }> {
-  const { t } = await getT()
+  const { t, locale } = await getT()
   try {
     await requireCapabilityAndFeature("documents.addendum")
     const { orgId } = await requireOrgAccess()
@@ -423,7 +427,7 @@ export async function createServicesAddendum(
 
     const eff = effectiveDateStr ? new Date(effectiveDateStr) : new Date()
     if (Number.isNaN(eff.getTime())) return { ok: false, error: t("actions.contractAddendums.invalidEffectiveDate") }
-    const effErr = notBeforeContractStart(t, eff, parent.startDate, t("actions.contractAddendums.labelEffectiveDate"))
+    const effErr = notBeforeContractStart(t, locale, eff, parent.startDate, t("actions.contractAddendums.labelEffectiveDate"))
     if (effErr) return { ok: false, error: effErr }
 
     const number = await nextAddendumNumber(parent.id, parent.number)

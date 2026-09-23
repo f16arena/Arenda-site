@@ -110,7 +110,8 @@ export async function markInstallmentPaid(installmentId: string, method = "TRANS
       method,
       // Назначение платежа — учётная запись в БД (попадает в счета и акты),
       // поэтому остаётся на русском независимо от языка интерфейса.
-      note: `Платёж по рассрочке №${inst.seq}`,
+      // note платежа — учётная запись в БД (видна в акте сверки), остаётся русской.
+    note: `Платёж по рассрочке №${inst.seq}`,
       unappliedAmount: inst.amount,
     },
     select: { id: true },

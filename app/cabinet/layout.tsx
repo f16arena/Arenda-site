@@ -11,6 +11,7 @@ import { I18nProvider } from "@/lib/i18n/client"
 import { getLocale, getT } from "@/lib/i18n/server"
 import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 import { LocaleSwitcher } from "@/components/i18n/locale-switcher"
+import { DialogHost } from "@/components/ui/dialog-host"
 
 export default async function CabinetLayout({
   children,
@@ -59,7 +60,17 @@ export default async function CabinetLayout({
 
   return (
     // В браузер уходят только общие слова и кабинет — не словарь админки.
-    <I18nProvider locale={locale} messages={pickNamespaces(dictionaries[locale], ["common", "cabinet"])}>
+    <I18nProvider
+      locale={locale}
+      messages={pickNamespaces(dictionaries[locale], [
+        "common",
+        "domain",
+        "cabinet",
+        "cabinetHome",
+        "cabinetCalendar",
+        "cabinetSupport",
+      ])}
+    >
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <TenantSidebar companyName={tenant?.companyName} />
       <div className="flex flex-1 flex-col overflow-hidden">
@@ -89,6 +100,9 @@ export default async function CabinetLayout({
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+      {/* Общие окна «подтвердить?»/«введите текст» — внутри провайдера
+          словаря: их кнопки берут подписи из common.actions. */}
+      <DialogHost />
       </div>
     </div>
     </I18nProvider>

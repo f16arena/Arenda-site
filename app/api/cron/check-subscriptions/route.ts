@@ -3,6 +3,8 @@ import { db } from "@/lib/db"
 import { notifyUser } from "@/lib/notify"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { releaseFoundersSlotIfExpired } from "@/lib/pricing"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 export const dynamic = "force-dynamic"
 
@@ -53,13 +55,15 @@ export async function GET(req: Request) {
             },
           })
           if (!existing) {
+            // Письмо читает владелец организации — язык из его профиля.
+            const { t } = await getTForUser(org.ownerUserId)
             await notifyUser({
               userId: org.ownerUserId,
               type: "SUBSCRIPTION_FOUNDING_GRACE",
-              title: `Founding Member: 7 дней grace period`,
-              message: `Подписка "${org.name}" истекла, но как Founding Member у вас 7 дней на продление без приостановки. После этого кабинет будет приостановлен, статус Founding сохраняется.`,
+              title: t("emails.subscription.foundingGraceTitle"),
+              message: t("emails.subscription.foundingGraceMessage", { org: org.name }),
               link: "/admin/subscription",
-              emailButtonText: "Открыть подписку",
+              emailButtonText: t("emails.subscription.openButton"),
             }).catch(() => null)
           }
         }
@@ -74,13 +78,14 @@ export async function GET(req: Request) {
 
       // Уведомить владельца — in-app + email + telegram
       if (org.ownerUserId) {
+        const { t } = await getTForUser(org.ownerUserId)
         await notifyUser({
           userId: org.ownerUserId,
           type: "SUBSCRIPTION_EXPIRED",
-          title: `Подписка истекла`,
-          message: `Подписка организации "${org.name}" истекла. Кабинет приостановлен. Свяжитесь с администрацией для продления.`,
+          title: t("emails.subscription.expiredTitle"),
+          message: t("emails.subscription.expiredMessage", { org: org.name }),
           link: "/admin/subscription",
-          emailButtonText: "Продлить подписку",
+          emailButtonText: t("emails.subscription.renewButton"),
         })
       }
     }
@@ -105,30 +110,31 @@ export async function GET(req: Request) {
       for (const org of orgs) {
         if (!org.ownerUserId) continue
         try {
-          // Дедуп — не более одного уведомления этого типа за 22 часа
+          // Дедуп — не более одного уведомления этого типа за 22 часа.
+          // Раньше искали в заголовке подстроку «N дн.»: заголовок переводится,
+          // и поиск по русскому тексту перестал бы находить своё же уведомление.
+          // Проверка по типу достаточна: planExpiresAt попадает ровно в один
+          // горизонт (30/7/3/1) за прогон, двух писем в сутки быть не может.
           const existing = await db.notification.findFirst({
             where: {
               userId: org.ownerUserId,
               type: "SUBSCRIPTION_EXPIRING",
-              title: { contains: `${days} дн.` },
               createdAt: { gte: new Date(now.getTime() - 22 * 3600 * 1000) },
             },
           })
           if (existing) continue
 
-          const dayLabel = days === 1 ? "день" : days < 5 ? "дня" : "дней"
           const isLongHorizon = days >= 30
+          const { t, tp } = await getTForUser(org.ownerUserId)
           await notifyUser({
             userId: org.ownerUserId,
             type: "SUBSCRIPTION_EXPIRING",
-            title: isLongHorizon
-              ? `Подписка истекает через ${days} ${dayLabel}`
-              : `Подписка истекает через ${days} ${dayLabel}`,
+            title: tp("emails.subscription.expiringTitle", days),
             message: isLongHorizon
-              ? `Подписка "${org.name}" заканчивается через месяц. Самое время выбрать тариф и период — для длительных периодов действуют скидки до 25%.`
-              : `Подписка "${org.name}" истекает через ${days} ${dayLabel}. Свяжитесь с супер-админом для продления, иначе кабинет будет приостановлен.`,
+              ? t("emails.subscription.expiringMonthMessage", { org: org.name })
+              : tp("emails.subscription.expiringMessage", days, { org: org.name }),
             link: "/admin/subscription",
-            emailButtonText: "Открыть подписку",
+            emailButtonText: t("emails.subscription.openButton"),
             // SMS убран для SUBSCRIPTION_EXPIRING — email + Telegram достаточны.
             // SMS оставлен только для SUBSCRIPTION_EXPIRED (уже истекло) — см. блок выше.
             sendSms: false,
@@ -182,11 +188,19 @@ export async function GET(req: Request) {
           select: { ownerUserId: true, name: true },
         })
         if (org?.ownerUserId) {
+          const { t, locale } = await getTForUser(org.ownerUserId)
           await notifyUser({
             userId: org.ownerUserId,
             type: "SERVICE_FEE_INDEXED",
-            title: `Эксплуатационный сбор проиндексирован: ${b.name}`,
-            message: `Тарифы здания «${b.name}» автоматически проиндексированы на ${b.serviceFeeIndexationPct ?? 10}%: зимний ${b.serviceFeeWinterRate} → ${newWinter} ₸/м², летний ${b.serviceFeeSummerRate} → ${newSummer} ₸/м². Применится со следующего месяца.`,
+            title: t("emails.subscription.serviceFeeIndexedTitle", { building: b.name }),
+            message: t("emails.subscription.serviceFeeIndexedMessage", {
+              building: b.name,
+              pct: b.serviceFeeIndexationPct ?? 10,
+              winterFrom: formatMoneyL(locale, b.serviceFeeWinterRate ?? 0),
+              winterTo: formatMoneyL(locale, newWinter),
+              summerFrom: formatMoneyL(locale, b.serviceFeeSummerRate ?? 0),
+              summerTo: formatMoneyL(locale, newSummer),
+            }),
             link: `/admin/buildings/${b.id}/service-fee`,
             sendEmail: false,
           }).catch(() => null)

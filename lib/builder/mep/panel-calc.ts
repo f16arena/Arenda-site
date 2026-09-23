@@ -9,6 +9,7 @@ import type { Floor, MepDevice, MepSystem } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { pointInPolygon, type Vec2 } from "@/core/geometry/math"
 import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "./catalog"
+import type { SheetT } from "@/lib/builder/sheet-text"
 
 export const BREAKERS = [6, 10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125]
 
@@ -59,11 +60,13 @@ export interface PanelCalc {
   inputBreakerA: number
 }
 
-const KIND_PARAMS: Record<GroupKind, { kc: number; cos: number; minBreaker: number; minSection: number; title: string }> = {
-  lighting: { kc: 1, cos: 0.95, minBreaker: 10, minSection: 1.5, title: "Освещение" },
-  sockets: { kc: 0.8, cos: 0.9, minBreaker: 16, minSection: 2.5, title: "Розетки" },
-  power3: { kc: 0.9, cos: 0.85, minBreaker: 16, minSection: 2.5, title: "Силовая сеть 380 В" },
-  equipment: { kc: 1, cos: 0.85, minBreaker: 16, minSection: 2.5, title: "Оборудование" },
+// title — ключ словаря (adminBuilder.mep.group*): назначение группы попадает
+// в расчётную таблицу щита, а её печатают на языке того, кто открыл лист.
+const KIND_PARAMS: Record<GroupKind, { kc: number; cos: number; minBreaker: number; minSection: number; title: "groupLighting" | "groupSockets" | "groupPower3" | "groupEquipment" }> = {
+  lighting: { kc: 1, cos: 0.95, minBreaker: 10, minSection: 1.5, title: "groupLighting" },
+  sockets: { kc: 0.8, cos: 0.9, minBreaker: 16, minSection: 2.5, title: "groupSockets" },
+  power3: { kc: 0.9, cos: 0.85, minBreaker: 16, minSection: 2.5, title: "groupPower3" },
+  equipment: { kc: 1, cos: 0.85, minBreaker: 16, minSection: 2.5, title: "groupEquipment" },
 }
 
 export function groupKindOf(d: Pick<MepDevice, "kind" | "system">): GroupKind | null {
@@ -92,9 +95,12 @@ function fmtSection(s: number): string {
   return String(s).replace(".", ",")
 }
 
-/** Длина линии: трассы группы по обозначению («гр.3»), иначе — ломаная щит → приборы по осям с запасом 1,2. */
+/**
+ * Длина линии: трассы группы по обозначению («гр.3», по-казахски «тп. 3»),
+ * иначе — ломаная щит → приборы по осям с запасом 1,2.
+ */
 function groupLength(floor: Floor, panel: MepDevice, devices: MepDevice[], group: number): number {
-  const tag = new RegExp(`гр\\.?\\s*${group}(?!\\d)`, "i")
+  const tag = new RegExp(`(?:гр|тп)\\.?\\s*${group}(?!\\d)`, "i")
   const runs = (floor.mepRuns ?? []).filter((r) => (r.system === "power" || r.system === "lighting") && tag.test(r.label))
   if (runs.length) return runs.reduce((s, r) => s + polylineLengthMm(r.points), 0) / 1000
   let L = 0
@@ -115,7 +121,7 @@ function roomLabelOf(floor: Floor, at: Vec2, numberOf: (roomId: string) => strin
   return null
 }
 
-export function calcPanels(floor: Floor, numberOf: (roomId: string) => string | null = () => null): PanelCalc[] {
+export function calcPanels(floor: Floor, t: SheetT, numberOf: (roomId: string) => string | null = () => null): PanelCalc[] {
   const devices = floor.mepDevices ?? []
   const panels = devices.filter((d) => d.kind === "panel")
   return panels.map((panel) => {
@@ -140,7 +146,9 @@ export function calcPanels(floor: Floor, numberOf: (roomId: string) => string | 
         panelId: panel.id,
         group,
         kind,
-        purpose: `${p.title}${rooms.length ? `, пом. ${rooms.slice(0, 3).join(", ")}${rooms.length > 3 ? "…" : ""}` : ""}`,
+        purpose: rooms.length
+          ? t("adminBuilder.mep.purposeRooms", { title: t(`adminBuilder.mep.${p.title}`), rooms: `${rooms.slice(0, 3).join(", ")}${rooms.length > 3 ? "…" : ""}` })
+          : t(`adminBuilder.mep.${p.title}`),
         deviceIds: list.map((d) => d.id),
         pInstW: Math.round(pInst),
         kc: p.kc,
@@ -161,7 +169,7 @@ export function calcPanels(floor: Floor, numberOf: (roomId: string) => string | 
     const current = pCalc / (Math.sqrt(3) * 400 * 0.9)
     return {
       panelId: panel.id,
-      label: panel.label || "ЩР",
+      label: panel.label || t("adminBuilder.props.mepPanelDefault"),
       groups,
       pInstW: Math.round(pInst),
       pCalcW: Math.round(pCalc),

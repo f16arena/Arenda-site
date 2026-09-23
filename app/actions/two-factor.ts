@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 import * as OTPAuth from "otpauth"
 import QRCode from "qrcode"
@@ -22,14 +23,15 @@ export async function startTotpEnrollment(): Promise<{
   otpauthUrl: string
 } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
     select: { email: true, phone: true, name: true, totpEnabledAt: true },
   })
-  if (!user) return { ok: false, error: "Пользователь не найден" }
-  if (user.totpEnabledAt) return { ok: false, error: "2FA уже включена" }
+  if (!user) return { ok: false, error: t("actions.common.userNotFound") }
+  if (user.totpEnabledAt) return { ok: false, error: t("actions.twoFactor.alreadyEnabled") }
 
   const label = user.email ?? user.phone ?? user.name
   const secret = new OTPAuth.Secret({ size: 20 })  // 160 бит
@@ -61,10 +63,11 @@ export async function verifyAndEnableTotp(
   code: string,
 ): Promise<{ ok: true; backupCodes: string[] } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
 
   const cleaned = code.replace(/\s+/g, "")
-  if (!/^[0-9]{6}$/.test(cleaned)) return { ok: false, error: "Введите 6-значный код" }
+  if (!/^[0-9]{6}$/.test(cleaned)) return { ok: false, error: t("actions.twoFactor.sixDigits") }
 
   const totp = new OTPAuth.TOTP({
     issuer: APP_NAME,
@@ -74,7 +77,7 @@ export async function verifyAndEnableTotp(
     secret: OTPAuth.Secret.fromBase32(secretBase32),
   })
   const delta = totp.validate({ token: cleaned, window: 1 })
-  if (delta === null) return { ok: false, error: "Код неверный или просрочен" }
+  if (delta === null) return { ok: false, error: t("actions.twoFactor.badCode") }
 
   // Генерируем 8 резервных кодов вида XXXX-XXXX
   const { randomBytes } = await import("crypto")
@@ -104,17 +107,18 @@ export async function verifyAndEnableTotp(
  */
 export async function disableTotp(password: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
 
   const user = await db.user.findUnique({
     where: { id: session.user.id },
     select: { password: true, totpEnabledAt: true },
   })
-  if (!user) return { ok: false, error: "Пользователь не найден" }
-  if (!user.totpEnabledAt) return { ok: false, error: "2FA не была включена" }
+  if (!user) return { ok: false, error: t("actions.common.userNotFound") }
+  if (!user.totpEnabledAt) return { ok: false, error: t("actions.twoFactor.notEnabled") }
 
   const ok = await bcrypt.compare(password, user.password)
-  if (!ok) return { ok: false, error: "Пароль неверный" }
+  if (!ok) return { ok: false, error: t("actions.twoFactor.wrongPassword") }
 
   await db.user.update({
     where: { id: session.user.id },

@@ -11,15 +11,20 @@ import {
   approvalLabel,
 } from "@/lib/approval"
 import { revalidatePath, revalidateTag } from "next/cache"
+import { getT } from "@/lib/i18n/server"
 
 const TRIAL_DAYS = 14
 
-function rejectionReasonFrom(formData: FormData) {
-  return String(formData.get("reason") ?? "").trim() || "Отклонено без комментария"
+// Переводчик приходит параметром: чистый помощник сам его не добывает.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+function rejectionReasonFrom(formData: FormData, t: Tr) {
+  return String(formData.get("reason") ?? "").trim() || t("actions.approvals.rejectedNoComment")
 }
 
 export async function approveOrganizationRegistration(orgId: string) {
   const platform = await requirePlatformOwner()
+  const { t } = await getT()
   const now = new Date()
   const expiresAt = new Date(now)
   expiresAt.setDate(expiresAt.getDate() + TRIAL_DAYS)
@@ -35,9 +40,9 @@ export async function approveOrganizationRegistration(orgId: string) {
       approvalStatus: true,
     },
   })
-  if (!org) throw new Error("Организация не найдена")
+  if (!org) throw new Error(t("actions.common.organizationNotFound"))
   if (org.approvalStatus === APPROVAL_APPROVED) {
-    throw new Error("Организация уже подтверждена")
+    throw new Error(t("actions.approvals.orgAlreadyApproved"))
   }
 
   let planId = org.planId
@@ -48,7 +53,7 @@ export async function approveOrganizationRegistration(orgId: string) {
       (await db.plan.findFirst({ where: { code: "TRIAL", isActive: true }, select: { id: true } }))
       ?? (await db.plan.findFirst({ where: { code: "FREE", isActive: true }, select: { id: true } }))
       ?? (await db.plan.findFirst({ where: { isActive: true }, orderBy: { sortOrder: "asc" }, select: { id: true } }))
-    if (!plan) throw new Error("Нет доступного тарифа — создайте тариф в разделе «Тарифы»")
+    if (!plan) throw new Error(t("actions.approvals.noPlanAvailable"))
     planId = plan.id
   }
 
@@ -128,16 +133,17 @@ export async function approveOrganizationRegistration(orgId: string) {
 
 export async function rejectOrganizationRegistration(orgId: string, formData: FormData) {
   const platform = await requirePlatformOwner()
-  const reason = rejectionReasonFrom(formData)
+  const { t } = await getT()
+  const reason = rejectionReasonFrom(formData, t)
   const now = new Date()
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
     select: { id: true, name: true, slug: true, ownerUserId: true, approvalStatus: true },
   })
-  if (!org) throw new Error("Организация не найдена")
+  if (!org) throw new Error(t("actions.common.organizationNotFound"))
   if (org.approvalStatus === APPROVAL_APPROVED) {
-    throw new Error("Подтвержденную организацию нельзя отклонить. Используйте приостановку или деактивацию.")
+    throw new Error(t("actions.approvals.approvedCannotReject"))
   }
 
   await db.$transaction(async (tx) => {
@@ -179,28 +185,29 @@ export async function rejectOrganizationRegistration(orgId: string, formData: Fo
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
 }
 
-async function requireOwnerApprovalAuthority() {
+async function requireOwnerApprovalAuthority(t: Tr) {
   const context = await requireOrgAccess()
   const actor = await db.user.findFirst({
     where: { id: context.userId, organizationId: context.orgId },
     select: { id: true, role: true, isPlatformOwner: true },
   })
-  if (!actor && !context.isPlatformOwner) throw new Error("Пользователь не найден")
+  if (!actor && !context.isPlatformOwner) throw new Error(t("actions.common.userNotFound"))
   if (!context.isPlatformOwner && actor?.role !== "OWNER") {
-    throw new Error("Подтверждать пользователей может только владелец организации")
+    throw new Error(t("actions.approvals.onlyOwnerApprovesUsers"))
   }
   return { ...context, actorId: actor?.id ?? context.userId }
 }
 
 export async function approveUserRegistration(userId: string) {
-  const context = await requireOwnerApprovalAuthority()
+  const { t } = await getT()
+  const context = await requireOwnerApprovalAuthority(t)
   const target = await db.user.findFirst({
     where: { id: userId, organizationId: context.orgId },
     select: { id: true, name: true, role: true, approvalStatus: true },
   })
-  if (!target) throw new Error("Пользователь не найден")
+  if (!target) throw new Error(t("actions.common.userNotFound"))
   if (target.role === "OWNER" && !context.isPlatformOwner) {
-    throw new Error("Владельца организации подтверждает только суперадмин")
+    throw new Error(t("actions.approvals.ownerApprovedBySuperadmin"))
   }
 
   await db.user.update({
@@ -228,18 +235,19 @@ export async function approveUserRegistration(userId: string) {
 }
 
 export async function rejectUserRegistration(userId: string, formData: FormData) {
-  const context = await requireOwnerApprovalAuthority()
-  const reason = rejectionReasonFrom(formData)
+  const { t } = await getT()
+  const context = await requireOwnerApprovalAuthority(t)
+  const reason = rejectionReasonFrom(formData, t)
   const target = await db.user.findFirst({
     where: { id: userId, organizationId: context.orgId },
     select: { id: true, name: true, role: true, approvalStatus: true },
   })
-  if (!target) throw new Error("Пользователь не найден")
+  if (!target) throw new Error(t("actions.common.userNotFound"))
   if (target.role === "OWNER" && !context.isPlatformOwner) {
-    throw new Error("Владельца организации подтверждает только суперадмин")
+    throw new Error(t("actions.approvals.ownerApprovedBySuperadmin"))
   }
   if (target.approvalStatus !== APPROVAL_PENDING) {
-    throw new Error(`Пользователь сейчас в статусе: ${approvalLabel(target.approvalStatus)}`)
+    throw new Error(t("actions.approvals.userStatusNow", { status: approvalLabel(target.approvalStatus) }))
   }
 
   await db.user.update({

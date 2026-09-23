@@ -1,33 +1,41 @@
 // ADR: Пресеты проёмов (Фаза 2.0) — типы дверей/окон с размерами по умолчанию.
+// Подписи — в словаре (adminBuilder.openingPresets): здесь только размеры.
+
+import type { Messages } from "@/lib/i18n/messages"
+
+/** Ключ подписи проёма в словаре — он же его variant (витраж на все этажи: curtainAll). */
+export type OpeningNameKey = keyof Messages["adminBuilder"]["openingPresets"]
+
 // variant хранится в Opening; wall-builder рисует геометрию по variant, ToolOptions
 // и PropertyPanel дают выбор. Размеры можно переопределять у выбранного проёма.
 
 export interface OpeningPreset {
   variant: string
-  label: string
+  /** ключ подписи в словаре: adminBuilder.openingPresets.door / .window */
+  label: OpeningNameKey
   width: number // мм
   height: number
   sill: number
 }
 
 export const DOOR_PRESETS: OpeningPreset[] = [
-  { variant: "interior", label: "Межкомнатная", width: 800, height: 2050, sill: 0 },
-  { variant: "single", label: "Входная", width: 1000, height: 2100, sill: 0 },
-  { variant: "double", label: "Двустворчатая", width: 1600, height: 2200, sill: 0 },
-  { variant: "sliding", label: "Раздвижная", width: 1800, height: 2200, sill: 0 },
-  { variant: "garage", label: "Гаражная", width: 3000, height: 2600, sill: 0 },
-  { variant: "arch", label: "Арка", width: 1200, height: 2500, sill: 0 },
+  { variant: "interior", label: "interior", width: 800, height: 2050, sill: 0 },
+  { variant: "single", label: "single", width: 1000, height: 2100, sill: 0 },
+  { variant: "double", label: "double", width: 1600, height: 2200, sill: 0 },
+  { variant: "sliding", label: "sliding", width: 1800, height: 2200, sill: 0 },
+  { variant: "garage", label: "garage", width: 3000, height: 2600, sill: 0 },
+  { variant: "arch", label: "arch", width: 1200, height: 2500, sill: 0 },
 ]
 
 export const WINDOW_PRESETS: OpeningPreset[] = [
-  { variant: "standard", label: "Обычное", width: 1200, height: 1400, sill: 900 },
-  { variant: "panoramic", label: "Панорамное", width: 2600, height: 2100, sill: 200 },
-  { variant: "small", label: "Маленькое", width: 700, height: 700, sill: 1300 },
-  { variant: "wide", label: "Широкое", width: 2000, height: 1300, sill: 850 },
+  { variant: "standard", label: "standard", width: 1200, height: 1400, sill: 900 },
+  { variant: "panoramic", label: "panoramic", width: 2600, height: 2100, sill: 200 },
+  { variant: "small", label: "small", width: 700, height: 700, sill: 1300 },
+  { variant: "wide", label: "wide", width: 2000, height: 1300, sill: 850 },
   // витраж: занимает стену целиком — размеры подставляются по самой стене
-  { variant: "curtain", label: "Витраж во всю стену", width: 6000, height: 2600, sill: 100 },
+  { variant: "curtain", label: "curtain", width: 6000, height: 2600, sill: 100 },
   // сплошная лента остекления через все этажи здания
-  { variant: "curtain-all", label: "Витраж на все этажи", width: 6000, height: 2600, sill: 100 },
+  { variant: "curtain-all", label: "curtainAll", width: 6000, height: 2600, sill: 100 },
 ]
 
 /** Витражные варианты остекления. */

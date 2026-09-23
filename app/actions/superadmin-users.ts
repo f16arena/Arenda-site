@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
 import { requirePlatformOwner } from "@/lib/org"
+import { getT } from "@/lib/i18n/server"
 import { audit } from "@/lib/audit"
 
 // Генератор временного пароля (без неоднозначных символов 0/O/1/l/I).
@@ -21,15 +22,16 @@ function generateTempPassword(): string {
  * Возвращает сгенерированный пароль — его нужно один раз показать и передать владельцу.
  */
 export async function resetOwnerPassword(userId: string): Promise<{ tempPassword: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const user = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, role: true, isPlatformOwner: true },
   })
-  if (!user) throw new Error("Пользователь не найден")
-  if (user.isPlatformOwner) throw new Error("Здесь нельзя менять пароль платформенного администратора")
-  if (user.role !== "OWNER") throw new Error("Сбрасывать пароль здесь можно только владельцам организаций")
+  if (!user) throw new Error(t("actions.common.userNotFound"))
+  if (user.isPlatformOwner) throw new Error(t("actions.superadminUsers.platformOwnerPassword"))
+  if (user.role !== "OWNER") throw new Error(t("actions.superadminUsers.ownersOnly"))
 
   const tempPassword = generateTempPassword()
   const hash = await bcrypt.hash(tempPassword, 10)

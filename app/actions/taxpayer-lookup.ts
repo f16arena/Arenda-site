@@ -1,6 +1,7 @@
 "use server"
 
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { requireOrgAccess } from "@/lib/org"
 import { lookupTaxpayer, type TaxpayerInfo, type TaxpayerKind } from "@/lib/kgd"
 
@@ -13,7 +14,7 @@ export async function lookupTaxpayerAction(
   kind: TaxpayerKind = "UL",
 ): Promise<{ ok: true; info: TaxpayerInfo } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
+  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: (await getT()).t("actions.common.noAccess") }
   await requireOrgAccess()
   return lookupTaxpayer(taxId, kind === "IP" || kind === "LZCHP" ? kind : "UL")
 }

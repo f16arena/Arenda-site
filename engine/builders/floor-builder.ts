@@ -180,18 +180,21 @@ export function buildFloors(
   return meshes
 }
 
+// Санузел по наименованию: его пишет человек, поэтому шаблон знает и казахские
+// слова — иначе «Дәретхана» получила бы керамогранит вместо плитки.
+const WC_NAME = /санузел|с\/у|туалет|уборн|wc|душ|дәретхана|жуынатын/i
+
 /** Пол по назначению, пока не выбран вручную: МОП — керамогранит, санузлы — плитка, техн. — наливной. */
 function defaultFloorMaterial(floor: Floor, room: { id: string; polygon: Vec2[] }): string | undefined {
   const use = roomUse(floor, room)
   if (use === "rent") return undefined
   if (use === "tech") return "epoxy"
-  return /санузел|с\/у|туалет|уборн|wc/i.test(roomDisplayName(floor, room)) ? "tile_white" : "granite_beige"
+  return WC_NAME.test(roomDisplayName(floor, room)) ? "tile_white" : "granite_beige"
 }
 
 /** Отделка стен по назначению помещения: офисы — краска, санузлы — плитка, техн. — серая краска. */
 function wallFinishMaterial(floor: Floor, room: { id: string; polygon: Vec2[] }): string {
-  const name = roomDisplayName(floor, room)
-  if (/санузел|с\/у|туалет|уборн|wc|душ/i.test(name)) return "tile_white"
+  if (WC_NAME.test(roomDisplayName(floor, room))) return "tile_white"
   const use = roomUse(floor, room)
   if (use === "tech") return "paint_gray"
   return "paint_white"

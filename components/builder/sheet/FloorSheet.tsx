@@ -22,21 +22,21 @@ import {
   type Sheet,
 } from "@/lib/builder/drawing/floor-drawing"
 import { floorDrawingToDxf } from "@/lib/builder/drawing/dxf"
-import { SECTION_TITLE, buildMepDrawing, sectionsWithContent, type MepDrawing, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
+import { buildMepDrawing, sectionTitle, sectionsWithContent, type MepDrawing, type SheetSection } from "@/lib/builder/drawing/mep-drawing"
 import { MepPlanLayer, MepTables } from "./MepSheetLayer"
-import { FACADE_TITLE, buildFacade, buildSection, type ElevationDrawing, type FacadeSide } from "@/lib/builder/drawing/elevation"
+import { buildFacade, buildSection, facadeTitle, type ElevationDrawing, type FacadeSide } from "@/lib/builder/drawing/elevation"
 import { detailsToDxf, elevationToDxf } from "@/lib/builder/drawing/dxf"
 import { ElevationSvgBody, pickElevationSheet } from "./ElevationSvg"
 import { dimGeometry } from "@/lib/builder/annotations"
 import { openingName, openingSchedule, roomExplication, type OpeningSchedule, type RoomRow } from "@/lib/builder/drawing/schedules"
 
 /** Экспликация и ведомость проёмов для листа плана этажа; марки — по всему зданию. */
-export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id: string) => string | null, stage: PlanStage = "plan") {
+export function planExtras(allFloors: Floor[], floor: Floor, premiseNumber: (id: string) => string | null, t: SheetT, stage: PlanStage = "plan") {
   const schedule = openingSchedule(allFloors)
   // экспликация считается по той же стадии, что и план: иначе у части помещений
   // номер на плане не совпадал с таблицей (на обмерном плане новых стен ещё нет)
   const staged = stage === "edit" ? floor : floorAtStage(floor, stage === "plan" || stage === "demolish" ? "before" : "after")
-  const rooms = roomExplication(staged, premiseNumber)
+  const rooms = roomExplication(staged, premiseNumber, (key) => t(`adminBuilder.roomNames.${key}`))
   const roomNumbers = new Map(rooms.map((r) => [r.roomId, r.number]))
   return { schedule, rooms, options: { openingMarks: schedule.marks, roomNumbers } }
 }
@@ -46,7 +46,7 @@ import { buildDetails, type Detail } from "@/lib/builder/drawing/details"
 import { DetailsBody } from "./DetailsBody"
 import { buildEvacuation, type EvacuationPlan } from "@/lib/builder/drawing/evacuation"
 import { finishSchedule, floorTypes, type FinishRow, type FloorTypeRow } from "@/lib/builder/drawing/finish"
-import { ISLAND_PRESETS, WALL_MOUNTED, islandsTotal, projectIslandSchedule, type IslandRow } from "@/lib/builder/islands"
+import { WALL_MOUNTED, islandNames, islandsTotal, projectIslandSchedule, type IslandRow } from "@/lib/builder/islands"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomDisplayName } from "@/lib/builder/room-use"
 import { lintelSchedule, type LintelRow } from "@/lib/builder/drawing/lintels"
@@ -54,12 +54,16 @@ import { buildSlabPlan, type SlabPlan } from "@/lib/builder/drawing/slab-plan"
 import { buildRoofPlan, type RoofPlan } from "@/lib/builder/drawing/roof-plan"
 import { buildSitePlan, type SitePlan } from "@/lib/builder/drawing/site-plan"
 import type { PlanStage } from "@/lib/builder/drawing/floor-drawing"
+import { useT, useLocale } from "@/lib/i18n/client"
+import { formatNumberL } from "@/lib/i18n/format"
+import type { SheetT } from "@/lib/builder/sheet-text"
 
-export const STAGE_TITLE: Record<Exclude<PlanStage, "plan" | "edit">, string> = {
-  demolish: "План демонтажа",
-  install: "План монтажа",
-  after: "План после перепланировки",
-}
+/** Ключ названия стадии перепланировки в словаре. */
+export const STAGE_TITLE_KEY = {
+  demolish: "stageDemolish",
+  install: "stageInstall",
+  after: "stageAfter",
+} as const satisfies Record<Exclude<PlanStage, "plan" | "edit">, string>
 
 export const FACADES: FacadeSide[] = ["south", "north", "west", "east"]
 
@@ -115,13 +119,14 @@ function wrapWords(text: string, width: number, lines: number): string[] {
   return out.slice(0, lines)
 }
 
-export function floorTitle(f: Floor): string {
-  if (f.level < 0) return `План подвала (${f.name})`
-  if (f.level === 0) return "План цокольного этажа"
-  return `План ${f.level}-го этажа`
+export function floorTitle(t: SheetT, f: Floor): string {
+  if (f.level < 0) return t("adminBuilderSheet.sheet.titleBasement", { name: f.name })
+  if (f.level === 0) return t("adminBuilderSheet.sheet.titlePlinth")
+  return t("adminBuilderSheet.sheet.titleFloor", { level: f.level })
 }
 
 export function FloorSheet({ buildingId, buildingName, address, author, floors, initialFloorId, premiseNumbers, initialSection = "ar", building, site, allBuildings, initialView = "plan" }: Props) {
+  const { t } = useT()
   const [floorId, setFloorId] = useState(initialFloorId)
   const [view, setView] = useState(initialView)
   const ownSections = building?.sections ?? []
@@ -143,12 +148,12 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     const top = [...all].sort((a, b) => b.elevation - a.elevation)[0]
     return top ? buildRoofPlan(top) : null
   }, [view, building, floors])
-  const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null, stage) : null), [building, floors, floor, premiseNumbers, stage])
-  const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, extras.options) : null), [floor, premiseNumbers, stage, extras])
+  const extras = useMemo(() => (floor ? planExtras(building?.floors ?? floors, floor, (id) => premiseNumbers[id] ?? null, t, stage) : null), [building, floors, floor, premiseNumbers, stage, t])
+  const drawing = useMemo(() => (floor && extras ? buildFloorDrawing(floor, (id) => premiseNumbers[id] ?? null, stage, { ...extras.options, t }) : null), [floor, premiseNumbers, stage, extras, t])
   // узлы и фрагменты — отдельный лист, считаются по конструкциям модели
   const details = useMemo(
-    () => (view === "details" ? buildDetails({ floors: building?.floors ?? floors }) : null),
-    [view, building, floors],
+    () => (view === "details" ? buildDetails({ floors: building?.floors ?? floors }, t) : null),
+    [view, building, floors, t],
   )
   // ведомость отделки и экспликация полов — отдельный лист-таблица
   const finish = useMemo(() => {
@@ -156,8 +161,8 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     const numbers = new Map((extras?.rooms ?? []).map((r) => [r.roomId, r.number]))
     // тот же набор помещений, что в экспликации (стадия «до перепланировки»)
     const staged = floorAtStage(floor, "before")
-    return { rows: finishSchedule(staged, numbers), types: floorTypes(staged, numbers), lintels: lintelSchedule([staged]) }
-  }, [floor, view, extras])
+    return { rows: finishSchedule(staged, t, numbers), types: floorTypes(staged, t, numbers), lintels: lintelSchedule([staged]) }
+  }, [floor, view, extras, t])
   // ведомость арендных мест: островки со всех этажей здания, лист появляется,
   // только если места есть
   const islandRows = useMemo(() => {
@@ -165,15 +170,15 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
     const list = building?.floors ?? floors
     return projectIslandSchedule(list, site?.islands ?? [], (f) => floorRooms(f), (f, roomId) => {
       const r = floorRooms(f).find((x) => x.id === roomId)
-      return r ? roomDisplayName(f, r) : ""
-    })
-  }, [view, building, floors])
+      return r ? roomDisplayName(f, r, (key) => t(`adminBuilder.roomNames.${key}`)) : ""
+    }, islandNames(t))
+  }, [view, building, floors, site, t])
   const replan = useMemo(() => (floor && hasReplan(floor) ? replanSummary(floor) : null), [floor])
   const mep = useMemo(() => {
     if (!floor || section === "ar" || view !== "plan") return null
     const numbers = new Map((extras?.rooms ?? []).map((r) => [r.roomId, r.number]))
-    return buildMepDrawing(floor, section, (rid) => numbers.get(rid) ?? null)
-  }, [floor, section, view, extras])
+    return buildMepDrawing(floor, section, t, (rid) => numbers.get(rid) ?? null)
+  }, [floor, section, view, extras, t])
   const replanTables = stage !== "plan" && !!replan
   const arTables = view === "plan" && section === "ar" && !!extras && (extras.rooms.length > 0 || extras.schedule.rows.length > 0)
   const hasTables = (!!mep && (mep.legend.length > 0 || mep.spec.length > 0)) || replanTables || arTables
@@ -185,18 +190,18 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   const sheet = useMemo(() => (shownDrawing ? pickSheet(shownDrawing, hasTables ? TABLES_W + 5 : 0) : null), [shownDrawing, hasTables])
   const available = floor ? sectionsWithContent(floor) : []
   const sheetNo = floor ? Math.max(1, floors.indexOf(floor) + 1) : 1
-  const planTitle = floor ? `${floorTitle(floor)}${section === "ar" ? "" : section === "mep" ? ". Сети" : `. ${section}`}` : ""
+  const planTitle = floor ? `${floorTitle(t, floor)}${section === "ar" ? "" : section === "mep" ? t("adminBuilderSheet.sheet.suffixMep") : `. ${section}`}` : ""
   const elevation = useMemo<{ d: ElevationDrawing; title: string } | null>(() => {
     if (!building || view === "plan") return null
     if (view.startsWith("facade:")) {
       const side = view.slice(7) as FacadeSide
-      return FACADES.includes(side) ? { d: buildFacade(building, side), title: FACADE_TITLE[side] } : null
+      return FACADES.includes(side) ? { d: buildFacade(building, side, t), title: facadeTitle(t, side) } : null
     }
     const sec = sections.find((x) => `section:${x.id}` === view)
-    return sec ? { d: buildSection(building, sec), title: `Разрез ${sec.name}` } : null
-  }, [building, view, sections])
+    return sec ? { d: buildSection(building, sec, t), title: t("adminBuilderSheet.sheet.sectionOf", { name: sec.name }) } : null
+  }, [building, view, sections, t])
   const elevationSheet = useMemo(() => (elevation ? pickElevationSheet(elevation.d) : null), [elevation])
-  const title = view === "islands" ? "Ведомость арендных мест" : view === "details" ? "Узлы и фрагменты" : elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(floor)}. План перекрытия` : view === "site" ? "Генеральный план" : view === "roof" ? "План кровли" : view === "finish" && floor ? `${floorTitle(floor)}. Ведомости: отделка, полы, перемычки` : view === "evac" && floor ? `${floorTitle(floor)}. План эвакуации` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(floor)}. ${STAGE_TITLE[stage]}` : planTitle
+  const title = view === "islands" ? t("adminBuilderSheet.sheet.viewIslands") : view === "details" ? t("adminBuilderSheet.sheet.viewDetails") : elevation ? elevation.title : view === "slabs" && floor ? `${floorTitle(t, floor)}${t("adminBuilderSheet.sheet.suffixSlabs")}` : view === "site" ? t("adminBuilderSheet.sheet.viewSite") : view === "roof" ? t("adminBuilderSheet.sheet.viewRoof") : view === "finish" && floor ? `${floorTitle(t, floor)}${t("adminBuilderSheet.sheet.suffixFinish")}` : view === "evac" && floor ? `${floorTitle(t, floor)}${t("adminBuilderSheet.sheet.suffixEvac")}` : stage !== "plan" && stage !== "edit" && floor ? `${floorTitle(t, floor)}. ${t(`adminBuilderSheet.sheet.${STAGE_TITLE_KEY[stage]}`)}` : planTitle
   // лист-таблица не зависит от размеров плана: всегда A3 альбомный
   const TABLE_SHEET: Sheet = { w: 420, h: 297, scale: 100, format: "A3", orientation: "landscape" }
   // узлы — на А2: в масштабе 1:20 по ГОСТ четыре узла на А3 не помещаются
@@ -206,11 +211,11 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   function downloadDxf() {
     // на листе узлов кнопка отдавала план этажа — теперь сами узлы
     if (details?.length) {
-      const text = detailsToDxf(details, `${buildingName}. Узлы и фрагменты`)
+      const text = detailsToDxf(details, t("adminBuilderSheet.sheet.dxfDetails", { building: buildingName }))
       const blob = new Blob([text], { type: "application/dxf" })
       const a = document.createElement("a")
       a.href = URL.createObjectURL(blob)
-      a.download = `${buildingName} — узлы.dxf`.replace(/[\/:*?"<>|]/g, "-")
+      a.download = `${buildingName} — ${t("adminBuilderSheet.sheet.markDetails")}.dxf`.replace(/[\/:*?"<>|]/g, "-")
       a.click()
       URL.revokeObjectURL(a.href)
       return
@@ -236,7 +241,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
   }
 
   if (!floor || !drawing || !sheet || !activeSheet) {
-    return <div className="p-6 text-sm text-slate-500">В модели здания нет этажей — чертить нечего.</div>
+    return <div className="p-6 text-sm text-slate-500">{t("adminBuilderSheet.sheet.noFloors")}</div>
   }
 
   return (
@@ -248,7 +253,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           href={`/admin/builder/${buildingId}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300"
         >
-          <ArrowLeft className="h-3.5 w-3.5" /> Конструктор
+          <ArrowLeft className="h-3.5 w-3.5" /> {t("adminBuilderSheet.sheet.backToBuilder")}
         </Link>
         <select
           id="sheet-view"
@@ -256,29 +261,29 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           onChange={(e) => setView(e.target.value)}
           className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium dark:border-slate-800 dark:bg-slate-900"
         >
-          <option value="plan">План этажа</option>
-          <option value="evac">План эвакуации</option>
-          <option value="slabs">План перекрытия</option>
-          <option value="roof">План кровли</option>
-          {site && <option value="site">Генеральный план</option>}
-          <option value="finish">Ведомости: отделка, полы, перемычки</option>
-          <option value="details">Узлы и фрагменты</option>
-          <option value="islands">Ведомость арендных мест</option>
+          <option value="plan">{t("adminBuilderSheet.sheet.viewPlan")}</option>
+          <option value="evac">{t("adminBuilderSheet.sheet.viewEvac")}</option>
+          <option value="slabs">{t("adminBuilderSheet.sheet.viewSlabs")}</option>
+          <option value="roof">{t("adminBuilderSheet.sheet.viewRoof")}</option>
+          {site && <option value="site">{t("adminBuilderSheet.sheet.viewSite")}</option>}
+          <option value="finish">{t("adminBuilderSheet.sheet.viewFinish")}</option>
+          <option value="details">{t("adminBuilderSheet.sheet.viewDetails")}</option>
+          <option value="islands">{t("adminBuilderSheet.sheet.viewIslands")}</option>
           {replan && (
-            <optgroup label="Перепланировка этажа">
-              <option value="replan:demolish">План демонтажа</option>
-              <option value="replan:install">План монтажа</option>
-              <option value="replan:after">План после перепланировки</option>
+            <optgroup label={t("adminBuilderSheet.sheet.groupReplan")}>
+              <option value="replan:demolish">{t("adminBuilderSheet.sheet.stageDemolish")}</option>
+              <option value="replan:install">{t("adminBuilderSheet.sheet.stageInstall")}</option>
+              <option value="replan:after">{t("adminBuilderSheet.sheet.stageAfter")}</option>
             </optgroup>
           )}
           {building && (
-            <optgroup label="Фасады">
-              {FACADES.map((f) => <option key={f} value={`facade:${f}`}>{FACADE_TITLE[f]}</option>)}
+            <optgroup label={t("adminBuilderSheet.sheet.groupFacades")}>
+              {FACADES.map((f) => <option key={f} value={`facade:${f}`}>{facadeTitle(t, f)}</option>)}
             </optgroup>
           )}
           {building && (
-            <optgroup label={ownSections.length ? "Разрезы" : "Разрезы (авто, свои — инструментом «Разрез»)"}>
-              {sections.map((x) => <option key={x.id} value={`section:${x.id}`}>Разрез {x.name}</option>)}
+            <optgroup label={t(ownSections.length ? "adminBuilderSheet.sheet.groupSections" : "adminBuilderSheet.sheet.groupSectionsAuto")}>
+              {sections.map((x) => <option key={x.id} value={`section:${x.id}`}>{t("adminBuilderSheet.sheet.sectionOf", { name: x.name })}</option>)}
             </optgroup>
           )}
         </select>
@@ -290,7 +295,7 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
         >
           {floors.map((f) => (
             <option key={f.id} value={f.id}>
-              {floorTitle(f)}
+              {floorTitle(t, f)}
             </option>
           ))}
         </select>}
@@ -300,40 +305,40 @@ export function FloorSheet({ buildingId, buildingName, address, author, floors, 
           onChange={(e) => setSection(e.target.value as SheetSection)}
           className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs dark:border-slate-800 dark:bg-slate-900"
         >
-          <option value="ar">АР — обмерный план</option>
-          {available.length > 1 && <option value="mep">Все сети на одном листе</option>}
-          {(["ЭМ", "ЭО", "СС", "ВК", "ОВ"] as const).map((s) => (
-            <option key={s} value={s} disabled={!available.includes(s)}>
-              {s} — {SECTION_TITLE[s].toLowerCase()}{available.includes(s) ? "" : " (пусто)"}
+          <option value="ar">{t("adminBuilderSheet.sheet.sectionAr")}</option>
+          {available.length > 1 && <option value="mep">{t("adminBuilderSheet.sheet.sectionAllMep")}</option>}
+          {(["ЭМ", "ЭО", "СС", "ВК", "ОВ"] as const).map((sec) => (
+            <option key={sec} value={sec} disabled={!available.includes(sec)}>
+              {sec} — {sectionTitle(t, sec).toLowerCase()}{available.includes(sec) ? "" : t("adminBuilderSheet.sheet.sectionEmpty")}
             </option>
           ))}
         </select>}
         <span className="text-xs text-slate-500">
-          {activeSheet.format}, {activeSheet.orientation === "portrait" ? "книжный" : "альбомный"}, М 1:{activeSheet.scale}
+          {t("adminBuilderSheet.sheet.format", { format: activeSheet.format, orientation: t(activeSheet.orientation === "portrait" ? "adminBuilderSheet.sheet.portrait" : "adminBuilderSheet.sheet.landscape"), scale: activeSheet.scale })}
         </span>
         <div className="ml-auto flex items-center gap-2">
           <Link
             href={`/admin/builder/${buildingId}/sheet?album=1`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200"
-            title="Все листы проекта подряд: ведомость, планы, перепланировка, сети, фасады, разрезы — одним PDF"
+            title={t("adminBuilderSheet.sheet.albumHint")}
           >
-            Альбом
+            {t("adminBuilderSheet.sheet.album")}
           </Link>
           <button
             type="button"
             onClick={downloadDxf}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-200"
-            title="Пространство модели 1:1 в миллиметрах: стены, проёмы, размеры, оси — по слоям"
+            title={t("adminBuilderSheet.sheet.dxfHint")}
           >
-            <Download className="h-3.5 w-3.5" /> DXF для AutoCAD
+            <Download className="h-3.5 w-3.5" /> {t("adminBuilderSheet.sheet.dxf")}
           </button>
           <button
             type="button"
             onClick={() => window.print()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
-            title="В окне печати выберите «Сохранить как PDF» и формат листа"
+            title={t("adminBuilderSheet.sheet.printHint")}
           >
-            <Printer className="h-3.5 w-3.5" /> PDF / печать
+            <Printer className="h-3.5 w-3.5" /> {t("adminBuilderSheet.sheet.print")}
           </button>
         </div>
       </div>
@@ -433,6 +438,7 @@ export function SheetSvg({
   mep: MepDrawing | null
   reserveRight: number
 }) {
+  const { t } = useT()
   const { w, h, scale } = sheet
   const dw = (d.bounds.maxX - d.bounds.minX) / scale
   const dh = (d.bounds.maxY - d.bounds.minY) / scale
@@ -604,7 +610,7 @@ export function SheetSvg({
 
       {/* название над планом */}
       <text x={(areaX0 + areaX1) / 2} y={Math.max(12, Y(d.bounds.maxY) - reach - BUBBLE_R * 2 - 4)} fontSize={5} textAnchor="middle">
-        {title}  <tspan fontSize={3.5}>М 1:{scale}</tspan>
+        {title}  <tspan fontSize={3.5}>{t("adminBuilderSheet.sheet.scaleMark", { scale })}</tspan>
       </text>
 
       {/* размеры и надписи инженера */}
@@ -690,7 +696,7 @@ export function SheetSvg({
           <g key={`ex${i}`} stroke="#000" strokeWidth={0.35} fill="none">
             <line x1={x} y1={y} x2={tip.x} y2={tip.y} />
             <polygon points={`${tip.x},${tip.y} ${tip.x - dx * 2 - dy * 1},${tip.y - dy * 2 + dx * 1} ${tip.x - dx * 2 + dy * 1},${tip.y - dy * 2 - dx * 1}`} fill="#000" />
-            <text x={tip.x + dx * 4} y={tip.y + dy * 4} fontSize={2.3} textAnchor="middle" dominantBaseline="middle" stroke="none" fill="#000">{ex.kind === "emergency" ? "Выход" : "Вход"}</text>
+            <text x={tip.x + dx * 4} y={tip.y + dy * 4} fontSize={2.3} textAnchor="middle" dominantBaseline="middle" stroke="none" fill="#000">{t(ex.kind === "emergency" ? "adminBuilderSheet.sheet.exitShort" : "adminBuilderSheet.sheet.entranceShort")}</text>
           </g>
         )
       })}
@@ -761,15 +767,15 @@ export function SheetSvg({
           <line key={`b${x}`} x1={x} y1={25} x2={x} y2={STAMP.h} strokeWidth={0.25} />
         ))}
         <g stroke="none" fill="#000" fontSize={2.2}>
-          {["Изм.", "Кол.уч", "Лист", "№ док.", "Подп.", "Дата"].map((t, i) => (
-            <text key={t} x={[3.5, 12, 22, 34.5, 49.5, 61][i]} y={28.8} textAnchor="middle">{t}</text>
+          {([t("adminBuilderSheet.sheet.stampChange"), t("adminBuilderSheet.sheet.stampSheets"), t("adminBuilderSheet.sheet.stampSheet"), t("adminBuilderSheet.sheet.stampDoc"), t("adminBuilderSheet.sheet.stampSign"), t("adminBuilderSheet.sheet.stampDate")]).map((label, i) => (
+            <text key={label} x={[3.5, 12, 22, 34.5, 49.5, 61][i]} y={28.8} textAnchor="middle">{label}</text>
           ))}
-          <text x={1} y={33.8}>Разраб.</text>
+          <text x={1} y={33.8}>{t("adminBuilderSheet.sheet.stampAuthor")}</text>
           <text x={18} y={33.8}>{author.slice(0, 14)}</text>
           <text x={57.5} y={33.8}>{today}</text>
-          <text x={1} y={38.8}>Пров.</text>
-          <text x={1} y={48.8}>Н. контр.</text>
-          <text x={1} y={53.8}>Утв.</text>
+          <text x={1} y={38.8}>{t("adminBuilderSheet.sheet.stampCheck")}</text>
+          <text x={1} y={48.8}>{t("adminBuilderSheet.sheet.stampNormCheck")}</text>
+          <text x={1} y={53.8}>{t("adminBuilderSheet.sheet.stampApprove")}</text>
         </g>
         {/* правая часть */}
         <line x1={65} y1={15} x2={STAMP.w} y2={15} strokeWidth={0.7} />
@@ -794,13 +800,13 @@ export function SheetSvg({
               <text key={`ttl${i}`} x={100} y={y0 + i * 4} fontSize={fs} textAnchor="middle">{line}</text>
             ))
           })()}
-          <text x={142.5} y={18.8} fontSize={2.2} textAnchor="middle">Стадия</text>
-          <text x={157.5} y={18.8} fontSize={2.2} textAnchor="middle">Лист</text>
-          <text x={175} y={18.8} fontSize={2.2} textAnchor="middle">Листов</text>
-          <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">И</text>
+          <text x={142.5} y={18.8} fontSize={2.2} textAnchor="middle">{t("adminBuilderSheet.sheet.stampStage")}</text>
+          <text x={157.5} y={18.8} fontSize={2.2} textAnchor="middle">{t("adminBuilderSheet.sheet.stampSheetNo")}</text>
+          <text x={175} y={18.8} fontSize={2.2} textAnchor="middle">{t("adminBuilderSheet.sheet.stampSheetCount")}</text>
+          <text x={142.5} y={23.8} fontSize={2.8} textAnchor="middle">{t("adminBuilderSheet.sheet.stampStageValue")}</text>
           <text x={157.5} y={23.8} fontSize={2.8} textAnchor="middle">{sheetNo}</text>
           <text x={175} y={23.8} fontSize={2.8} textAnchor="middle">{sheetCount}</text>
-          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{details ? "Узлы" : cover ? "Общие данные" : sitePlan ? "Генеральный план" : slabPlan ? "Перекрытия" : roofPlan ? "Кровля" : finish ? "Ведомости" : elevation ? (elevation.kind === "facade" ? "Фасады" : "Разрезы") : evac ? "Пожарная безопасность" : stage !== "plan" ? "Перепланировка" : SECTION_TITLE[section]}</text>
+          <text x={160} y={34} fontSize={2.6} textAnchor="middle">{details ? t("adminBuilderSheet.sheet.markDetails") : cover ? t("adminBuilderSheet.sheet.markCover") : sitePlan ? t("adminBuilderSheet.sheet.markSite") : slabPlan ? t("adminBuilderSheet.sheet.markSlabs") : roofPlan ? t("adminBuilderSheet.sheet.markRoof") : finish ? t("adminBuilderSheet.sheet.markFinish") : elevation ? t(elevation.kind === "facade" ? "adminBuilderSheet.sheet.markFacades" : "adminBuilderSheet.sheet.markSections") : evac ? t("adminBuilderSheet.sheet.markEvac") : stage !== "plan" ? t("adminBuilderSheet.sheet.markReplan") : sectionTitle(t, section)}</text>
           <text x={160} y={48.5} fontSize={3} textAnchor="middle">Commrent</text>
         </g>
       </g>
@@ -810,18 +816,19 @@ export function SheetSvg({
 
 /** Условные обозначения перепланировки и экспликация «было — стало». */
 function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummary; stage: PlanStage; x: number; y: number; w: number; maxH: number }) {
+  const { t } = useT()
   const out: React.ReactNode[] = []
   let cy = y
   const fmt = (v: number | null) => (v === null ? "—" : v.toFixed(1).replace(".", ","))
-  out.push(<text key="lt" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Условные обозначения</text>)
+  out.push(<text key="lt" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.legend")}</text>)
   cy += 7
   const rows: Array<{ key: string; draw: (yy: number) => React.ReactNode; text: string }> = [
-    { key: "e", draw: (yy) => <rect x={x + 3} y={yy} width={12} height={3} fill="#1a1a1a" />, text: "Существующие стены" },
+    { key: "e", draw: (yy) => <rect x={x + 3} y={yy} width={12} height={3} fill="#1a1a1a" />, text: t("adminBuilderSheet.sheet.legendExisting") },
   ]
   if (stage === "demolish") rows.push({ key: "d", draw: (yy) => (
     <g><rect x={x + 3} y={yy} width={12} height={3} fill="#fff" stroke="#000" strokeWidth={0.3} strokeDasharray="1.2 0.8" /><line x1={x + 3} y1={yy} x2={x + 15} y2={yy + 3} stroke="#000" strokeWidth={0.2} /><line x1={x + 3} y1={yy + 3} x2={x + 15} y2={yy} stroke="#000" strokeWidth={0.2} /></g>
-  ), text: "Демонтируемые конструкции, пробивка" })
-  if (stage === "install") rows.push({ key: "n", draw: (yy) => <rect x={x + 3} y={yy} width={12} height={3} fill="url(#hatch-new)" stroke="#000" strokeWidth={0.3} />, text: "Возводимые конструкции, закладка" })
+  ), text: t("adminBuilderSheet.sheet.legendDemolish") })
+  if (stage === "install") rows.push({ key: "n", draw: (yy) => <rect x={x + 3} y={yy} width={12} height={3} fill="url(#hatch-new)" stroke="#000" strokeWidth={0.3} />, text: t("adminBuilderSheet.sheet.legendInstall") })
   for (const r of rows) {
     out.push(<g key={r.key}>{r.draw(cy)}<text x={x + 19} y={cy + 2.6} fontSize={2.5}>{r.text}</text></g>)
     cy += 6
@@ -829,14 +836,14 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
   cy += 3
 
   const top = cy
-  out.push(<text key="et" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Экспликация помещений</text>)
+  out.push(<text key="et" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.explication")}</text>)
   cy += 6
   const c1 = x + 10, c2 = x + w - 32, c3 = x + w - 16
   out.push(<line key="h0" x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
-  out.push(<text key="h1" x={x + 5} y={cy + 3.4} fontSize={2.3} textAnchor="middle">№</text>)
-  out.push(<text key="h2" x={c1 + 2} y={cy + 3.4} fontSize={2.3}>Изменение</text>)
-  out.push(<text key="h3" x={c3 - 1} y={cy + 3.4} fontSize={2.3} textAnchor="end">Было, м²</text>)
-  out.push(<text key="h4" x={x + w - 1} y={cy + 3.4} fontSize={2.3} textAnchor="end">Стало</text>)
+  out.push(<text key="h1" x={x + 5} y={cy + 3.4} fontSize={2.3} textAnchor="middle">{t("adminBuilderSheet.sheet.thNo")}</text>)
+  out.push(<text key="h2" x={c1 + 2} y={cy + 3.4} fontSize={2.3}>{t("adminBuilderSheet.sheet.thChange")}</text>)
+  out.push(<text key="h3" x={c3 - 1} y={cy + 3.4} fontSize={2.3} textAnchor="end">{t("adminBuilderSheet.sheet.thBefore")}</text>)
+  out.push(<text key="h4" x={x + w - 1} y={cy + 3.4} fontSize={2.3} textAnchor="end">{t("adminBuilderSheet.sheet.thAfter")}</text>)
   cy += 5
   out.push(<line key="h5" x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.5} />)
   let cut = 0
@@ -845,7 +852,7 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
   const unchanged = summary.rooms.length - changed.length
   changed.forEach((r, i) => {
     if (cy + 4.6 > y + maxH - 16) { cut++; return }
-    const change = r.before === null ? "новое" : r.after === null ? "упразднено" : Math.abs(r.after - r.before) < 0.05 ? "без изменений" : "изменено"
+    const change = t(r.before === null ? "adminBuilderSheet.sheet.changeNew" : r.after === null ? "adminBuilderSheet.sheet.changeGone" : Math.abs(r.after - r.before) < 0.05 ? "adminBuilderSheet.sheet.changeNone" : "adminBuilderSheet.sheet.changeEdited")
     out.push(
       <g key={`r${i}`}>
         <text x={x + 5} y={cy + 3.3} fontSize={2.3} textAnchor="middle">{i + 1}</text>
@@ -858,13 +865,13 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
     out.push(<line key={`rl${i}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
   })
   if (unchanged) {
-    out.push(<text key="unch" x={c1 + 2} y={cy + 3.3} fontSize={2.3}>без изменений: {unchanged}</text>)
+    out.push(<text key="unch" x={c1 + 2} y={cy + 3.3} fontSize={2.3}>{t("adminBuilderSheet.sheet.unchanged", { count: unchanged })}</text>)
     cy += 4.6
     out.push(<line key="unchl" x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
   }
   out.push(
     <g key="tot">
-      <text x={c1 + 2} y={cy + 3.4} fontSize={2.4} fontWeight={700}>Итого</text>
+      <text x={c1 + 2} y={cy + 3.4} fontSize={2.4} fontWeight={700}>{t("adminBuilderSheet.sheet.total")}</text>
       <text x={c3 - 1} y={cy + 3.4} fontSize={2.4} fontWeight={700} textAnchor="end">{fmt(summary.areaBefore)}</text>
       <text x={x + w - 1} y={cy + 3.4} fontSize={2.4} fontWeight={700} textAnchor="end">{fmt(summary.areaAfter)}</text>
     </g>,
@@ -873,9 +880,9 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
   for (const [k, xx] of [["v1", c1], ["v2", c2], ["v3", c3]] as const) out.push(<line key={k} x1={xx} y1={top + 6} x2={xx} y2={cy} stroke="#000" strokeWidth={0.18} />)
   out.push(<rect key="box" x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
   cy += 4
-  out.push(<text key="s1" x={x} y={cy + 2} fontSize={2.3}>Демонтаж стен {summary.demolishWallM.toFixed(1).replace(".", ",")} м, новые стены {summary.newWallM.toFixed(1).replace(".", ",")} м</text>)
-  out.push(<text key="s2" x={x} y={cy + 6} fontSize={2.3}>Проёмы: пробиваются {summary.openingsNew}, закладываются {summary.openingsClosed}</text>)
-  if (cut) out.push(<text key="cut" x={x} y={cy + 10} fontSize={2.2}>…ещё помещений: {cut}</text>)
+  out.push(<text key="s1" x={x} y={cy + 2} fontSize={2.3}>{t("adminBuilderSheet.sheet.replanWalls", { demolish: summary.demolishWallM.toFixed(1).replace(".", ","), install: summary.newWallM.toFixed(1).replace(".", ",") })}</text>)
+  out.push(<text key="s2" x={x} y={cy + 6} fontSize={2.3}>{t("adminBuilderSheet.sheet.replanOpenings", { new: summary.openingsNew, closed: summary.openingsClosed })}</text>)
+  if (cut) out.push(<text key="cut" x={x} y={cy + 10} fontSize={2.2}>{t("adminBuilderSheet.sheet.morePremises", { count: cut })}</text>)
   return <g>{out}</g>
 }
 
@@ -884,6 +891,7 @@ function ReplanTables({ summary, stage, x, y, w, maxH }: { summary: ReplanSummar
  * показатели, общие указания и условные обозначения.
  */
 function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: string; note: string }>; w: number; indicators: BuildingIndicators | null }) {
+  const { t } = useT()
   // правая колонка не должна вылезать за рамку листа (рамка: 20 слева, 5 справа)
   const RIGHT = w - 25
   const x = 30, y0 = 30, rh = 7
@@ -894,43 +902,43 @@ function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: s
   const fmt = (v: number) => v.toLocaleString("ru-RU", { maximumFractionDigits: 1 })
   const tep: Array<[string, string]> = indicators
     ? [
-        ["Этажность (надземных этажей)", String(indicators.above)],
-        ["Количество этажей всего", String(indicators.floors)],
-        ...(indicators.siteM2 ? ([["Площадь участка, м²", fmt(indicators.siteM2)]] as Array<[string, string]>) : []),
-        ["Площадь застройки, м²", fmt(indicators.footprintM2)],
-        ...(indicators.builtPercent !== undefined ? ([["Процент застройки, %", String(indicators.builtPercent)]] as Array<[string, string]>) : []),
-        ["Общая площадь помещений, м²", fmt(indicators.totalM2)],
-        ["в т.ч. арендопригодная, м²", fmt(indicators.rentM2)],
-        ["в т.ч. МОП и технические, м²", fmt(indicators.commonM2)],
-        ["Строительный объём, м³", fmt(indicators.volumeM3)],
-        ["Высота здания, м", fmt(indicators.heightM)],
+        [t("adminBuilderSheet.sheet.indAbove"), String(indicators.above)],
+        [t("adminBuilderSheet.sheet.indFloors"), String(indicators.floors)],
+        ...(indicators.siteM2 ? ([[t("adminBuilderSheet.sheet.indSite"), fmt(indicators.siteM2)]] as Array<[string, string]>) : []),
+        [t("adminBuilderSheet.sheet.indFootprint"), fmt(indicators.footprintM2)],
+        ...(indicators.builtPercent !== undefined ? ([[t("adminBuilderSheet.sheet.indBuilt"), String(indicators.builtPercent)]] as Array<[string, string]>) : []),
+        [t("adminBuilderSheet.sheet.indTotal"), fmt(indicators.totalM2)],
+        [t("adminBuilderSheet.sheet.indRent"), fmt(indicators.rentM2)],
+        [t("adminBuilderSheet.sheet.indCommon"), fmt(indicators.commonM2)],
+        [t("adminBuilderSheet.sheet.indVolume"), fmt(indicators.volumeM3)],
+        [t("adminBuilderSheet.sheet.indHeight"), fmt(indicators.heightM)],
       ]
     : []
   const notes = [
-    "1. Чертежи выполнены в системе Commrent по обмерам и техническому паспорту здания.",
-    "2. Размеры на планах даны в миллиметрах, отметки — в метрах.",
-    "3. Площади помещений подсчитаны по внутренним граням стен за вычетом колонн.",
-    "4. Места общего пользования и технические помещения в арендопригодную площадь не входят.",
-    "5. Все изменения в планировке согласовать с проектной организацией.",
+    t("adminBuilderSheet.sheet.note1"),
+    t("adminBuilderSheet.sheet.note2"),
+    t("adminBuilderSheet.sheet.note3"),
+    t("adminBuilderSheet.sheet.note4"),
+    t("adminBuilderSheet.sheet.note5"),
   ]
   const legend: Array<[string, "solid" | "demolish" | "new" | "column" | "door" | "exit"]> = [
-    ["Существующие стены и перегородки", "solid"],
-    ["Демонтируемые конструкции", "demolish"],
-    ["Возводимые конструкции", "new"],
-    ["Колонна", "column"],
-    ["Дверной проём", "door"],
-    ["Эвакуационный выход", "exit"],
+    [t("adminBuilderSheet.sheet.legendExistingFull"), "solid"],
+    [t("adminBuilderSheet.sheet.legendDemolishShort"), "demolish"],
+    [t("adminBuilderSheet.sheet.legendInstallShort"), "new"],
+    [t("adminBuilderSheet.sheet.legendColumn"), "column"],
+    [t("adminBuilderSheet.sheet.legendDoor"), "door"],
+    [t("adminBuilderSheet.sheet.legendExit"), "exit"],
   ]
   const out: React.ReactNode[] = []
   // ── ведомость листов ──
-  out.push(<text key="t1" x={x + tw / 2} y={y0 - 5} fontSize={4} textAnchor="middle">Ведомость листов</text>)
+  out.push(<text key="t1" x={x + tw / 2} y={y0 - 5} fontSize={4} textAnchor="middle">{t("adminBuilderSheet.sheet.sheetsList")}</text>)
   out.push(<rect key="b1" x={x} y={y0} width={tw} height={rh * (rows.length + 1)} fill="none" stroke="#000" strokeWidth={0.5} />)
   out.push(<line key="v1" x1={c1} y1={y0} x2={c1} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />)
   out.push(<line key="v2" x1={c2} y1={y0} x2={c2} y2={y0 + rh * (rows.length + 1)} stroke="#000" strokeWidth={0.5} />)
   out.push(<line key="h1" x1={x} y1={y0 + rh} x2={x + tw} y2={y0 + rh} stroke="#000" strokeWidth={0.5} />)
-  out.push(<text key="c1" x={x + 6.5} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">Лист</text>)
-  out.push(<text key="c2" x={(c1 + c2) / 2} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">Наименование</text>)
-  out.push(<text key="c3" x={(c2 + x + tw) / 2} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">Примечание</text>)
+  out.push(<text key="c1" x={x + 6.5} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">{t("adminBuilderSheet.sheet.colSheet")}</text>)
+  out.push(<text key="c2" x={(c1 + c2) / 2} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">{t("adminBuilderSheet.sheet.colName")}</text>)
+  out.push(<text key="c3" x={(c2 + x + tw) / 2} y={y0 + 4.8} fontSize={2.6} textAnchor="middle">{t("adminBuilderSheet.sheet.colNote")}</text>)
   rows.forEach((r, i) => {
     const y = y0 + rh * (i + 1)
     out.push(
@@ -944,7 +952,7 @@ function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: s
   })
   // ── общие указания ──
   let cy = y0 + rh * (rows.length + 1) + 12
-  out.push(<text key="t2" x={x} y={cy} fontSize={4}>Общие указания</text>)
+  out.push(<text key="t2" x={x} y={cy} fontSize={4}>{t("adminBuilderSheet.sheet.generalNotes")}</text>)
   cy += 6
   notes.forEach((t, i) => {
     out.push(<text key={`n${i}`} x={x} y={cy} fontSize={2.8}>{t}</text>)
@@ -953,7 +961,7 @@ function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: s
   // ── показатели ──
   if (tep.length) {
     const th = 6
-    out.push(<text key="t3" x={rx + rw / 2} y={y0 - 5} fontSize={4} textAnchor="middle">Технико-экономические показатели</text>)
+    out.push(<text key="t3" x={rx + rw / 2} y={y0 - 5} fontSize={4} textAnchor="middle">{t("adminBuilderSheet.sheet.indicators")}</text>)
     out.push(<rect key="b3" x={rx} y={y0} width={rw} height={th * tep.length} fill="none" stroke="#000" strokeWidth={0.5} />)
     out.push(<line key="v3" x1={rx + rw - 40} y1={y0} x2={rx + rw - 40} y2={y0 + th * tep.length} stroke="#000" strokeWidth={0.5} />)
     tep.forEach(([label, value], i) => {
@@ -969,7 +977,7 @@ function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: s
   }
   // ── условные обозначения ──
   let ly = y0 + 6 * tep.length + 18
-  out.push(<text key="t4" x={rx} y={ly} fontSize={4}>Условные обозначения</text>)
+  out.push(<text key="t4" x={rx} y={ly} fontSize={4}>{t("adminBuilderSheet.sheet.legend")}</text>)
   ly += 7
   legend.forEach(([label, kind], i) => {
     const y = ly + i * 8
@@ -1000,6 +1008,7 @@ function CoverBody({ rows, w, indicators }: { rows: Array<{ no: number; title: s
 
 /** Экспликация помещений и ведомость заполнения проёмов (ГОСТ 21.501). */
 function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[]; schedule: OpeningSchedule; floorId: string; x: number; y: number; w: number; maxH: number }) {
+  const { t } = useT()
   const out: React.ReactNode[] = []
   let cy = y
   const limit = y + maxH
@@ -1024,8 +1033,8 @@ function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[
       if (cy + RH > limit - 8) { cut++; return }
       r.forEach((cell, i) => {
         const maxChars = Math.floor((cols[i].w - 2) / 1.2)
-        const t = cell.length > maxChars ? `${cell.slice(0, maxChars - 1)}…` : cell
-        out.push(<text key={`${key}r${ri}c${i}`} x={cellX(i)} y={cy + 3.2} fontSize={2.2} textAnchor={anchor(i)}>{t}</text>)
+        const short = cell.length > maxChars ? `${cell.slice(0, maxChars - 1)}…` : cell
+        out.push(<text key={`${key}r${ri}c${i}`} x={cellX(i)} y={cy + 3.2} fontSize={2.2} textAnchor={anchor(i)}>{short}</text>)
       })
       cy += RH
       out.push(<line key={`${key}rl${ri}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
@@ -1036,26 +1045,27 @@ function ArTables({ rooms, schedule, floorId, x, y, w, maxH }: { rooms: RoomRow[
     }
     xs.slice(1).forEach((xx, i) => out.push(<line key={`${key}v${i}`} x1={xx} y1={top + 6} x2={xx} y2={cy} stroke="#000" strokeWidth={0.18} />))
     out.push(<rect key={`${key}box`} x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
-    if (cut) { out.push(<text key={`${key}cut`} x={x} y={cy + 3} fontSize={2.1}>…ещё строк: {cut}</text>); cy += 4 }
+    if (cut) { out.push(<text key={`${key}cut`} x={x} y={cy + 3} fontSize={2.1}>{t("adminBuilderSheet.sheet.moreRows", { count: cut })}</text>); cy += 4 }
     cy += 6
   }
   const total = rooms.reduce((sum, r) => sum + r.areaM2, 0)
   const rent = rooms.filter((r) => r.use === "rent").reduce((sum, r) => sum + r.areaM2, 0)
   // сначала арендопригодные, затем МОП и технические — с подытогами
   const ordered = [...rooms.filter((r) => r.use === "rent"), ...rooms.filter((r) => r.use !== "rent")]
-  table("rooms", "Экспликация помещений", [{ w: 14, label: "№", align: "middle" }, { w: w - 34, label: "Наименование" }, { w: 20, label: "Площадь, м²", align: "end" }],
+  table("rooms", t("adminBuilderSheet.sheet.explication"), [{ w: 14, label: t("adminBuilderSheet.sheet.thNo"), align: "middle" }, { w: w - 34, label: t("adminBuilderSheet.sheet.colName") }, { w: 20, label: t("adminBuilderSheet.sheet.thArea"), align: "end" }],
     [
-      ...ordered.map((r) => [r.number || (r.use === "tech" ? "Т" : "МОП"), r.name || "Помещение", fmt(r.areaM2)]),
-      ...(rent < total ? [["", "в т.ч. арендопригодная", fmt(rent)], ["", "в т.ч. МОП и технические", fmt(total - rent)]] : []),
-    ], ["", "Итого", fmt(total)])
+      ...ordered.map((r) => [r.number || t(r.use === "tech" ? "adminBuilderSheet.sheet.roomTech" : "adminBuilderSheet.sheet.roomCommon"), r.name || t("adminBuilderSheet.sheet.roomFallback"), fmt(r.areaM2)]),
+      ...(rent < total ? [["", t("adminBuilderSheet.sheet.inclRent"), fmt(rent)], ["", t("adminBuilderSheet.sheet.inclCommon"), fmt(total - rent)]] : []),
+    ], ["", t("adminBuilderSheet.sheet.total"), fmt(total)])
   const onFloor = schedule.rows.filter((r) => (r.perFloor[floorId] ?? 0) > 0)
-  table("ops", "Ведомость заполнения проёмов", [{ w: 13, label: "Марка", align: "middle" }, { w: w - 41, label: "Наименование" }, { w: 14, label: "Этаж", align: "end" }, { w: 14, label: "Всего", align: "end" }],
-    onFloor.map((r) => [r.mark, openingName(r), String(r.perFloor[floorId] ?? 0), String(r.total)]))
+  table("ops", t("adminBuilderSheet.sheet.openingsSchedule"), [{ w: 13, label: t("adminBuilderSheet.sheet.thMark"), align: "middle" }, { w: w - 41, label: t("adminBuilderSheet.sheet.colName") }, { w: 14, label: t("adminBuilderSheet.sheet.thFloor"), align: "end" }, { w: 14, label: t("adminBuilderSheet.sheet.thTotal"), align: "end" }],
+    onFloor.map((r) => [r.mark, openingName(t, r), String(r.perFloor[floorId] ?? 0), String(r.total)]))
   return <g>{out}</g>
 }
 
 /** Пути эвакуации, знаки выходов и легенда (ГОСТ Р 12.2.143). */
 function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number) => number; Y: (v: number) => number; sheet: Sheet }) {
+  const { t } = useT()
   const G = "#16a34a"
   const out: React.ReactNode[] = []
   evac.routes.forEach((route, i) => {
@@ -1076,7 +1086,7 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
     out.push(
       <g key={`fe${i}`}>
         <circle cx={X(p.x)} cy={Y(p.y)} r={2.4} fill="#dc2626" stroke="#fff" strokeWidth={0.3} />
-        <text x={X(p.x)} y={Y(p.y) + 1.1} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>ОП</text>
+        <text x={X(p.x)} y={Y(p.y) + 1.1} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>{t("adminBuilderSheet.sheet.fireExt")}</text>
       </g>,
     )
   })
@@ -1089,7 +1099,7 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
         <line x1={x} y1={y} x2={tip.x} y2={tip.y} stroke={G} strokeWidth={0.9} />
         <polygon points={`${tip.x},${tip.y} ${tip.x - dx * 3 - dy * 1.4},${tip.y - dy * 3 + dx * 1.4} ${tip.x - dx * 3 + dy * 1.4},${tip.y - dy * 3 - dx * 1.4}`} fill={G} />
         <rect x={tip.x + dx * 2 - 6} y={tip.y + dy * 2 - 2} width={12} height={4} fill={G} rx={0.6} />
-        <text x={tip.x + dx * 2} y={tip.y + dy * 2 + 1.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>ВЫХОД</text>
+        <text x={tip.x + dx * 2} y={tip.y + dy * 2 + 1.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>{t("adminBuilderSheet.sheet.exitBig")}</text>
       </g>,
     )
   })
@@ -1101,7 +1111,7 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
         <circle cx={x} cy={y} r={3.2} fill="none" stroke={G} strokeWidth={0.7} />
         <path d={`M ${x - 1.6} ${y - 1.2} L ${x} ${y + 1.6} L ${x + 1.6} ${y - 1.2}`} fill="none" stroke={G} strokeWidth={0.7} />
         <rect x={x - 9} y={y + 4} width={18} height={4} fill={G} rx={0.6} />
-        <text x={x} y={y + 7.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>НА ЛЕСТНИЦУ</text>
+        <text x={x} y={y + 7.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>{t("adminBuilderSheet.sheet.toStair")}</text>
       </g>,
     )
   })
@@ -1109,23 +1119,23 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
   // легенда в свободном углу листа
   const lx = 26, ly = sheet.h - 58
   const items: Array<[string, "route" | "exit" | "stair" | "fire"]> = [
-    ["Путь эвакуации", "route"],
-    ["Эвакуационный выход", "exit"],
-    ["Лестница", "stair"],
-    ["Огнетушитель", "fire"],
+    [t("adminBuilderSheet.sheet.legendRoute"), "route"],
+    [t("adminBuilderSheet.sheet.legendExit"), "exit"],
+    [t("adminBuilderSheet.sheet.legendStair"), "stair"],
+    [t("adminBuilderSheet.sheet.legendFire"), "fire"],
   ]
   out.push(
     <g key="legend">
       <rect x={lx - 3} y={ly - 8} width={78} height={8 + items.length * 7} fill="#fff" stroke="#000" strokeWidth={0.3} />
-      <text x={lx} y={ly - 2.5} fontSize={3}>Условные обозначения</text>
+      <text x={lx} y={ly - 2.5} fontSize={3}>{t("adminBuilderSheet.sheet.legend")}</text>
       {items.map(([label, kind], i) => {
         const y = ly + 4 + i * 7
         return (
           <g key={label}>
             {kind === "route" && <g><line x1={lx} y1={y} x2={lx + 12} y2={y} stroke={G} strokeWidth={0.7} /><polygon points={`${lx + 12},${y} ${lx + 9},${y - 1.2} ${lx + 9},${y + 1.2}`} fill={G} /></g>}
-            {kind === "exit" && <g><rect x={lx} y={y - 2} width={12} height={4} fill={G} rx={0.6} /><text x={lx + 6} y={y + 1.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>ВЫХОД</text></g>}
+            {kind === "exit" && <g><rect x={lx} y={y - 2} width={12} height={4} fill={G} rx={0.6} /><text x={lx + 6} y={y + 1.3} fontSize={2.6} fill="#fff" textAnchor="middle" fontWeight={700}>{t("adminBuilderSheet.sheet.exitBig")}</text></g>}
             {kind === "stair" && <rect x={lx} y={y - 2} width={12} height={4} fill="none" stroke="#000" strokeWidth={0.3} strokeDasharray="2 1" />}
-            {kind === "fire" && <g><circle cx={lx + 6} cy={y} r={2.2} fill="#dc2626" /><text x={lx + 6} y={y + 1.1} fontSize={2.4} fill="#fff" textAnchor="middle" fontWeight={700}>ОП</text></g>}
+            {kind === "fire" && <g><circle cx={lx + 6} cy={y} r={2.2} fill="#dc2626" /><text x={lx + 6} y={y + 1.1} fontSize={2.4} fill="#fff" textAnchor="middle" fontWeight={700}>{t("adminBuilderSheet.sheet.fireExt")}</text></g>}
             <text x={lx + 16} y={y + 1} fontSize={2.6}>{label}</text>
           </g>
         )
@@ -1142,6 +1152,7 @@ function EvacLayer({ evac, X, Y, sheet }: { evac: EvacuationPlan; X: (v: number)
  * стенами они не огорожены и площадь коридора не делят.
  */
 function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }) {
+  const { t } = useT()
   const x = 28
   const tw = w - 60
   const RH = 6
@@ -1150,14 +1161,14 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
   const ads = rows.filter((r) => WALL_MOUNTED.has(r.kind)).length
   const rest = tw - (16 + 34 + 22 + 22 + 20)
   const cols: Array<{ w: number; label: string; align?: "end" | "middle" }> = [
-    { w: 16, label: "Марка", align: "middle" },
-    { w: rest * 0.3, label: "Наименование" },
-    { w: 34, label: "Вид" },
-    { w: 22, label: "Этаж" },
-    { w: rest * 0.28, label: "Размещение" },
-    { w: rest * 0.42, label: "Арендатор" },
-    { w: 22, label: "Габарит, мм", align: "middle" },
-    { w: 20, label: "Площадь, м²", align: "end" },
+    { w: 16, label: t("adminBuilderSheet.sheet.thMark"), align: "middle" },
+    { w: rest * 0.3, label: t("adminBuilderSheet.sheet.colName") },
+    { w: 34, label: t("adminBuilderSheet.sheet.thKind") },
+    { w: 22, label: t("adminBuilderSheet.sheet.thFloor") },
+    { w: rest * 0.28, label: t("adminBuilderSheet.sheet.thPlace") },
+    { w: rest * 0.42, label: t("adminBuilderSheet.sheet.thTenant") },
+    { w: 22, label: t("adminBuilderSheet.sheet.thSize"), align: "middle" },
+    { w: 20, label: t("adminBuilderSheet.sheet.thArea"), align: "end" },
   ]
   const xs: number[] = []
   let acc = x
@@ -1172,14 +1183,14 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
   }
   return (
     <g>
-      <text x={x + tw / 2} y={y0 - 4} fontSize={4} textAnchor="middle">Ведомость арендных мест</text>
+      <text x={x + tw / 2} y={y0 - 4} fontSize={4} textAnchor="middle">{t("adminBuilderSheet.sheet.islandsTitle")}</text>
       <rect x={x} y={y0} width={tw} height={rowsH} fill="none" stroke="#000" strokeWidth={0.5} />
       <line x1={x} y1={y0 + RH} x2={x + tw} y2={y0 + RH} stroke="#000" strokeWidth={0.5} />
       {xs.slice(1).map((xx, i) => <line key={`v${i}`} x1={xx} y1={y0} x2={xx} y2={y0 + rowsH} stroke="#000" strokeWidth={0.3} />)}
       {cols.map((c, i) => <text key={`h${i}`} x={cellX(i)} y={y0 + 4.2} fontSize={2.6} textAnchor={c.align ?? "start"}>{c.label}</text>)}
       {shown.map((r, ri) => {
         const y = y0 + RH * (ri + 1)
-        const cells = [r.mark, r.name, ISLAND_PRESETS[r.kind].label, r.floorName, r.place || "—", r.tenant || "свободно", r.size, r.area.toFixed(2).replace(".", ",")]
+        const cells = [r.mark, r.name, t(`adminBuilder.islands.kinds.${r.kind}`), r.floorName, r.place || "—", r.tenant || t("adminBuilderSheet.sheet.islandsFree"), r.size, r.area.toFixed(2).replace(".", ",")]
         return (
           <g key={r.id}>
             <line x1={x} y1={y + RH} x2={x + tw} y2={y + RH} stroke="#000" strokeWidth={0.18} />
@@ -1191,18 +1202,19 @@ function IslandsBody({ rows, w, h }: { rows: IslandRow[]; w: number; h: number }
         const y = y0 + RH * (shown.length + 1)
         return (
           <g>
-            <text x={cellX(1)} y={y + 4.2} fontSize={2.6} fontWeight={700}>Итого мест: {total.count}, сдано: {total.leased}{ads ? `, из них реклама: ${ads}` : ""}</text>
+            <text x={cellX(1)} y={y + 4.2} fontSize={2.6} fontWeight={700}>{t("adminBuilderSheet.sheet.islandsTotal", { count: total.count, leased: total.leased })}{ads ? t("adminBuilderSheet.sheet.islandsAds", { count: ads }) : ""}</text>
             <text x={cellX(7)} y={y + 4.2} fontSize={2.6} textAnchor="end" fontWeight={700}>{total.area.toFixed(2).replace(".", ",")}</text>
           </g>
         )
       })()}
-      {rows.length > shown.length && <text x={x} y={y0 + rowsH + 5} fontSize={2.4}>…ещё строк: {rows.length - shown.length}</text>}
-      {!rows.length && <text x={x + tw / 2} y={y0 + 20} fontSize={3} textAnchor="middle">Арендных мест в общих зонах не размещено</text>}
+      {rows.length > shown.length && <text x={x} y={y0 + rowsH + 5} fontSize={2.4}>{t("adminBuilderSheet.sheet.moreRows", { count: rows.length - shown.length })}</text>}
+      {!rows.length && <text x={x + tw / 2} y={y0 + 20} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.islandsEmpty")}</text>}
     </g>
   )
 }
 
 function FinishBody({ rows, types, lintels, w, h }: { rows: FinishRow[]; types: FloorTypeRow[]; lintels: LintelRow[]; w: number; h: number }) {
+  const { t } = useT()
   const out: React.ReactNode[] = []
   const x = 28
   const tw = w - 60
@@ -1230,52 +1242,52 @@ function FinishBody({ rows, types, lintels, w, h }: { rows: FinishRow[]; types: 
         out.push(<text key={`${key}c${ri}-${ci}`} x={cellX(ci)} y={y + 4.2} fontSize={2.6} textAnchor={cols[ci].align ?? "start"}>{text}</text>)
       })
     })
-    if (data.length > shown.length) out.push(<text key={`${key}cut`} x={x} y={y0 + rowsH + 4} fontSize={2.4}>…ещё строк: {data.length - shown.length}</text>)
+    if (data.length > shown.length) out.push(<text key={`${key}cut`} x={x} y={y0 + rowsH + 4} fontSize={2.4}>{t("adminBuilderSheet.sheet.moreRows", { count: data.length - shown.length })}</text>)
     return y0 + rowsH + 14
   }
   const half = Math.max(6, Math.floor((h - 90) / 12))
   const rest1 = tw - (16 + 20 + 22)
   let y = 26
   y = table(
-    "fin", "Ведомость отделки помещений",
+    "fin", t("adminBuilderSheet.sheet.finishTitle"),
     [
-      { w: 16, label: "№", align: "middle" },
-      { w: rest1 * 0.24, label: "Наименование" },
-      { w: rest1 * 0.24, label: "Пол" },
-      { w: rest1 * 0.28, label: "Стены" },
-      { w: rest1 * 0.24, label: "Потолок" },
-      { w: 20, label: "Пол, м²", align: "end" },
-      { w: 22, label: "Стены, м²", align: "end" },
+      { w: 16, label: t("adminBuilderSheet.sheet.thNo"), align: "middle" },
+      { w: rest1 * 0.24, label: t("adminBuilderSheet.sheet.colName") },
+      { w: rest1 * 0.24, label: t("adminBuilderSheet.sheet.thFloorCover") },
+      { w: rest1 * 0.28, label: t("adminBuilderSheet.sheet.thWalls") },
+      { w: rest1 * 0.24, label: t("adminBuilderSheet.sheet.thCeiling") },
+      { w: 20, label: t("adminBuilderSheet.sheet.thFloorM2"), align: "end" },
+      { w: 22, label: t("adminBuilderSheet.sheet.thWallsM2"), align: "end" },
     ],
     rows.map((r) => [r.number || "—", r.name, r.floor, r.walls, r.ceiling, fmt(r.floorM2), fmt(r.wallsM2)]),
     y, half,
   )
   const rest2 = tw - (16 + 24)
   const y2 = table(
-    "ft", "Экспликация полов",
+    "ft", t("adminBuilderSheet.sheet.floorTypesTitle"),
     [
-      { w: 16, label: "Тип", align: "middle" },
-      { w: rest2 * 0.22, label: "Покрытие" },
-      { w: rest2 * 0.46, label: "Состав конструкции пола" },
-      { w: rest2 * 0.32, label: "Помещения" },
-      { w: 24, label: "Площадь, м²", align: "end" },
+      { w: 16, label: t("adminBuilderSheet.sheet.thType"), align: "middle" },
+      { w: rest2 * 0.22, label: t("adminBuilderSheet.sheet.thCovering") },
+      { w: rest2 * 0.46, label: t("adminBuilderSheet.sheet.thLayers") },
+      { w: rest2 * 0.32, label: t("adminBuilderSheet.sheet.thRooms") },
+      { w: 24, label: t("adminBuilderSheet.sheet.thArea"), align: "end" },
     ],
-    types.map((t) => [String(t.type), t.covering, t.layers, t.rooms || "—", fmt(t.areaM2)]),
+    types.map((row) => [String(row.type), row.covering, row.layers, row.rooms || "—", fmt(row.areaM2)]),
     y, half,
   )
   if (lintels.length) {
     const rest3 = tw - (30 + 24 + 24 + 28)
     table(
-      "lt", "Ведомость перемычек",
+      "lt", t("adminBuilderSheet.sheet.lintelsTitle"),
       [
-        { w: 30, label: "Марка", align: "middle" },
-        { w: rest3 * 0.35, label: "Тип и сечение" },
-        { w: rest3 * 0.6, label: "Длина, мм" },
-        { w: 24, label: "На проём", align: "end" },
-        { w: 24, label: "Проёмов", align: "end" },
-        { w: 28, label: "Всего, шт", align: "end" },
+        { w: 30, label: t("adminBuilderSheet.sheet.thMark"), align: "middle" },
+        { w: rest3 * 0.35, label: t("adminBuilderSheet.sheet.thSection") },
+        { w: rest3 * 0.6, label: t("adminBuilderSheet.sheet.thLengthMm") },
+        { w: 24, label: t("adminBuilderSheet.sheet.thPerOpening"), align: "end" },
+        { w: 24, label: t("adminBuilderSheet.sheet.thOpenings"), align: "end" },
+        { w: 28, label: t("adminBuilderSheet.sheet.thCount"), align: "end" },
       ],
-      lintels.map((l) => [l.mark, `Перемычка брусковая ${l.section}`, String(l.length), String(l.perOpening), String(l.openings), String(l.count)]),
+      lintels.map((l) => [l.mark, t("adminBuilderSheet.sheet.lintelName", { section: l.section }), String(l.length), String(l.perOpening), String(l.openings), String(l.count)]),
       y2, Math.max(4, half - 2),
     )
   }
@@ -1284,6 +1296,7 @@ function FinishBody({ rows, types, lintels, w, h }: { rows: FinishRow[]; types: 
 
 /** План кровли: контур, парапет, уклоны к воронкам и сами воронки. */
 function RoofPlanLayer({ plan, X, Y }: { plan: RoofPlan; X: (v: number) => number; Y: (v: number) => number }) {
+  const { t } = useT()
   const path = (pts: Array<{ x: number; y: number }>) => pts.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(2)} ${Y(p.y).toFixed(2)}`).join(" ") + " Z"
   return (
     <g>
@@ -1309,13 +1322,13 @@ function RoofPlanLayer({ plan, X, Y }: { plan: RoofPlan; X: (v: number) => numbe
         <g key={`dr${i}`}>
           <circle cx={X(d.x)} cy={Y(d.y)} r={2.2} fill="none" stroke="#000" strokeWidth={0.4} />
           <circle cx={X(d.x)} cy={Y(d.y)} r={0.9} fill="#000" />
-          <text x={X(d.x) + 3.4} y={Y(d.y) + 1} fontSize={2.4}>Вр-{i + 1}</text>
+          <text x={X(d.x) + 3.4} y={Y(d.y) + 1} fontSize={2.4}>{t("adminBuilderSheet.sheet.drain", { index: i + 1 })}</text>
         </g>
       ))}
       <text x={X(plan.bounds.minX)} y={Y(plan.bounds.minY) + 7} fontSize={2.6}>
         {plan.flat
-          ? `Кровля плоская, рулонная по уклонообразующему слою; парапет по контуру; уклон к воронкам i=${String(plan.slopePercent).replace(".", ",")}%`
-          : "Кровля скатная; конёк показан штрихпунктиром; водоотвод организованный по свесам"}
+          ? t("adminBuilderSheet.sheet.roofFlatNote", { slope: String(plan.slopePercent).replace(".", ",") })
+          : t("adminBuilderSheet.sheet.roofPitchNote")}
       </text>
     </g>
   )
@@ -1323,6 +1336,8 @@ function RoofPlanLayer({ plan, X, Y }: { plan: RoofPlan; X: (v: number) => numbe
 
 /** Генеральный план: участок, здания с этажностью, проезды, площадки, озеленение. */
 function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => number; Y: (v: number) => number }) {
+  const { t } = useT()
+  const locale = useLocale()
   const path = (pts: Array<{ x: number; y: number }>) => pts.map((p, i) => `${i ? "L" : "M"}${X(p.x).toFixed(2)} ${Y(p.y).toFixed(2)}`).join(" ")
   return (
     <g>
@@ -1357,7 +1372,7 @@ function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => numbe
           <g key={`bl${i}`}>
             <path d={`${path(b.outline)} Z`} fill="#e2e8f0" stroke="#000" strokeWidth={0.7} />
             <text x={cx} y={cy - 1} fontSize={3.2} textAnchor="middle" fontWeight={700}>{b.label}</text>
-            <text x={cx} y={cy + 3.4} fontSize={2.6} textAnchor="middle">{b.floors} эт · {b.areaM2.toFixed(1)} м²</text>
+            <text x={cx} y={cy + 3.4} fontSize={2.6} textAnchor="middle">{t("adminBuilderSheet.sheet.buildingFloors", { floors: b.floors, area: b.areaM2.toFixed(1) })}</text>
           </g>
         )
       })}
@@ -1369,7 +1384,7 @@ function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => numbe
         </g>
       ))}
       {plan.parking.map((p, i) => (
-        <text key={`pk${i}`} x={X(p.x)} y={Y(p.y) + 1} fontSize={3} textAnchor="middle">П</text>
+        <text key={`pk${i}`} x={X(p.x)} y={Y(p.y) + 1} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.parkingMark")}</text>
       ))}
       {/* размеченные арендные места участка: габарит и марка */}
       {plan.spots.map((sp, i) => (
@@ -1434,12 +1449,12 @@ function SitePlanLayer({ plan, X, Y }: { plan: SitePlan; X: (v: number) => numbe
           <g>
             <line x1={x} y1={y + 10} x2={x} y2={y - 6} stroke="#000" strokeWidth={0.5} />
             <polygon points={`${x},${y - 9} ${x - 2.2},${y - 3.5} ${x + 2.2},${y - 3.5}`} fill="#000" />
-            <text x={x} y={y + 14} fontSize={3.4} textAnchor="middle" fontWeight={700}>С</text>
+            <text x={x} y={y + 14} fontSize={3.4} textAnchor="middle" fontWeight={700}>{t("adminBuilderSheet.sheet.north")}</text>
           </g>
         )
       })()}
       <text x={X(plan.bounds.minX)} y={Y(plan.bounds.minY) + 20} fontSize={2.8}>
-        Участок {plan.siteM2.toLocaleString("ru-RU")} м² · застройка {plan.builtM2.toLocaleString("ru-RU")} м² ({Math.round((plan.builtM2 / Math.max(1, plan.siteM2)) * 100)}%)
+        {t("adminBuilderSheet.sheet.siteTotals", { site: formatNumberL(locale, plan.siteM2), built: formatNumberL(locale, plan.builtM2), percent: Math.round((plan.builtM2 / Math.max(1, plan.siteM2)) * 100) })}
       </text>
     </g>
   )
@@ -1474,17 +1489,18 @@ function SlabPlanLayer({ plan, X, Y }: { plan: SlabPlan; X: (v: number) => numbe
 
 /** Спецификация плит перекрытия — компактная таблица в свободном углу листа. */
 function SlabSpec({ plan, x, y, w }: { plan: SlabPlan; x: number; y: number; w: number }) {
+  const { t } = useT()
   const RH = 5
   const rows = plan.rows
   const total = rows.reduce((s, r) => s + r.count, 0)
   return (
     <g>
-      <text x={x} y={y - 2} fontSize={3}>Спецификация плит перекрытия</text>
+      <text x={x} y={y - 2} fontSize={3}>{t("adminBuilderSheet.sheet.slabsSpec")}</text>
       <rect x={x} y={y} width={w} height={RH * (rows.length + 2)} fill="#fff" stroke="#000" strokeWidth={0.4} />
       <line x1={x} y1={y + RH} x2={x + w} y2={y + RH} stroke="#000" strokeWidth={0.4} />
-      <text x={x + 2} y={y + 3.5} fontSize={2.4}>Марка</text>
-      <text x={x + w * 0.45} y={y + 3.5} fontSize={2.4}>Размер, мм</text>
-      <text x={x + w - 2} y={y + 3.5} fontSize={2.4} textAnchor="end">Кол-во</text>
+      <text x={x + 2} y={y + 3.5} fontSize={2.4}>{t("adminBuilderSheet.sheet.thMark")}</text>
+      <text x={x + w * 0.45} y={y + 3.5} fontSize={2.4}>{t("adminBuilderSheet.sheet.thSizeMm")}</text>
+      <text x={x + w - 2} y={y + 3.5} fontSize={2.4} textAnchor="end">{t("adminBuilderSheet.sheet.thQty")}</text>
       {rows.map((r, i) => (
         <g key={r.mark}>
           <text x={x + 2} y={y + RH * (i + 2) - 1.4} fontSize={2.4}>{r.mark}</text>
@@ -1493,9 +1509,9 @@ function SlabSpec({ plan, x, y, w }: { plan: SlabPlan; x: number; y: number; w: 
         </g>
       ))}
       <line x1={x} y1={y + RH * (rows.length + 1)} x2={x + w} y2={y + RH * (rows.length + 1)} stroke="#000" strokeWidth={0.4} />
-      <text x={x + 2} y={y + RH * (rows.length + 2) - 1.4} fontSize={2.4} fontWeight={700}>Итого</text>
+      <text x={x + 2} y={y + RH * (rows.length + 2) - 1.4} fontSize={2.4} fontWeight={700}>{t("adminBuilderSheet.sheet.total")}</text>
       <text x={x + w - 2} y={y + RH * (rows.length + 2) - 1.4} fontSize={2.4} textAnchor="end" fontWeight={700}>{total}</text>
-      <text x={x} y={y + RH * (rows.length + 2) + 4} fontSize={2.4}>Штриховкой показаны монолитные участки; опирание плит {plan.bearing} мм</text>
+      <text x={x} y={y + RH * (rows.length + 2) + 4} fontSize={2.4}>{t("adminBuilderSheet.sheet.slabsNote", { bearing: plan.bearing })}</text>
     </g>
   )
 }

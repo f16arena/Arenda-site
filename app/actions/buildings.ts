@@ -11,8 +11,10 @@ import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { normalizeFloorKind } from "@/lib/zone-kinds"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { ADMIN_SHELL_CACHE_TAG, buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
+import { getT } from "@/lib/i18n/server"
 
 export async function createBuilding(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("buildings.create")
   const { orgId } = await requireOrgAccess()
   await checkLimit(orgId, "buildings")
@@ -22,12 +24,14 @@ export async function createBuilding(formData: FormData) {
   const addressFields = readAddressFields(formData)
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
+  const email = await normalizeEmailWithDns(formData.get("email"), {
+    fieldName: t("actions.buildings.emailField"),
+  })
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
-  if (!name) throw new Error("Название обязательно")
-  if (!address) throw new Error("Адрес обязателен")
+  if (!name) throw new Error(t("actions.common.nameRequired"))
+  if (!address) throw new Error(t("actions.common.addressRequired"))
 
   const building = await db.building.create({
     data: {
@@ -54,6 +58,7 @@ export async function createBuilding(formData: FormData) {
 }
 
 export async function updateBuildingDetails(buildingId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -63,12 +68,14 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const addressFields = readAddressFields(formData)
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
+  const email = await normalizeEmailWithDns(formData.get("email"), {
+    fieldName: t("actions.buildings.emailField"),
+  })
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
 
-  if (!name) throw new Error("Название обязательно")
-  if (!address) throw new Error("Адрес обязателен")
+  if (!name) throw new Error(t("actions.common.nameRequired"))
+  if (!address) throw new Error(t("actions.common.addressRequired"))
 
   // totalArea больше не редактируется вручную — она рассчитывается автоматически
   // из суммы Floor.totalArea (см. recomputeBuildingArea в floor-actions).
@@ -136,13 +143,14 @@ export async function toggleBuildingActive(buildingId: string, isActive: boolean
 }
 
 export async function deleteBuilding(buildingId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("buildings.delete")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
   const floorsWithSpaces = await db.floor.count({ where: { buildingId } })
   if (floorsWithSpaces > 0) {
-    throw new Error("Нельзя удалить — у здания есть этажи и помещения. Сначала удалите их или просто деактивируйте здание.")
+    throw new Error(t("actions.buildings.deleteHasFloors"))
   }
 
   await db.building.delete({ where: { id: buildingId } })
@@ -170,6 +178,7 @@ export async function switchBuilding(buildingId: string) {
 }
 
 export async function createFloor(buildingId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("floors.create")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -182,9 +191,9 @@ export async function createFloor(buildingId: string, formData: FormData) {
   // Крыша и территория — «зоны»: не входят в площадь здания, сдаются объектами без м².
   const kind = normalizeFloorKind(formData.get("kind") as string | null)
 
-  if (!name) throw new Error("Название этажа обязательно")
+  if (!name) throw new Error(t("actions.buildings.floorNameRequired"))
   const number = parseInt(numberStr)
-  if (Number.isNaN(number)) throw new Error("Номер этажа должен быть числом")
+  if (Number.isNaN(number)) throw new Error(t("actions.buildings.floorNumberNumeric"))
 
   const newTotalArea = totalAreaStr ? parseFloat(totalAreaStr) : null
 
@@ -214,6 +223,7 @@ export async function createFloor(buildingId: string, formData: FormData) {
  * Если cascade=true — также удаляет все помещения, но только если ни одно не занято арендатором.
  */
 export async function deleteFloor(floorId: string, opts?: { cascade?: boolean }) {
+  const { t, tp } = await getT()
   await requireCapabilityAndFeature("floors.delete")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
@@ -221,10 +231,7 @@ export async function deleteFloor(floorId: string, opts?: { cascade?: boolean })
   const spaceCount = await db.space.count({ where: { floorId } })
   if (spaceCount > 0) {
     if (!opts?.cascade) {
-      throw new Error(
-        `Нельзя удалить — на этаже ${spaceCount} помещени${spaceCount === 1 ? "е" : spaceCount < 5 ? "я" : "й"}. ` +
-          `Удалите помещения вручную или используйте каскадное удаление.`,
-      )
+      throw new Error(tp("actions.buildings.floorHasSpaces", spaceCount))
     }
     // cascade: проверяем что нет занятых — учитываем И legacy space.tenant,
     // И современный tenantSpaces (раньше занятые через tenantSpaces помещения
@@ -245,9 +252,7 @@ export async function deleteFloor(floorId: string, opts?: { cascade?: boolean })
     })
     if (occupied) {
       const company = occupied.tenant?.companyName ?? occupied.tenantSpaces[0]?.tenant?.companyName ?? "—"
-      throw new Error(
-        `Нельзя удалить — кабинет ${occupied.number} занят арендатором «${company}». Сначала выселите.`,
-      )
+      throw new Error(t("actions.buildings.spaceOccupied", { number: occupied.number, company }))
     }
     // Этаж, сданный целиком, тоже нельзя каскадно удалять.
     const fullFloor = await db.floor.findUnique({
@@ -255,7 +260,7 @@ export async function deleteFloor(floorId: string, opts?: { cascade?: boolean })
       select: { fullFloorTenantId: true },
     })
     if (fullFloor?.fullFloorTenantId) {
-      throw new Error("Нельзя удалить — этаж сдан целиком. Сначала освободите этаж.")
+      throw new Error(t("actions.buildings.floorRentedWhole"))
     }
     await db.space.deleteMany({ where: { floorId } })
   }

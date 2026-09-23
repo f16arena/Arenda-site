@@ -20,6 +20,10 @@ export const cabinetFinances: typeof ru = {
     rejected: "Қабылданбады",
     checking: "Тексерілуде",
   },
+  docs: {
+    period: "{period} кезеңі",
+    youSigned: "сіз қол қойдыңыз",
+  },
   history: {
     title: "Төлемдер тарихы",
     done: "Өткізілді",

@@ -3,6 +3,7 @@
 import { requirePlatformOwner } from "@/lib/org"
 import { sendEmail } from "@/lib/email"
 import { normalizeEmail } from "@/lib/contact-validation"
+import { getT } from "@/lib/i18n/server"
 
 export type TestEmailResult = {
   ok: boolean
@@ -16,20 +17,21 @@ export type TestEmailResult = {
 // провал, как в self-service сбросе пароля.
 export async function sendTestEmail(to: string): Promise<TestEmailResult> {
   await requirePlatformOwner()
+  const { t } = await getT()
   const from = process.env.EMAIL_FROM || "(fallback onboarding@resend.dev)"
 
   let email: string
   try {
     email = normalizeEmail(to, { required: true })!
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Некорректный email", from }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.testEmail.badEmail"), from }
   }
 
   const res = await sendEmail({
     to: email,
-    subject: "Commrent — проверка доставки email",
-    html: "<p>Это тестовое письмо Commrent. Если оно дошло — отправка email настроена корректно.</p>",
-    text: "Тестовое письмо Commrent. Если дошло — отправка email работает.",
+    subject: t("actions.testEmail.subject"),
+    html: `<p>${t("actions.testEmail.html")}</p>`,
+    text: t("actions.testEmail.text"),
   })
 
   return { ok: res.ok, id: res.id, error: res.error, from }

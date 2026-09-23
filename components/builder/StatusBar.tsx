@@ -7,36 +7,41 @@ import { useDocumentStore, useEditorStore, type Tool } from "@/store/builder-sto
 import { findFloor } from "@/core/document/commands"
 import { TOKENS } from "@/lib/builder/materials"
 import { useLabelStore } from "@/store/label-store"
+import { useT } from "@/lib/i18n/client"
+import type { Messages } from "@/lib/i18n/messages"
 
-const TOOL_RU: Record<Tool, string> = {
-  select: "Выбор",
-  wall: "Стена",
-  room: "Комната",
-  floor: "Этаж",
-  door: "Дверь",
-  window: "Окно",
-  stair: "Лестница",
-  island: "Островок",
-  roof: "Крыша",
-  terrain: "Рельеф",
-  road: "Дорога",
-  parking: "Парковка",
-  fence: "Забор",
-  tree: "Озеленение",
-  object: "Объект",
-  material: "Материал",
-  link: "Помещение",
-  water: "Вода",
-  pave: "Площадка",
-  delete: "Удалить",
-  measure: "Рулетка",
-  "mep-run": "Трасса сети",
-  "mep-device": "Прибор сети",
-  section: "Разрез",
-  annotate: "Размер / надпись",
+// Id инструмента в сторе с дефисом, ключ словаря — в camelCase: одна таблица
+// вместо двух дублирующих подписей.
+const TOOL_KEY: Record<Tool, keyof Messages["adminBuilder"]["tools"]> = {
+  select: "select",
+  wall: "wall",
+  room: "room",
+  floor: "floor",
+  door: "door",
+  window: "window",
+  stair: "stair",
+  island: "island",
+  roof: "roof",
+  terrain: "terrain",
+  road: "road",
+  parking: "parking",
+  fence: "fence",
+  tree: "tree",
+  object: "object",
+  material: "material",
+  link: "link",
+  water: "water",
+  pave: "pave",
+  delete: "delete",
+  measure: "measure",
+  "mep-run": "mepRun",
+  "mep-device": "mepDevice",
+  section: "section",
+  annotate: "annotate",
 }
 
 export function StatusBar() {
+  const { t } = useT()
   const doc = useDocumentStore((s) => s.doc)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
   const siteFloorId = useEditorStore((s) => s.siteFloorId)
@@ -45,9 +50,9 @@ export function StatusBar() {
   const siteFloor = siteFloorId ? findFloor(doc, siteFloorId) : undefined
   const level =
     activeLevelId === "site"
-      ? siteFloor ? `Участок · правка: ${siteFloor.name}` : "Участок"
+      ? siteFloor ? t("adminBuilder.statusBar.siteEditing", { name: siteFloor.name }) : t("adminBuilder.statusBar.site")
       : activeLevelId === "roof"
-        ? siteFloor ? `Кровля · ${siteFloor.name}` : "Кровля"
+        ? siteFloor ? t("adminBuilder.statusBar.roofOf", { name: siteFloor.name }) : t("adminBuilder.statusBar.roof")
         : findFloor(doc, activeLevelId)?.name ?? "—"
 
   return (
@@ -57,21 +62,21 @@ export function StatusBar() {
     >
       <div className="flex items-center gap-4">
         <span>
-          Уровень: <b style={{ color: TOKENS.text }}>{level}</b>
+          {t("adminBuilder.statusBar.level")} <b style={{ color: TOKENS.text }}>{level}</b>
         </span>
         <span>
-          Инструмент: <b style={{ color: TOKENS.accent }}>{TOOL_RU[activeTool]}</b>
+          {t("adminBuilder.statusBar.tool")} <b style={{ color: TOKENS.accent }}>{t(`adminBuilder.tools.${TOOL_KEY[activeTool]}`)}</b>
         </span>
       </div>
       <div className="hidden items-center gap-4 md:flex">
-        <span>ЛКМ — выбрать · Стена: клик-клик · Колесо — зум · ПКМ — пан</span>
+        <span>{t("adminBuilder.statusBar.controls")}</span>
       </div>
       <div className="flex items-center gap-2">
         <span style={{ color: TOKENS.accent2 }}>Building Studio</span>
-        <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(56,189,248,0.15)", color: TOKENS.accent }}>Фаза 1</span>
+        <span className="rounded px-1.5 py-0.5" style={{ background: "rgba(56,189,248,0.15)", color: TOKENS.accent }}>{t("adminBuilder.statusBar.phase")}</span>
       </div>
       <span className="tabular-nums" style={{ color: TOKENS.muted }}>
-        {cursor ? `X ${(cursor.x / 1000).toFixed(2)}  Y ${(cursor.y / 1000).toFixed(2)} м` : ""}
+        {cursor ? `X ${(cursor.x / 1000).toFixed(2)}  Y ${(cursor.y / 1000).toFixed(2)} ${t("adminBuilder.underlay.meters")}` : ""}
       </span>
     </div>
   )

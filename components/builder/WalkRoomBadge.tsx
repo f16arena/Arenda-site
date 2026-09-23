@@ -10,7 +10,8 @@ import { usePremiseStore } from "@/store/premise-store"
 import { pointInPolygon } from "@/core/geometry/math"
 import { floorRooms } from "@/lib/builder/rooms"
 import { roomDisplayName, roomUse } from "@/lib/builder/room-use"
-import { TOKENS, STATUS_LABEL, STATUS_COLOR, type PremiseStatus } from "@/lib/builder/materials"
+import { TOKENS, STATUS_COLOR, type PremiseStatus } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
 
 interface Spot {
   name: string
@@ -20,6 +21,7 @@ interface Spot {
 }
 
 export function WalkRoomBadge({ getEngine }: { getEngine: () => BuilderEngine | null }) {
+  const { t } = useT()
   const [spot, setSpot] = useState<Spot | null>(null)
   const doc = useDocumentStore((s) => s.doc)
 
@@ -44,7 +46,7 @@ export function WalkRoomBadge({ getEngine }: { getEngine: () => BuilderEngine | 
       }
       const premiseId = floor.premiseLinks?.[room.id]
       const premise = premiseId ? usePremiseStore.getState().resolve(premiseId) : undefined
-      const base = roomDisplayName(floor, room) || (roomUse(floor, room) === "common" ? "МОП" : "Помещение")
+      const base = roomDisplayName(floor, room, (key) => t(`adminBuilder.roomNames.${key}`)) || t(roomUse(floor, room) === "common" ? "adminBuilder.walk.common" : "adminBuilder.walk.room")
       setSpot({
         name: premise?.number ? `${base} ${premise.number}` : base,
         areaM2: room.areaMm2 / 1e6,
@@ -53,7 +55,7 @@ export function WalkRoomBadge({ getEngine }: { getEngine: () => BuilderEngine | 
       })
     }, 500)
     return () => clearInterval(timer)
-  }, [getEngine, doc])
+  }, [getEngine, doc, t])
 
   if (!spot) return null
   return (
@@ -67,7 +69,7 @@ export function WalkRoomBadge({ getEngine }: { getEngine: () => BuilderEngine | 
       </span>
       {spot.status && (
         <span className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: STATUS_COLOR[spot.status], color: "#0b1220" }}>
-          {STATUS_LABEL[spot.status]}
+          {t(`adminBuilder.premiseStatus.${spot.status}`)}
         </span>
       )}
       {spot.tenant && <span style={{ color: TOKENS.muted }}>{spot.tenant}</span>}

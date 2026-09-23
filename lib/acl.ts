@@ -9,26 +9,9 @@ export const SECTIONS = [
 ] as const
 export type Section = (typeof SECTIONS)[number]
 
-export const SECTION_LABELS: Record<Section, string> = {
-  dashboard: "Дашборд",
-  buildings: "Здания",
-  spaces: "Помещения",
-  tenants: "Арендаторы",
-  finances: "Финансы",
-  meters: "Счётчики",
-  contracts: "Договоры",
-  requests: "Заявки",
-  tasks: "Задачи",
-  staff: "Сотрудники",
-  complaints: "Жалобы",
-  messages: "Сообщения",
-  analytics: "Аналитика",
-  settings: "Настройки",
-  roles: "Роли и доступ",
-  users: "Все пользователи (супер-админ)",
-  documents: "Документы",
-  profile: "Мой профиль",
-}
+// Подписи страниц живут в словаре: adminRefs.sections.<секция>. Здесь только
+// коды — они лежат в таблице прав (role_permissions.section), и переводить их
+// нельзя.
 
 // Дефолтные права (если таблица в БД ещё не создана либо записей нет)
 const DEFAULT_PERMS: Record<string, Set<Section>> = {

@@ -3,20 +3,28 @@
 import dynamic from "next/dynamic"
 import { useState } from "react"
 import { Bell } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
 const NotificationPanel = dynamic(
   () => import("./notification-panel").then((mod) => mod.NotificationPanel),
   {
     ssr: false,
-    loading: () => (
-      <div className="absolute right-0 top-8 z-40 w-[360px] rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-        Загружаем уведомления...
-      </div>
-    ),
+    loading: () => <PanelSkeleton />,
   },
 )
 
+/** Заглушка на время загрузки панели. Свой компонент — чтобы взять словарь. */
+function PanelSkeleton() {
+  const { t } = useT()
+  return (
+    <div className="absolute right-0 top-8 z-40 w-[360px] rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-2xl dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
+      {t("common.layout.loadingNotifications")}
+    </div>
+  )
+}
+
 export function NotificationBell({ unreadCount = 0 }: { unreadCount?: number }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [clientUnread, setClientUnread] = useState<number | null>(null)
   const unread = clientUnread ?? unreadCount
@@ -26,7 +34,7 @@ export function NotificationBell({ unreadCount = 0 }: { unreadCount?: number }) 
       <button
         onClick={() => setOpen((value) => !value)}
         className="relative text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
-        aria-label="Уведомления"
+        aria-label={t("common.layout.notifications")}
       >
         <Bell className="h-5 w-5" />
         {unread > 0 && (

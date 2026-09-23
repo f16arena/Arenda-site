@@ -1,9 +1,35 @@
 import type { Prisma } from "@/app/generated/prisma/client"
 import { db } from "@/lib/db"
+import type { Messages } from "@/lib/i18n/messages"
+import type { TextKey } from "@/lib/i18n/translate"
 import { displayRoleLabel, isStaffLikeRole } from "@/lib/role-capabilities"
-import { formatDate, formatMoney } from "@/lib/utils"
+import { formatMoney } from "@/lib/utils"
 
 export type RelationshipSeverity = "critical" | "warning" | "info"
+
+/** Ключ строки в разделе словаря adminChecks.integrity. */
+export type IntegrityTextKey = Extract<TextKey<Messages>, `adminChecks.integrity.${string}`>
+
+/** Значение подстановки: данные или такая же подпись из словаря. */
+export type IntegrityVar = string | number | IntegrityText
+
+/**
+ * Подпись элемента проверки. Модуль знает только данные и ключ — фразу
+ * собирает место отрисовки, потому что язык страницы известен там, а не здесь.
+ *
+ * Правило сборки: list переводится и склеивается через listSeparator; если
+ * задан key, склеенное подставляется в него как {fields}, иначе оно и есть
+ * подпись. Значение-объект в vars переводится так же (там запасные
+ * формулировки вида «арендатор» или «без даты»).
+ */
+export type IntegrityText = {
+  /** Данные как есть: название арендатора, номер счётчика, путь страницы. */
+  text?: string
+  key?: IntegrityTextKey
+  vars?: Record<string, IntegrityVar>
+  list?: IntegrityText[]
+  listSeparator?: string
+}
 
 export type RelationshipContour =
   | "subscription"
@@ -18,27 +44,29 @@ export type RelationshipContour =
 
 export type RelationshipIntegrityItem = {
   id: string
-  label: string
-  meta: string
+  label: IntegrityText
+  meta: IntegrityText
   href: string
 }
 
 export type RelationshipIntegrityIssue = {
+  /** Стабильный код проблемы: React-ключ, ссылки и сравнение между запусками. */
   key: string
-  title: string
-  description: string
+  /** Ключи словаря: adminChecks.integrity.issues.<проблема>.* */
+  titleKey: IntegrityTextKey
+  descriptionKey: IntegrityTextKey
+  actionKey: IntegrityTextKey
   severity: RelationshipSeverity
   contour: RelationshipContour
   count: number
-  actionLabel: string
   href: string
   items: RelationshipIntegrityItem[]
 }
 
+// Подпись и описание контура берутся при отрисовке по key:
+// adminChecks.integrity.contours.<контур>.label и .description.
 export type RelationshipIntegrityContourSummary = {
   key: RelationshipContour
-  label: string
-  description: string
   count: number
   critical: number
   warning: number
@@ -75,44 +103,18 @@ const DEFAULT_SAMPLE_LIMIT = 8
 const SCAN_LIMIT = 120
 const DAY_MS = 24 * 60 * 60 * 1000
 
-const CONTOUR_META: Record<RelationshipContour, { label: string; description: string }> = {
-  subscription: {
-    label: "Тариф и лимиты",
-    description: "План, подписка, лимиты зданий, арендаторов, пользователей и лидов.",
-  },
-  access: {
-    label: "Владелец и доступы",
-    description: "Владелец организации, администраторы зданий и привязка сотрудников к объектам.",
-  },
-  tenant: {
-    label: "Арендаторы и площади",
-    description: "Связи арендатор -> помещение, несколько помещений, этажи и статусы занятости.",
-  },
-  legal: {
-    label: "Юридический контур",
-    description: "Договоры, доп. соглашения, реквизиты и юридическое основание изменений.",
-  },
-  finance: {
-    label: "Финансовый контур",
-    description: "Начисления, оплаты, чеки, подтверждение платежей и закрытие долга.",
-  },
-  utilities: {
-    label: "Коммунальные услуги",
-    description: "Счетчики, показания и тарифы по свету, воде, отоплению и другим услугам.",
-  },
-  documents: {
-    label: "Документы и подписи",
-    description: "Шаблоны, сгенерированные документы, подписи и запросы на подпись.",
-  },
-  storage: {
-    label: "Хранилище",
-    description: "Файлы в БД, чеки, документы арендаторов и разделение по организации.",
-  },
-  observability: {
-    label: "Ошибки и скорость",
-    description: "Серверные ошибки, performance logs и реальные метрики сайта.",
-  },
-}
+// Порядок контуров в сводке; подписи — в словаре adminChecks.integrity.contours.
+const CONTOURS: readonly RelationshipContour[] = [
+  "subscription",
+  "access",
+  "tenant",
+  "legal",
+  "finance",
+  "utilities",
+  "documents",
+  "storage",
+  "observability",
+]
 
 export async function getRelationshipIntegrityOverview({
   orgId,
@@ -563,404 +565,495 @@ export async function getRelationshipIntegrityOverview({
 
   addIssue(issues, {
     key: "subscription-missing-active",
-    title: "Нет активной подписки",
-    description: "Организация работает без активной подписки. В SaaS-контуре это должно быть явно: активный тариф, срок действия и статус оплаты.",
+    titleKey: "adminChecks.integrity.issues.subscriptionMissingActive.title",
+    descriptionKey: "adminChecks.integrity.issues.subscriptionMissingActive.description",
+    actionKey: "adminChecks.integrity.issues.subscriptionMissingActive.action",
     severity: "critical",
     contour: "subscription",
     count: activeSubscription ? 0 : 1,
-    actionLabel: "Открыть подписку",
     href: "/admin/subscription",
     items: activeSubscription ? [] : [{
       id: "subscription",
-      label: organization?.name ?? "Организация",
+      label: orgLabel(organization?.name),
       meta: latestSubscription
-        ? `Последняя подписка: ${latestSubscription.status}, до ${formatDate(latestSubscription.expiresAt)}`
-        : "Подписка еще не заведена",
+        ? {
+            key: "adminChecks.integrity.issues.subscriptionMissingActive.metaLast",
+            vars: { status: latestSubscription.status, date: numericDate(latestSubscription.expiresAt) },
+          }
+        : { key: "adminChecks.integrity.issues.subscriptionMissingActive.metaNone" },
       href: "/admin/subscription",
     }],
   })
 
   addIssue(issues, {
     key: "plan-missing-or-invalid",
-    title: "Тариф не настроен или features повреждены",
-    description: "Тариф должен быть читаемым JSON-набором возможностей и лимитов. Иначе superadmin не сможет надежно управлять доступными функциями.",
+    titleKey: "adminChecks.integrity.issues.planMissingOrInvalid.title",
+    descriptionKey: "adminChecks.integrity.issues.planMissingOrInvalid.description",
+    actionKey: "adminChecks.integrity.issues.planMissingOrInvalid.action",
     severity: "critical",
     contour: "subscription",
     count: !plan || parsedPlanFeatures.invalid ? 1 : 0,
-    actionLabel: "Открыть тариф",
     href: "/superadmin/plans",
     items: !plan || parsedPlanFeatures.invalid ? [{
       id: plan?.id ?? "plan",
-      label: plan?.name ?? "Тариф не назначен",
-      meta: parsedPlanFeatures.invalid ? "Поле features не является корректным JSON" : "У организации нет тарифа",
+      label: plan?.name
+        ? { text: plan.name }
+        : { key: "adminChecks.integrity.issues.planMissingOrInvalid.labelNone" },
+      meta: {
+        key: parsedPlanFeatures.invalid
+          ? "adminChecks.integrity.issues.planMissingOrInvalid.metaInvalid"
+          : "adminChecks.integrity.issues.planMissingOrInvalid.metaNone",
+      },
       href: "/superadmin/plans",
     }] : [],
   })
 
-  addLimitIssue(issues, plan?.maxBuildings, buildingCount, "subscription-buildings-limit", "Превышен лимит зданий тарифа", "Зданий", "/admin/buildings")
-  addLimitIssue(issues, plan?.maxTenants, activeTenantCount, "subscription-tenants-limit", "Превышен лимит арендаторов тарифа", "Арендаторов", "/admin/tenants")
-  addLimitIssue(issues, plan?.maxUsers, activeUserCount, "subscription-users-limit", "Превышен лимит пользователей тарифа", "Пользователей", "/admin/users")
-  addLimitIssue(issues, plan?.maxLeads, leadCount, "subscription-leads-limit", "Превышен лимит лидов тарифа", "Лидов", "/admin/subscription")
+  addLimitIssue(issues, plan?.maxBuildings, buildingCount, "subscription-buildings-limit", "buildings", "/admin/buildings")
+  addLimitIssue(issues, plan?.maxTenants, activeTenantCount, "subscription-tenants-limit", "tenants", "/admin/tenants")
+  addLimitIssue(issues, plan?.maxUsers, activeUserCount, "subscription-users-limit", "users", "/admin/users")
+  addLimitIssue(issues, plan?.maxLeads, leadCount, "subscription-leads-limit", "leads", "/admin/subscription")
 
   addIssue(issues, {
     key: "owner-missing",
-    title: "В организации не найден активный владелец",
-    description: "У каждой SaaS-организации должен быть ответственный owner. Он управляет подпиской, реквизитами, администраторами и критичными действиями.",
+    titleKey: "adminChecks.integrity.issues.ownerMissing.title",
+    descriptionKey: "adminChecks.integrity.issues.ownerMissing.description",
+    actionKey: "adminChecks.integrity.issues.ownerMissing.action",
     severity: "critical",
     contour: "access",
     count: organization?.ownerUserId && ownerUser ? 0 : 1,
-    actionLabel: "Проверить пользователей",
     href: "/admin/users",
     items: organization?.ownerUserId && ownerUser ? [] : [{
       id: "owner",
-      label: organization?.name ?? "Организация",
-      meta: organization?.ownerUserId ? "ownerUserId есть, но активный OWNER не найден" : "ownerUserId не заполнен",
+      label: orgLabel(organization?.name),
+      meta: {
+        key: organization?.ownerUserId
+          ? "adminChecks.integrity.issues.ownerMissing.metaBroken"
+          : "adminChecks.integrity.issues.ownerMissing.metaNone",
+      },
       href: "/admin/users",
     }],
   })
 
   addIssue(issues, {
     key: "building-without-admin",
-    title: "Здание без администратора",
-    description: "Арендаторы должны общаться с администратором здания, а не с владельцем. У каждого активного здания лучше назначить ответственного администратора.",
+    titleKey: "adminChecks.integrity.issues.buildingWithoutAdmin.title",
+    descriptionKey: "adminChecks.integrity.issues.buildingWithoutAdmin.description",
+    actionKey: "adminChecks.integrity.issues.buildingWithoutAdmin.action",
     severity: "warning",
     contour: "access",
     count: buildingsWithoutAdminCount,
-    actionLabel: "Назначить администратора",
     href: "/admin/buildings",
     items: buildingsWithoutAdmin.map((building) => ({
       id: building.id,
-      label: building.name,
-      meta: building.address,
+      label: { text: building.name },
+      meta: { text: building.address },
       href: "/admin/buildings",
     })),
   })
 
   addIssue(issues, {
     key: "staff-without-building-scope",
-    title: "Сотрудник без привязки к зданиям",
-    description: "Если один администратор может вести несколько зданий, эта связь должна быть явной. Без нее сотрудник либо не увидит данные, либо будет требовать лишних исключений.",
+    titleKey: "adminChecks.integrity.issues.staffWithoutBuildingScope.title",
+    descriptionKey: "adminChecks.integrity.issues.staffWithoutBuildingScope.description",
+    actionKey: "adminChecks.integrity.issues.staffWithoutBuildingScope.action",
     severity: "warning",
     contour: "access",
     count: staffWithoutScope.length,
-    actionLabel: "Настроить доступы",
     href: "/admin/users",
     items: staffWithoutScope.slice(0, sampleLimit).map((user) => ({
       id: user.id,
-      label: user.name,
-      meta: `${displayRoleLabel(user.role)} · здания не назначены`,
+      label: { text: user.name },
+      meta: {
+        key: "adminChecks.integrity.issues.staffWithoutBuildingScope.meta",
+        vars: { role: displayRoleLabel(user.role) },
+      },
       href: "/admin/users",
     })),
   })
 
   addIssue(issues, {
     key: "tenant-without-placement",
-    title: "Арендатор без помещения или этажа",
-    description: "Арендатор должен быть привязан к одному или нескольким помещениям либо этажам. Иначе ломаются начисления, заявки, документы и аналитика по зданию.",
+    titleKey: "adminChecks.integrity.issues.tenantWithoutPlacement.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantWithoutPlacement.description",
+    actionKey: "adminChecks.integrity.issues.tenantWithoutPlacement.action",
     severity: "critical",
     contour: "tenant",
     count: tenantsWithoutPlacementCount,
-    actionLabel: "Назначить площадь",
     href: "/admin/tenants",
-    items: tenantsWithoutPlacement.map((tenant) => tenantItem(tenant, "Нет помещения, этажа или списка помещений")),
+    items: tenantsWithoutPlacement.map((tenant) => tenantItem(tenant, {
+      key: "adminChecks.integrity.issues.tenantWithoutPlacement.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "tenant-multiple-placement-conflict",
-    title: "У арендатора смешаны разные типы размещения",
-    description: "Можно иметь несколько помещений или несколько этажей, но нужно следить, чтобы старая связь spaceId не конфликтовала с новым списком помещений/этажей.",
+    titleKey: "adminChecks.integrity.issues.tenantMultiplePlacementConflict.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantMultiplePlacementConflict.description",
+    actionKey: "adminChecks.integrity.issues.tenantMultiplePlacementConflict.action",
     severity: "warning",
     contour: "tenant",
     count: tenantsWithMultiplePlacementCount,
-    actionLabel: "Проверить карточку",
     href: "/admin/tenants",
-    items: tenantsWithMultiplePlacement.map((tenant) => tenantItem(tenant, tenantPlacementLabel(tenant))),
+    items: tenantsWithMultiplePlacement.map((tenant) => tenantItem(tenant, tenantPlacementText(tenant))),
   })
 
   addIssue(issues, {
     key: "tenant-dual-rent-method",
-    title: "Два индивидуальных способа аренды",
-    description: "У арендатора одновременно заполнены ставка за м² и фиксированная сумма. Правило должно быть только одно: ставка, фикс или ставка этажа.",
+    titleKey: "adminChecks.integrity.issues.tenantDualRentMethod.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantDualRentMethod.description",
+    actionKey: "adminChecks.integrity.issues.tenantDualRentMethod.action",
     severity: "critical",
     contour: "tenant",
     count: tenantsWithDualRentCount,
-    actionLabel: "Исправить аренду",
     href: "/admin/tenants",
-    items: tenantsWithDualRent.map((tenant) => tenantItem(
-      tenant,
-      `ставка ${formatMoney(tenant.customRate ?? 0)}/м² · фикс ${formatMoney(tenant.fixedMonthlyRent ?? 0)}/мес`,
-    )),
+    items: tenantsWithDualRent.map((tenant) => tenantItem(tenant, {
+      key: "adminChecks.integrity.issues.tenantDualRentMethod.meta",
+      vars: { rate: formatMoney(tenant.customRate ?? 0), fixed: formatMoney(tenant.fixedMonthlyRent ?? 0) },
+    })),
   })
 
   addIssue(issues, {
     key: "tenant-missing-tax-id",
-    title: "Не заполнен ИИН/БИН по правовой форме",
-    description: "Для ИП/ЧСИ/физлица нужен ИИН, для ТОО/АО - БИН. Эти данные должны автоматически идти в договоры, счета, ЭСФ и реквизиты.",
+    titleKey: "adminChecks.integrity.issues.tenantMissingTaxId.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantMissingTaxId.description",
+    actionKey: "adminChecks.integrity.issues.tenantMissingTaxId.action",
     severity: "critical",
     contour: "legal",
     count: tenantsMissingTaxIdCount,
-    actionLabel: "Заполнить реквизиты",
     href: "/admin/tenants",
-    items: tenantsMissingTaxId.map((tenant) => tenantItem(tenant, `${tenant.legalType} · БИН ${tenant.bin || "-"} · ИИН ${tenant.iin || "-"}`)),
+    items: tenantsMissingTaxId.map((tenant) => tenantItem(tenant, {
+      key: "adminChecks.integrity.issues.tenantMissingTaxId.meta",
+      vars: { legalType: tenant.legalType, bin: tenant.bin || "-", iin: tenant.iin || "-" },
+    })),
   })
 
   addIssue(issues, {
     key: "tenant-missing-bank-accounts",
-    title: "У арендатора нет банковского счета",
-    description: "Для договоров, актов сверки и входящих платежей лучше хранить один или несколько банковских счетов арендатора, а основной счет помечать отдельно.",
+    titleKey: "adminChecks.integrity.issues.tenantMissingBankAccounts.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantMissingBankAccounts.description",
+    actionKey: "adminChecks.integrity.issues.tenantMissingBankAccounts.action",
     severity: "info",
     contour: "finance",
     count: tenantsWithoutBankAccountsCount,
-    actionLabel: "Добавить счет",
     href: "/admin/tenants",
-    items: tenantsWithoutBankAccounts.map((tenant) => tenantItem(tenant, "Банковские счета не добавлены")),
+    items: tenantsWithoutBankAccounts.map((tenant) => tenantItem(tenant, {
+      key: "adminChecks.integrity.issues.tenantMissingBankAccounts.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "occupied-without-tenant-link",
-    title: "Помещение занято, но не связано с арендатором",
-    description: "Статус помещения должен подтверждаться связью с арендатором, списком помещений или арендой целого этажа.",
+    titleKey: "adminChecks.integrity.issues.occupiedWithoutTenantLink.title",
+    descriptionKey: "adminChecks.integrity.issues.occupiedWithoutTenantLink.description",
+    actionKey: "adminChecks.integrity.issues.occupiedWithoutTenantLink.action",
     severity: "critical",
     contour: "tenant",
     count: occupiedWithoutTenantLinksCount,
-    actionLabel: "Открыть помещения",
     href: "/admin/spaces",
-    items: occupiedWithoutTenantLinks.map((space) => spaceItem(space, "занято без арендатора")),
+    items: occupiedWithoutTenantLinks.map((space) => spaceItem(space, {
+      key: "adminChecks.integrity.issues.occupiedWithoutTenantLink.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "vacant-with-tenant-link",
-    title: "Помещение свободно, но связано с арендатором",
-    description: "Такой конфликт ломает заполняемость и список свободных площадей. Освобождение помещения должно проходить через действие с подтверждением.",
+    titleKey: "adminChecks.integrity.issues.vacantWithTenantLink.title",
+    descriptionKey: "adminChecks.integrity.issues.vacantWithTenantLink.description",
+    actionKey: "adminChecks.integrity.issues.vacantWithTenantLink.action",
     severity: "critical",
     contour: "tenant",
     count: vacantWithTenantLinksCount,
-    actionLabel: "Проверить помещение",
     href: "/admin/spaces",
     items: vacantWithTenantLinks.map((space) => {
-      const tenant = space.tenant ?? space.tenantSpaces[0]?.tenant ?? null
-      return spaceItem(space, `свободно, но привязан ${tenant?.companyName ?? "арендатор"}`, tenant?.id)
+      const linked = space.tenant ?? space.tenantSpaces[0]?.tenant ?? null
+      return spaceItem(
+        space,
+        {
+          key: "adminChecks.integrity.issues.vacantWithTenantLink.meta",
+          vars: { tenant: linked?.companyName ?? { key: "adminChecks.integrity.common.tenantFallback" } },
+        },
+        linked?.id,
+      )
     }),
   })
 
   addIssue(issues, {
     key: "full-floor-individual-space-conflict",
-    title: "Этаж сдан целиком, но внутри есть отдельные связи помещений",
-    description: "Если этаж закреплен за одним арендатором, отдельные помещения не должны случайно принадлежать другим арендаторам.",
+    titleKey: "adminChecks.integrity.issues.fullFloorIndividualSpaceConflict.title",
+    descriptionKey: "adminChecks.integrity.issues.fullFloorIndividualSpaceConflict.description",
+    actionKey: "adminChecks.integrity.issues.fullFloorIndividualSpaceConflict.action",
     severity: "warning",
     contour: "tenant",
     count: fullFloorConflictCandidates.length,
-    actionLabel: "Проверить этаж",
     href: "/admin/buildings",
     items: fullFloorConflictItems.map((floor) => ({
       id: floor.id,
-      label: `${floor.building.name} · ${floor.name}`,
-      meta: `Этаж: ${floor.fullFloorTenant?.companyName ?? "арендатор"} · внутри есть ${floor.spaces.length} связей помещений`,
+      label: {
+        key: "adminChecks.integrity.issues.fullFloorIndividualSpaceConflict.label" as const,
+        vars: { building: floor.building.name, floor: floor.name },
+      },
+      meta: {
+        key: "adminChecks.integrity.issues.fullFloorIndividualSpaceConflict.meta" as const,
+        vars: {
+          tenant: floor.fullFloorTenant?.companyName ?? { key: "adminChecks.integrity.common.tenantFallback" as const },
+          count: floor.spaces.length,
+        },
+      },
       href: floor.fullFloorTenant ? `/admin/tenants/${floor.fullFloorTenant.id}` : "/admin/buildings",
     })),
   })
 
   addIssue(issues, {
     key: "addendum-without-parent",
-    title: "Доп. соглашение не связано с основным договором",
-    description: "Дополнительное соглашение должно ссылаться на базовый договор, иначе непонятно, какие условия оно меняет.",
+    titleKey: "adminChecks.integrity.issues.addendumWithoutParent.title",
+    descriptionKey: "adminChecks.integrity.issues.addendumWithoutParent.description",
+    actionKey: "adminChecks.integrity.issues.addendumWithoutParent.action",
     severity: "critical",
     contour: "legal",
     count: addendaWithoutParentCount,
-    actionLabel: "Открыть договор",
     href: "/admin/documents",
-    items: addendaWithoutParent.map((contract) => contractItem(contract, "нет parentContractId")),
+    items: addendaWithoutParent.map((contract) => contractItem(contract, {
+      key: "adminChecks.integrity.issues.addendumWithoutParent.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "signed-rent-addendum-not-applied",
-    title: "Подписанное доп. соглашение не применено",
-    description: "Если доп. соглашение по аренде подписано обеими сторонами, новые условия должны примениться один раз и получить appliedAt.",
+    titleKey: "adminChecks.integrity.issues.signedRentAddendumNotApplied.title",
+    descriptionKey: "adminChecks.integrity.issues.signedRentAddendumNotApplied.description",
+    actionKey: "adminChecks.integrity.issues.signedRentAddendumNotApplied.action",
     severity: "critical",
     contour: "legal",
     count: signedRentAddendaNotAppliedCount,
-    actionLabel: "Применить изменения",
     href: "/admin/documents",
-    items: signedRentAddendaNotApplied.map((contract) => contractItem(contract, "SIGNED · appliedAt пустой")),
+    items: signedRentAddendaNotApplied.map((contract) => contractItem(contract, {
+      key: "adminChecks.integrity.issues.signedRentAddendumNotApplied.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "tenant-without-signed-contract",
-    title: "Арендатор без подписанного договора",
-    description: "Для денег, помещения и изменения условий должен быть подписанный договор или доп. соглашение. Иначе юридический контур слабый.",
+    titleKey: "adminChecks.integrity.issues.tenantWithoutSignedContract.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantWithoutSignedContract.description",
+    actionKey: "adminChecks.integrity.issues.tenantWithoutSignedContract.action",
     severity: "warning",
     contour: "legal",
     count: tenantsWithoutSignedContractCount,
-    actionLabel: "Создать договор",
     href: "/admin/tenants",
-    items: tenantsWithoutSignedContract.map((tenant) => tenantItem(tenant, tenantPlacementLabel(tenant))),
+    items: tenantsWithoutSignedContract.map((tenant) => tenantItem(tenant, tenantPlacementText(tenant))),
   })
 
   addIssue(issues, {
     key: "confirmed-payment-report-without-payment",
-    title: "Подтвержденная оплата не создала платеж",
-    description: "После подтверждения чека должен появиться Payment, чтобы долг закрывался и акт сверки видел оплату.",
+    titleKey: "adminChecks.integrity.issues.confirmedPaymentReportWithoutPayment.title",
+    descriptionKey: "adminChecks.integrity.issues.confirmedPaymentReportWithoutPayment.description",
+    actionKey: "adminChecks.integrity.issues.confirmedPaymentReportWithoutPayment.action",
     severity: "critical",
     contour: "finance",
     count: confirmedReportsWithoutPaymentCount,
-    actionLabel: "Проверить оплаты",
     href: "/admin/finances",
-    items: confirmedReportsWithoutPayment.map((report) => paymentReportItem(report, "CONFIRMED без paymentId")),
+    items: confirmedReportsWithoutPayment.map((report) => paymentReportItem(report, {
+      key: "adminChecks.integrity.issues.confirmedPaymentReportWithoutPayment.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "stale-payment-report",
-    title: "Оплата долго ждет проверки",
-    description: "Если администратор не подтвердил или не отклонил чек, арендатор видит неопределенность, а долг может отображаться неверно.",
+    titleKey: "adminChecks.integrity.issues.stalePaymentReport.title",
+    descriptionKey: "adminChecks.integrity.issues.stalePaymentReport.description",
+    actionKey: "adminChecks.integrity.issues.stalePaymentReport.action",
     severity: "warning",
     contour: "finance",
     count: stalePaymentReportsCount,
-    actionLabel: "Проверить чеки",
     href: "/admin/finances",
-    items: stalePaymentReports.map((report) => paymentReportItem(report, `ждет с ${formatDate(report.createdAt)}`)),
+    items: stalePaymentReports.map((report) => paymentReportItem(report, {
+      key: "adminChecks.integrity.issues.stalePaymentReport.meta",
+      vars: { date: numericDate(report.createdAt) },
+    })),
   })
 
   addIssue(issues, {
     key: "meter-without-current-reading",
-    title: "Счетчик без показания за текущий период",
-    description: "Коммунальные начисления не должны держаться в голове. Для активных счетчиков нужно вовремя вносить показания за месяц.",
+    titleKey: "adminChecks.integrity.issues.meterWithoutCurrentReading.title",
+    descriptionKey: "adminChecks.integrity.issues.meterWithoutCurrentReading.description",
+    actionKey: "adminChecks.integrity.issues.meterWithoutCurrentReading.action",
     severity: "warning",
     contour: "utilities",
     count: metersWithoutCurrentReadingCount,
-    actionLabel: "Внести показания",
     href: "/admin/meters",
-    items: metersWithoutCurrentReading.map((meter) => meterItem(meter, `нет показания за ${currentPeriod}`)),
+    items: metersWithoutCurrentReading.map((meter) => meterItem(meter, {
+      key: "adminChecks.integrity.issues.meterWithoutCurrentReading.meta",
+      vars: { period: currentPeriod },
+    })),
   })
 
   addIssue(issues, {
     key: "meter-on-vacant-space",
-    title: "Счетчик привязан к свободному помещению",
-    description: "Если помещение свободно, коммунальные начисления арендатору не должны появляться случайно. Проверьте статус или привязку счетчика.",
+    titleKey: "adminChecks.integrity.issues.meterOnVacantSpace.title",
+    descriptionKey: "adminChecks.integrity.issues.meterOnVacantSpace.description",
+    actionKey: "adminChecks.integrity.issues.meterOnVacantSpace.action",
     severity: "info",
     contour: "utilities",
     count: metersOnVacantSpacesCount,
-    actionLabel: "Проверить счетчики",
     href: "/admin/meters",
-    items: metersOnVacantSpaces.map((meter) => meterItem(meter, "помещение свободно")),
+    items: metersOnVacantSpaces.map((meter) => meterItem(meter, {
+      key: "adminChecks.integrity.issues.meterOnVacantSpace.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "meter-without-tariff",
-    title: "Есть счетчики без тарифа в здании",
-    description: "Для света, воды, отопления и других услуг нужен активный тариф здания. Иначе расход есть, а сумма начисления не рассчитывается.",
+    titleKey: "adminChecks.integrity.issues.meterWithoutTariff.title",
+    descriptionKey: "adminChecks.integrity.issues.meterWithoutTariff.description",
+    actionKey: "adminChecks.integrity.issues.meterWithoutTariff.action",
     severity: "warning",
     contour: "utilities",
     count: meterRowsWithoutTariff.length,
-    actionLabel: "Настроить тарифы",
     href: "/admin/meters",
-    items: meterRowsWithoutTariff.map((meter) => meterItem(meter, `нет тарифа ${meter.type}`)),
+    items: meterRowsWithoutTariff.map((meter) => meterItem(meter, {
+      key: "adminChecks.integrity.issues.meterWithoutTariff.meta",
+      vars: { type: meter.type },
+    })),
   })
 
   addIssue(issues, {
     key: "expired-signature-request",
-    title: "Просроченные запросы на подпись",
-    description: "Если ссылка на подпись истекла, нужно отправить новую или закрыть запрос, чтобы статусы документов не зависали.",
+    titleKey: "adminChecks.integrity.issues.expiredSignatureRequest.title",
+    descriptionKey: "adminChecks.integrity.issues.expiredSignatureRequest.description",
+    actionKey: "adminChecks.integrity.issues.expiredSignatureRequest.action",
     severity: "warning",
     contour: "documents",
     count: expiredSignatureRequestsCount,
-    actionLabel: "Проверить подписи",
     href: "/admin/documents",
-    items: expiredSignatureRequests.map((request) => signatureRequestItem(request, `истек ${request.expiresAt ? formatDate(request.expiresAt) : "без даты"}`)),
+    items: expiredSignatureRequests.map((request) => signatureRequestItem(
+      request,
+      request.expiresAt
+        ? {
+            key: "adminChecks.integrity.issues.expiredSignatureRequest.meta",
+            vars: { date: numericDate(request.expiresAt) },
+          }
+        : { key: "adminChecks.integrity.issues.expiredSignatureRequest.metaNoDate" },
+    )),
   })
 
   addIssue(issues, {
     key: "signed-request-without-signature",
-    title: "Запрос помечен подписанным без подписи",
-    description: "SIGNED-запрос должен иметь signatureId. Иначе статус говорит “подписано”, но криптографического следа нет.",
+    titleKey: "adminChecks.integrity.issues.signedRequestWithoutSignature.title",
+    descriptionKey: "adminChecks.integrity.issues.signedRequestWithoutSignature.description",
+    actionKey: "adminChecks.integrity.issues.signedRequestWithoutSignature.action",
     severity: "critical",
     contour: "documents",
     count: signedRequestsWithoutSignatureCount,
-    actionLabel: "Проверить подписи",
     href: "/admin/documents",
-    items: signedRequestsWithoutSignature.map((request) => signatureRequestItem(request, "SIGNED без signatureId")),
+    items: signedRequestsWithoutSignature.map((request) => signatureRequestItem(request, {
+      key: "adminChecks.integrity.issues.signedRequestWithoutSignature.meta",
+    })),
   })
 
   addIssue(issues, {
     key: "tenant-storage-file-without-tenant",
-    title: "Файл помечен как файл арендатора без tenantId",
-    description: "Хранилище должно быть разделено по SaaS-организации и, где нужно, по арендатору. Иначе документы сложно найти и безопасно показывать.",
+    titleKey: "adminChecks.integrity.issues.tenantStorageFileWithoutTenant.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantStorageFileWithoutTenant.description",
+    actionKey: "adminChecks.integrity.issues.tenantStorageFileWithoutTenant.action",
     severity: "warning",
     contour: "storage",
     count: orphanTenantFilesCount,
-    actionLabel: "Открыть хранилище",
     href: "/admin/storage",
     items: orphanTenantFiles.map((file) => ({
       id: file.id,
-      label: file.fileName,
-      meta: `${file.category} · ${formatDate(file.createdAt)} · tenantId пустой`,
+      label: { text: file.fileName },
+      meta: {
+        key: "adminChecks.integrity.issues.tenantStorageFileWithoutTenant.meta" as const,
+        vars: { category: file.category, date: numericDate(file.createdAt) },
+      },
       href: "/admin/storage",
     })),
   })
 
   addIssue(issues, {
     key: "tenant-document-outside-storage",
-    title: "Документ арендатора хранится старой ссылкой",
-    description: "Новые документы и чеки должны храниться в DB Storage. Старые fileUrl без storageFileId лучше мигрировать, чтобы работали права доступа и резервное копирование.",
+    titleKey: "adminChecks.integrity.issues.tenantDocumentOutsideStorage.title",
+    descriptionKey: "adminChecks.integrity.issues.tenantDocumentOutsideStorage.description",
+    actionKey: "adminChecks.integrity.issues.tenantDocumentOutsideStorage.action",
     severity: "info",
     contour: "storage",
     count: oldTenantDocumentsCount,
-    actionLabel: "Открыть хранилище",
     href: "/admin/storage",
     items: oldTenantDocuments.map((document) => ({
       id: document.id,
-      label: document.name,
-      meta: `${document.tenant.companyName} · ${document.type} · storageFileId пустой`,
+      label: { text: document.name },
+      meta: {
+        key: "adminChecks.integrity.issues.tenantDocumentOutsideStorage.meta" as const,
+        vars: { tenant: document.tenant.companyName, type: document.type },
+      },
       href: `/admin/tenants/${document.tenant.id}`,
     })),
   })
 
   addIssue(issues, {
     key: "org-requisites-missing",
-    title: "Не заполнены реквизиты арендодателя",
-    description: "Реквизиты организации должны быть одним источником правды для договоров, счетов, ЭСФ, актов и платежных инструкций арендатора.",
+    titleKey: "adminChecks.integrity.issues.orgRequisitesMissing.title",
+    descriptionKey: "adminChecks.integrity.issues.orgRequisitesMissing.description",
+    actionKey: "adminChecks.integrity.issues.orgRequisitesMissing.action",
     severity: "critical",
     contour: "legal",
     count: missingOrgRequisites.length > 0 ? 1 : 0,
-    actionLabel: "Открыть настройки",
     href: "/admin/settings",
     items: missingOrgRequisites.length > 0 ? [{
       id: "org-requisites",
-      label: organization?.name ?? "Организация",
-      meta: `Не заполнено: ${missingOrgRequisites.join(", ")}`,
+      label: orgLabel(organization?.name),
+      meta: {
+        key: "adminChecks.integrity.issues.orgRequisitesMissing.meta",
+        list: missingOrgRequisites.map((field) => ({ key: field })),
+        listSeparator: ", ",
+      },
       href: "/admin/settings",
     }] : [],
   })
 
   addIssue(issues, {
     key: "server-errors-24h",
-    title: "Есть серверные ошибки за 24 часа",
-    description: "Ошибки должны попадать в понятный журнал поддержки: страница, пользователь, организация, действие и техническая причина.",
+    titleKey: "adminChecks.integrity.issues.serverErrors24h.title",
+    descriptionKey: "adminChecks.integrity.issues.serverErrors24h.description",
+    actionKey: "adminChecks.integrity.issues.serverErrors24h.action",
     severity: "critical",
     contour: "observability",
     count: serverErrorsCount,
-    actionLabel: "Открыть журнал",
     href: "/admin/system-health",
-    items: serverErrors.map((error) => ({
-      id: error.id,
-      label: error.route,
-      meta: `${error.step ?? "route"} · ${formatDate(error.createdAt)} · ${error.error ?? "ошибка"}`,
+    items: serverErrors.map((row) => ({
+      id: row.id,
+      label: { text: row.route },
+      meta: {
+        key: "adminChecks.integrity.issues.serverErrors24h.meta" as const,
+        vars: {
+          step: row.step ?? { key: "adminChecks.integrity.issues.serverErrors24h.stepFallback" as const },
+          date: numericDate(row.createdAt),
+          error: row.error ?? { key: "adminChecks.integrity.issues.serverErrors24h.errorFallback" as const },
+        },
+      },
       href: "/admin/system-health",
     })),
   })
 
   addIssue(issues, {
     key: "poor-web-vitals",
-    title: "Есть плохие Core Web Vitals",
-    description: "Если реальные пользователи получают poor LCP/INP/CLS, это нужно видеть не только в Google, но и в кабинете поддержки.",
+    titleKey: "adminChecks.integrity.issues.poorWebVitals.title",
+    descriptionKey: "adminChecks.integrity.issues.poorWebVitals.description",
+    actionKey: "adminChecks.integrity.issues.poorWebVitals.action",
     severity: "warning",
     contour: "observability",
     count: poorWebVitalCount,
-    actionLabel: "Открыть скорость",
     href: "/superadmin/performance",
     items: poorWebVitals.map((metric) => ({
       id: metric.id,
-      label: `${metric.name}: ${Math.round(metric.value)}`,
-      meta: `${metric.path ?? "страница не указана"} · ${formatDate(metric.createdAt)}`,
+      label: { text: `${metric.name}: ${Math.round(metric.value)}` },
+      meta: {
+        key: "adminChecks.integrity.issues.poorWebVitals.meta" as const,
+        vars: {
+          path: metric.path ?? { key: "adminChecks.integrity.issues.poorWebVitals.pathFallback" as const },
+          date: numericDate(metric.createdAt),
+        },
+      },
       href: "/superadmin/performance",
     })),
   })
@@ -1071,89 +1164,160 @@ function addLimitIssue(
   limit: number | null | undefined,
   used: number,
   key: string,
-  title: string,
-  label: string,
+  subject: "buildings" | "tenants" | "users" | "leads",
   href: string,
 ) {
   if (!limit || used <= limit) return
+  // Заголовок у каждого лимита свой, а описание, действие и подпись — общие.
+  const titleKeys = {
+    buildings: "adminChecks.integrity.issues.limit.buildingsTitle",
+    tenants: "adminChecks.integrity.issues.limit.tenantsTitle",
+    users: "adminChecks.integrity.issues.limit.usersTitle",
+    leads: "adminChecks.integrity.issues.limit.leadsTitle",
+  } as const
+  const labelKeys = {
+    buildings: "adminChecks.integrity.issues.limit.buildingsLabel",
+    tenants: "adminChecks.integrity.issues.limit.tenantsLabel",
+    users: "adminChecks.integrity.issues.limit.usersLabel",
+    leads: "adminChecks.integrity.issues.limit.leadsLabel",
+  } as const
+
   addIssue(issues, {
     key,
-    title,
-    description: "Фактическое использование превышает лимит тарифа. Superadmin должен либо расширить тариф, либо владелец должен перейти на другой план.",
+    titleKey: titleKeys[subject],
+    descriptionKey: "adminChecks.integrity.issues.limit.description",
+    actionKey: "adminChecks.integrity.issues.limit.action",
     severity: "warning",
     contour: "subscription",
     count: used - limit,
-    actionLabel: "Проверить тариф",
     href,
     items: [{
       id: key,
-      label,
-      meta: `Используется ${used}, лимит ${limit}`,
+      label: { key: labelKeys[subject] },
+      meta: { key: "adminChecks.integrity.issues.limit.meta", vars: { used, limit } },
       href,
     }],
   })
 }
 
-function tenantItem(tenant: TenantListRow, meta: string): RelationshipIntegrityItem {
+/** Название организации, а если его нет — нейтральное слово из словаря. */
+function orgLabel(name: string | null | undefined): IntegrityText {
+  return name ? { text: name } : { key: "adminChecks.integrity.common.orgFallback" }
+}
+
+/**
+ * Дата в диагностике — только цифрами: месяц прописью пришлось бы переводить,
+ * а «22.09.2026» читается одинаково на обоих языках.
+ */
+function numericDate(value: Date | null | undefined): string {
+  if (!value) return "-"
+  const day = String(value.getDate()).padStart(2, "0")
+  const month = String(value.getMonth() + 1).padStart(2, "0")
+  return `${day}.${month}.${value.getFullYear()}`
+}
+
+function tenantItem(tenant: TenantListRow, meta: IntegrityText): RelationshipIntegrityItem {
   return {
     id: tenant.id,
-    label: tenant.companyName,
+    label: { text: tenant.companyName },
     meta,
     href: `/admin/tenants/${tenant.id}`,
   }
 }
 
-function spaceItem(space: SpaceListRow, meta: string, tenantId?: string): RelationshipIntegrityItem {
+function spaceItem(space: SpaceListRow, reason: IntegrityText, tenantId?: string): RelationshipIntegrityItem {
   return {
     id: space.id,
-    label: `${space.floor.building.name} · ${space.floor.name} · каб. ${space.number}`,
-    meta: `${meta} · ${space.area} м²`,
+    label: {
+      key: "adminChecks.integrity.common.spaceLabel",
+      vars: { building: space.floor.building.name, floor: space.floor.name, number: space.number },
+    },
+    meta: {
+      key: "adminChecks.integrity.common.spaceMeta",
+      vars: { reason, area: space.area },
+    },
     href: tenantId ? `/admin/tenants/${tenantId}` : "/admin/spaces",
   }
 }
 
-function contractItem(contract: ContractListRow, meta: string): RelationshipIntegrityItem {
+function contractItem(contract: ContractListRow, reason: IntegrityText): RelationshipIntegrityItem {
   return {
     id: contract.id,
-    label: `Договор № ${contract.number}`,
-    meta: `${contract.tenant.companyName} · ${contract.changeKind ?? "изменение"} · ${meta}`,
+    label: { key: "adminChecks.integrity.common.contractLabel", vars: { number: contract.number } },
+    meta: {
+      key: "adminChecks.integrity.common.contractMeta",
+      vars: {
+        tenant: contract.tenant.companyName,
+        // changeKind — код изменения из базы, он и в диагностике остаётся кодом.
+        kind: contract.changeKind ?? { key: "adminChecks.integrity.common.contractKindFallback" },
+        reason,
+      },
+    },
     href: `/admin/tenants/${contract.tenant.id}`,
   }
 }
 
-function paymentReportItem(report: PaymentReportListRow, meta: string): RelationshipIntegrityItem {
+function paymentReportItem(report: PaymentReportListRow, meta: IntegrityText): RelationshipIntegrityItem {
   return {
     id: report.id,
-    label: `${report.tenant.companyName} · ${formatMoney(report.amount)}`,
+    label: { text: `${report.tenant.companyName} · ${formatMoney(report.amount)}` },
     meta,
     href: `/admin/tenants/${report.tenant.id}`,
   }
 }
 
-function meterItem(meter: MeterListRow, meta: string): RelationshipIntegrityItem {
+function meterItem(meter: MeterListRow, reason: IntegrityText): RelationshipIntegrityItem {
   return {
     id: meter.id,
-    label: `${meter.space.floor.building.name} · ${meter.space.floor.name} · каб. ${meter.space.number}`,
-    meta: `${meter.type} ${meter.number} · ${meta}`,
+    label: {
+      key: "adminChecks.integrity.common.spaceLabel",
+      vars: {
+        building: meter.space.floor.building.name,
+        floor: meter.space.floor.name,
+        number: meter.space.number,
+      },
+    },
+    meta: {
+      key: "adminChecks.integrity.common.meterMeta",
+      vars: {
+        type: meter.type,
+        number: meter.number,
+        reason,
+      },
+    },
     href: "/admin/meters",
   }
 }
 
-function signatureRequestItem(request: SignatureRequestListRow, meta: string): RelationshipIntegrityItem {
+function signatureRequestItem(request: SignatureRequestListRow, reason: IntegrityText): RelationshipIntegrityItem {
   return {
     id: request.id,
-    label: request.title,
-    meta: `${request.documentType} ${request.documentRef ?? ""}`.trim() + ` · ${meta}`,
+    label: { text: request.title },
+    meta: {
+      key: "adminChecks.integrity.common.signatureMeta",
+      vars: {
+        document: `${request.documentType} ${request.documentRef ?? ""}`.trim(),
+        reason,
+      },
+    },
     href: "/admin/documents",
   }
 }
 
-function tenantPlacementLabel(tenant: TenantListRow) {
-  const parts: string[] = []
-  if (tenant.space) parts.push(`каб. ${tenant.space.number}`)
-  if (tenant.tenantSpaces.length > 0) parts.push(`${tenant.tenantSpaces.length} помещ.`)
-  if (tenant.fullFloors.length > 0) parts.push(`${tenant.fullFloors.length} этаж.`)
-  return parts.length > 0 ? parts.join(" · ") : "Размещение не указано"
+function tenantPlacementText(tenant: TenantListRow): IntegrityText {
+  const parts: IntegrityText[] = []
+  if (tenant.space) {
+    parts.push({ key: "adminChecks.integrity.common.placementSpace", vars: { number: tenant.space.number } })
+  }
+  if (tenant.tenantSpaces.length > 0) {
+    parts.push({ key: "adminChecks.integrity.common.placementSpaces", vars: { count: tenant.tenantSpaces.length } })
+  }
+  if (tenant.fullFloors.length > 0) {
+    parts.push({ key: "adminChecks.integrity.common.placementFloors", vars: { count: tenant.fullFloors.length } })
+  }
+  return parts.length > 0
+    ? { list: parts }
+    : { key: "adminChecks.integrity.common.placementNone" }
 }
 
 function linkedTenantLabel(space: {
@@ -1177,22 +1341,23 @@ function missingOrganizationRequisites(org: {
   bik: string | null
   phone: string | null
   email: string | null
-} | null) {
-  if (!org) return ["организация"]
-  const missing: string[] = []
-  if (!org.legalType) missing.push("правовая форма")
-  if (!org.legalName) missing.push("полное название")
-  if (["TOO", "ТОО", "AO", "АО"].includes(org.legalType ?? "") && !org.bin) missing.push("БИН")
-  if (["IP", "ИП", "CHSI", "ЧСИ"].includes(org.legalType ?? "") && !org.iin) missing.push("ИИН")
-  if (!org.directorName) missing.push("руководитель")
-  if (!org.directorPosition) missing.push("должность")
-  if (!org.basis) missing.push("основание действия")
-  if (!org.legalAddress) missing.push("юридический адрес")
-  if (!org.bankName) missing.push("банк")
-  if (!org.iik) missing.push("ИИК")
-  if (!org.bik) missing.push("БИК")
-  if (!org.phone) missing.push("телефон")
-  if (!org.email) missing.push("email")
+} | null): IntegrityTextKey[] {
+  const fields = "adminChecks.integrity.issues.orgRequisitesMissing.fields"
+  if (!org) return [`${fields}.organization`]
+  const missing: IntegrityTextKey[] = []
+  if (!org.legalType) missing.push(`${fields}.legalType`)
+  if (!org.legalName) missing.push(`${fields}.legalName`)
+  if (["TOO", "ТОО", "AO", "АО"].includes(org.legalType ?? "") && !org.bin) missing.push(`${fields}.bin`)
+  if (["IP", "ИП", "CHSI", "ЧСИ"].includes(org.legalType ?? "") && !org.iin) missing.push(`${fields}.iin`)
+  if (!org.directorName) missing.push(`${fields}.directorName`)
+  if (!org.directorPosition) missing.push(`${fields}.directorPosition`)
+  if (!org.basis) missing.push(`${fields}.basis`)
+  if (!org.legalAddress) missing.push(`${fields}.legalAddress`)
+  if (!org.bankName) missing.push(`${fields}.bankName`)
+  if (!org.iik) missing.push(`${fields}.iik`)
+  if (!org.bik) missing.push(`${fields}.bik`)
+  if (!org.phone) missing.push(`${fields}.phone`)
+  if (!org.email) missing.push(`${fields}.email`)
   return missing
 }
 
@@ -1207,13 +1372,11 @@ function parseJson(value: string | null | undefined) {
 }
 
 function buildContourSummaries(issues: RelationshipIntegrityIssue[]) {
-  return (Object.keys(CONTOUR_META) as RelationshipContour[])
+  return CONTOURS
     .map((key) => {
       const contourIssues = issues.filter((issue) => issue.contour === key)
       return {
         key,
-        label: CONTOUR_META[key].label,
-        description: CONTOUR_META[key].description,
         count: contourIssues.reduce((sum, issue) => sum + issue.count, 0),
         critical: contourIssues.filter((issue) => issue.severity === "critical").reduce((sum, issue) => sum + issue.count, 0),
         warning: contourIssues.filter((issue) => issue.severity === "warning").reduce((sum, issue) => sum + issue.count, 0),

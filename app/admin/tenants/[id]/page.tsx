@@ -20,7 +20,6 @@ import {
 } from "@/app/actions/tenant"
 import { getLocale, getT } from "@/lib/i18n/server"
 import { formatDateL, formatMoneyL } from "@/lib/i18n/format"
-import type { Locale } from "@/lib/i18n/config"
 import type { Translator } from "@/lib/i18n/translate"
 import type { Messages } from "@/lib/i18n/messages"
 import {

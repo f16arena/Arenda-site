@@ -2,6 +2,7 @@
 
 import { useTransition, ReactNode, FormHTMLAttributes } from "react"
 import { toast } from "sonner"
+import { useT } from "@/lib/i18n/client"
 
 interface ServerFormProps extends Omit<FormHTMLAttributes<HTMLFormElement>, "action"> {
   action: (formData: FormData) => Promise<unknown>
@@ -9,7 +10,8 @@ interface ServerFormProps extends Omit<FormHTMLAttributes<HTMLFormElement>, "act
   children: ReactNode
 }
 
-export function ServerForm({ action, successMessage = "Сохранено", children, ...props }: ServerFormProps) {
+export function ServerForm({ action, successMessage, children, ...props }: ServerFormProps) {
+  const { t } = useT()
   const [, startTransition] = useTransition()
 
   return (
@@ -27,12 +29,12 @@ export function ServerForm({ action, successMessage = "Сохранено", chil
               return
             }
             if (result && typeof result === "object" && (result as { success?: unknown }).success === false) {
-              toast.error("Не удалось сохранить")
+              toast.error(t("common.state.saveFailed"))
               return
             }
-            toast.success(successMessage)
+            toast.success(successMessage ?? t("common.state.saved"))
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Ошибка")
+            toast.error(e instanceof Error ? e.message : t("common.state.error"))
           }
         })
       }

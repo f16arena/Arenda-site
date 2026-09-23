@@ -9,6 +9,7 @@ import { useEffect, useState } from "react"
 import { assignTenantToPlace, listBuilderTenants, listBuildingPremises, type BuilderTenantOption } from "@/app/actions/builder-premise"
 import { usePremiseStore } from "@/store/premise-store"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
 import { PremisePicker } from "./PremisePicker"
 
 export function IslandTenantPicker({
@@ -25,6 +26,7 @@ export function IslandTenantPicker({
   /** Привязать объект к уже существующей карточке места */
   linkPremise: (spaceId: string) => void
 }) {
+  const { t } = useT()
   const [tenants, setTenants] = useState<BuilderTenantOption[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -35,7 +37,7 @@ export function IslandTenantPicker({
     return () => { cancelled = true }
   }, [buildingId])
 
-  const current = tenants.find((t) => t.name === currentTenant) ?? null
+  const current = tenants.find((row) => row.name === currentTenant) ?? null
 
   async function choose(tenantId: string | null) {
     if (!tenantId || tenantId === current?.id) return
@@ -44,20 +46,20 @@ export function IslandTenantPicker({
     try {
       // Если у арендатора уже есть место — привязываем объект к нему, а не
       // заводим вторую карточку (у MTA так появились «Киоск» и «М-4»).
-      const name = tenants.find((t) => t.id === tenantId)?.name
+      const name = tenants.find((row) => row.id === tenantId)?.name
       const already = premiseId
         ? null
         : [...usePremiseStore.getState().byId.values()].find((p) => !!name && p.tenantName === name)
       if (already) linkPremise(already.id)
       const spaceId = premiseId ?? already?.id ?? (await ensurePremise())
-      if (!spaceId) throw new Error("Не удалось завести карточку места")
+      if (!spaceId) throw new Error(t("adminBuilder.picker.cardFailed"))
       const res = await assignTenantToPlace(tenantId, spaceId)
       if (!res.ok) throw new Error(res.error)
       const [rows, list] = await Promise.all([listBuildingPremises(buildingId), listBuilderTenants(buildingId)])
       usePremiseStore.getState().setRows(rows)
       setTenants(list)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось посадить арендатора")
+      setError(e instanceof Error ? e.message : t("adminBuilder.picker.assignFailed"))
     } finally {
       setBusy(false)
     }
@@ -66,22 +68,22 @@ export function IslandTenantPicker({
   return (
     <div className="flex flex-col gap-1">
       <PremisePicker
-        label={busy ? "Арендатор места — сохраняю…" : "Арендатор места"}
-        items={[...tenants].sort((a, b) => Number(!!a.place) - Number(!!b.place)).map((t) => ({
-          id: t.id,
-          title: t.name,
-          group: t.place ? "С помещением" : "Без места — новые",
-          who: t.place,
+        label={t(busy ? "adminBuilder.picker.tenantSaving" : "adminBuilder.picker.tenantLabel")}
+        items={[...tenants].sort((a, b) => Number(!!a.place) - Number(!!b.place)).map((row) => ({
+          id: row.id,
+          title: row.name,
+          group: t(row.place ? "adminBuilder.picker.withSpace" : "adminBuilder.picker.withoutSpace"),
+          who: row.place,
         }))}
         value={current?.id ?? null}
-        emptyLabel={currentTenant ?? "Свободно — выберите арендатора"}
+        emptyLabel={currentTenant ?? t("adminBuilder.picker.pickTenant")}
         showFree={false}
         allowClear={false}
         onChange={(id) => void choose(id)}
       />
       {error && <p className="text-[11px]" style={{ color: "#fca5a5" }}>{error}</p>}
       {!error && !premiseId && (
-        <p className="text-[10px]" style={{ color: TOKENS.muted }}>Карточка места заведётся сама при выборе арендатора.</p>
+        <p className="text-[10px]" style={{ color: TOKENS.muted }}>{t("adminBuilder.picker.autoCard")}</p>
       )}
     </div>
   )

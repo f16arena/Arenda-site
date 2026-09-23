@@ -10,7 +10,7 @@ import { auth } from "@/auth"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { TEAM_TABS } from "@/lib/hub-tabs"
+import { teamTabs } from "@/lib/hub-tabs"
 import { UsersRound } from "lucide-react"
 import { getT, getLocale } from "@/lib/i18n/server"
 import { formatMoneyL } from "@/lib/i18n/format"
@@ -61,7 +61,7 @@ export default async function StaffPage() {
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={TEAM_TABS} className="mb-2" />
+      <RouteTabs items={teamTabs(t)} className="mb-2" />
       <PageHeader
         icon={UsersRound}
         title={t("adminSettings.staff.title")}

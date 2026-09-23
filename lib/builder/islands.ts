@@ -8,9 +8,15 @@ import type { Floor, Island, IslandKind } from "@/types/builder"
 import type { Vec2 } from "@/core/geometry/math"
 import { pointInPolygon } from "@/core/geometry/math"
 import { floorRooms } from "./rooms"
+import type { Messages } from "@/lib/i18n/messages"
+import type { SheetT } from "./sheet-text"
+
+/** Ключ подписи вида места в словаре — он же сам вид. */
+export type IslandNameKey = keyof Messages["adminBuilder"]["islands"]["kinds"]
 
 export interface IslandPreset {
-  label: string
+  /** ключ подписи в словаре (adminBuilder.islands.kinds) — он же вид места */
+  label: IslandNameKey
   /** габарит по умолчанию, мм */
   width: number
   depth: number
@@ -20,25 +26,25 @@ export interface IslandPreset {
 // Размеры взяты по типовому оборудованию: вендинг ~0,9×0,8 м, банкомат ~0,7×0,7,
 // киоск — уже полноценная торговая точка.
 export const ISLAND_PRESETS: Record<IslandKind, IslandPreset> = {
-  vending: { label: "Вендинговый автомат", width: 900, depth: 800, height: 1830 },
-  kiosk: { label: "Киоск", width: 2500, depth: 2000, height: 2400 },
-  atm: { label: "Банкомат", width: 700, depth: 700, height: 1650 },
-  counter: { label: "Стойка", width: 1600, depth: 700, height: 1100 },
-  coffee: { label: "Кофе-точка", width: 1200, depth: 900, height: 1900 },
-  rack: { label: "Торговая стойка", width: 1000, depth: 1000, height: 1600 },
-  banner: { label: "Баннер на стене", width: 3000, depth: 80, height: 1500 },
-  lightbox: { label: "Лайтбокс", width: 1200, depth: 150, height: 1800 },
+  vending: { label: "vending", width: 900, depth: 800, height: 1830 },
+  kiosk: { label: "kiosk", width: 2500, depth: 2000, height: 2400 },
+  atm: { label: "atm", width: 700, depth: 700, height: 1650 },
+  counter: { label: "counter", width: 1600, depth: 700, height: 1100 },
+  coffee: { label: "coffee", width: 1200, depth: 900, height: 1900 },
+  rack: { label: "rack", width: 1000, depth: 1000, height: 1600 },
+  banner: { label: "banner", width: 3000, depth: 80, height: 1500 },
+  lightbox: { label: "lightbox", width: 1200, depth: 150, height: 1800 },
   // парковка: легковое место по СП 113.13330 — 2,5 × 5,3 м, грузовое крупнее
-  parking: { label: "Парковочное место", width: 2500, depth: 5300, height: 0 },
-  parking_truck: { label: "Место для грузового", width: 3500, depth: 8000, height: 0 },
-  parking_moto: { label: "Мотоместо", width: 1000, depth: 2500, height: 0 },
+  parking: { label: "parking", width: 2500, depth: 5300, height: 0 },
+  parking_truck: { label: "parking_truck", width: 3500, depth: 8000, height: 0 },
+  parking_moto: { label: "parking_moto", width: 1000, depth: 2500, height: 0 },
   // территория: киоск и морской контейнер (20 футов — 6058 × 2438 мм)
-  kiosk_out: { label: "Киоск на территории", width: 3000, depth: 2200, height: 2700 },
-  container: { label: "Контейнер 20 футов", width: 6058, depth: 2438, height: 2591 },
+  kiosk_out: { label: "kiosk_out", width: 3000, depth: 2200, height: 2700 },
+  container: { label: "container", width: 6058, depth: 2438, height: 2591 },
   // кровля: антенно-мачтовое сооружение и базовая станция оператора
-  antenna: { label: "Антенно-мачтовое сооружение", width: 1200, depth: 1200, height: 6000 },
-  bts: { label: "Базовая станция", width: 1500, depth: 1000, height: 2000 },
-  other: { label: "Арендное место", width: 1000, depth: 1000, height: 1500 },
+  antenna: { label: "antenna", width: 1200, depth: 1200, height: 6000 },
+  bts: { label: "bts", width: 1500, depth: 1000, height: 2000 },
+  other: { label: "other", width: 1000, depth: 1000, height: 1500 },
 }
 
 /** Рекламные места висят на стене: пола они не занимают и проход не сужают. */
@@ -72,10 +78,17 @@ export function islandMark(level: number, index: number): string {
   return `М${level}.${index + 1}`
 }
 
+/**
+ * Как назвать вид места на языке пользователя: вызывающий берёт подпись из
+ * словаря (adminBuilder.islands.kinds). Без этого модуль пришлось бы держать
+ * в двух языках, а он про геометрию и нормы, не про текст.
+ */
+export type IslandNamer = (kind: IslandKind) => string
+
 /** Наименование для плана и ведомости: своё, иначе типовое по виду места. */
-export function islandLabel(island: Island): string {
+export function islandLabel(island: Island, kindName?: IslandNamer): string {
   const own = (island.name ?? "").trim()
-  return own || ISLAND_PRESETS[island.kind].label
+  return own || (kindName ? kindName(island.kind) : ISLAND_PRESETS[island.kind].label)
 }
 
 /** Габарит места в координатах плана (мм), по часовой от левого нижнего угла. */
@@ -131,6 +144,29 @@ interface RoomLike {
 }
 
 /**
+ * Подписи ведомости, которых нет в геометрии: вид места и куда его отнесли.
+ * Без них строки выходят с ключами словаря — так их видят только тесты.
+ */
+export interface IslandNames {
+  kind: IslandNamer
+  roof: string
+  parking: string
+  site: string
+  siteFloor: string
+}
+
+/** Подписи ведомости из словаря — один вызов вместо объекта в каждом листе. */
+export function islandNames(t: SheetT): IslandNames {
+  return {
+    kind: (kind) => t(`adminBuilder.islands.kinds.${kind}`),
+    roof: t("adminBuilder.islands.placeRoof"),
+    parking: t("adminBuilder.islands.placeParking"),
+    site: t("adminBuilder.islands.placeSite"),
+    siteFloor: t("adminBuilder.islands.siteFloor"),
+  }
+}
+
+/**
  * Ведомость арендных мест по этажам. `roomsOf` даёт помещения этажа, чтобы
  * подписать, где место стоит («Коридор», «Холл») — без этого в ведомости
  * непонятно, к чему относится строка.
@@ -139,6 +175,7 @@ export function islandSchedule(
   floors: Floor[],
   roomsOf?: (floor: Floor) => RoomLike[],
   roomName?: (floor: Floor, roomId: string) => string,
+  names?: IslandNames,
 ): IslandRow[] {
   const rows: IslandRow[] = []
   for (const floor of floors) {
@@ -151,10 +188,10 @@ export function islandSchedule(
         id: island.id,
         mark: islandMark(floor.level, idx),
         floorName: floor.name,
-        name: islandLabel(island),
+        name: islandLabel(island, names?.kind),
         kind: island.kind,
         tenant: (island.tenant ?? "").trim(),
-        place: isRoofPlace(island) ? "Кровля" : room && roomName ? roomName(floor, room.id) : "",
+        place: isRoofPlace(island) ? names?.roof ?? "placeRoof" : room && roomName ? roomName(floor, room.id) : "",
         area: Math.round(islandArea(island) * 100) / 100,
         size: `${island.width}×${island.depth}`,
       })
@@ -268,17 +305,18 @@ export function projectIslandSchedule(
   siteIslands: Island[],
   roomsOf?: (floor: Floor) => RoomLike[],
   roomName?: (floor: Floor, roomId: string) => string,
+  names?: IslandNames,
 ): IslandRow[] {
-  const rows = islandSchedule(floors, roomsOf, roomName)
+  const rows = islandSchedule(floors, roomsOf, roomName, names)
   siteIslands.forEach((island, idx) => {
     rows.push({
       id: island.id,
       mark: `П${idx + 1}`,
-      floorName: "Участок",
-      name: islandLabel(island),
+      floorName: names?.siteFloor ?? "siteFloor",
+      name: islandLabel(island, names?.kind),
       kind: island.kind,
       tenant: (island.tenant ?? "").trim(),
-      place: isParking(island) ? "Парковка" : "Территория",
+      place: isParking(island) ? names?.parking ?? "placeParking" : names?.site ?? "placeSite",
       area: Math.round(islandArea(island) * 100) / 100,
       size: `${island.width}×${island.depth}`,
     })

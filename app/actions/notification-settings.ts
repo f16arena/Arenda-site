@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 
 export interface NotificationSettings {
@@ -48,7 +49,7 @@ export async function updateMyNotificationSettings(
   settings: Partial<NotificationSettings>,
 ): Promise<{ ok: boolean; error?: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  if (!session?.user) return { ok: false, error: (await getT()).t("actions.common.noAccess") }
 
   await db.user.update({
     where: { id: session.user.id },

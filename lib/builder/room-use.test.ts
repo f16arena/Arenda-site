@@ -22,7 +22,8 @@ describe("назначение помещений", () => {
     const withStair = [a, b].find((r) => autoRoomUse(f, r).name)!
     const office = [a, b].find((r) => r !== withStair)!
     expect(roomUse(f, withStair)).toBe("common")
-    expect(roomDisplayName(f, withStair)).toBe("Лестничная клетка")
+    expect(roomDisplayName(f, withStair)).toBe("stairwell")
+    expect(roomDisplayName(f, withStair, (key) => (key === "stairwell" ? "Лестничная клетка" : key))).toBe("Лестничная клетка")
     expect(roomUse(f, office)).toBe("rent")
   })
   it("МОП без номера и не сдвигает нумерацию; ручная отметка важнее авто", () => {

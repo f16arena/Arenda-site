@@ -11,6 +11,7 @@ import type { FloorLayoutV2 } from "@/lib/floor-layout"
 import { areaMismatch, findRoom } from "@/lib/indoor-map/edit"
 import { area as polygonArea, roomPolygon } from "@/lib/indoor-map/geometry"
 import type { SpaceLite } from "@/lib/indoor-map/model"
+import { useT } from "@/lib/i18n/client"
 import type { FloorEditor } from "./use-floor-editor"
 
 type Props = {
@@ -20,6 +21,7 @@ type Props = {
 }
 
 export function EditPanel({ editor, layout, spaces }: Props) {
+  const { t } = useT()
   const roomId = editor.selectedId
   const room = roomId ? findRoom(layout, roomId) : null
 
@@ -110,7 +112,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
       {mismatch ? (
         <span
           className="rounded-md bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300"
-          title="Площадь в карточке — условие договора, рисунком она не меняется"
+          title={t("adminObjects.map.edit.areaLocked")}
         >
           По договору {mismatch.contract} м², на плане {mismatch.drawn} м² ({mismatch.percent > 0 ? "+" : ""}
           {mismatch.percent}%)
@@ -134,7 +136,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
           <>
             <button
               type="button"
-              title="Разделить по вертикали"
+              title={t("adminObjects.map.edit.splitVertical")}
               onClick={() => editor.actions.split(room.id, "vertical")}
               className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
@@ -142,7 +144,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
             </button>
             <button
               type="button"
-              title="Разделить по горизонтали"
+              title={t("adminObjects.map.edit.splitHorizontal")}
               onClick={() => editor.actions.split(room.id, "horizontal")}
               className="rounded-md border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
             >
@@ -152,7 +154,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
         ) : null}
         <button
           type="button"
-          title="Удалить помещение (Del)"
+          title={t("adminObjects.map.edit.removePremise")}
           onClick={() => editor.actions.remove(room.id)}
           className="rounded-md border border-red-200 p-1.5 text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10"
         >

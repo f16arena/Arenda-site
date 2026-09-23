@@ -3,7 +3,8 @@
 // примитивы в мм модели. Лист SVG и DXF строятся из одного набора.
 
 import type { Floor, MepSystem } from "@/types/builder"
-import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, type MepSection, type MepSymbol } from "@/lib/builder/mep/catalog"
+import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceNameKey, type MepSection, type MepSymbol } from "@/lib/builder/mep/catalog"
+import type { SheetT } from "@/lib/builder/sheet-text"
 import { mepSpec, type SystemSummary } from "@/lib/builder/mep/spec"
 import type { Pt } from "./floor-drawing"
 import { calcPanels, type PanelCalc } from "@/lib/builder/mep/panel-calc"
@@ -11,14 +12,20 @@ import { calcPanels, type PanelCalc } from "@/lib/builder/mep/panel-calc"
 /** Раздел листа: архитектура (обмерный план), один инженерный раздел или все сети. */
 export type SheetSection = "ar" | "mep" | MepSection
 
-export const SECTION_TITLE: Record<SheetSection, string> = {
-  ar: "Обмерный план",
-  mep: "Инженерные сети",
-  ЭМ: "Силовое электрооборудование",
-  ЭО: "Электроосвещение",
-  СС: "Сети связи и слаботочные системы",
-  ВК: "Водопровод и канализация",
-  ОВ: "Отопление и вентиляция",
+/** Ключ названия раздела листа в словаре (adminBuilder.sheetText). */
+export const SECTION_TITLE_KEY = {
+  ar: "mepAr",
+  mep: "mepAll",
+  ЭМ: "mepEM",
+  ЭО: "mepEO",
+  СС: "mepSS",
+  ВК: "mepVK",
+  ОВ: "mepOV",
+} as const satisfies Record<SheetSection, string>
+
+/** Название раздела листа на языке того, кто печатает. */
+export function sectionTitle(t: SheetT, section: SheetSection): string {
+  return t(`adminBuilderSheet.sheetText.${SECTION_TITLE_KEY[section]}`)
 }
 
 export function sectionSystems(section: SheetSection): MepSystem[] {
@@ -64,7 +71,7 @@ export interface MepDrawing {
   bounds: { minX: number; minY: number; maxX: number; maxY: number } | null
 }
 
-export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices"> & Partial<Floor>, section: SheetSection, roomNumber: (roomId: string) => string | null = () => null): MepDrawing {
+export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices"> & Partial<Floor>, section: SheetSection, t: SheetT, roomNumber: (roomId: string) => string | null = () => null): MepDrawing {
   const systems = new Set(sectionSystems(section))
   const runs: MepRunShape[] = []
   const devices: MepDeviceShape[] = []
@@ -119,13 +126,13 @@ export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices"> & P
     if (seenSys.has(r.system)) continue
     seenSys.add(r.system)
     const info = MEP_SYSTEM_INFO[r.system]
-    legend.push({ system: r.system, symbol: "line", text: `${info.mark} — ${info.name.toLowerCase()}` })
+    legend.push({ system: r.system, symbol: "line", text: `${info.mark} — ${t(`adminBuilder.mep.systems.${r.system}`).toLowerCase()}` })
   }
   const seenKind = new Set<string>()
   for (const d of devices) {
     if (seenKind.has(d.kind)) continue
     seenKind.add(d.kind)
-    legend.push({ system: d.system, symbol: d.symbol, text: MEP_DEVICE_BY_KIND[d.kind]?.name ?? d.kind })
+    legend.push({ system: d.system, symbol: d.symbol, text: t(`adminBuilder.mep.devices.${deviceNameKey(d.kind)}`) })
   }
 
   const filtered = {
@@ -136,8 +143,8 @@ export function buildMepDrawing(floor: Pick<Floor, "mepRuns" | "mepDevices"> & P
     runs,
     devices,
     legend,
-    spec: mepSpec(filtered),
-    panels: (section === "ЭМ" || section === "ЭО" || section === "mep") && floor.wallGraph ? calcPanels(floor as Floor, roomNumber).filter((p) => p.groups.length > 0) : [],
+    spec: mepSpec(filtered, t),
+    panels: (section === "ЭМ" || section === "ЭО" || section === "mep") && floor.wallGraph ? calcPanels(floor as Floor, t, roomNumber).filter((p) => p.groups.length > 0) : [],
     bounds: Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null,
   }
 }

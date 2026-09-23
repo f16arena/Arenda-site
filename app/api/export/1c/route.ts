@@ -7,25 +7,31 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { requireOrgFeature, canPerformCapability } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
 // GET /api/export/1c?from=2026-01-01&to=2026-12-31
-// Возвращает .txt в формате 1C-EnterpriseData (упрощённый формат для импорта банковской выписки)
+// Возвращает .txt в формате 1C-EnterpriseData (упрощённый формат для импорта банковской выписки).
+//
+// Служебные слова формата («СекцияДокумент=», «ВерсияФормата=», «Плательщик=»)
+// НЕ переводятся: их разбирает 1С по точному совпадению, а не человек.
+// Переведены только сообщения об ошибках доступа.
 export async function GET(req: Request) {
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   if (!(await canPerformCapability(session.user.role, "finance.export1c", !!session.user.isPlatformOwner, session.user.id))) {
-    return NextResponse.json({ error: "Нет права на экспорт 1С" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.no1cRight") }, { status: 403 })
   }
   try {
     await requireOrgFeature(orgId, "export1c")
   } catch {
-    return NextResponse.json({ error: "Экспорт в 1С доступен на тарифе Business и выше" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.export1cPlan") }, { status: 403 })
   }
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) return NextResponse.json({ error: "Building not selected" }, { status: 400 })

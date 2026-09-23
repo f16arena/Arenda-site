@@ -6,15 +6,18 @@
 import { Box, Eye, Map, Footprints, Maximize } from "lucide-react"
 import { useEditorStore, type CameraMode } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
+import type { Messages } from "@/lib/i18n/messages"
 
-const MODES: { id: CameraMode; label: string; key: string; Icon: typeof Box }[] = [
-  { id: "orbit", label: "3D", key: "1", Icon: Box },
-  { id: "top", label: "Сверху", key: "2", Icon: Eye },
-  { id: "plan2d", label: "План", key: "3", Icon: Map },
-  { id: "walk", label: "Walk", key: "4", Icon: Footprints },
+const MODES: { id: CameraMode; label: keyof Messages["adminBuilder"]["camera"]; key: string; Icon: typeof Box }[] = [
+  { id: "orbit", label: "orbit", key: "1", Icon: Box },
+  { id: "top", label: "top", key: "2", Icon: Eye },
+  { id: "plan2d", label: "plan", key: "3", Icon: Map },
+  { id: "walk", label: "walk", key: "4", Icon: Footprints },
 ]
 
 export function CameraControls({ onFit }: { onFit?: () => void }) {
+  const { t } = useT()
   const cameraMode = useEditorStore((s) => s.cameraMode)
   const setCameraMode = useEditorStore((s) => s.setCameraMode)
   return (
@@ -26,27 +29,28 @@ export function CameraControls({ onFit }: { onFit?: () => void }) {
         <button
           type="button"
           onClick={onFit}
-          title="Вписать сцену в кадр"
+          title={t("adminBuilder.camera.fitHint")}
           className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-[10px] font-medium"
           style={{ background: "transparent", color: TOKENS.text }}
         >
           <Maximize className="h-4 w-4" />
-          Вписать
+          {t("adminBuilder.camera.fit")}
         </button>
       )}
       {MODES.map((m) => {
         const active = cameraMode === m.id
+        const label = t(`adminBuilder.camera.${m.label}`)
         return (
           <button
             key={m.id}
             type="button"
             onClick={() => setCameraMode(m.id)}
-            title={`${m.label} (${m.key})`}
+            title={`${label} (${m.key})`}
             className="flex flex-col items-center gap-0.5 rounded-xl px-2.5 py-1.5 text-[10px] font-medium transition-all"
             style={{ background: active ? TOKENS.accent : "transparent", color: active ? "#0b1220" : TOKENS.text }}
           >
             <m.Icon className="h-4 w-4" />
-            {m.label}
+            {label}
           </button>
         )
       })}

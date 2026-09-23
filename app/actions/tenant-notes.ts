@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertTenantInOrg } from "@/lib/scope-guards"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Внутренние заметки по арендатору («позвонил 5-го, обещал оплатить до 10-го»).
@@ -14,6 +15,8 @@ export async function updateTenantNotes(
   tenantId: string,
   notes: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("tenants.editCompany")
     const { orgId } = await requireOrgAccess()
@@ -27,6 +30,6 @@ export async function updateTenantNotes(
     revalidatePath(`/admin/tenants/${tenantId}`)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить заметки" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.tenantNotes.saveFailed") }
   }
 }

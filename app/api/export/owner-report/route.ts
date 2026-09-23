@@ -8,8 +8,14 @@ import { getOwnerBuildingMetrics } from "@/lib/owner-dashboard"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireOrgFeature, canPerformCapability } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
+import { formatNumberL, monthNamesL } from "@/lib/i18n/format"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
 export const dynamic = "force-dynamic"
+
+/** Переводчик передаётся параметром: рендер HTML сессию сам не читает. */
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -17,14 +23,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  const { t, locale } = await getT()
   const { orgId } = await requireOrgAccess()
   if (!(await canPerformCapability(session.user.role, "finance.export", !!session.user.isPlatformOwner, session.user.id))) {
-    return NextResponse.json({ error: "Нет права на экспорт отчётов" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.noReportRight") }, { status: 403 })
   }
   try {
     await requireOrgFeature(orgId, "excelExport")
   } catch {
-    return NextResponse.json({ error: "Экспорт в Excel доступен на тарифе Starter и выше" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.excelPlan") }, { status: 403 })
   }
   const buildingId = await getCurrentBuildingId()
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
@@ -42,7 +49,7 @@ export async function GET(req: Request) {
   ])
 
   if (format === "html") {
-    return new NextResponse(renderHtmlReport(org?.name ?? "Commrent", metrics, from), {
+    return new NextResponse(renderHtmlReport(org?.name ?? "Commrent", metrics, from, t, locale), {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     })
   }
@@ -50,20 +57,20 @@ export async function GET(req: Request) {
   const wb = new ExcelJS.Workbook()
   wb.creator = "Commrent"
   wb.created = new Date()
-  const ws = wb.addWorksheet("Сводка по зданиям")
+  const ws = wb.addWorksheet(t("adminDocs.export.owner.sheet"))
 
   ws.columns = [
-    { header: "Здание", key: "name", width: 28 },
-    { header: "Адрес", key: "address", width: 36 },
-    { header: "Доход", key: "income", width: 14 },
-    { header: "Расход", key: "expenses", width: 14 },
-    { header: "Прибыль", key: "profit", width: 14 },
-    { header: "Долг", key: "debt", width: 14 },
-    { header: "Долгов, шт", key: "debtCount", width: 12 },
-    { header: "Арендаторов", key: "tenantCount", width: 12 },
-    { header: "Свободно, м²", key: "vacantArea", width: 14 },
-    { header: "Всего, м²", key: "totalArea", width: 14 },
-    { header: "Заполняемость, %", key: "occupancyPercent", width: 16 },
+    { header: t("adminDocs.export.owner.building"), key: "name", width: 28 },
+    { header: t("adminDocs.export.owner.address"), key: "address", width: 36 },
+    { header: t("adminDocs.export.owner.income"), key: "income", width: 14 },
+    { header: t("adminDocs.export.owner.expenses"), key: "expenses", width: 14 },
+    { header: t("adminDocs.export.owner.profit"), key: "profit", width: 14 },
+    { header: t("adminDocs.export.owner.debt"), key: "debt", width: 14 },
+    { header: t("adminDocs.export.owner.debtCount"), key: "debtCount", width: 12 },
+    { header: t("adminDocs.export.owner.tenants"), key: "tenantCount", width: 12 },
+    { header: t("adminDocs.export.owner.vacantArea"), key: "vacantArea", width: 14 },
+    { header: t("adminDocs.export.owner.totalArea"), key: "totalArea", width: 14 },
+    { header: t("adminDocs.export.owner.occupancy"), key: "occupancyPercent", width: 16 },
   ]
   ws.getRow(1).font = { bold: true }
   ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } }
@@ -105,7 +112,7 @@ export async function GET(req: Request) {
   })
 
   const totalRow = ws.addRow({
-    name: "ИТОГО",
+    name: t("adminDocs.export.total"),
     income: total.income,
     expenses: total.expenses,
     profit: total.profit,
@@ -137,8 +144,15 @@ export async function GET(req: Request) {
   })
 }
 
-function renderHtmlReport(orgName: string, metrics: Awaited<ReturnType<typeof getOwnerBuildingMetrics>>, from: Date) {
-  const title = `Отчет собственника за ${from.toLocaleDateString("ru-RU", { month: "long", year: "numeric" })}`
+function renderHtmlReport(
+  orgName: string,
+  metrics: Awaited<ReturnType<typeof getOwnerBuildingMetrics>>,
+  from: Date,
+  t: Tr,
+  locale: Locale,
+) {
+  const monthYear = `${monthNamesL(locale)[from.getMonth()].toLowerCase()} ${from.getFullYear()}`
+  const title = t("adminDocs.export.owner.htmlTitle", { period: monthYear })
   const totals = metrics.reduce((acc, metric) => ({
     income: acc.income + metric.income,
     expenses: acc.expenses + metric.expenses,
@@ -147,7 +161,7 @@ function renderHtmlReport(orgName: string, metrics: Awaited<ReturnType<typeof ge
   }), { income: 0, expenses: 0, profit: 0, debt: 0 })
 
   return `<!doctype html>
-<html lang="ru">
+<html lang="${locale}">
 <head>
   <meta charset="utf-8" />
   <title>${escapeHtml(title)}</title>
@@ -166,34 +180,34 @@ function renderHtmlReport(orgName: string, metrics: Awaited<ReturnType<typeof ge
   </style>
 </head>
 <body>
-  <div class="toolbar"><button onclick="window.print()">Сохранить как PDF / печать</button></div>
+  <div class="toolbar"><button onclick="window.print()">${escapeHtml(t("adminDocs.export.owner.print"))}</button></div>
   <h1>${escapeHtml(title)}</h1>
   <p>${escapeHtml(orgName)}</p>
   <table>
     <thead>
       <tr>
-        <th>Здание</th><th>Адрес</th><th>Доход</th><th>Расход</th><th>Прибыль</th><th>Долг</th><th>Свободно</th><th>Заполняемость</th>
+        <th>${escapeHtml(t("adminDocs.export.owner.building"))}</th><th>${escapeHtml(t("adminDocs.export.owner.address"))}</th><th>${escapeHtml(t("adminDocs.export.owner.income"))}</th><th>${escapeHtml(t("adminDocs.export.owner.expenses"))}</th><th>${escapeHtml(t("adminDocs.export.owner.profit"))}</th><th>${escapeHtml(t("adminDocs.export.owner.debt"))}</th><th>${escapeHtml(t("adminDocs.export.owner.vacantShort"))}</th><th>${escapeHtml(t("adminDocs.export.owner.occupancyShort"))}</th>
       </tr>
     </thead>
     <tbody>
       ${metrics.map((metric) => `<tr>
         <td>${escapeHtml(metric.name)}</td>
         <td>${escapeHtml(metric.address)}</td>
-        <td>${formatMoneyPlain(metric.income)}</td>
-        <td>${formatMoneyPlain(metric.expenses)}</td>
-        <td>${formatMoneyPlain(metric.profit)}</td>
-        <td>${formatMoneyPlain(metric.debt)}</td>
-        <td>${formatAreaPlain(metric.vacantArea)}</td>
+        <td>${formatMoneyPlain(locale, metric.income)}</td>
+        <td>${formatMoneyPlain(locale, metric.expenses)}</td>
+        <td>${formatMoneyPlain(locale, metric.profit)}</td>
+        <td>${formatMoneyPlain(locale, metric.debt)}</td>
+        <td>${formatAreaPlain(locale, metric.vacantArea)}</td>
         <td>${metric.occupancyPercent ?? 0}%</td>
       </tr>`).join("")}
     </tbody>
     <tfoot>
       <tr>
-        <td colspan="2">Итого</td>
-        <td>${formatMoneyPlain(totals.income)}</td>
-        <td>${formatMoneyPlain(totals.expenses)}</td>
-        <td>${formatMoneyPlain(totals.profit)}</td>
-        <td>${formatMoneyPlain(totals.debt)}</td>
+        <td colspan="2">${escapeHtml(t("adminDocs.export.owner.totalRow"))}</td>
+        <td>${formatMoneyPlain(locale, totals.income)}</td>
+        <td>${formatMoneyPlain(locale, totals.expenses)}</td>
+        <td>${formatMoneyPlain(locale, totals.profit)}</td>
+        <td>${formatMoneyPlain(locale, totals.debt)}</td>
         <td colspan="2"></td>
       </tr>
     </tfoot>
@@ -202,12 +216,12 @@ function renderHtmlReport(orgName: string, metrics: Awaited<ReturnType<typeof ge
 </html>`
 }
 
-function formatMoneyPlain(value: number) {
-  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value)} ₸`
+function formatMoneyPlain(locale: Locale, value: number) {
+  return `${formatNumberL(locale, value)} ₸`
 }
 
-function formatAreaPlain(value: number) {
-  return `${new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 1 }).format(value)} м²`
+function formatAreaPlain(locale: Locale, value: number) {
+  return `${new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 1 }).format(value)} м²`
 }
 
 function escapeHtml(value: string) {

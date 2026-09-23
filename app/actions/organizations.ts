@@ -16,6 +16,7 @@ import { ROOT_HOST } from "@/lib/host"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import bcrypt from "bcryptjs"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Проверяет доступность slug для регистрации организации.
@@ -27,6 +28,7 @@ export type SlugCheckResult =
   | { ok: false; reason: string; suggestions?: string[] }
 
 export async function checkSlugAvailable(rawSlug: string): Promise<SlugCheckResult> {
+  const { t } = await getT()
   // Доступно без авторизации — нужно для формы регистрации /signup.
   // Утечка минимальная: знание о том, занят ли slug, не нарушает изоляцию.
   const slug = (rawSlug ?? "").trim().toLowerCase()
@@ -43,7 +45,7 @@ export async function checkSlugAvailable(rawSlug: string): Promise<SlugCheckResu
   if (existing) {
     return {
       ok: false,
-      reason: `Поддомен «${slug}» уже используется организацией «${existing.name}»`,
+      reason: t("actions.organizations.slugUsedBy", { slug, org: existing.name }),
       suggestions: suggestSlugs(slug),
     }
   }
@@ -52,6 +54,7 @@ export async function checkSlugAvailable(rawSlug: string): Promise<SlugCheckResu
 }
 
 export async function createOrganization(formData: FormData): Promise<{ orgId: string; ownerEmail: string | null; ownerPhone: string | null; tempPassword: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const name = String(formData.get("name") ?? "").trim()
@@ -60,14 +63,18 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   const planId = String(formData.get("planId") ?? "")
   const monthsStr = String(formData.get("months") ?? "1")
   const ownerName = String(formData.get("ownerName") ?? "").trim()
-  const ownerEmail = normalizeEmail(formData.get("ownerEmail"), { fieldName: "Email владельца" })
-  const ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), { fieldName: "Телефон владельца" })
+  const ownerEmail = normalizeEmail(formData.get("ownerEmail"), {
+    fieldName: t("actions.organizations.ownerEmailField"),
+  })
+  const ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), {
+    fieldName: t("actions.organizations.ownerPhoneField"),
+  })
   const ownerPassword = String(formData.get("ownerPassword") ?? "").trim() || generatePassword()
 
-  if (!name) throw new Error("Название обязательно")
-  if (!planId) throw new Error("Выберите тариф")
-  if (!ownerName) throw new Error("Имя владельца обязательно")
-  if (!ownerEmail && !ownerPhone) throw new Error("Укажите email или телефон владельца")
+  if (!name) throw new Error(t("actions.common.nameRequired"))
+  if (!planId) throw new Error(t("actions.organizations.planRequired"))
+  if (!ownerName) throw new Error(t("actions.organizations.ownerNameRequired"))
+  if (!ownerEmail && !ownerPhone) throw new Error(t("actions.organizations.ownerContactRequired"))
 
   // Полная серверная валидация slug (формат + резерв)
   const v = validateSlug(slug)
@@ -76,7 +83,7 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   const existing = await db.organization.findUnique({ where: { slug } })
   if (existing) {
     const suggestions = suggestSlugs(slug).join(", ")
-    throw new Error(`Поддомен «${slug}» уже занят. Попробуйте: ${suggestions}`)
+    throw new Error(t("actions.organizations.slugTaken", { slug, suggestions }))
   }
 
   const months = parseInt(monthsStr) || 1
@@ -119,6 +126,7 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
       planId,
       expiresAt: planExpiresAt,
       paymentMethod: "MANUAL",
+      // notes подписки — внутренняя запись для платформы, не интерфейс.
       notes: "Создано платформа-админом",
     },
   })
@@ -155,10 +163,11 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
 }
 
 export async function updateOrganization(orgId: string, formData: FormData) {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const name = String(formData.get("name") ?? "").trim()
-  if (!name) throw new Error("Название организации обязательно")
+  if (!name) throw new Error(t("actions.organizations.nameRequired"))
   const planId = String(formData.get("planId") ?? "")
   const isActive = formData.get("isActive") === "on"
   const isSuspended = formData.get("isSuspended") === "on"
@@ -179,13 +188,14 @@ export async function updateOrganization(orgId: string, formData: FormData) {
 }
 
 export async function extendSubscription(orgId: string, months: number, paidAmount: number) {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
     select: { planId: true, planExpiresAt: true },
   })
-  if (!org?.planId) throw new Error("У организации нет тарифа")
+  if (!org?.planId) throw new Error(t("actions.organizations.noPlan"))
 
   const baseDate = org.planExpiresAt && org.planExpiresAt > new Date()
     ? new Date(org.planExpiresAt)
@@ -206,6 +216,7 @@ export async function extendSubscription(orgId: string, months: number, paidAmou
       expiresAt: newExpiry,
       paidAmount,
       paymentMethod: "MANUAL",
+      // notes подписки — внутренняя запись для платформы, не интерфейс.
       notes: `Продление на ${months} мес.`,
     },
   })
@@ -215,6 +226,7 @@ export async function extendSubscription(orgId: string, months: number, paidAmou
 }
 
 export async function changeOrgOwner(orgId: string, newOwnerId: string) {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const user = await db.user.findUnique({
@@ -222,10 +234,10 @@ export async function changeOrgOwner(orgId: string, newOwnerId: string) {
     select: { organizationId: true, role: true, isActive: true },
   })
   if (!user || user.organizationId !== orgId) {
-    throw new Error("Пользователь не принадлежит этой организации")
+    throw new Error(t("actions.organizations.userNotInOrg"))
   }
   if (!user.isActive) {
-    throw new Error("Нельзя назначить владельцем деактивированного пользователя")
+    throw new Error(t("actions.organizations.ownerMustBeActive"))
   }
 
   // Если выбранный юзер не OWNER — повышаем
@@ -249,6 +261,7 @@ export async function changeOrgOwner(orgId: string, newOwnerId: string) {
 }
 
 export async function impersonateOrg(orgId: string) {
+  const { t } = await getT()
   const session = await requirePlatformOwner()
   // ВАЖНО: условия должны совпадать с getValidatedImpersonateForUser (lib/org.ts).
   // Иначе cookie выставится (тост «Входим как клиент…» зелёный), но на рендере
@@ -273,11 +286,9 @@ export async function impersonateOrg(orgId: string) {
       orderBy: { createdAt: "asc" },
       select: { id: true, isActive: true },
     }))
-  if (!owner) throw new Error("В организации не назначен владелец (OWNER) — войти как клиент нельзя")
+  if (!owner) throw new Error(t("actions.organizations.noOwnerToImpersonate"))
   if (!owner.isActive) {
-    throw new Error(
-      "Владелец организации деактивирован. Активируйте его аккаунт (карточка организации → пользователи), затем повторите вход.",
-    )
+    throw new Error(t("actions.organizations.ownerDeactivated"))
   }
 
   await setImpersonateData({
@@ -309,12 +320,13 @@ export async function stopImpersonating() {
 // но getCurrentOrgId() начинает возвращать выбранную орг.
 // Возвращает void; клиент делает router.push("/admin").
 export async function viewOrgAsPlatformOwner(orgId: string) {
+  const { t } = await getT()
   await requirePlatformOwner()
   const org = await db.organization.findUnique({
     where: { id: orgId },
     select: { id: true, isActive: true },
   })
-  if (!org || !org.isActive) throw new Error("Организация недоступна")
+  if (!org || !org.isActive) throw new Error(t("actions.organizations.unavailable"))
   await setSuperadminOrgCookie(orgId)
   revalidatePath("/admin", "layout")
   revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
@@ -364,15 +376,16 @@ export async function reactivateOrganization(orgId: string) {
 // Полное удаление организации — необратимо.
 // Для безопасности требует точного совпадения slug.
 export async function deleteOrganization(orgId: string, confirmSlug: string) {
+  const { t } = await getT()
   await requirePlatformOwner()
 
   const org = await db.organization.findUnique({
     where: { id: orgId },
     select: { id: true, slug: true, name: true },
   })
-  if (!org) throw new Error("Организация не найдена")
+  if (!org) throw new Error(t("actions.common.organizationNotFound"))
   if (org.slug !== confirmSlug.trim()) {
-    throw new Error(`Введите slug «${org.slug}» точно для подтверждения`)
+    throw new Error(t("actions.organizations.confirmSlug", { slug: org.slug }))
   }
 
   // Каскадное удаление: связанные сущности удаляются по onDelete: Cascade

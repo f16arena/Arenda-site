@@ -23,13 +23,22 @@ import {
 } from "lucide-react"
 import type { IconKind } from "@/lib/floor-layout"
 import type { TenantCategory } from "@/lib/indoor-map/tokens"
+import { useT } from "@/lib/i18n/client"
 
 /** Расширение набора плана: эскалатор и травалатор рисуем сами. */
 export type ServiceKind = IconKind | "escalator" | "travolator" | "entrance"
 
-function Stairs({ size }: { size: number }) {
+function Stairs({ size, label }: { size: number; label?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
       <path
         d="M3 20h5v-4h5v-4h5V8h3"
         stroke="currentColor"
@@ -41,9 +50,17 @@ function Stairs({ size }: { size: number }) {
   )
 }
 
-function Escalator({ size }: { size: number }) {
+function Escalator({ size, label }: { size: number; label?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
       <path d="M4 19 20 5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M4 19h4M9 14h3M14 9h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
       <path d="M17 5h3v3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -51,9 +68,17 @@ function Escalator({ size }: { size: number }) {
   )
 }
 
-function Travolator({ size }: { size: number }) {
+function Travolator({ size, label }: { size: number; label?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      role={label ? "img" : undefined}
+      aria-label={label}
+      aria-hidden={label ? undefined : true}
+    >
       <path d="M3 15h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M7 15V9M12 15V9M17 15V9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       <path d="M14 6h4v4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -69,23 +94,19 @@ const SERVICE_LUCIDE: Partial<Record<ServiceKind, LucideIcon>> = {
   entrance: DoorOpen,
 }
 
-export const SERVICE_LABEL: Record<ServiceKind, string> = {
-  stairs: "Лестница",
-  elevator: "Лифт",
-  toilet: "Санузел",
-  kitchen: "Кухня",
-  parking: "Парковка",
-  escalator: "Эскалатор",
-  travolator: "Травалатор",
-  entrance: "Вход",
-}
-
+/**
+ * Знак служебной зоны. Подпись берём из словаря и отдаём как имя иконки:
+ * на плане зона показана только значком, и без имени она недоступна для
+ * чтения с экрана.
+ */
 export function ServiceGlyph({ kind, size = 18 }: { kind: ServiceKind; size?: number }) {
-  if (kind === "stairs") return <Stairs size={size} />
-  if (kind === "escalator") return <Escalator size={size} />
-  if (kind === "travolator") return <Travolator size={size} />
+  const { t } = useT()
+  const label = t(`adminObjects.map.zones.${kind}` as "adminObjects.map.zones.stairs")
+  if (kind === "stairs") return <Stairs size={size} label={label} />
+  if (kind === "escalator") return <Escalator size={size} label={label} />
+  if (kind === "travolator") return <Travolator size={size} label={label} />
   const Icon = SERVICE_LUCIDE[kind] ?? Wrench
-  return <Icon width={size} height={size} strokeWidth={1.7} aria-hidden="true" />
+  return <Icon width={size} height={size} strokeWidth={1.7} role="img" aria-label={label} />
 }
 
 const CATEGORY_LUCIDE: Record<TenantCategory, LucideIcon> = {
@@ -102,6 +123,8 @@ const CATEGORY_LUCIDE: Record<TenantCategory, LucideIcon> = {
 }
 
 export function CategoryGlyph({ category, size = 14 }: { category: TenantCategory; size?: number }) {
+  const { t } = useT()
   const Icon = CATEGORY_LUCIDE[category]
-  return <Icon width={size} height={size} strokeWidth={1.8} aria-hidden="true" />
+  const label = t(`adminObjects.map.category.${category}` as "adminObjects.map.category.other")
+  return <Icon width={size} height={size} strokeWidth={1.8} role="img" aria-label={label} />
 }

@@ -228,6 +228,17 @@ describe("категории", () => {
     expect(classifyCategory("ТОО Ромашка")).toBe("other")
     expect(classifyCategory(null, undefined, "  ")).toBeNull()
   })
+
+  // Вид деятельности заводит администратор, и по-казахски он напишет
+  // «дәріхана», а не «аптека». Без этого у него на плане не будет иконок вовсе.
+  it("казахский текст вида деятельности тоже узнаётся", () => {
+    expect(classifyCategory("дәріхана")).toBe("health")
+    expect(classifyCategory("мейрамхана")).toBe("food")
+    expect(classifyCategory("сұлулық салоны")).toBe("beauty")
+    expect(classifyCategory("киім дүкені")).toBe("retail")
+    expect(classifyCategory("кеңсе")).toBe("office")
+    expect(classifyCategory("балабақша")).toBe("kids")
+  })
 })
 
 describe("схема из помещений", () => {

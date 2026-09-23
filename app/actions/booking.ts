@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Публичный server-action: создаёт Lead из формы публичной booking-витрины.
@@ -16,11 +17,12 @@ export async function createBookingLead(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   // Жёсткий rate-limit: 3 заявки за 10 мин с одного IP — защита от спама ботов
   const reqHeaders = await headers()
+  const { t } = await getT()
   const rl = checkRateLimit(getClientKey(reqHeaders, "booking"), { max: 3, window: 10 * 60_000 })
   if (!rl.ok) {
     return {
       ok: false,
-      error: `Слишком много заявок. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      error: t("actions.booking.tooManyRequests", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
     }
   }
 
@@ -31,25 +33,25 @@ export async function createBookingLead(
     phone = normalizeKzPhone(formData.get("phone"), { required: true })
     email = normalizeEmail(formData.get("email"))
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Некорректные контактные данные" }
+    return { ok: false, error: error instanceof Error ? error.message : t("actions.common.invalidContactData") }
   }
   const buildingIdRaw = String(formData.get("buildingId") ?? "").trim()
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 500)
 
-  if (!name) return { ok: false, error: "Введите имя" }
+  if (!name) return { ok: false, error: t("actions.booking.nameRequired") }
 
   // Найти организацию
   const org = await db.organization.findUnique({
     where: { slug: orgSlug, isActive: true, isSuspended: false },
     select: { id: true, buildings: { where: { isActive: true }, select: { id: true } } },
   })
-  if (!org) return { ok: false, error: "Организация не найдена" }
+  if (!org) return { ok: false, error: t("actions.common.organizationNotFound") }
 
   // buildingId должен принадлежать этой организации
   const buildingId = buildingIdRaw && org.buildings.some((b) => b.id === buildingIdRaw)
     ? buildingIdRaw
     : org.buildings[0]?.id
-  if (!buildingId) return { ok: false, error: "В организации нет активных зданий" }
+  if (!buildingId) return { ok: false, error: t("actions.booking.noActiveBuildings") }
 
   // Lead.contact = phone (или email если телефон пуст), notes = comment + email
   const notesParts: string[] = []

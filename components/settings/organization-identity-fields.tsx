@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { Download, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { lookupTaxpayerAction } from "@/app/actions/taxpayer-lookup"
+import { useT } from "@/lib/i18n/client"
 
 type Props = {
   legalType: string | null
@@ -13,13 +14,15 @@ type Props = {
   labelClass: string
 }
 
+// Справочник правовых форм: массив держит только код, подпись берётся из
+// словаря при отрисовке (в казахском это ЖК / ЖШС / АҚ, а не транслит).
 const LEGAL_TYPES = [
-  { value: "IP", label: "ИП" },
-  { value: "TOO", label: "ТОО" },
-  { value: "AO", label: "АО" },
-  { value: "PHYSICAL", label: "Физическое лицо" },
-  { value: "OTHER", label: "Другое" },
-]
+  { value: "IP", labelKey: "common.settings.identity.forms.IP" },
+  { value: "TOO", labelKey: "common.settings.identity.forms.TOO" },
+  { value: "AO", labelKey: "common.settings.identity.forms.AO" },
+  { value: "PHYSICAL", labelKey: "common.settings.identity.forms.PHYSICAL" },
+  { value: "OTHER", labelKey: "common.settings.identity.forms.OTHER" },
+] as const
 
 export function OrganizationIdentityFields({
   legalType,
@@ -28,16 +31,17 @@ export function OrganizationIdentityFields({
   inputClass,
   labelClass,
 }: Props) {
+  const { t } = useT()
   const [type, setType] = useState(normalizeLegalType(legalType))
   const [binValue, setBinValue] = useState(onlyDigits(bin))
   const [iinValue, setIinValue] = useState(onlyDigits(iin))
   const usesBin = type === "TOO" || type === "AO"
   const usesIin = type === "IP" || type === "PHYSICAL"
   const taxHint = useMemo(() => {
-    if (usesBin) return "БИН обязателен для ТОО/АО. ИИН здесь не нужен."
-    if (usesIin) return "ИИН обязателен для ИП и физлица. БИН очищается автоматически."
-    return "Для другого типа можно заполнить БИН или ИИН, если он есть."
-  }, [usesBin, usesIin])
+    if (usesBin) return t("common.settings.identity.binRequired")
+    if (usesIin) return t("common.settings.identity.iinRequired")
+    return t("common.settings.identity.eitherHint")
+  }, [usesBin, usesIin, t])
   const selectRef = useRef<HTMLSelectElement>(null)
   const [lookupPending, startLookup] = useTransition()
   // Текущий налоговый номер (тот, что активен для выбранной формы).
@@ -56,10 +60,13 @@ export function OrganizationIdentityFields({
         return
       }
       // Определяем правовую форму по типу налогоплательщика КГД.
-      const t = r.info.taxpayerType
+      const taxpayerType = r.info.taxpayerType
       let detected: string | null = null
-      if (t === "UL") detected = /акционерное общество/i.test(r.info.name ?? "") ? "AO" : "TOO"
-      else if (t === "IP") detected = "IP"
+      if (taxpayerType === "UL")
+        // Справочник МКК возвращает форму на языке регистрации, поэтому
+        // сверяем оба написания: иначе казахское АҚ определится как ЖШС.
+        detected = /акционерное общество|акционерлік қоғам/i.test(r.info.name ?? "") ? "AO" : "TOO"
+      else if (taxpayerType === "IP") detected = "IP"
       if (detected && detected !== type) setType(detected)
 
       const form = selectRef.current?.form
@@ -74,7 +81,7 @@ export function OrganizationIdentityFields({
         return true
       }
       // У ИП руководитель = сам предприниматель (директора у КГД нет).
-      const directorName = r.info.director || (t === "IP" ? stripIpPrefix(r.info.name) : null)
+      const directorName = r.info.director || (taxpayerType === "IP" ? stripIpPrefix(r.info.name) : null)
       const filled = [
         setField("legalName", r.info.name),
         setField("directorName", directorName),
@@ -83,15 +90,15 @@ export function OrganizationIdentityFields({
         setField("shortName", r.info.name, false),
       ].filter(Boolean).length
       const parts = [
-        r.info.name && "наименование",
-        detected && "правовая форма",
-        directorName && "руководитель",
-        r.info.address && "адрес",
+        r.info.name && t("common.settings.identity.partName"),
+        detected && t("common.settings.identity.partForm"),
+        directorName && t("common.settings.identity.partDirector"),
+        r.info.address && t("common.settings.identity.partAddress"),
       ].filter(Boolean).join(", ")
-      if (filled > 0 || detected) toast.success(`Заполнено из КГД: ${parts}`)
-      else toast.info("Налогоплательщик найден, но заполнять нечего")
+      if (filled > 0 || detected) toast.success(t("common.settings.identity.filled", { parts }))
+      else toast.info(t("common.settings.identity.nothingToFill"))
       const statusLine = [r.info.status, r.info.vatStatus].filter(Boolean).join(" · ")
-      if (statusLine) toast.message("Статус в КГД", { description: statusLine, duration: 8000 })
+      if (statusLine) toast.message(t("common.settings.identity.kgdStatus"), { description: statusLine, duration: 8000 })
     })
   }
 
@@ -113,18 +120,18 @@ export function OrganizationIdentityFields({
       type="button"
       onClick={() => fillFromRegistry()}
       disabled={lookupPending}
-      title="Подтянуть наименование, адрес и руководителя из справочника налогоплательщиков КГД"
+      title={t("common.settings.identity.fillFromKgdTitle")}
       className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
     >
       {lookupPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-      Заполнить из КГД
+      {t("common.settings.identity.fillFromKgd")}
     </button>
   ) : null
 
   return (
     <>
       <div>
-        <label className={labelClass}>Правовая форма</label>
+        <label className={labelClass}>{t("common.settings.identity.legalForm")}</label>
         <select
           ref={selectRef}
           name="legalType"
@@ -139,7 +146,7 @@ export function OrganizationIdentityFields({
         >
           {LEGAL_TYPES.map((item) => (
             <option key={item.value} value={item.value}>
-              {item.label}
+              {t(item.labelKey)}
             </option>
           ))}
         </select>
@@ -147,7 +154,7 @@ export function OrganizationIdentityFields({
 
       {usesBin ? (
         <div>
-          <label className={labelClass}>БИН *</label>
+          <label className={labelClass}>{t("common.settings.identity.binLabel")} *</label>
           <input
             name="bin"
             value={binValue}
@@ -158,7 +165,7 @@ export function OrganizationIdentityFields({
             pattern="[0-9]{12}"
             required
             className={inputClass}
-            placeholder="12 цифр"
+            placeholder={t("common.settings.identity.digits12")}
           />
           <input type="hidden" name="iin" value="" />
           {lookupButton}
@@ -166,7 +173,7 @@ export function OrganizationIdentityFields({
         </div>
       ) : usesIin ? (
         <div>
-          <label className={labelClass}>ИИН *</label>
+          <label className={labelClass}>{t("common.settings.identity.iinLabel")} *</label>
           <input
             name="iin"
             value={iinValue}
@@ -177,7 +184,7 @@ export function OrganizationIdentityFields({
             pattern="[0-9]{12}"
             required
             className={inputClass}
-            placeholder="12 цифр"
+            placeholder={t("common.settings.identity.digits12")}
           />
           <input type="hidden" name="bin" value="" />
           {lookupButton}
@@ -186,7 +193,7 @@ export function OrganizationIdentityFields({
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <div>
-            <label className={labelClass}>БИН</label>
+            <label className={labelClass}>{t("common.settings.identity.binLabel")}</label>
             <input
               name="bin"
               value={binValue}
@@ -194,11 +201,11 @@ export function OrganizationIdentityFields({
               inputMode="numeric"
               maxLength={12}
               className={inputClass}
-              placeholder="12 цифр"
+              placeholder={t("common.settings.identity.digits12")}
             />
           </div>
           <div>
-            <label className={labelClass}>ИИН</label>
+            <label className={labelClass}>{t("common.settings.identity.iinLabel")}</label>
             <input
               name="iin"
               value={iinValue}
@@ -206,7 +213,7 @@ export function OrganizationIdentityFields({
               inputMode="numeric"
               maxLength={12}
               className={inputClass}
-              placeholder="12 цифр"
+              placeholder={t("common.settings.identity.digits12")}
             />
           </div>
           <div className="lg:col-span-2">{lookupButton}</div>

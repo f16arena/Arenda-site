@@ -1,7 +1,8 @@
 import { db } from "@/lib/db"
 import { Download, FileText } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 
 interface Props {
   organizationId: string
@@ -14,6 +15,8 @@ interface Props {
  * Опциональная фильтрация по периоду.
  */
 export async function DocumentArchive({ organizationId, documentType, period }: Props) {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const docs = await safeServerValue(
     db.generatedDocument.findMany({
       where: {
@@ -43,9 +46,9 @@ export async function DocumentArchive({ organizationId, documentType, period }: 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-8 text-center print:hidden">
         <FileText className="h-8 w-8 text-slate-300 mx-auto mb-2" />
         <p className="text-sm text-slate-400 dark:text-slate-500">
-          Архив пуст{period ? " за выбранный период" : ""}.
+          {period ? t("common.docs.archiveEmptyPeriod") : t("common.docs.archiveEmpty")}
         </p>
-        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Сгенерированные документы будут появляться здесь.</p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{t("common.docs.archiveHint")}</p>
       </div>
     )
   }
@@ -54,17 +57,17 @@ export async function DocumentArchive({ organizationId, documentType, period }: 
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden print:hidden">
       <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
         <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          Архив (последние {docs.length})
+          {t("common.docs.archiveTitle", { count: docs.length })}
         </p>
       </div>
       <table className="w-full text-sm">
         <thead className="bg-slate-50 dark:bg-slate-800/50">
           <tr>
             <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">№</th>
-            <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Контрагент</th>
-            <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Период</th>
-            <th className="px-4 py-2 text-right text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Сумма</th>
-            <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">Дата</th>
+            <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t("common.docs.colCounterparty")}</th>
+            <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t("common.docs.colPeriod")}</th>
+            <th className="px-4 py-2 text-right text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t("common.docs.colAmount")}</th>
+            <th className="px-4 py-2 text-left text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t("common.docs.colDate")}</th>
             <th className="px-4 py-2 text-right" />
           </tr>
         </thead>
@@ -75,10 +78,10 @@ export async function DocumentArchive({ organizationId, documentType, period }: 
               <td className="px-4 py-2 text-slate-700 dark:text-slate-300">{d.tenantName}</td>
               <td className="px-4 py-2 text-slate-600 dark:text-slate-400">{d.period ?? "—"}</td>
               <td className="px-4 py-2 text-right text-slate-700 dark:text-slate-300 font-medium">
-                {d.totalAmount ? formatMoney(d.totalAmount) : "—"}
+                {d.totalAmount ? formatMoneyL(locale, d.totalAmount) : "—"}
               </td>
               <td className="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
-                {new Date(d.generatedAt).toLocaleDateString("ru-RU")}
+                {formatDateShortL(locale, d.generatedAt)}
               </td>
               <td className="px-4 py-2 text-right">
                 <a
@@ -87,7 +90,7 @@ export async function DocumentArchive({ organizationId, documentType, period }: 
                   className="inline-flex items-center gap-1 rounded-md border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300"
                 >
                   <Download className="h-3 w-3" />
-                  Скачать
+                  {t("common.actions.download")}
                 </a>
               </td>
             </tr>

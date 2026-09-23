@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs"
+// Только тип: import type стирается при сборке, server-only сюда не попадает.
+import type { getT } from "@/lib/i18n/server"
 
 /**
  * Утилиты для парсинга Excel-файлов и нормализации значений.
@@ -7,6 +9,9 @@ import ExcelJS from "exceljs"
  *  - .xlsx (основной)
  *  - .csv (через ExcelJS read csv)
  */
+
+/** Переводчик передаётся параметром: чистая функция сессию не читает. */
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 export interface SheetData {
   headers: string[]
@@ -17,7 +22,7 @@ export interface SheetData {
  * Читает первый лист Excel-файла как массив массивов строк.
  * Пустые строки и колонки (полностью без данных) пропускаются.
  */
-export async function parseExcel(buffer: Buffer | ArrayBuffer): Promise<SheetData> {
+export async function parseExcel(buffer: Buffer | ArrayBuffer, t?: Tr): Promise<SheetData> {
   const wb = new ExcelJS.Workbook()
   // ExcelJS типы конфликтуют с Node Buffer<ArrayBufferLike> — приводим через unknown
   const buf = buffer instanceof ArrayBuffer ? Buffer.from(buffer) : buffer
@@ -25,7 +30,7 @@ export async function parseExcel(buffer: Buffer | ArrayBuffer): Promise<SheetDat
   await wb.xlsx.load(buf as any)
 
   const ws = wb.worksheets[0]
-  if (!ws) throw new Error("Файл пуст или повреждён")
+  if (!ws) throw new Error(t ? t("adminDocs.api.excelImport.emptyFile") : "Файл пуст или повреждён")
 
   const rows: string[][] = []
   ws.eachRow({ includeEmpty: false }, (row) => {
@@ -36,7 +41,7 @@ export async function parseExcel(buffer: Buffer | ArrayBuffer): Promise<SheetDat
     rows.push(cells)
   })
 
-  if (rows.length === 0) throw new Error("Лист пустой")
+  if (rows.length === 0) throw new Error(t ? t("adminDocs.api.excelImport.emptySheet") : "Лист пустой")
 
   const [headers, ...data] = rows
   return {
@@ -60,19 +65,62 @@ function cellToString(v: ExcelJS.CellValue): string {
 }
 
 /**
+ * Казахские заголовки колонок — по имени поля, а не по вызывающему коду.
+ *
+ * Шаблон импорта (app/api/import/tenants/template) отдаётся на языке
+ * пользователя, и казахская шапка обязана сопоставиться с теми же полями.
+ * Словари синонимов лежат в app/actions/import-*.ts (русские варианты);
+ * казахские держим здесь, рядом с парсером, чтобы шаблон и разбор не
+ * разъезжались. Регистр и знаки препинания не важны — сравнение идёт по
+ * «раздетой» строке (см. ниже).
+ */
+const KK_FIELD_SYNONYMS: Record<string, string[]> = {
+  contactName: ["Байланыс тұлғасы", "Аты-жөні", "Аты жөні", "Байланыс"],
+  phone: ["Телефон", "Ұялы"],
+  email: ["Email", "Электрондық пошта", "Пошта"],
+  companyName: ["Компания атауы", "Компания", "Атауы", "Ұйым", "Жалға алушы", "Контрагент"],
+  legalType: ["Түрі", "Нысаны", "Ұйым түрі"],
+  bin: ["БСН", "ЖСН", "БСН/ЖСН", "БСНЖСН"],
+  category: ["Санаты", "Қызмет түрі", "Сала"],
+  spaceNumber: ["Үй-жай", "Үй жай", "Кабинет", "Офис", "Үй-жай №"],
+  area: ["Аудан", "м2", "м²"],
+  rate: ["Мөлшерлеме", "Тариф", "Мөлшерлеме ₸/м²"],
+  fixedMonthlyRent: ["Тұрақты жалдау ақысы", "Жалдау ақысы ₸/ай", "Айлық жалдау ақысы"],
+  contractStart: ["Басталу күні", "Басталуы"],
+  contractEnd: ["Аяқталу күні", "Аяқталуы"],
+  cleaningFee: ["Тазалау", "Клининг"],
+  needsCleaning: ["Тазалау қажет"],
+  legalAddress: ["Заңды мекенжайы", "Заңды мекенжай"],
+  directorName: ["Директор", "Басшы"],
+  // Реестры начислений и договоров (app/actions/import-charges, import-contracts).
+  tenant: ["Жалға алушы", "Компания", "Контрагент", "Ұйым", "Атауы"],
+  period: ["Кезең", "Ай"],
+  type: ["Түрі", "Қызмет", "Мақсаты"],
+  amount: ["Сома", "Есептелді", "Төленетін сома", "Сома ₸"],
+  isPaid: ["Төленген", "Мәртебесі", "Төлем"],
+  dueDate: ["Төлеу мерзімі", "Мерзімі"],
+  description: ["Сипаттамасы", "Ескертпе", "Түсініктеме"],
+  number: ["Нөмірі", "Шарт нөмірі", "Шарт №"],
+  startDate: ["Басталу күні", "Шарт күні", "Күні"],
+  endDate: ["Аяқталу күні", "Дейін жарамды"],
+  status: ["Мәртебесі", "Күйі"],
+}
+
+/**
  * Auto-mapping колонок Excel на поля схемы.
  * Принимает массив заголовков и словарь синонимов, возвращает индексы.
+ * К переданным синонимам добавляются казахские (KK_FIELD_SYNONYMS).
  */
 export function autoMapColumns(
   headers: string[],
   fieldSynonyms: Record<string, string[]>,
 ): Record<string, number> {
   const mapping: Record<string, number> = {}
-  const normalized = headers.map((h) => h.toLowerCase().replace(/[^a-zа-я0-9]/gi, ""))
+  const normalized = headers.map((h) => h.toLowerCase().replace(/[^a-zа-яёқғүұһәөі0-9]/gi, ""))
 
   for (const [field, synonyms] of Object.entries(fieldSynonyms)) {
-    for (const syn of synonyms) {
-      const target = syn.toLowerCase().replace(/[^a-zа-я0-9]/gi, "")
+    for (const syn of [...synonyms, ...(KK_FIELD_SYNONYMS[field] ?? [])]) {
+      const target = syn.toLowerCase().replace(/[^a-zа-яёқғүұһәөі0-9]/gi, "")
       const idx = normalized.findIndex((h) => h === target || h.includes(target))
       if (idx >= 0) {
         mapping[field] = idx
@@ -155,13 +203,18 @@ export function normalizePhone(s: string): string {
 /**
  * Тип легальной формы организации — нормализуем к {IP, TOO, AO, CHSI, PERSON}.
  */
+// Казахские аббревиатуры юридической формы — не транслит, а самостоятельные
+// сокращения: ИП → ЖК, ТОО → ЖШС, АО → АҚ, ЧСИ → ЖСО, физлицо → ЖТ. Шаблон
+// импорта на казахском подсказывает именно их, значит разбор обязан их понимать.
 export function normalizeLegalType(s: string): string {
   const v = s.trim().toUpperCase().replace(/["«»]/g, "")
-  if (/(^|\s)(ЧСИ|CHSI)(\s|$)/.test(v) || v.includes("СУДЕБН") || v.includes("ИСПОЛНИТЕЛ")) return "CHSI"
-  if (/(^|\s)ИП(\s|$)/.test(v) || v === "ИП") return "IP"
-  if (/(^|\s)(ТОО|TOO|OOO|ООО|LLP)(\s|$)/.test(v)) return "TOO"
-  if (/(^|\s)(АО|AO)(\s|$)/.test(v)) return "AO"
-  if (/(^|\s)(ФЛ|ФИЗ|PERSON|ИНДИВИД)(\s|$)/.test(v)) return "PERSON"
+  // ЖСО/ЧСИ проверяем первым: «жеке сот орындаушысы» содержит «жеке», иначе
+  // частный судебный исполнитель ушёл бы в физлицо.
+  if (/(^|\s)(ЧСИ|CHSI|ЖСО)(\s|$)/.test(v) || v.includes("СУДЕБН") || v.includes("ИСПОЛНИТЕЛ") || v.includes("ОРЫНДАУШЫ")) return "CHSI"
+  if (/(^|\s)(ИП|ЖК)(\s|$)/.test(v) || v === "ИП" || v === "ЖК" || v.includes("КӘСІПКЕР")) return "IP"
+  if (/(^|\s)(ТОО|TOO|OOO|ООО|LLP|ЖШС)(\s|$)/.test(v) || v === "ЖШС") return "TOO"
+  if (/(^|\s)(АО|AO|АҚ)(\s|$)/.test(v) || v === "АҚ") return "AO"
+  if (/(^|\s)(ФЛ|ФИЗ|PERSON|ИНДИВИД|ЖТ)(\s|$)/.test(v) || v === "ЖТ" || v.includes("ЖЕКЕ ТҰЛҒА")) return "PERSON"
   return "TOO" // default
 }
 

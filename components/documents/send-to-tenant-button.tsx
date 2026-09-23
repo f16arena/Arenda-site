@@ -4,6 +4,7 @@ import { useState, useTransition } from "react"
 import { Send, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { sendDocumentToTenant, type DocumentType } from "@/app/actions/send-document"
+import { useT } from "@/lib/i18n/client"
 
 /**
  * «Отправить арендатору»: генерирует документ, кладёт его в кабинет арендатора
@@ -26,6 +27,7 @@ export function SendToTenantButton({
   to?: string
   className?: string
 }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [sent, setSent] = useState(false)
 
@@ -35,12 +37,12 @@ export function SendToTenantButton({
         const r = await sendDocumentToTenant({ tenantId, type, period, number, from, to })
         if (r.ok) {
           setSent(true)
-          toast.success("Отправлено арендатору — уведомление пришло в его кабинет")
+          toast.success(t("common.docs.sentToTenant"))
         } else {
-          toast.error(r.error ?? "Не удалось отправить")
+          toast.error(r.error ?? t("common.docs.sendFailed"))
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Ошибка")
+        toast.error(e instanceof Error ? e.message : t("common.state.error"))
       }
     })
   }
@@ -56,7 +58,7 @@ export function SendToTenantButton({
       }
     >
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-      {sent ? "Отправлено" : "Отправить арендатору"}
+      {sent ? t("common.docs.sent") : t("common.docs.sendToTenant")}
     </button>
   )
 }

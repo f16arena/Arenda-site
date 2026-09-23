@@ -9,6 +9,7 @@ import { contractScope } from "@/lib/tenant-scope"
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import type { DocumentKind } from "@/lib/document-numbering"
 import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
+import { getT } from "@/lib/i18n/server"
 
 const KIND_TO_FIELD: Record<DocumentKind, "contractPrefix" | "invoicePrefix" | "actPrefix" | "reconciliationPrefix"> = {
   contract: "contractPrefix",
@@ -21,6 +22,7 @@ const KIND_TO_FIELD: Record<DocumentKind, "contractPrefix" | "invoicePrefix" | "
 const PREFIX_VALID = /^[A-Za-zА-Яа-яЁё0-9-]{1,10}$/
 
 export async function setDocumentPrefix(buildingId: string, kind: DocumentKind, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("settings.updateOrganization")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -28,7 +30,7 @@ export async function setDocumentPrefix(buildingId: string, kind: DocumentKind, 
   // Латиницу приводим к uppercase, кириллицу не трогаем (toUpperCase для неё корректен).
   const prefix = raw.toUpperCase()
   if (prefix && !PREFIX_VALID.test(prefix)) {
-    throw new Error("Префикс: до 10 символов (буквы, цифры, дефис)")
+    throw new Error(t("actions.contracts.badPrefix"))
   }
   await db.building.update({
     where: { id: buildingId },
@@ -45,6 +47,7 @@ export async function setContractPrefix(buildingId: string, formData: FormData) 
 }
 
 export async function createContract(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
 
@@ -57,7 +60,7 @@ export async function createContract(formData: FormData) {
   const type = String(formData.get("type") ?? "STANDARD")
   const content = String(formData.get("content") ?? "")
 
-  if (!number) throw new Error("Не указан номер договора")
+  if (!number) throw new Error(t("actions.contracts.numberRequired"))
 
   // Найдём здание арендатора для проверки уникальности номера
   const tenant = await db.tenant.findUnique({
@@ -72,15 +75,15 @@ export async function createContract(formData: FormData) {
       fullFloors: { select: { buildingId: true } },
     },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
 
   const buildingId = getTenantPrimaryBuildingId(tenant)
-  if (!buildingId) throw new Error("Арендатор не привязан ни к помещению ни к этажу")
+  if (!buildingId) throw new Error(t("actions.contracts.tenantHasNoPlacement"))
 
   const unique = await isContractNumberUnique(buildingId, number)
   if (!unique) {
     const suggested = await suggestContractNumber(buildingId)
-    throw new Error(`Номер «${number}» уже используется в этом здании. Предлагается: ${suggested}`)
+    throw new Error(t("actions.contracts.numberTaken", { number, suggested }))
   }
 
   const contract = await db.contract.create({
@@ -125,6 +128,8 @@ export async function createContractVersion(
   parentId: string,
   formData: FormData,
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
@@ -142,9 +147,9 @@ export async function createContractVersion(
         status: true,
       },
     })
-    if (!parent) return { ok: false, error: "Договор не найден" }
+    if (!parent) return { ok: false, error: t("actions.common.contractNotFound") }
     if (parent.status === "ARCHIVED") {
-      return { ok: false, error: "Этот договор уже архивирован" }
+      return { ok: false, error: t("actions.contracts.alreadyArchived") }
     }
 
     const startDateRaw = String(formData.get("startDate") ?? "").trim()
@@ -154,10 +159,10 @@ export async function createContractVersion(
     const startDate = startDateRaw ? new Date(startDateRaw) : null
     const endDate = endDateRaw ? new Date(endDateRaw) : null
     if (startDate && Number.isNaN(startDate.getTime())) {
-      return { ok: false, error: "Некорректная дата начала" }
+      return { ok: false, error: t("actions.contracts.badStartDate") }
     }
     if (endDate && Number.isNaN(endDate.getTime())) {
-      return { ok: false, error: "Некорректная дата окончания" }
+      return { ok: false, error: t("actions.contracts.badEndDate") }
     }
 
     const result = await db.$transaction(async (tx) => {
@@ -190,6 +195,6 @@ export async function createContractVersion(
     revalidatePath(`/admin/tenants/${parent.tenantId}`)
     return { ok: true, id: result.id }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать версию" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contracts.versionCreateFailed") }
   }
 }

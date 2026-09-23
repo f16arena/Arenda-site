@@ -3,7 +3,8 @@
 import { revalidatePath, revalidateTag } from "next/cache"
 import { db } from "@/lib/db"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
-import { assertKazakhstanIin } from "@/lib/kz-iin"
+import { assertKazakhstanIin, type KzIinIssue } from "@/lib/kz-iin"
+import { getT } from "@/lib/i18n/server"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
@@ -15,19 +16,20 @@ import { applyDocNumberStart } from "@/lib/document-number"
 // значения отдаёт клиенту как есть. ServerForm показывает result.error в тосте,
 // поэтому пользователь видит реальную причину (неверный ИИК/ИИН, мёртвый домен
 // email и т.п.), а не бесполезный общий текст.
-function fail(error: unknown) {
+function fail(error: unknown, saveFailed: string) {
   return {
     success: false as const,
-    error: error instanceof Error ? error.message : "Не удалось сохранить",
+    error: error instanceof Error ? error.message : saveFailed,
   }
 }
 
 /** Org-флаги, которые владелец переключает сам (хранятся в Organization.features JSON). */
 export async function updateOrganizationFeatures(orgId: string, formData: FormData) {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
     const { orgId: scopeOrgId } = await requireOrgAccess()
-    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+    if (scopeOrgId !== orgId) throw new Error(t("actions.organizationSettings.noAccess"))
 
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { features: true } })
     let features: Record<string, unknown> = {}
@@ -43,16 +45,17 @@ export async function updateOrganizationFeatures(orgId: string, formData: FormDa
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
     return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.organizationSettings.saveFailed"))
   }
 }
 
 /** Налоговая ставка для отчёта владельца (хранится в Organization.features JSON). */
 export async function updateOrganizationTax(orgId: string, formData: FormData) {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
     const { orgId: scopeOrgId } = await requireOrgAccess()
-    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+    if (scopeOrgId !== orgId) throw new Error(t("actions.organizationSettings.noAccess"))
 
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { features: true } })
     let features: Record<string, unknown> = {}
@@ -61,7 +64,7 @@ export async function updateOrganizationTax(orgId: string, formData: FormData) {
     const raw = String(formData.get("taxRatePercent") ?? "").trim().replace(",", ".")
     const parsed = parseFloat(raw)
     if (!Number.isFinite(parsed) || parsed < 0 || parsed > 20) {
-      throw new Error("Ставка налога должна быть числом от 0 до 20%")
+      throw new Error(t("actions.organizationSettings.badTaxRate"))
     }
     features.taxRatePercent = Math.round(parsed * 100) / 100
     const regime = String(formData.get("taxRegime") ?? "").trim()
@@ -74,25 +77,26 @@ export async function updateOrganizationTax(orgId: string, formData: FormData) {
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
     return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.organizationSettings.saveFailed"))
   }
 }
 
 export async function updatePenaltySettings(orgId: string, formData: FormData) {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
     const { orgId: scopeOrgId } = await requireOrgAccess()
-    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+    if (scopeOrgId !== orgId) throw new Error(t("actions.organizationSettings.noAccess"))
 
     const rawPercent = String(formData.get("defaultPenaltyPercent") ?? "").trim().replace(",", ".")
     const parsedPercent = parseFloat(rawPercent)
     if (!Number.isFinite(parsedPercent) || parsedPercent < 0 || parsedPercent > 10) {
-      throw new Error("Пеня — число от 0 до 10 (%/день)")
+      throw new Error(t("actions.organizationSettings.badPenalty"))
     }
     const rawGrace = String(formData.get("penaltyGraceDays") ?? "").trim()
     const parsedGrace = parseInt(rawGrace, 10)
     if (!Number.isInteger(parsedGrace) || parsedGrace < 0 || parsedGrace > 60) {
-      throw new Error("Льготный период — целое число дней от 0 до 60")
+      throw new Error(t("actions.organizationSettings.badGraceDays"))
     }
 
     await db.organization.update({
@@ -105,19 +109,24 @@ export async function updatePenaltySettings(orgId: string, formData: FormData) {
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
     return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.organizationSettings.saveFailed"))
   }
 }
 
 export async function updateOrganizationVat(orgId: string, formData: FormData) {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
     const { orgId: scopeOrgId } = await requireOrgAccess()
-    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+    if (scopeOrgId !== orgId) throw new Error(t("actions.organizationSettings.noAccess"))
 
     const isVatPayer = formData.get("isVatPayer") === "on"
     const vatNumber = String(formData.get("vatNumber") ?? "").trim()
-    const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
+    const vatRate = normalizeKzVatRate(
+      formData.get("vatRate"),
+      DEFAULT_KZ_VAT_RATE,
+      t("actions.organizationSettings.badVatRate"),
+    )
 
     await db.organization.update({
       where: { id: orgId },
@@ -132,34 +141,51 @@ export async function updateOrganizationVat(orgId: string, formData: FormData) {
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
     return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.organizationSettings.saveFailed"))
   }
 }
 
 export async function updateOrganizationRequisites(orgId: string, formData: FormData) {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateBankDetails")
     const { orgId: scopeOrgId } = await requireOrgAccess()
-    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+    if (scopeOrgId !== orgId) throw new Error(t("actions.organizationSettings.noAccess"))
 
     const legalType = normalizeLegalType(formData.get("legalType"))
-  const legalName = requiredText(formData.get("legalName"), "Полное название")
+  const legalName = requiredText(
+    formData.get("legalName"),
+    t("actions.organizationSettings.fields.legalName"),
+    t,
+  )
   const shortName = optionalText(formData.get("shortName"))
-  const directorName = requiredText(formData.get("directorName"), "ФИО руководителя")
+  const directorName = requiredText(
+    formData.get("directorName"),
+    t("actions.organizationSettings.fields.directorName"),
+    t,
+  )
   const directorPosition = optionalText(formData.get("directorPosition"))
-  const basis = requiredText(formData.get("basis"), "Основание действия")
-  const legalAddress = requiredText(formData.get("legalAddress"), "Юридический адрес")
+  const basis = requiredText(formData.get("basis"), t("actions.organizationSettings.fields.basis"), t)
+  const legalAddress = requiredText(
+    formData.get("legalAddress"),
+    t("actions.organizationSettings.fields.legalAddress"),
+    t,
+  )
   const actualAddress = optionalText(formData.get("actualAddress"))
   const bankName = optionalText(formData.get("bankName"))
-  const iik = normalizeIik(formData.get("iik"))
-  const bik = normalizeBik(formData.get("bik"))
+  const iik = normalizeIik(formData.get("iik"), t)
+  const bik = normalizeBik(formData.get("bik"), t)
   const secondBankName = optionalText(formData.get("secondBankName"))
-  const secondIik = normalizeIik(formData.get("secondIik"))
-  const secondBik = normalizeBik(formData.get("secondBik"))
+  const secondIik = normalizeIik(formData.get("secondIik"), t)
+  const secondBik = normalizeBik(formData.get("secondBik"), t)
   const kbe = optionalText(formData.get("kbe"))
   const knp = optionalText(formData.get("knp"))
-  const phone = normalizeKzPhone(formData.get("phone"), { fieldName: "Телефон владельца" })
-  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email владельца" })
+  const phone = normalizeKzPhone(formData.get("phone"), {
+    fieldName: t("actions.organizationSettings.fields.phone"),
+  })
+  const email = await normalizeEmailWithDns(formData.get("email"), {
+    fieldName: t("actions.organizationSettings.fields.email"),
+  })
   // Дефолт пени по договорам. Принимаем "0.5", "0,5", "1" — нормализуем через
   // запятую → точку. Clamp [0, 10] — больше 10% бессмысленно (зеркальный потолок).
   const rawPenalty = String(formData.get("defaultPenaltyPercent") ?? "").trim().replace(",", ".")
@@ -168,19 +194,35 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
     ? Math.min(Math.max(parsedPenalty, 0), 10)
     : 0.5
 
-  validateOptionalBankAccount(bankName, iik, bik, "Основной счёт")
-  validateOptionalBankAccount(secondBankName, secondIik, secondBik, "Второй счёт")
+  validateOptionalBankAccount(
+    bankName,
+    iik,
+    bik,
+    t("actions.organizationSettings.fields.primaryAccount"),
+    t,
+  )
+  validateOptionalBankAccount(
+    secondBankName,
+    secondIik,
+    secondBik,
+    t("actions.organizationSettings.fields.secondAccount"),
+    t,
+  )
 
   let bin: string | null = null
   let iin: string | null = null
   if (legalType === "IP" || legalType === "PHYSICAL") {
-    iin = assertKazakhstanIin(formData.get("iin"), "ИИН")
+    iin = assertKazakhstanIin(
+      formData.get("iin"),
+      t("common.settings.identity.iinLabel"),
+      iinMessage(t),
+    )
   } else if (legalType === "TOO" || legalType === "AO") {
-    bin = normalizeBin(formData.get("bin"), true)
-    iin = normalizeOptionalIin(formData.get("iin"), "ИИН")
+    bin = normalizeBin(formData.get("bin"), true, t)
+    iin = normalizeOptionalIin(formData.get("iin"), t("common.settings.identity.iinLabel"), t)
   } else {
-    bin = normalizeBin(formData.get("bin"), false)
-    iin = normalizeOptionalIin(formData.get("iin"), "ИИН")
+    bin = normalizeBin(formData.get("bin"), false, t)
+    iin = normalizeOptionalIin(formData.get("iin"), t("common.settings.identity.iinLabel"), t)
   }
 
   await db.organization.update({
@@ -216,7 +258,7 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
     revalidateTag(ADMIN_SHELL_CACHE_TAG, { expire: 0 })
     return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.organizationSettings.saveFailed"))
   }
 }
 
@@ -226,9 +268,12 @@ function normalizeLegalType(value: FormDataEntryValue | null) {
   return "IP"
 }
 
-function requiredText(value: FormDataEntryValue | null, label: string) {
+/** Переводчик текущего запроса — помощники ниже сами его не добывают. */
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+function requiredText(value: FormDataEntryValue | null, label: string, t: Tr) {
   const text = optionalText(value)
-  if (!text) throw new Error(`Заполните поле «${label}»`)
+  if (!text) throw new Error(t("actions.organizationSettings.required", { label }))
   return text
 }
 
@@ -237,38 +282,46 @@ function optionalText(value: FormDataEntryValue | null) {
   return text.length > 0 ? text : null
 }
 
-function normalizeBin(value: FormDataEntryValue | null, required: boolean) {
+function normalizeBin(value: FormDataEntryValue | null, required: boolean, t: Tr) {
   const digits = String(value ?? "").replace(/\D/g, "")
   if (!digits) {
-    if (required) throw new Error("БИН должен состоять из 12 цифр")
+    if (required) throw new Error(t("actions.organizationSettings.binDigits"))
     return null
   }
   if (digits.length !== 12 || /^(\d)\1{11}$/.test(digits)) {
-    throw new Error("БИН должен состоять из 12 корректных цифр")
+    throw new Error(t("actions.organizationSettings.binInvalid"))
   }
   return digits
 }
 
-function normalizeOptionalIin(value: FormDataEntryValue | null, label: string) {
+function normalizeOptionalIin(value: FormDataEntryValue | null, label: string, t: Tr) {
   const digits = String(value ?? "").replace(/\D/g, "")
   if (!digits) return null
-  return assertKazakhstanIin(digits, label)
+  return assertKazakhstanIin(digits, label, iinMessage(t))
 }
 
-function normalizeIik(value: FormDataEntryValue | null) {
+/** Подпись ошибки ИИН: сам модуль проверки языка не знает и отдаёт ключ. */
+function iinMessage(t: Tr) {
+  return (issue: KzIinIssue | null, label: string) =>
+    issue
+      ? t(`common.iinChecks.${issue}` as "common.iinChecks.length", { label })
+      : t("common.iinChecks.invalid", { label })
+}
+
+function normalizeIik(value: FormDataEntryValue | null, t: Tr) {
   const text = String(value ?? "").trim().replace(/\s+/g, "").toUpperCase()
   if (!text) return null
   if (!/^KZ[A-Z0-9]{18}$/.test(text)) {
-    throw new Error("ИИК должен быть в формате KZ + 18 символов")
+    throw new Error(t("actions.organizationSettings.iikFormat"))
   }
   return text
 }
 
-function normalizeBik(value: FormDataEntryValue | null) {
+function normalizeBik(value: FormDataEntryValue | null, t: Tr) {
   const text = String(value ?? "").trim().replace(/\s+/g, "").toUpperCase()
   if (!text) return null
   if (!/^[A-Z0-9]{8,11}$/.test(text)) {
-    throw new Error("БИК должен содержать 8-11 латинских букв или цифр")
+    throw new Error(t("actions.organizationSettings.bikFormat"))
   }
   return text
 }
@@ -278,11 +331,12 @@ function validateOptionalBankAccount(
   iik: string | null,
   bik: string | null,
   label: string,
+  t: Tr,
 ) {
   const hasAny = !!bankName || !!iik || !!bik
   if (!hasAny) return
   if (!bankName || !iik || !bik) {
-    throw new Error(`${label}: заполните название банка, ИИК и БИК либо оставьте счёт пустым`)
+    throw new Error(t("actions.organizationSettings.accountIncomplete", { label }))
   }
 }
 
@@ -292,10 +346,11 @@ function validateOptionalBankAccount(
  * будет после него (дубли номеров недопустимы для ЭСФ).
  */
 export async function updateDocNumberStart(orgId: string, formData: FormData) {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
     const { orgId: scopeOrgId } = await requireOrgAccess()
-    if (scopeOrgId !== orgId) throw new Error("Нет доступа к этой организации")
+    if (scopeOrgId !== orgId) throw new Error(t("actions.organizationSettings.noAccess"))
 
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { docNumberStart: true } })
     const next: Record<string, number> = { ...((org?.docNumberStart ?? {}) as Record<string, number>) }
@@ -304,7 +359,7 @@ export async function updateDocNumberStart(orgId: string, formData: FormData) {
       if (!raw) { delete next[type]; continue }
       const n = parseInt(raw, 10)
       if (!/^\d+$/.test(raw) || !Number.isInteger(n) || n < 1 || n > 999999) {
-        throw new Error("Номер — целое число от 1 до 999999")
+        throw new Error(t("actions.organizationSettings.badDocNumber"))
       }
       next[type] = n
     }
@@ -318,6 +373,6 @@ export async function updateDocNumberStart(orgId: string, formData: FormData) {
     revalidatePath("/admin/documents")
     return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.organizationSettings.saveFailed"))
   }
 }

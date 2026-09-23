@@ -10,9 +10,12 @@ import { useEffect, useState } from "react"
 import { History, Loader2, Save, Share2, Sparkles, Trash2, Camera, LogOut } from "lucide-react"
 import { useDocumentStore, useEditorStore, useSyncStore } from "@/store/builder-store"
 import { createBuilderProject, saveBuilderProject, createBuilderShare, listBuilderShares, listBuilderShareViews, listBuilderSnapshots, restoreBuilderSnapshot, snapshotBuilderProject, revokeBuilderShare, loadBuilderProject } from "@/app/actions/builder"
-import { viewsSummary } from "@/lib/builder/share-log"
+import { lastViewAt } from "@/lib/builder/share-log"
 import { buildEmptyProject } from "@/lib/builder/demo-project"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT, useLocale } from "@/lib/i18n/client"
+import { INTL_LOCALE } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
 
 // Сохранения строго по очереди. Автосейв через 4 с после правки мог стартовать,
 // пока предыдущее сохранение модели со сканами ещё шло, — с той же ревизией, и
@@ -81,9 +84,18 @@ async function saveOnce(): Promise<void> {
   }
 }
 
-const STATUS_LABEL: Record<string, string> = { idle: "Не сохранено", saving: "Сохранение…", saved: "Сохранено", conflict: "Конфликт версий", error: "Не сохранилось — повторю при следующей правке" }
+// Статус автосейва → ключ подписи в словаре.
+const STATUS_LABEL = {
+  idle: "statusIdle",
+  saving: "statusSaving",
+  saved: "statusSaved",
+  conflict: "statusConflict",
+  error: "statusError",
+} as const satisfies Record<string, keyof Messages["adminBuilder"]["project"]>
 
 export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void }) {
+  const { t, tp } = useT()
+  const locale = useLocale()
   const name = useSyncStore((s) => s.name)
   const setName = useSyncStore((s) => s.setName)
   const status = useSyncStore((s) => s.status)
@@ -108,7 +120,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
     try {
       const r = await fetch("/api/admin/builder/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: aiText }) })
       const d = await r.json()
-      if (!r.ok) throw new Error(d?.error ?? "Ошибка")
+      if (!r.ok) throw new Error(d?.error ?? t("adminBuilder.project.aiError"))
       useDocumentStore.getState().loadDocument(d.doc)
       const first = d.doc?.buildings?.[0]?.floors?.[0]
       if (first?.id) useEditorStore.getState().setActiveLevel(first.id)
@@ -116,7 +128,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       setAiOpen(false)
       setAiText("")
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка AI")
+      toast.error(e instanceof Error ? e.message : t("adminBuilder.project.aiError"))
     } finally {
       setAiBusy(false)
     }
@@ -134,25 +146,33 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
   const [snapshots, setSnapshots] = useState<Array<{ id: string; revision: number; createdAt: string; floors: number; rooms: number; note: string | null }>>([])
   const [restoring, setRestoring] = useState<string | null>(null)
   const shareUrl = (token: string) => `https://commrent.kz/showcase/${token}`
+  const intl = INTL_LOCALE[locale]
+  // «3 открытия, последнее 18.09 14:22»: число со склонением, дата — Intl
+  const viewsText = (count: number, last: string | null) => {
+    if (!count) return t("adminBuilder.share.viewsNever")
+    const views = tp("adminBuilder.share.views", count)
+    const when = lastViewAt(intl, last)
+    return when ? t("adminBuilder.share.viewsLast", { views, when }) : views
+  }
   const refreshShares = async (id: string) => {
     try { setShares(await listBuilderShares(id)) } catch { setShares([]) }
   }
   const openShares = async () => {
     if (!useSyncStore.getState().projectId) await doSave()
     const id = useSyncStore.getState().projectId
-    if (!id) { toast.error("Сначала сохраните проект"); return }
+    if (!id) { toast.error(t("adminBuilder.project.saveFirst")); return }
     await refreshShares(id)
     setSharesOpen((v) => !v)
   }
   const share = async () => {
     const id = useSyncStore.getState().projectId
-    if (!id) { toast.error("Сначала сохраните проект"); return }
+    if (!id) { toast.error(t("adminBuilder.project.saveFirst")); return }
     try {
       const { token } = await createBuilderShare(id)
       try { await navigator.clipboard?.writeText(shareUrl(token)) } catch { /* clipboard может быть недоступен */ }
       await refreshShares(id)
     } catch {
-      toast.error("Не удалось создать ссылку")
+      toast.error(t("adminBuilder.project.shareFailed"))
     }
   }
   const revoke = async (token?: string) => {
@@ -162,7 +182,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       await revokeBuilderShare(id, token)
       await refreshShares(id)
     } catch {
-      toast.error("Не удалось отозвать ссылку")
+      toast.error(t("adminBuilder.project.revokeFailed"))
     }
   }
 
@@ -170,10 +190,15 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
   // чтобы строить заново с чистого листа. Стек команд сбрасывается, но перед
   // очисткой уходит снимок — вернуться можно через «Историю».
   const clearAll = async () => {
-    if (!(await askConfirm({ title: "Очистить весь проект?", description: "Текущая сцена будет заменена пустым зданием с одним этажом. Прежняя модель останется в «Истории» — оттуда её можно вернуть.", confirmLabel: "Очистить", danger: true }))) return
+    if (!(await askConfirm({ title: t("adminBuilder.project.clearTitle"), description: t("adminBuilder.project.clearText"), confirmLabel: t("adminBuilder.project.clearConfirm"), danger: true }))) return
     // точка возврата: снимок текущей модели до очистки
-    if (projectId) void snapshotBuilderProject(projectId, "перед очисткой проекта")
-    const doc = buildEmptyProject()
+    if (projectId) void snapshotBuilderProject(projectId, t("adminBuilder.project.clearNote"))
+    const doc = buildEmptyProject({
+      project: t("adminBuilder.levels.newProject"),
+      floor: (level) => t("adminBuilder.levels.newFloorName", { level }),
+      basement: t("adminBuilder.levels.basementName"),
+      basementNumbered: (number) => t("adminBuilder.levels.basementNumbered", { number }),
+    })
     useDocumentStore.getState().loadDocument(doc)
     const first = doc.buildings[0]?.floors?.[0]
     if (first?.id) useEditorStore.getState().setActiveLevel(first.id)
@@ -188,7 +213,7 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
     if (curRev !== useSyncStore.getState().lastSavedRev) {
       await doSave()
       const st = useSyncStore.getState().status
-      if ((st === "error" || st === "conflict") && !(await askConfirm({ title: "Не удалось сохранить изменения", description: "Выйти без сохранения?", confirmLabel: "Выйти", danger: true }))) return
+      if ((st === "error" || st === "conflict") && !(await askConfirm({ title: t("adminBuilder.project.exitUnsavedTitle"), description: t("adminBuilder.project.exitUnsavedText"), confirmLabel: t("adminBuilder.project.exitConfirm"), danger: true }))) return
     }
     window.location.href = "/admin"
   }
@@ -203,27 +228,27 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       <button
         type="button"
         onClick={() => void exit()}
-        title="Сохранить и выйти в админку"
+        title={t("adminBuilder.project.exitHint")}
         className="flex items-center gap-1.5 self-start rounded-lg px-2 py-1 text-xs font-medium transition-all"
         style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.muted }}
       >
-        <LogOut className="h-3.5 w-3.5" /> Выйти
+        <LogOut className="h-3.5 w-3.5" /> {t("adminBuilder.project.exit")}
       </button>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
         className="w-full rounded-lg bg-transparent px-2 py-1 text-sm font-semibold outline-none"
         style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
-        placeholder="Название проекта"
+        placeholder={t("adminBuilder.project.namePlaceholder")}
       />
       <div className="flex items-center gap-1">
         <button type="button" onClick={() => void doSave()} className="flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: TOKENS.accent, color: "#0b1220" }}>
-          <Save className="h-3.5 w-3.5" /> Сохранить
+          <Save className="h-3.5 w-3.5" /> {t("adminBuilder.project.save")}
         </button>
-        <button type="button" onClick={() => setAiOpen((v) => !v)} title="Сгенерировать здание из текста" className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(167,139,250,0.18)", color: TOKENS.accent2 }}>
+        <button type="button" onClick={() => setAiOpen((v) => !v)} title={t("adminBuilder.project.aiHint")} className="flex items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(167,139,250,0.18)", color: TOKENS.accent2 }}>
           <Sparkles className="h-3.5 w-3.5" /> AI
         </button>
-        <button type="button" onClick={() => void openShares()} title="Публичные ссылки-витрины: создать, скопировать, отозвать" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: sharesOpen ? TOKENS.accent : "rgba(148,163,184,0.12)", color: sharesOpen ? "#0b1220" : TOKENS.text }}>
+        <button type="button" onClick={() => void openShares()} title={t("adminBuilder.project.sharesHint")} className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: sharesOpen ? TOKENS.accent : "rgba(148,163,184,0.12)", color: sharesOpen ? "#0b1220" : TOKENS.text }}>
           <Share2 className="h-3.5 w-3.5" />
         </button>
         <button
@@ -232,30 +257,30 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
             setHistoryOpen((v) => !v)
             if (!historyOpen && projectId) void listBuilderSnapshots(projectId).then(setSnapshots).catch(() => setSnapshots([]))
           }}
-          title="История модели: снимки на сервере, можно вернуться к сохранённому состоянию"
+          title={t("adminBuilder.project.historyHint")}
           className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium"
           style={{ background: historyOpen ? TOKENS.accent : "rgba(148,163,184,0.12)", color: historyOpen ? "#0b1220" : TOKENS.text }}
         >
           <History className="h-3.5 w-3.5" />
         </button>
         {onScreenshot && (
-          <button type="button" onClick={onScreenshot} title="Скачать снимок сцены (PNG)" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
+          <button type="button" onClick={onScreenshot} title={t("adminBuilder.project.screenshotHint")} className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(148,163,184,0.12)", color: TOKENS.text }}>
             <Camera className="h-3.5 w-3.5" />
           </button>
         )}
-        <button type="button" onClick={clearAll} title="Очистить всё — начать проект заново" className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.16)", color: TOKENS.danger }}>
+        <button type="button" onClick={clearAll} title={t("adminBuilder.project.clearHint")} className="flex items-center justify-center rounded-lg px-2 py-1.5 text-xs font-medium" style={{ background: "rgba(239,68,68,0.16)", color: TOKENS.danger }}>
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
       {historyOpen && (
         <div className="flex flex-col gap-1 rounded-lg p-2 text-[11px]" style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.text }}>
-          <span className="font-semibold">История модели</span>
-          {snapshots.length === 0 && <span style={{ color: TOKENS.muted }}>Снимков пока нет — первый появится при следующем сохранении.</span>}
+          <span className="font-semibold">{t("adminBuilder.project.historyTitle")}</span>
+          {snapshots.length === 0 && <span style={{ color: TOKENS.muted }}>{t("adminBuilder.project.historyEmpty")}</span>}
           {snapshots.map((sn) => (
             <div key={sn.id} className="flex items-center gap-1.5">
-              <span className="tabular-nums">{new Date(sn.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
+              <span className="tabular-nums">{new Date(sn.createdAt).toLocaleString(intl, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
               <span className="flex-1 truncate" style={{ color: TOKENS.muted }}>
-                рев. {sn.revision} · {sn.floors} эт · {sn.rooms} стен{sn.note ? ` · ${sn.note}` : ""}
+                {t("adminBuilder.project.snapshotLine", { revision: sn.revision, floors: sn.floors, walls: sn.rooms })}{sn.note ? ` · ${sn.note}` : ""}
               </span>
               {restoring === sn.id ? (
                 <button
@@ -268,17 +293,17 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
                   className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
                   style={{ background: TOKENS.danger, color: "#0b1220" }}
                 >
-                  Точно вернуть
+                  {t("adminBuilder.project.restoreConfirm")}
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => setRestoring(sn.id)}
-                  title="Вернуть модель к этому состоянию. Текущее тоже попадёт в снимки — можно будет отменить"
+                  title={t("adminBuilder.project.restoreHint")}
                   className="rounded-md px-1.5 py-0.5 text-[10px]"
                   style={{ background: "rgba(148,163,184,0.16)" }}
                 >
-                  Вернуть
+                  {t("adminBuilder.project.restore")}
                 </button>
               )}
             </div>
@@ -288,21 +313,21 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
       {sharesOpen && (
         <div className="flex flex-col gap-1.5 rounded-lg p-2 text-[11px]" style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.text }}>
           <div className="flex items-center justify-between">
-            <span className="font-semibold">Ссылки-витрины</span>
-            <button type="button" onClick={() => void share()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: TOKENS.accent, color: "#0b1220" }}>+ Создать на 30 дней</button>
+            <span className="font-semibold">{t("adminBuilder.project.sharesTitle")}</span>
+            <button type="button" onClick={() => void share()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: TOKENS.accent, color: "#0b1220" }}>{t("adminBuilder.project.shareCreate")}</button>
           </div>
-          {shares.length === 0 && <span style={{ color: TOKENS.muted }}>Активных ссылок нет. Проект виден только вашей организации.</span>}
+          {shares.length === 0 && <span style={{ color: TOKENS.muted }}>{t("adminBuilder.project.sharesEmpty")}</span>}
           {shares.map((sh) => (
             <div key={sh.token} className="flex items-center gap-1">
               <span className="flex-1 truncate" title={shareUrl(sh.token)}>…{sh.token.slice(-8)}</span>
-              <span style={{ color: TOKENS.muted }}>{sh.expiresAt ? `до ${new Date(sh.expiresAt).toLocaleDateString("ru-RU")}` : "бессрочно"}</span>
-              <span title="Сколько раз открывали эту ссылку" style={{ color: sh.views ? TOKENS.accent : TOKENS.muted }}>{viewsSummary(sh.views, sh.lastViewAt)}</span>
-              <button type="button" onClick={() => void navigator.clipboard?.writeText(shareUrl(sh.token))} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(148,163,184,0.16)" }}>Копировать</button>
-              <button type="button" onClick={() => void revoke(sh.token)} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}>Отозвать</button>
+              <span style={{ color: TOKENS.muted }}>{sh.expiresAt ? t("adminBuilder.project.shareUntil", { date: new Date(sh.expiresAt).toLocaleDateString(intl) }) : t("adminBuilder.project.shareForever")}</span>
+              <span title={t("adminBuilder.project.shareViewsHint")} style={{ color: sh.views ? TOKENS.accent : TOKENS.muted }}>{viewsText(sh.views, sh.lastViewAt)}</span>
+              <button type="button" onClick={() => void navigator.clipboard?.writeText(shareUrl(sh.token))} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(148,163,184,0.16)" }}>{t("adminBuilder.project.copy")}</button>
+              <button type="button" onClick={() => void revoke(sh.token)} className="rounded-md px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}>{t("adminBuilder.project.revoke")}</button>
             </div>
           ))}
           {shares.length > 1 && (
-            <button type="button" onClick={() => void revoke()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: "rgba(239,68,68,0.16)", color: "#fca5a5" }}>Отозвать все</button>
+            <button type="button" onClick={() => void revoke()} className="rounded-md px-2 py-1 text-[10px] font-medium" style={{ background: "rgba(239,68,68,0.16)", color: "#fca5a5" }}>{t("adminBuilder.project.revokeAll")}</button>
           )}
           <button
             type="button"
@@ -313,18 +338,18 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
             className="self-start rounded-md px-2 py-1 text-[10px] font-medium"
             style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}
           >
-            {viewsOpen ? "Скрыть журнал открытий" : "Журнал открытий"}
+            {t(viewsOpen ? "adminBuilder.project.viewsHide" : "adminBuilder.project.viewsShow")}
           </button>
           {viewsOpen && (
             <div className="flex max-h-40 flex-col gap-0.5 overflow-auto rounded-md p-1.5 text-[10px]" style={{ background: "rgba(15,23,42,0.35)" }}>
-              {views.length === 0 && <span style={{ color: TOKENS.muted }}>Витрину ещё не открывали.</span>}
+              {views.length === 0 && <span style={{ color: TOKENS.muted }}>{t("adminBuilder.project.viewsEmpty")}</span>}
               {views.map((v, i) => (
                 <div key={`${v.openedAt}-${i}`} className="flex items-center gap-1.5">
                   <span className="tabular-nums" style={{ color: TOKENS.text }}>
-                    {new Date(v.openedAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(v.openedAt).toLocaleString(intl, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                   </span>
-                  <span className="flex-1 truncate" style={{ color: TOKENS.muted }}>{v.userAgent ?? "браузер неизвестен"}</span>
-                  <span title="Отпечаток посетителя: одинаковый — значит, заходил тот же человек. Адрес не хранится" style={{ color: TOKENS.muted }}>
+                  <span className="flex-1 truncate" style={{ color: TOKENS.muted }}>{v.userAgent ?? t("adminBuilder.project.unknownAgent")}</span>
+                  <span title={t("adminBuilder.project.visitorHint")} style={{ color: TOKENS.muted }}>
                     {v.visitor ? v.visitor.slice(0, 6) : "—"}
                   </span>
                   <span style={{ color: TOKENS.muted }}>…{v.token.slice(-6)}</span>
@@ -335,18 +360,18 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
         </div>
       )}
       <div className="flex items-center gap-1.5 px-1 text-[10px]" style={{ color: TOKENS.muted }}>
-        <span className="h-2 w-2 rounded-full" style={{ background: dot }} /> {STATUS_LABEL[status]}
-        {projectId && status !== "conflict" && <span className="opacity-60">· сохраняется автоматически</span>}
+        <span className="h-2 w-2 rounded-full" style={{ background: dot }} /> {t(`adminBuilder.project.${STATUS_LABEL[status as keyof typeof STATUS_LABEL] ?? "statusIdle"}`)}
+        {projectId && status !== "conflict" && <span className="opacity-60">{t("adminBuilder.project.autosave")}</span>}
       </div>
       {status === "conflict" && (
         <div className="flex flex-col gap-1 rounded-lg p-1.5 text-[10px]" style={{ background: "rgba(239,68,68,0.1)", color: TOKENS.text }}>
-          Модель изменили в другой вкладке или на другом устройстве.
+          {t("adminBuilder.project.conflictText")}
           <div className="flex gap-1">
-            <button type="button" onClick={() => void takeServerVersion()} title="Загрузить сохранённую версию; ваши несохранённые правки пропадут" className="flex-1 rounded-md px-1.5 py-1 font-medium" style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}>
-              Взять с сервера
+            <button type="button" onClick={() => void takeServerVersion()} title={t("adminBuilder.project.takeServerHint")} className="flex-1 rounded-md px-1.5 py-1 font-medium" style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}>
+              {t("adminBuilder.project.takeServer")}
             </button>
-            <button type="button" onClick={() => void overwriteServerVersion()} title="Сохранить вашу модель поверх той, что на сервере" className="flex-1 rounded-md px-1.5 py-1 font-medium" style={{ background: "rgba(239,68,68,0.2)", color: "#fecaca" }}>
-              Сохранить мою
+            <button type="button" onClick={() => void overwriteServerVersion()} title={t("adminBuilder.project.keepMineHint")} className="flex-1 rounded-md px-1.5 py-1 font-medium" style={{ background: "rgba(239,68,68,0.2)", color: "#fecaca" }}>
+              {t("adminBuilder.project.keepMine")}
             </button>
           </div>
         </div>
@@ -357,14 +382,14 @@ export function BuilderProjectBar({ onScreenshot }: { onScreenshot?: () => void 
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
             rows={2}
-            placeholder="Напр.: 3-этажный офис с цоколем, парковкой на 20 мест, стеклянным фасадом и плоской кровлей"
+            placeholder={t("adminBuilder.project.aiPlaceholder")}
             className="w-full rounded-lg bg-transparent px-2 py-1 text-xs outline-none"
             style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
           />
           <button type="button" onClick={() => void runAi()} disabled={aiBusy} className="flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold" style={{ background: TOKENS.accent2, color: "#0b1220", opacity: aiBusy ? 0.6 : 1 }}>
-            {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Сгенерировать
+            {aiBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} {t("adminBuilder.project.aiRun")}
           </button>
-          <span className="px-1 text-[10px]" style={{ color: TOKENS.muted }}>Заменит текущую сцену сгенерированным зданием.</span>
+          <span className="px-1 text-[10px]" style={{ color: TOKENS.muted }}>{t("adminBuilder.project.aiNote")}</span>
         </div>
       )}
     </div>

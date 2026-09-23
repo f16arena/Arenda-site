@@ -8,6 +8,7 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope, tenantScope } from "@/lib/tenant-scope"
+import { getT } from "@/lib/i18n/server"
 
 type DeleteAdminDocumentInput = {
   source: "contract" | "generated"
@@ -25,22 +26,27 @@ export async function deleteAdminDocument(input: DeleteAdminDocumentInput): Prom
   const session = await requireCapabilityAndFeature("documents.deleteUnsigned")
   const { orgId } = await requireOrgAccess()
   const isOwner = session.role === "OWNER" || session.isPlatformOwner
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
 
   try {
-    if (!input.id) return { ok: false, error: "Документ не найден." }
+    if (!input.id) return { ok: false, error: t("actions.common.documentNotFound") }
     if (input.source === "contract") {
-      return deleteContractDocument(input.id, orgId, isOwner)
+      return deleteContractDocument(input.id, orgId, isOwner, t)
     }
     if (input.source === "generated") {
-      return deleteGeneratedDocument(input.id, orgId, isOwner)
+      return deleteGeneratedDocument(input.id, orgId, isOwner, t)
     }
-    return { ok: false, error: "Неизвестный тип документа." }
+    return { ok: false, error: t("actions.documents.unknownType") }
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Не удалось удалить документ." }
+    return { ok: false, error: error instanceof Error ? error.message : t("actions.documents.deleteFailed") }
   }
 }
 
-async function deleteContractDocument(contractId: string, orgId: string, isOwner: boolean): Promise<DeleteAdminDocumentResult> {
+// Переводчик приходит параметром: помощники ниже сами его не добывают.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+async function deleteContractDocument(contractId: string, orgId: string, isOwner: boolean, t: Tr): Promise<DeleteAdminDocumentResult> {
   const contract = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
     select: {
@@ -53,7 +59,7 @@ async function deleteContractDocument(contractId: string, orgId: string, isOwner
       tenantId: true,
     },
   })
-  if (!contract) return { ok: false, error: "Договор не найден или недоступен." }
+  if (!contract) return { ok: false, error: t("actions.documents.contractNotAvailable") }
 
   await assertTenantBuildingAccess(contract.tenantId, orgId)
 
@@ -63,7 +69,7 @@ async function deleteContractDocument(contractId: string, orgId: string, isOwner
   })
   const signed = isContractSigned(contract, signatureCount)
   if (signed && !isOwner) {
-    return { ok: false, error: "Подписанный документ может удалить только владелец." }
+    return { ok: false, error: t("actions.documents.signedOwnerOnly") }
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 
@@ -89,7 +95,7 @@ async function deleteContractDocument(contractId: string, orgId: string, isOwner
   return { ok: true }
 }
 
-async function deleteGeneratedDocument(documentId: string, orgId: string, isOwner: boolean): Promise<DeleteAdminDocumentResult> {
+async function deleteGeneratedDocument(documentId: string, orgId: string, isOwner: boolean, t: Tr): Promise<DeleteAdminDocumentResult> {
   const doc = await db.generatedDocument.findFirst({
     where: { id: documentId, organizationId: orgId },
     select: {
@@ -102,7 +108,7 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
       period: true,
     },
   })
-  if (!doc) return { ok: false, error: "Документ не найден или недоступен." }
+  if (!doc) return { ok: false, error: t("actions.documents.documentNotAvailable") }
 
   const currentBuildingId = await getCurrentBuildingId()
   if (doc.tenantId) {
@@ -112,10 +118,10 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
         where: { id: doc.tenantId, ...tenantWhereForBuildings([currentBuildingId]) },
         select: { id: true },
       })
-      if (!tenantVisibleInCurrentBuilding) return { ok: false, error: "Документ не относится к выбранному зданию." }
+      if (!tenantVisibleInCurrentBuilding) return { ok: false, error: t("actions.documents.otherBuilding") }
     }
   } else if (currentBuildingId) {
-    return { ok: false, error: "Документ без контрагента можно удалить только в режиме «Все здания»." }
+    return { ok: false, error: t("actions.documents.noCounterpartyAllBuildings") }
   }
 
   const signatureWhere = signatureWhereFor(doc.documentType, doc.id, doc.number)
@@ -124,7 +130,7 @@ async function deleteGeneratedDocument(documentId: string, orgId: string, isOwne
   }).then((count) => count > 0)
 
   if (signed && !isOwner) {
-    return { ok: false, error: "Подписанный документ может удалить только владелец." }
+    return { ok: false, error: t("actions.documents.signedOwnerOnly") }
   }
   if (signed) await requireCapabilityAndFeature("documents.deleteSigned")
 

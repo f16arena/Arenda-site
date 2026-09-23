@@ -1,6 +1,13 @@
 // ADR: Room Style Presets (§19) — стиль помещения одним действием: материал пола +
 // набор объектов вокруг центра комнаты. Применяется командой одной undo-группой,
 // всё остаётся редактируемым. Смещения dx/dz — в мм от центра комнаты.
+//
+// Подпись стиля — в словаре (adminBuilder.roomPresets), ключ совпадает с id.
+
+import type { Messages } from "@/lib/i18n/messages"
+
+/** Ключ подписи стиля в словаре (adminBuilder.roomPresets) — он же id стиля. */
+export type RoomPresetKey = keyof Messages["adminBuilder"]["roomPresets"]
 
 export interface PresetObject {
   assetId: string
@@ -10,8 +17,7 @@ export interface PresetObject {
 }
 
 export interface RoomPreset {
-  id: string
-  label: string
+  id: RoomPresetKey
   floorMaterial: string
   objects: PresetObject[]
 }
@@ -19,7 +25,6 @@ export interface RoomPreset {
 export const ROOM_PRESETS: RoomPreset[] = [
   {
     id: "office",
-    label: "Офис",
     floorMaterial: "laminate",
     objects: [
       { assetId: "desk", dx: 0, dz: -600 },
@@ -31,7 +36,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "gaming",
-    label: "Клуб",
     floorMaterial: "carpet_blue",
     objects: [
       { assetId: "gaming_desk", dx: -1600, dz: 0 },
@@ -44,7 +48,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "cafe",
-    label: "Кафе",
     floorMaterial: "parquet",
     objects: [
       { assetId: "cafe_table", dx: -1500, dz: 600 },
@@ -57,7 +60,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "retail",
-    label: "Магазин",
     floorMaterial: "granite",
     objects: [
       { assetId: "rack", dx: -2000, dz: 0 },
@@ -68,7 +70,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "premium_office",
-    label: "Премиум-офис",
     floorMaterial: "parquet",
     objects: [
       { assetId: "meeting_table", dx: 0, dz: 0 },
@@ -82,7 +83,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "loft",
-    label: "Лофт",
     floorMaterial: "concrete_polished",
     objects: [
       { assetId: "sofa", dx: 0, dz: 1500, rot: 180 },
@@ -95,7 +95,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "minimal",
-    label: "Минимал",
     floorMaterial: "laminate_light",
     objects: [
       { assetId: "desk", dx: 0, dz: -600 },
@@ -106,7 +105,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "apartment",
-    label: "Квартира",
     floorMaterial: "parquet_deck",
     objects: [
       { assetId: "sofa", dx: -1500, dz: 1200, rot: 180 },
@@ -120,7 +118,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "coworking",
-    label: "Коворкинг",
     floorMaterial: "carpet_gray",
     objects: [
       { assetId: "desk", dx: 0, dz: 0 },
@@ -133,7 +130,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "showroom",
-    label: "Шоурум",
     floorMaterial: "tile_white",
     objects: [
       { assetId: "display_case", dx: -2000, dz: 0 },
@@ -145,7 +141,6 @@ export const ROOM_PRESETS: RoomPreset[] = [
   },
   {
     id: "classroom",
-    label: "Класс",
     floorMaterial: "vinyl",
     objects: [
       { assetId: "whiteboard", dx: 0, dz: -2800 },
@@ -156,5 +151,5 @@ export const ROOM_PRESETS: RoomPreset[] = [
       { assetId: "ceiling_light", dx: 0, dz: 0 },
     ],
   },
-  { id: "empty", label: "Пусто", floorMaterial: "concrete", objects: [] },
+  { id: "empty", floorMaterial: "concrete", objects: [] },
 ]

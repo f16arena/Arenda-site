@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { encryptSecret } from "@/lib/secret-crypto"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Сохранить реквизиты ИС ЭСФ организации (Настройки → ЭСФ). Только владелец.
@@ -13,8 +14,9 @@ import { encryptSecret } from "@/lib/secret-crypto"
  */
 export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: true } | { error: string }> {
   const session = await auth()
+  const { t } = await getT()
   if (!session?.user || (session.user.role !== "OWNER" && !session.user.isPlatformOwner)) {
-    return { error: "Настройка ЭСФ доступна только владельцу" }
+    return { error: t("actions.esfConfig.ownerOnly") }
   }
   const { orgId } = await requireOrgAccess()
 
@@ -27,7 +29,7 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
   const certPin = String(formData.get("certPin") ?? "")
 
   if (signerIin && signerIin.length !== 12) {
-    return { error: "ИИН подписанта должен содержать 12 цифр" }
+    return { error: t("actions.esfConfig.signerIinDigits") }
   }
 
   const data: {
@@ -57,10 +59,10 @@ export async function saveOrgEsfConfig(formData: FormData): Promise<{ success: t
   if (certFile instanceof File && certFile.size > 0) {
     const name = certFile.name.toLowerCase()
     if (!name.endsWith(".p12") && !name.endsWith(".pfx")) {
-      return { error: "Ключ должен быть файлом .p12 или .pfx" }
+      return { error: t("actions.esfConfig.badKeyFormat") }
     }
     if (certFile.size > 256 * 1024) {
-      return { error: "Файл ключа слишком большой (ожидается .p12 до 256 КБ)" }
+      return { error: t("actions.esfConfig.keyTooBig") }
     }
     const base64 = Buffer.from(await certFile.arrayBuffer()).toString("base64")
     data.certDataEnc = encryptSecret(base64)

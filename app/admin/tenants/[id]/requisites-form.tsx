@@ -80,8 +80,14 @@ function getBankInputError(bankName: string, bik: string, iik: string, t: T) {
   if (!iik.trim()) return t("adminTenants.requisites.needIik")
 
   const checks = validateRequisites({ bik, iik })
-  if (checks.bik && !checks.bik.ok) return checks.bik.warning ?? t("adminTenants.requisites.badBik")
-  if (checks.iik && !checks.iik.ok) return checks.iik.warning ?? t("adminTenants.requisites.badIik")
+  if (checks.bik && !checks.bik.ok)
+    return checks.bik.warningKey
+      ? t(`common.requisiteChecks.${checks.bik.warningKey}` as "common.requisiteChecks.bikFormat")
+      : t("adminTenants.requisites.badBik")
+  if (checks.iik && !checks.iik.ok)
+    return checks.iik.warningKey
+      ? t(`common.requisiteChecks.${checks.iik.warningKey}` as "common.requisiteChecks.iikFormat")
+      : t("adminTenants.requisites.badIik")
   return null
 }
 
@@ -193,9 +199,9 @@ function BankFields({
         {bankFromBik && (
           <p className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">{bankFromBik.name}</p>
         )}
-        {bik && checks.bik?.warning && (
+        {bik && checks.bik?.warningKey && (
           <p className={`mt-1 text-[10px] ${checks.bik.ok ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"}`}>
-            {checks.bik.warning}
+            {t(`common.requisiteChecks.${checks.bik.warningKey}` as "common.requisiteChecks.bikFormat")}
           </p>
         )}
       </div>
@@ -246,8 +252,10 @@ function BankFields({
           }`}
         />
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{t("adminTenants.requisites.iikHint", { length: iik.length })}</p>
-        {iik && checks.iik?.warning && (
-          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">{checks.iik.warning}</p>
+        {iik && checks.iik?.warningKey && (
+          <p className="mt-1 text-[10px] text-red-600 dark:text-red-400">
+            {t(`common.requisiteChecks.${checks.iik.warningKey}` as "common.requisiteChecks.iikFormat")}
+          </p>
         )}
       </div>
     </div>

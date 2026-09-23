@@ -3,10 +3,15 @@ import Link from "next/link"
 import { Building } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { ForgotPasswordForm } from "./forgot-password-form"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 
 export const dynamic = "force-dynamic"
 
-export default function ForgotPasswordPage() {
+export default async function ForgotPasswordPage() {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <ForceLight />
@@ -17,18 +22,25 @@ export default function ForgotPasswordPage() {
               <Building className="h-6 w-6 text-white" />
             </div>
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900 mt-4">Сброс пароля</h1>
-          <p className="text-sm text-slate-500 mt-1">Введите email — отправим ссылку для сброса</p>
+          <h1 className="text-2xl font-bold text-slate-900 mt-4">
+            {t("auth.forgotPassword.title")}
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">{t("auth.forgotPassword.subtitle")}</p>
         </div>
 
         <Card className="block p-6">
-          <ForgotPasswordForm />
+          <I18nProvider
+            locale={locale}
+            messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}
+          >
+            <ForgotPasswordForm />
+          </I18nProvider>
         </Card>
 
         <p className="text-center text-sm text-slate-500 mt-4">
-          Вспомнили пароль?{" "}
+          {t("auth.forgotPassword.remembered")}{" "}
           <Link href="/login" className="text-blue-600 hover:underline font-medium">
-            Войти
+            {t("auth.forgotPassword.login")}
           </Link>
         </p>
       </div>

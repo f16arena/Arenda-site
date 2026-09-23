@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { UserCircle, Lock, Mail, Bell, Phone } from "lucide-react"
 import { NameBlock, EmailBlock, PasswordBlock } from "./profile-forms"
+import { useT } from "@/lib/i18n/client"
 
 // «management» вкладка удалена 2026-05-26 — её функции переехали в sidebar
 // в свёрнутую секцию НАСТРОЙКИ. Профиль теперь чисто про пользователя.
@@ -20,17 +21,18 @@ interface Props {
 export function ProfileTabs({
   currentName, currentEmail, emailVerified, phone, notificationsSlot, initialTab,
 }: Props) {
+  const { t } = useT()
   const [tab, setTab] = useState<TabKey>(initialTab ?? "general")
 
   return (
     <div className="space-y-5">
       {/* Tab bar */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-1.5 flex flex-wrap gap-1">
-        <TabBtn icon={UserCircle} label="Личное" active={tab === "general"} onClick={() => setTab("general")} />
+        <TabBtn icon={UserCircle} label={t("common.profile.tabGeneral")} active={tab === "general"} onClick={() => setTab("general")} />
         <TabBtn icon={Mail} label="Email" active={tab === "email"} onClick={() => setTab("email")} badge={currentEmail && !emailVerified ? "!" : undefined} />
-        <TabBtn icon={Lock} label="Безопасность" active={tab === "security"} onClick={() => setTab("security")} />
+        <TabBtn icon={Lock} label={t("common.profile.tabSecurity")} active={tab === "security"} onClick={() => setTab("security")} />
         {notificationsSlot && (
-          <TabBtn icon={Bell} label="Уведомления" active={tab === "notifications"} onClick={() => setTab("notifications")} />
+          <TabBtn icon={Bell} label={t("common.profile.tabNotifications")} active={tab === "notifications"} onClick={() => setTab("notifications")} />
         )}
       </div>
 

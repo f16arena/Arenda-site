@@ -11,7 +11,7 @@ import { PaymentDialog, ExpenseDialog, GenerateChargesButton, GenerateInvoicesBu
 import { PaymentReportsPanel } from "./payment-reports-panel"
 import { ExportMenu } from "./export-menu"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { FINANCE_TABS } from "@/lib/hub-tabs"
+import { financeTabs } from "@/lib/hub-tabs"
 import { FinancesPeriodPicker } from "./period-picker"
 import { ChargesBulkActions } from "./charges-bulk-actions"
 import { PaymentsBulkActions } from "./payments-bulk-actions"
@@ -400,7 +400,7 @@ async function renderFinancesPage({
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={FINANCE_TABS} className="mb-2" />
+      <RouteTabs items={financeTabs(t)} className="mb-2" />
       <PageHeader
         icon={Wallet}
         title={t("adminFinance.page.title")}

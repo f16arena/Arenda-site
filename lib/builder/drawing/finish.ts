@@ -5,7 +5,8 @@
 import type { Floor } from "@/types/builder"
 import { floorRooms, type FloorRoom } from "@/lib/builder/rooms"
 import { roomDisplayName, roomUse } from "@/lib/builder/room-use"
-import { MATERIALS } from "@/lib/builder/materials"
+import { MATERIALS, materialNameKey } from "@/lib/builder/materials"
+import type { SheetT } from "@/lib/builder/sheet-text"
 import { pointInPolygon, type Vec2 } from "@/core/geometry/math"
 
 export interface FinishRow {
@@ -26,11 +27,8 @@ export interface FinishRow {
   ceilingM2: number
 }
 
-const DEFAULT_CEILING = "Окраска водоэмульсионная"
-const DEFAULT_WALLS = "Штукатурка, окраска"
-
-function materialName(id: string | undefined, fallback: string): string {
-  return id && MATERIALS[id] ? MATERIALS[id].name : fallback
+function materialName(t: SheetT, id: string | undefined, fallback: "granite"): string {
+  return t(`adminBuilder.materials.${id && MATERIALS[id] ? materialNameKey(id) : fallback}`)
 }
 
 /** Стены, ограждающие помещение: их середина лежит на контуре помещения. */
@@ -64,7 +62,7 @@ function perimeter(poly: Vec2[]): number {
  * Ведомость отделки. numbers — номера помещений из экспликации (чтобы таблицы
  * совпадали), иначе берётся порядковый номер.
  */
-export function finishSchedule(floor: Floor, numbers: Map<string, string> = new Map()): FinishRow[] {
+export function finishSchedule(floor: Floor, t: SheetT, numbers: Map<string, string> = new Map()): FinishRow[] {
   const rooms = floorRooms(floor)
   return rooms.map((r, i) => {
     const walls = roomWalls(floor, r)
@@ -81,10 +79,10 @@ export function finishSchedule(floor: Floor, numbers: Map<string, string> = new 
     return {
       roomId: r.id,
       number: numbers.get(r.id) ?? (use === "rent" ? String(i + 1) : ""),
-      name: roomDisplayName(floor, r) || "Помещение",
-      floor: materialName(floor.roomMaterials?.[r.id] ?? floor.floorMaterialId, "Керамогранит"),
-      walls: materialName(common, DEFAULT_WALLS),
-      ceiling: DEFAULT_CEILING,
+      name: roomDisplayName(floor, r, (key) => t(`adminBuilder.roomNames.${key}`)) || t("adminBuilderSheet.sheet.roomFallback"),
+      floor: materialName(t, floor.roomMaterials?.[r.id] ?? floor.floorMaterialId, "granite"),
+      walls: common && MATERIALS[common] ? materialName(t, common, "granite") : t("adminBuilderSheet.sheetText.finishWalls"),
+      ceiling: t("adminBuilderSheet.sheetText.finishCeiling"),
       floorM2: r1(area),
       wallsM2: r1(wallsM2),
       ceilingM2: r1(area),
@@ -105,27 +103,34 @@ export interface FloorTypeRow {
   areaM2: number
 }
 
-const LAYERS: Record<string, string> = {
-  tile: "Керамическая плитка 8 мм; клей 5 мм; стяжка ЦПС 40 мм; плита перекрытия",
-  granite: "Керамогранит 10 мм; клей 5 мм; стяжка ЦПС 40 мм; плита перекрытия",
-  laminate: "Ламинат 8 мм; подложка 3 мм; стяжка ЦПС 40 мм; плита перекрытия",
-  parquet: "Паркет 15 мм; фанера 12 мм; стяжка ЦПС 40 мм; плита перекрытия",
-  carpet: "Ковролин 8 мм; стяжка ЦПС 40 мм; плита перекрытия",
-  concrete: "Бетон В22,5 с упрочнением 60 мм; плита перекрытия",
-  epoxy: "Наливное покрытие 3 мм; грунт; стяжка ЦПС 40 мм; плита перекрытия",
+// Состав конструкции пола по материалу покрытия: ключ словаря
+// (adminBuilderSheet.sheetText.layers*), подставляется при печати листа.
+const LAYER_KEYS = ["tile", "granite", "laminate", "parquet", "carpet", "concrete", "epoxy"] as const
+type LayerKey = (typeof LAYER_KEYS)[number]
+
+const LAYER_TEXT: Record<LayerKey, "layersTile" | "layersGranite" | "layersLaminate" | "layersParquet" | "layersCarpet" | "layersConcrete" | "layersEpoxy"> = {
+  tile: "layersTile",
+  granite: "layersGranite",
+  laminate: "layersLaminate",
+  parquet: "layersParquet",
+  carpet: "layersCarpet",
+  concrete: "layersConcrete",
+  epoxy: "layersEpoxy",
 }
 
-function layersFor(materialId: string): string {
+function layersFor(t: SheetT, materialId: string): string {
   const id = materialId.toLowerCase()
-  for (const key in LAYERS) if (id.includes(key)) return LAYERS[key]
-  if (id.includes("marble") || id.includes("terrazzo")) return LAYERS.granite
-  if (id.includes("wood") || id.includes("oak") || id.includes("ash") || id.includes("walnut") || id.includes("wenge")) return LAYERS.parquet
-  if (id.includes("vinyl")) return LAYERS.laminate
-  return LAYERS.concrete
+  let key: LayerKey = "concrete"
+  const direct = LAYER_KEYS.find((k) => id.includes(k))
+  if (direct) key = direct
+  else if (id.includes("marble") || id.includes("terrazzo")) key = "granite"
+  else if (id.includes("wood") || id.includes("oak") || id.includes("ash") || id.includes("walnut") || id.includes("wenge")) key = "parquet"
+  else if (id.includes("vinyl")) key = "laminate"
+  return t(`adminBuilderSheet.sheetText.${LAYER_TEXT[key]}`)
 }
 
 /** Экспликация полов: типы полов по материалам с составом конструкции. */
-export function floorTypes(floor: Floor, numbers: Map<string, string> = new Map()): FloorTypeRow[] {
+export function floorTypes(floor: Floor, t: SheetT, numbers: Map<string, string> = new Map()): FloorTypeRow[] {
   const rooms = floorRooms(floor)
   const byMaterial = new Map<string, { rooms: string[]; area: number }>()
   for (const r of rooms) {
@@ -138,8 +143,8 @@ export function floorTypes(floor: Floor, numbers: Map<string, string> = new Map(
   }
   return [...byMaterial.entries()].map(([id, v], i) => ({
     type: i + 1,
-    covering: materialName(id, "Керамогранит"),
-    layers: layersFor(id),
+    covering: materialName(t, id, "granite"),
+    layers: layersFor(t, id),
     rooms: v.rooms.join(", "),
     areaM2: Math.round(v.area * 10) / 10,
   }))

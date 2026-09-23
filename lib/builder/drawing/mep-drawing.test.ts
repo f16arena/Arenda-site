@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { buildMepDrawing, sectionSystems, sectionsWithContent } from "./mep-drawing"
 
+import { createTranslator } from "@/lib/i18n/translate"
+import { ru } from "@/lib/i18n/messages"
+
+// Тексты на листах собираются переводчиком — в тестах берём русский словарь.
+const { t } = createTranslator("ru", ru)
+
 const floor = {
   mepRuns: [
     { id: "r1", system: "water" as const, points: [{ x: 0, y: 0 }, { x: 0, y: 5000 }, { x: 1000, y: 5000 }], height: 400, size: "PP-R Ø25", label: "" },
@@ -15,7 +21,7 @@ const floor = {
 describe("лист сетей", () => {
   it("раздел ВК берёт только водопровод и канализацию", () => {
     expect(sectionSystems("ВК")).toEqual(["water", "hotwater", "sewer"])
-    const d = buildMepDrawing(floor, "ВК")
+    const d = buildMepDrawing(floor, "ВК", t)
     expect(d.runs.map((r) => r.system)).toEqual(["water"])
     expect(d.devices.map((x) => x.kind)).toEqual(["sink", "riserK1"])
     // марка — на самом длинном участке, текст снизу вверх
@@ -27,9 +33,9 @@ describe("лист сетей", () => {
   })
 
   it("группа в марке и разделы с содержимым", () => {
-    const d = buildMepDrawing(floor, "ЭМ")
+    const d = buildMepDrawing(floor, "ЭМ", t)
     expect(d.runs[0].tag).toBe("ЭМ гр.1")
-    expect(buildMepDrawing(floor, "ar").runs).toHaveLength(0)
+    expect(buildMepDrawing(floor, "ar", t).runs).toHaveLength(0)
     expect(sectionsWithContent(floor)).toEqual(["ЭМ", "ВК"])
   })
 })

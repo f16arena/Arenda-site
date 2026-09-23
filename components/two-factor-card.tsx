@@ -8,8 +8,10 @@ import {
   verifyAndEnableTotp,
   disableTotp,
 } from "@/app/actions/two-factor"
+import { useT } from "@/lib/i18n/client"
 
 export function TwoFactorCard({ enabled }: { enabled: boolean }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [step, setStep] = useState<"idle" | "qr" | "backup" | "disable">("idle")
   const [enrollment, setEnrollment] = useState<{ secret: string; qrDataUrl: string } | null>(null)
@@ -34,7 +36,7 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
       if (!r.ok) { toast.error(r.error); return }
       setBackupCodes(r.backupCodes)
       setStep("backup")
-      toast.success("2FA включена")
+      toast.success(t("common.twoFactor.enabled"))
     })
   }
 
@@ -51,7 +53,7 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
     startTransition(async () => {
       const r = await disableTotp(disablePassword)
       if (!r.ok) { toast.error(r.error); return }
-      toast.success("2FA отключена")
+      toast.success(t("common.twoFactor.disabled"))
       setStep("idle")
       setDisablePassword("")
     })
@@ -73,14 +75,14 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Двухфакторная аутентификация</p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">Включена · Google Authenticator или подобное</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.twoFactor.title")}</p>
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">{t("common.twoFactor.onHint")}</p>
           </div>
           <button
             onClick={startDisable}
             className="text-xs text-red-600 dark:text-red-400 hover:underline"
           >
-            Отключить
+            {t("common.twoFactor.disableShort")}
           </button>
         </div>
       </div>
@@ -90,13 +92,13 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
   if (step === "disable") {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-red-200 dark:border-red-500/30 p-5">
-        <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">Отключить 2FA</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Введите пароль для подтверждения.</p>
+        <p className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">{t("common.twoFactor.disableTitle")}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">{t("common.twoFactor.disableHint")}</p>
         <input
           type="password"
           value={disablePassword}
           onChange={(e) => setDisablePassword(e.target.value)}
-          placeholder="Текущий пароль"
+          placeholder={t("common.twoFactor.currentPassword")}
           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm mb-3"
           autoFocus
         />
@@ -105,14 +107,14 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
             onClick={() => { setStep("idle"); setDisablePassword("") }}
             className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 py-2 text-sm text-slate-600 dark:text-slate-400"
           >
-            Отмена
+            {t("common.actions.cancel")}
           </button>
           <button
             onClick={confirmDisable}
             disabled={pending || !disablePassword}
             className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 text-white py-2 text-sm font-medium disabled:opacity-60"
           >
-            {pending ? "..." : "Отключить"}
+            {pending ? "…" : t("common.twoFactor.disableShort")}
           </button>
         </div>
       </div>
@@ -122,9 +124,9 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
   if (step === "qr" && enrollment) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5">
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Шаг 1 из 2 — Привяжите приложение</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">{t("common.twoFactor.step1")}</p>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-          Откройте Google Authenticator, Microsoft Authenticator или 1Password и отсканируйте QR.
+          {t("common.twoFactor.step1Hint")}
         </p>
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <div className="bg-white p-2 rounded-lg border border-slate-200 dark:border-slate-800 self-start">
@@ -132,16 +134,16 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
             <img src={enrollment.qrDataUrl} alt="2FA QR" className="w-40 h-40" />
           </div>
           <div className="flex-1 text-xs space-y-2">
-            <p className="text-slate-600 dark:text-slate-400">Не сканируется QR? Введите вручную:</p>
+            <p className="text-slate-600 dark:text-slate-400">{t("common.twoFactor.manual")}</p>
             <code className="block bg-slate-100 dark:bg-slate-800 rounded p-2 font-mono text-[10px] break-all select-all">
               {enrollment.secret}
             </code>
             <p className="text-slate-500 dark:text-slate-400">Algorithm: SHA1, Digits: 6, Period: 30s</p>
           </div>
         </div>
-        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">Шаг 2 — Подтвердите код</p>
+        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">{t("common.twoFactor.step2")}</p>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-          Введите 6-значный код из приложения.
+          {t("common.twoFactor.step2Hint")}
         </p>
         <input
           inputMode="numeric"
@@ -157,14 +159,14 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
             onClick={finishEnroll}
             className="rounded-lg border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm text-slate-600 dark:text-slate-400"
           >
-            Отмена
+            {t("common.actions.cancel")}
           </button>
           <button
             onClick={confirmEnroll}
             disabled={pending || code.length !== 6}
             className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-60"
           >
-            {pending ? "Проверка..." : "Включить 2FA"}
+            {pending ? t("common.actions.checking") : t("common.twoFactor.enable")}
           </button>
         </div>
       </div>
@@ -174,10 +176,9 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
   if (step === "backup" && backupCodes) {
     return (
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-amber-200 dark:border-amber-500/30 p-5">
-        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">⚠ Сохраните резервные коды</p>
+        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-1">{t("common.twoFactor.backupTitle")}</p>
         <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
-          Эти коды показываются один раз. Каждый можно использовать однократно если приложение недоступно.
-          Сохраните в менеджер паролей или распечатайте.
+          {t("common.twoFactor.backupHint")}
         </p>
         <div className="grid grid-cols-2 gap-2 mb-3">
           {backupCodes.map((c) => (
@@ -192,13 +193,13 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
             className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 py-2 text-sm font-medium"
           >
             {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-            {copied ? "Скопировано" : "Копировать все"}
+            {copied ? t("common.actions.copied") : t("common.twoFactor.copyAll")}
           </button>
           <button
             onClick={finishEnroll}
             className="flex-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white py-2 text-sm font-medium"
           >
-            Я сохранил
+            {t("common.twoFactor.saved")}
           </button>
         </div>
       </div>
@@ -212,19 +213,19 @@ export function TwoFactorCard({ enabled }: { enabled: boolean }) {
           <Shield className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Двухфакторная аутентификация</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Дополнительный код из приложения при каждом входе</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.twoFactor.title")}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t("common.twoFactor.offHint")}</p>
         </div>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-        Защищает аккаунт даже если пароль украден. Рекомендуется для админов и владельцев.
+        {t("common.twoFactor.why")}
       </p>
       <button
         onClick={startEnroll}
         disabled={pending}
         className="rounded-lg bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 text-sm font-medium disabled:opacity-60"
       >
-        {pending ? "..." : "Включить 2FA"}
+        {pending ? "…" : t("common.twoFactor.enable")}
       </button>
     </div>
   )

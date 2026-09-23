@@ -7,19 +7,20 @@
 
 export type RoomStatus = "VACANT" | "OCCUPIED" | "EXPIRING" | "MAINTENANCE" | "COMMON"
 
+// Только цвета: подписи статусов живут в словаре (adminObjects.map.status),
+// иначе модуль визуальной системы пришлось бы дублировать на каждый язык.
 export type StatusStyle = {
   fill: string
   edge: string
   ink: string
-  label: string
 }
 
 export const STATUS_STYLE: Record<RoomStatus, StatusStyle> = {
-  VACANT: { fill: "#e3f5ee", edge: "#0d9b6c", ink: "#0a5c41", label: "Свободно" },
-  OCCUPIED: { fill: "#eaf0fe", edge: "#1f54d6", ink: "#143a9e", label: "Занято" },
-  EXPIRING: { fill: "#fdf0e2", edge: "#e8762b", ink: "#a8480f", label: "Освобождается" },
-  MAINTENANCE: { fill: "#f4f6f9", edge: "#9aa3b5", ink: "#4f596d", label: "Не сдаётся" },
-  COMMON: { fill: "#ffffff", edge: "#dfe4ee", ink: "#8b94a6", label: "Общая зона" },
+  VACANT: { fill: "#e3f5ee", edge: "#0d9b6c", ink: "#0a5c41" },
+  OCCUPIED: { fill: "#eaf0fe", edge: "#1f54d6", ink: "#143a9e" },
+  EXPIRING: { fill: "#fdf0e2", edge: "#e8762b", ink: "#a8480f" },
+  MAINTENANCE: { fill: "#f4f6f9", edge: "#9aa3b5", ink: "#4f596d" },
+  COMMON: { fill: "#ffffff", edge: "#dfe4ee", ink: "#8b94a6" },
 }
 
 // Порядок в легенде и в фильтрах
@@ -71,15 +72,5 @@ export type TenantCategory =
   | "office"
   | "other"
 
-export const CATEGORY_LABEL: Record<TenantCategory, string> = {
-  retail: "Одежда и товары",
-  food: "Еда и кафе",
-  services: "Услуги",
-  beauty: "Красота",
-  kids: "Детское",
-  electronics: "Техника",
-  health: "Здоровье",
-  bank: "Банк",
-  office: "Офис",
-  other: "Прочее",
-}
+// Подписи категорий — в словаре (adminObjects.map.category). На плане категория
+// показана иконкой, подпись нужна для наведения и для чтения с экрана.

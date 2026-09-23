@@ -7,17 +7,21 @@ import {
   updateMyNotificationSettings,
   type NotificationSettings,
 } from "@/app/actions/notification-settings"
+import { useT } from "@/lib/i18n/client"
 
-const NOTIFICATION_TYPES: { type: string; label: string; description: string }[] = [
-  { type: "PAYMENT_DUE", label: "Платежи и счета", description: "Просрочки, ожидаемые платежи, поступления" },
-  { type: "CONTRACT_EXPIRING", label: "Договоры", description: "Истечение договоров, продление" },
-  { type: "DOCUMENT_INVOICE", label: "Документы", description: "Новые счета, акты, договоры" },
-  { type: "NEW_REQUEST", label: "Заявки", description: "Новые заявки на обслуживание" },
-  { type: "REQUEST_STATUS_CHANGED", label: "Статус заявки", description: "Изменения статусов заявок" },
-  { type: "MESSAGE_RECEIVED", label: "Сообщения", description: "Личные и общие сообщения" },
+// Тип события и ключ его подписи в словаре: сам текст живёт там,
+// здесь остаётся только связь с кодом события из базы.
+const NOTIFICATION_TYPES: { type: string; key: string }[] = [
+  { type: "PAYMENT_DUE", key: "paymentDue" },
+  { type: "CONTRACT_EXPIRING", key: "contractExpiring" },
+  { type: "DOCUMENT_INVOICE", key: "documentInvoice" },
+  { type: "NEW_REQUEST", key: "newRequest" },
+  { type: "REQUEST_STATUS_CHANGED", key: "requestStatus" },
+  { type: "MESSAGE_RECEIVED", key: "messageReceived" },
 ]
 
 export function NotificationSettingsForm({ initial }: { initial: NotificationSettings }) {
+  const { t } = useT()
   const [settings, setSettings] = useState<NotificationSettings>(initial)
   const [pending, startTransition] = useTransition()
 
@@ -25,8 +29,8 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
     setSettings((s) => ({ ...s, ...next }))
     startTransition(async () => {
       const r = await updateMyNotificationSettings(next)
-      if (r.ok) toast.success("Настройки сохранены")
-      else toast.error(r.error ?? "Ошибка")
+      if (r.ok) toast.success(t("common.profile.settingsSaved"))
+      else toast.error(r.error ?? t("common.state.error"))
     })
   }
 
@@ -37,7 +41,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
   function toggleType(type: string) {
     const isMuted = settings.mutedTypes.includes(type)
     const next = isMuted
-      ? settings.mutedTypes.filter((t) => t !== type)
+      ? settings.mutedTypes.filter((muted) => muted !== type)
       : [...settings.mutedTypes, type]
     save({ mutedTypes: next })
   }
@@ -47,15 +51,19 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
       {/* Каналы */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Каналы доставки</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Где получать уведомления</p>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {t("common.profile.channels")}
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {t("common.profile.channelsHint")}
+          </p>
         </div>
         <div className="divide-y divide-slate-50 dark:divide-slate-800">
           <ChannelRow
             icon={Bell}
             color="text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-500/10"
-            label="В приложении"
-            description="Колокольчик в шапке"
+            label={t("common.profile.channelInApp")}
+            description={t("common.profile.channelInAppHint")}
             enabled={settings.notifyInApp}
             onToggle={() => toggleChannel("notifyInApp")}
             disabled={pending}
@@ -64,7 +72,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
             icon={Mail}
             color="text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-500/10"
             label="Email"
-            description="На вашу электронную почту"
+            description={t("common.profile.channelEmailHint")}
             enabled={settings.notifyEmail}
             onToggle={() => toggleChannel("notifyEmail")}
             disabled={pending}
@@ -73,7 +81,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
             icon={Send}
             color="text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-500/10"
             label="Telegram"
-            description="В привязанный аккаунт Telegram"
+            description={t("common.profile.channelTelegramHint")}
             enabled={settings.notifyTelegram}
             onToggle={() => toggleChannel("notifyTelegram")}
             disabled={pending}
@@ -82,7 +90,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
             icon={MessageCircle}
             color="text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"
             label="SMS"
-            description="Только для критичных уведомлений (платежи, договоры). Платно."
+            description={t("common.profile.channelSmsHint")}
             enabled={settings.notifySms}
             onToggle={() => toggleChannel("notifySms")}
             disabled={pending}
@@ -93,19 +101,21 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
       {/* Типы событий */}
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">События</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+            {t("common.profile.events")}
+          </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Снимите галочку чтобы отключить уведомления о выбранных событиях
+            {t("common.profile.eventsHint")}
           </p>
         </div>
         <div className="divide-y divide-slate-50 dark:divide-slate-800">
-          {NOTIFICATION_TYPES.map((t) => {
-            const isEnabled = !settings.mutedTypes.includes(t.type)
+          {NOTIFICATION_TYPES.map((row) => {
+            const isEnabled = !settings.mutedTypes.includes(row.type)
             return (
               <button
-                key={t.type}
+                key={row.type}
                 type="button"
-                onClick={() => toggleType(t.type)}
+                onClick={() => toggleType(row.type)}
                 disabled={pending}
                 className="w-full px-5 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition text-left disabled:opacity-60"
               >
@@ -117,8 +127,14 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
                   {isEnabled && <Check className="h-3 w-3 text-white" />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t.label}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{t.description}</p>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                    {t(`common.profile.eventTypes.${row.key}` as "common.profile.eventTypes.paymentDue")}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t(
+                      `common.profile.eventTypes.${row.key}Hint` as "common.profile.eventTypes.paymentDueHint",
+                    )}
+                  </p>
                 </div>
               </button>
             )
@@ -127,7 +143,7 @@ export function NotificationSettingsForm({ initial }: { initial: NotificationSet
       </div>
 
       <p className="text-xs text-slate-400 dark:text-slate-500">
-        Изменения сохраняются автоматически.
+        {t("common.profile.autoSaved")}
       </p>
     </div>
   )

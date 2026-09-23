@@ -4,7 +4,7 @@ import Link from "next/link"
 import { AlertTriangle, Edit2, History, LogIn, PlusCircle, ShieldAlert, Trash2 } from "lucide-react"
 import type { Prisma } from "@/app/generated/prisma/client"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { HISTORY_TABS } from "@/lib/hub-tabs"
+import { historyTabs } from "@/lib/hub-tabs"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
 import { requireOwner } from "@/lib/permissions"
@@ -69,7 +69,10 @@ export default async function AuditPage({
 }) {
   await requireOwner()
   const { orgId } = await requireOrgAccess()
-  const { t } = await getT()
+  // Журналу нужен весь переводчик, а не только t: фраза строится из шаблона
+  // словаря, а время — по локали (lib/audit-humanize).
+  const tr = await getT()
+  const { t } = tr
   const resolvedSearchParams = await searchParams
   const selectedFilter = normalizeFilter(resolvedSearchParams?.type)
   const page = normalizePage(resolvedSearchParams?.page)
@@ -107,7 +110,7 @@ export default async function AuditPage({
 
   return (
     <div className="max-w-6xl space-y-5">
-      <RouteTabs items={HISTORY_TABS} className="mb-2" />
+      <RouteTabs items={historyTabs(t)} className="mb-2" />
 
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.audit.title")}</h1>
@@ -150,18 +153,18 @@ export default async function AuditPage({
             {logs.map((log) => {
               const style = ACTION_STYLE[log.action] ?? { icon: History, className: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" }
               const Icon = style.icon
-              const trace = auditTrace(log)
+              const trace = auditTrace(log, tr)
               return (
                 <li key={log.id} className="flex items-start gap-3 px-4 py-3">
                   <span className={cn("mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full", style.className)}>
                     <Icon className="h-3.5 w-3.5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-slate-900 dark:text-slate-100">{auditSentence(log)}</p>
+                    <p className="text-sm text-slate-900 dark:text-slate-100">{auditSentence(log, tr)}</p>
                     {trace && <p className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">{trace}</p>}
                   </div>
                   <span className="shrink-0 whitespace-nowrap text-xs text-slate-400 dark:text-slate-500">
-                    {auditWhen(log.createdAt, now)}
+                    {auditWhen(log.createdAt, tr, now)}
                   </span>
                 </li>
               )

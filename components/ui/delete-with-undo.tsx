@@ -5,6 +5,7 @@ import { Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { ConfirmDialog } from "./confirm-dialog"
+import { useT } from "@/lib/i18n/client"
 
 type ActionResult = { ok: true } | { ok: false; error: string } | void
 
@@ -35,17 +36,19 @@ interface DeleteWithUndoProps {
 export function DeleteWithUndo({
   deleteAction,
   restoreAction,
-  entity = "элемент",
+  entity,
   description,
-  confirmLabel = "Удалить",
+  confirmLabel,
   successMessage,
-  restoreMessage = "Восстановлено",
+  restoreMessage,
   duration = 6000,
   trigger,
   size = "sm",
   disabled,
 }: DeleteWithUndoProps) {
+  const { t } = useT()
   const router = useRouter()
+  const what = entity ?? t("common.deleteDialog.entity")
   const [pending, startTransition] = useTransition()
 
   if (disabled) return null
@@ -56,7 +59,7 @@ export function DeleteWithUndo({
       type="button"
       disabled={pending}
       className="text-red-400 hover:text-red-600 dark:text-red-400 disabled:opacity-50 inline-flex items-center"
-      aria-label={`Удалить ${entity}`}
+      aria-label={t("common.deleteDialog.ariaLabel", { entity: what })}
     >
       <Trash2 className={sizeClass} />
     </button>
@@ -64,10 +67,10 @@ export function DeleteWithUndo({
 
   return (
     <ConfirmDialog
-      title={`Удалить ${entity}?`}
-      description={description ?? "Запись будет помещена в корзину. Сразу после действия можно отменить."}
+      title={t("common.deleteDialog.title", { entity: what })}
+      description={description ?? t("common.undo.description")}
       variant="danger"
-      confirmLabel={confirmLabel}
+      confirmLabel={confirmLabel ?? t("common.actions.delete")}
       onConfirm={() =>
         new Promise<void>((resolve) => {
           startTransition(async () => {
@@ -78,10 +81,10 @@ export function DeleteWithUndo({
                 return
               }
               router.refresh()
-              toast.success(successMessage ?? `${capitalize(entity)} удалён`, {
+              toast.success(successMessage ?? t("common.undo.deleted", { entity: capitalize(what) }), {
                 duration,
                 action: {
-                  label: "Отменить",
+                  label: t("common.actions.undo"),
                   onClick: async () => {
                     const r = await restoreAction()
                     if (!r.ok) {
@@ -89,12 +92,12 @@ export function DeleteWithUndo({
                       return
                     }
                     router.refresh()
-                    toast.success(restoreMessage)
+                    toast.success(restoreMessage ?? t("common.undo.restored"))
                   },
                 },
               })
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Не удалось удалить")
+              toast.error(e instanceof Error ? e.message : t("common.deleteDialog.failed"))
             } finally {
               resolve()
             }

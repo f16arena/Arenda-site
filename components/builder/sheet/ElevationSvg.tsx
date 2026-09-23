@@ -4,6 +4,7 @@
 import type { ElevationDrawing, EItem } from "@/lib/builder/drawing/elevation"
 import type { Sheet } from "@/lib/builder/drawing/floor-drawing"
 import { STAMP } from "@/lib/builder/drawing/floor-drawing"
+import { useT } from "@/lib/i18n/client"
 
 const SCALES = [50, 75, 100, 125, 150, 200, 250, 300, 400, 500]
 /** поля под цепочку высот слева и отметки справа, мм листа */
@@ -37,6 +38,7 @@ function fillOf(it: Extract<EItem, { t: "poly" }>): { fill: string; stroke: stri
 }
 
 export function ElevationSvgBody({ d, sheet, title }: { d: ElevationDrawing; sheet: Sheet; title: string }) {
+  const { t } = useT()
   const { w, h, scale } = sheet
   const dw = (d.bounds.maxU - d.bounds.minU) / scale
   const dh = (d.bounds.maxZ - d.bounds.minZ) / scale
@@ -114,9 +116,9 @@ export function ElevationSvgBody({ d, sheet, title }: { d: ElevationDrawing; she
       <text x={(areaX0 + areaX1) / 2} y={Math.max(14, Y(d.bounds.maxZ) - 10)} fontSize={5} textAnchor="middle">
         {/* по ГОСТ фасад называют по крайним осям: «Фасад 1—2» */}
         {title}
-        {(d.axes?.length ?? 0) >= 2 ? ` в осях ${d.axes[0].label}—${d.axes[d.axes.length - 1].label}` : ""}
+        {(d.axes?.length ?? 0) >= 2 ? t("adminBuilderSheet.sheet.inAxes", { from: d.axes[0].label, to: d.axes[d.axes.length - 1].label }) : ""}
         {"  "}
-        <tspan fontSize={3.5}>М 1:{scale}</tspan>
+        <tspan fontSize={3.5}>{t("adminBuilderSheet.sheet.scaleMark", { scale })}</tspan>
       </text>
     </g>
   )

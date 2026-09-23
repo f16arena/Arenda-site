@@ -21,6 +21,7 @@ import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 import {
   ACTION_CAPABILITIES,
   CAPABILITY_PERMISSION_PREFIX,
+  capabilityLabel,
   capabilityPermissionKey,
 } from "@/lib/capabilities"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
@@ -30,7 +31,7 @@ import { getRelationshipIntegrityOverview } from "@/lib/relationship-integrity"
 import { RelationshipIntegrityPanelLazy } from "./relationship-integrity-panel-lazy"
 import { PageHeader, StatCard } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { HEALTH_TABS } from "@/lib/hub-tabs"
+import { healthTabs } from "@/lib/hub-tabs"
 
 type Severity = "critical" | "warning" | "info"
 
@@ -577,7 +578,7 @@ export default async function DataQualityPage() {
         id: `${row.role}:${row.section}`,
         label: displayRoleLabel(row.role),
         meta: t("adminSettings.dataQuality.issues.highRiskRoleCaps.meta", {
-          capability: capability?.label ?? row.section,
+          capability: capability ? capabilityLabel(t, capability) : row.section,
           mode: row.canEdit
             ? t("adminSettings.dataQuality.issues.highRiskRoleCaps.modeFull")
             : t("adminSettings.dataQuality.issues.highRiskRoleCaps.modeView"),
@@ -598,7 +599,7 @@ export default async function DataQualityPage() {
         id: `${row.role}:${row.section}`,
         label: user?.name ?? t("adminSettings.dataQuality.issues.personalOverrides.someUser"),
         meta: t("adminSettings.dataQuality.issues.personalOverrides.meta", {
-          capability: capability?.label ?? row.section,
+          capability: capability ? capabilityLabel(t, capability) : row.section,
           mode: row.canView || row.canEdit
             ? t("adminSettings.dataQuality.issues.personalOverrides.modeAllow")
             : t("adminSettings.dataQuality.issues.personalOverrides.modeDeny"),
@@ -862,7 +863,7 @@ export default async function DataQualityPage() {
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={HEALTH_TABS} className="mb-2" />
+      <RouteTabs items={healthTabs(t)} className="mb-2" />
       <PageHeader
         icon={ClipboardCheck}
         title={t("adminSettings.dataQuality.title")}

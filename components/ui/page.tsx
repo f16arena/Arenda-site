@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react"
 import type { ElementType, ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { TONE_CHIP, TONE_TEXT, TONE_BADGE, type Tone } from "@/lib/ui-tones"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Централизованные строительные блоки админ-страниц. Собирай страницу из них —
@@ -15,7 +16,7 @@ import { TONE_CHIP, TONE_TEXT, TONE_BADGE, type Tone } from "@/lib/ui-tones"
  */
 
 /** Шапка страницы: иконка в цветной плашке + заголовок/подзаголовок + действия справа. */
-export function PageHeader({
+export async function PageHeader({
   title,
   subtitle,
   icon: Icon,
@@ -30,13 +31,14 @@ export function PageHeader({
   actions?: ReactNode
   backHref?: string
 }) {
+  const { t } = await getT()
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         {backHref && (
           <Link
             href={backHref}
-            aria-label="Назад"
+            aria-label={t("common.actions.back")}
             className="text-slate-400 hover:text-slate-900 dark:text-slate-500 dark:hover:text-slate-100"
           >
             <ArrowLeft className="h-5 w-5" />

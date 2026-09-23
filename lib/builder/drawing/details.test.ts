@@ -3,6 +3,12 @@ import { buildDetails, structureSizes } from "./details"
 import { detailsToDxf } from "./dxf"
 import type { Floor } from "@/types/builder"
 
+import { createTranslator } from "@/lib/i18n/translate"
+import { ru } from "@/lib/i18n/messages"
+
+// Тексты на листах собираются переводчиком — в тестах берём русский словарь.
+const { t } = createTranslator("ru", ru)
+
 function floor(extra: Partial<Floor> = {}): Floor {
   return {
     id: "f1",
@@ -54,31 +60,31 @@ describe("structureSizes", () => {
 
 describe("buildDetails", () => {
   it("четыре узла: цоколь, перекрытие, окно, кровля", () => {
-    const d = buildDetails({ floors: [floor()] })
+    const d = buildDetails({ floors: [floor()] }, t)
     expect(d).toHaveLength(4)
     expect(d.map((x) => x.mark)).toEqual(["Узел 1", "Узел 2", "Узел 3", "Узел 4"])
   })
 
   it("плоская кровля даёт узел парапета, скатная — карниз", () => {
-    const flat = buildDetails({ floors: [floor({ roof: { type: "flat", pitchDeg: 0, overhang: 300, thickness: 300 } } as unknown as Partial<Floor>)] })
-    const gable = buildDetails({ floors: [floor({ roof: { type: "gable", pitchDeg: 30, overhang: 500, thickness: 300 } } as unknown as Partial<Floor>)] })
+    const flat = buildDetails({ floors: [floor({ roof: { type: "flat", pitchDeg: 0, overhang: 300, thickness: 300 } } as unknown as Partial<Floor>)] }, t)
+    const gable = buildDetails({ floors: [floor({ roof: { type: "gable", pitchDeg: 30, overhang: 500, thickness: 300 } } as unknown as Partial<Floor>)] }, t)
     expect(flat[3].title).toMatch(/парапет/i)
     expect(gable[3].title).toMatch(/карниз/i)
   })
 
   it("толщина стены из модели попадает в узел и в выноску", () => {
-    const [d1] = buildDetails({ floors: [floor()] })
+    const [d1] = buildDetails({ floors: [floor()] }, t)
     expect(d1.notes.some((n) => n.text.includes("510"))).toBe(true)
     expect(d1.dims.some((x) => x.text === "510")).toBe(true)
   })
 
   it("оконный узел берёт размеры реального окна", () => {
-    const d = buildDetails({ floors: [floor()] })
+    const d = buildDetails({ floors: [floor()] }, t)
     expect(d[2].notes.some((n) => n.text.includes("1500×1500"))).toBe(true)
   })
 
   it("у каждого узла есть состав слоёв и непустой габарит", () => {
-    for (const d of buildDetails({ floors: [floor()] })) {
+    for (const d of buildDetails({ floors: [floor()] }, t)) {
       expect(d.layers.length).toBeGreaterThan(2)
       expect(d.box.maxX - d.box.minX).toBeGreaterThan(0)
       expect(d.box.maxY - d.box.minY).toBeGreaterThan(0)
@@ -93,14 +99,14 @@ describe("buildDetails", () => {
         { id: "o1", wallId: "w1", type: "window", variant: "single", width: 1200, height: 1400, sillHeight: 900, offset: 1000 },
       ],
     } as unknown as Partial<Floor>)
-    const d = buildDetails({ floors: [f] })
+    const d = buildDetails({ floors: [f] }, t)
     expect(d[2].notes.some((n) => n.text.includes("1200×1400"))).toBe(true)
   })
 })
 
 describe("узлы в DXF", () => {
   it("выгрузка содержит слои, линии и подписи", () => {
-    const dxf = detailsToDxf(buildDetails({ floors: [floor()] }), "Узлы")
+    const dxf = detailsToDxf(buildDetails({ floors: [floor()] }, t), "Узлы")
     const rows = dxf.split(String.fromCharCode(10)).map((r) => r.trim().replace(String.fromCharCode(13), ""))
     const count = (name: string) => rows.filter((r) => r === name).length
     expect(count("LINE")).toBeGreaterThan(50)
@@ -110,7 +116,7 @@ describe("узлы в DXF", () => {
   })
 
   it("узлы не накладываются друг на друга", () => {
-    const dxf = detailsToDxf(buildDetails({ floors: [floor()] }), "Узлы")
+    const dxf = detailsToDxf(buildDetails({ floors: [floor()] }, t), "Узлы")
     // координаты X у второго узла сдвинуты вправо — раскладка по два в ряд
     expect(dxf.length).toBeGreaterThan(1000)
   })

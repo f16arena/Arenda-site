@@ -6,6 +6,8 @@ import { toast } from "sonner"
 import { sendMessage, markConversationRead, deleteMessage } from "@/app/actions/messages"
 import { cn } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useT } from "@/lib/i18n/client"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 
 export type ChatUser = {
   id: string
@@ -39,15 +41,20 @@ interface ChatViewProps {
 
 const BROADCAST_ID = "BROADCAST_ALL"
 
-const ROLE_LABELS: Record<string, string> = {
-  OWNER: "Владелец",
-  ADMIN: "Админ",
-  ACCOUNTANT: "Бухгалтер",
-  FACILITY_MANAGER: "Завхоз",
-  TENANT: "Арендатор",
+// Роли живут в common.roles: чат открыт и в админке, и в кабинете, а раздел
+// domain в кабинет не уезжает.
+const ROLE_KEYS: Record<string, string> = {
+  OWNER: "common.roles.OWNER",
+  ADMIN: "common.roles.ADMIN",
+  ACCOUNTANT: "common.roles.ACCOUNTANT",
+  FACILITY_MANAGER: "common.roles.FACILITY_MANAGER",
+  TENANT: "common.roles.TENANT",
 }
 
 export function ChatView({ currentUserId, contacts, messagesByContact, showBroadcast, canSend = true }: ChatViewProps) {
+  const { t, locale } = useT()
+  // Роль незнакомого кода показываем как есть — лучше код, чем пустое место.
+  const roleLabel = (role: string) => (ROLE_KEYS[role] ? t(ROLE_KEYS[role] as "common.roles.OWNER") : role)
   const [selectedId, setSelectedId] = useState<string | null>(contacts[0]?.id ?? null)
   const [pending, startTransition] = useTransition()
   const formRef = useRef<HTMLFormElement>(null)
@@ -74,7 +81,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
         await sendMessage(formData)
         formRef.current?.reset()
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Не удалось отправить")
+        toast.error(e instanceof Error ? e.message : t("common.chat.sendFailed"))
       }
     })
   }
@@ -84,7 +91,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
       {/* Sidebar */}
       <div className="border-r border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Контакты</p>
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t("common.chat.contacts")}</p>
         </div>
         <div className="flex-1 overflow-y-auto">
           {showBroadcast && (
@@ -100,14 +107,14 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                 <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Всем (объявление)</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Отправить всем участникам</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{t("common.chat.broadcast")}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("common.chat.broadcastHint")}</p>
               </div>
             </button>
           )}
 
           {contacts.length === 0 && !showBroadcast && (
-            <p className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет контактов</p>
+            <p className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t("common.chat.noContacts")}</p>
           )}
 
           {contacts.map((c) => (
@@ -133,7 +140,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                   )}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                  {ROLE_LABELS[c.role] ?? c.role}
+                  {roleLabel(c.role)}
                   {c.lastMessage && ` · ${c.lastMessage.slice(0, 30)}`}
                 </p>
               </div>
@@ -146,7 +153,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
       <div className="flex flex-col overflow-hidden">
         {!selectedId ? (
           <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-slate-400 dark:text-slate-500">Выберите контакт чтобы начать</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t("common.chat.pickContact")}</p>
           </div>
         ) : (
           <>
@@ -158,8 +165,8 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                     <Megaphone className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Объявление всем</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Сообщение придёт каждому участнику</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.chat.broadcastTitle")}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t("common.chat.broadcastSubtitle")}</p>
                   </div>
                 </>
               ) : selectedContact ? (
@@ -169,7 +176,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{selectedContact.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{ROLE_LABELS[selectedContact.role] ?? selectedContact.role}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{roleLabel(selectedContact.role)}</p>
                   </div>
                 </>
               ) : null}
@@ -181,15 +188,15 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center max-w-sm">
                     <Megaphone className="h-10 w-10 text-amber-300 mx-auto mb-3" />
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Режим объявления</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("common.chat.broadcastMode")}</p>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      Напишите сообщение и оно будет отправлено всем активным пользователям системы как личное сообщение от вас.
+                      {t("common.chat.broadcastModeHint")}
                     </p>
                   </div>
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-sm text-slate-400 dark:text-slate-500">Нет сообщений. Напишите первым.</p>
+                  <p className="text-sm text-slate-400 dark:text-slate-500">{t("common.chat.noMessages")}</p>
                 </div>
               ) : (
                 messages.map((m) => {
@@ -222,18 +229,18 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                             )}
                           >
                             <Paperclip className="h-3 w-3" />
-                            Вложение
+                            {t("common.chat.attachment")}
                           </a>
                         )}
                         <div className={cn("text-[10px] mt-1 flex items-center gap-2", isMine ? "text-blue-100" : "text-slate-400 dark:text-slate-500")}>
-                          <span>{new Date(m.createdAt).toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</span>
+                          <span>{new Date(m.createdAt).toLocaleString(INTL_LOCALE[locale], { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}</span>
                           {isMine && (m.isRead ? <span>✓✓</span> : <span>✓</span>)}
                         </div>
                         {isMine && (
                           <ConfirmDialog
                             variant="danger"
-                            title="Удалить сообщение?"
-                            confirmLabel="Удалить"
+                            title={t("common.chat.deleteTitle")}
+                            confirmLabel={t("common.actions.delete")}
                             onConfirm={() => {
                               deleteMessage(m.id).catch((e) => toast.error(e.message))
                             }}
@@ -241,7 +248,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                               <button
                                 type="button"
                                 className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
-                                aria-label="Удалить"
+                                aria-label={t("common.actions.delete")}
                               >
                                 <Trash2 className="h-3 w-3" />
                               </button>
@@ -266,7 +273,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
               {selectedId === BROADCAST_ID && (
                 <input
                   name="subject"
-                  placeholder="Тема объявления (необязательно)"
+                  placeholder={t("common.chat.subjectPlaceholder")}
                   className="w-full mb-2 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                 />
               )}
@@ -275,7 +282,7 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                   name="body"
                   required
                   rows={2}
-                  placeholder="Введите сообщение..."
+                  placeholder={t("common.chat.bodyPlaceholder")}
                   className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none resize-none"
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
@@ -287,14 +294,14 @@ export function ChatView({ currentUserId, contacts, messagesByContact, showBroad
                 <button
                   type="submit"
                   disabled={pending}
-                  aria-label="Отправить сообщение"
-                  title="Отправить сообщение"
+                  aria-label={t("common.chat.sendAria")}
+                  title={t("common.chat.sendAria")}
                   className="rounded-lg bg-slate-900 text-white px-4 py-2.5 hover:bg-slate-800 disabled:opacity-60"
                 >
                   <Send className="h-4 w-4" />
                 </button>
               </div>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Enter — отправить, Shift+Enter — новая строка</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{t("common.chat.hotkeys")}</p>
             </form>
             )}
           </>

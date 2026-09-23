@@ -19,6 +19,7 @@ import {
 import { emptyGraph, type WallDefaults } from "@/core/geometry/wall-graph"
 import type { Vec2 } from "@/core/geometry/math"
 import { findPreset } from "@/lib/builder/openings"
+import { floorName, type ProjectNames } from "@/lib/builder/demo-project"
 
 // Валидация мягкая (без min/max — кламп делаем в buildDocFromSpec), т.к. Anthropic
 // structured output не принимает minimum/maximum для integer.
@@ -58,10 +59,13 @@ export const BUILDING_SPEC_JSONSCHEMA = {
 
 const FLOOR_HEIGHT = 3500
 
-function makeFloor(level: number): Floor {
+// Имена уровней и проекта попадают в базу как данные, которые пользователь
+// потом видит и правит, — поэтому приходят готовыми на его языке (как в
+// buildEmptyProject). Без них остаются русские значения по умолчанию.
+function makeFloor(level: number, names?: ProjectNames): Floor {
   return {
     id: uid("f"),
-    name: level <= 0 ? (level === 0 ? "Подвал" : `Подвал ${1 - level}`) : `${level} этаж`,
+    name: floorName(level, names),
     level,
     elevation: level * FLOOR_HEIGHT,
     height: FLOOR_HEIGHT,
@@ -82,7 +86,7 @@ function makeFloor(level: number): Floor {
 
 const p = (x: number, y: number): Vec2 => ({ x, y })
 
-export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
+export function buildDocFromSpec(raw: BuildingSpec, names?: ProjectNames): BuilderDocument {
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? v : lo))
   const spec: BuildingSpec = {
     ...raw,
@@ -98,11 +102,17 @@ export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
   const EXT: WallDefaults = { thickness: 300, height: FLOOR_HEIGHT, kind: "exterior" }
   const INT: WallDefaults = { thickness: 150, height: FLOOR_HEIGHT, kind: "interior" }
 
-  const building: Building = { id: uid("b"), name: spec.name.slice(0, 80) || "Здание", origin: { x: 0, y: 0 }, floors: [], sections: [] }
+  const building: Building = {
+    id: uid("b"),
+    name: spec.name.slice(0, 80) || names?.building || "Здание",
+    origin: { x: 0, y: 0 },
+    floors: [],
+    sections: [],
+  }
   let doc: BuilderDocument = {
     id: uid("proj"),
     schemaVersion: 1,
-    name: spec.name.slice(0, 80) || "AI-проект",
+    name: spec.name.slice(0, 80) || names?.project || "AI-проект",
     site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [], pavements: [] },
     buildings: [],
   }
@@ -118,7 +128,7 @@ export function buildDocFromSpec(raw: BuildingSpec): BuilderDocument {
 
   const floors: Floor[] = []
   for (const level of levels) {
-    const f = makeFloor(level)
+    const f = makeFloor(level, names)
     floors.push(f)
     run(new AddFloorCommand(building.id, f))
     const ext: WallDefaults = { ...EXT, kind: "exterior" }

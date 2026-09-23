@@ -8,15 +8,17 @@ import { assertFloorInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { assertFloorAssignableToOneTenant } from "@/lib/full-floor-guards"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { isZoneFloor } from "@/lib/zone-kinds"
+import { getT } from "@/lib/i18n/server"
 
 export async function assignFullFloor(floorId: string, tenantId: string, fixedRent: number) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.assignSpaces")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
   await assertTenantInOrg(tenantId, orgId)
 
   if (!Number.isFinite(fixedRent) || fixedRent <= 0) {
-    throw new Error("Сумма аренды должна быть больше 0")
+    throw new Error(t("actions.floorAssignment.rentPositive"))
   }
   const normalizedFixedRent = Math.round(fixedRent * 100) / 100
 
@@ -32,12 +34,12 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
       building: { select: { name: true } },
     },
   })
-  if (!targetFloor) throw new Error("Этаж не найден")
+  if (!targetFloor) throw new Error(t("actions.common.floorNotFound"))
   // Крыша и территория — общие зоны с местами разных арендаторов (киоски,
   // антенны). «Этаж целиком» на них блокировал всех остальных (случай 20.09:
   // территория ушла одному киоску, и второй киоск было не посадить).
   if (isZoneFloor(targetFloor.kind)) {
-    throw new Error("Крышу и территорию нельзя сдать целиком — посадите арендатора на конкретное место")
+    throw new Error(t("actions.floorAssignment.zoneNotWhole"))
   }
 
   const tenant = await db.tenant.findUnique({
@@ -88,7 +90,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
       },
     },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
 
   const currentBuildingIds = [
     tenant.space?.floor.buildingId,
@@ -101,11 +103,11 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
       tenant.space?.floor.building.name ??
       tenant.tenantSpaces.find((item) => item.space.floor.buildingId === otherBuildingId)?.space.floor.building.name ??
       tenant.fullFloors.find((floor) => floor.buildingId === otherBuildingId)?.building.name ??
-      "другое здание"
-    throw new Error(
-      `Арендатор «${tenant.companyName}» уже привязан к зданию «${otherBuildingName}». ` +
-        `Нельзя смешивать этажи из разных зданий. Сначала снимите старую привязку или выберите этаж в том же здании.`,
-    )
+      t("actions.floorAssignment.otherBuildingFallback")
+    throw new Error(t("actions.floorAssignment.mixedBuildings", {
+      tenant: tenant.companyName,
+      building: otherBuildingName,
+    }))
   }
 
   const linkedSpaces = [
@@ -164,6 +166,7 @@ export async function assignFullFloor(floorId: string, tenantId: string, fixedRe
           area,
           status: "OCCUPIED",
           kind: "RENTABLE",
+          // description помещения попадает в договор и счёт — остаётся русским.
           description: `Весь этаж «${floor?.name ?? ""}» — авто-создано при сдаче целиком`,
         },
         select: { id: true },

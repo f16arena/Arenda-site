@@ -21,8 +21,9 @@ import type { Result } from "./my-account"
  */
 export async function changeOwnPassword(formData: FormData): Promise<Result> {
   const session = await auth()
+  const { t } = await getT()
   if (!session?.user?.id) {
-    return { ok: false, error: "Вы не авторизованы" }
+    return { ok: false, error: t("actions.common.noAccess") }
   }
 
   // Rate limit: 10 попыток за 10 минут — защита от brute-force текущего пароля
@@ -34,7 +35,7 @@ export async function changeOwnPassword(formData: FormData): Promise<Result> {
   if (!rl.ok) {
     return {
       ok: false,
-      error: `Слишком много попыток. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      error: t("actions.common.tooManyAttempts", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
     }
   }
 
@@ -52,10 +53,10 @@ export async function changeOwnPassword(formData: FormData): Promise<Result> {
     where: { id: session.user.id },
     select: { id: true, password: true },
   })
-  if (!user) return { ok: false, error: "Пользователь не найден" }
+  if (!user) return { ok: false, error: t("actions.common.userNotFound") }
 
   const valid = await bcrypt.compare(currentPassword, user.password)
-  if (!valid) return { ok: false, error: "Текущий пароль неверный" }
+  if (!valid) return { ok: false, error: t("actions.myAccount.currentPasswordWrong") }
 
   const newHash = await bcrypt.hash(newPassword, 10)
   await db.user.update({
@@ -67,5 +68,5 @@ export async function changeOwnPassword(formData: FormData): Promise<Result> {
     },
   })
 
-  return { ok: true, message: "Пароль успешно изменён" }
+  return { ok: true, message: t("actions.myAccount.passwordChanged") }
 }

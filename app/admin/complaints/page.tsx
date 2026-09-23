@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { CheckCircle, MessagesSquare } from "lucide-react"
 import { RespondButton } from "./complaint-actions"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { SERVICE_TABS } from "@/lib/hub-tabs"
+import { serviceTabs } from "@/lib/hub-tabs"
 import { PageHeader } from "@/components/ui/page"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
@@ -98,7 +98,7 @@ export default async function ComplaintsPage({
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={SERVICE_TABS} className="mb-2" />
+      <RouteTabs items={serviceTabs(t)} className="mb-2" />
       <PageHeader
         icon={MessagesSquare}
         title={t("adminService.complaints.title")}

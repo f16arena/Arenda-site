@@ -19,6 +19,7 @@ import { normalizeTenantRentChoice } from "@/lib/rent"
 import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 import { normalizeIik, validateRequisites } from "@/lib/kz-validators"
+import { getT } from "@/lib/i18n/server"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
 import { actionErrorResult } from "@/lib/action-error"
 import { audit } from "@/lib/audit"
@@ -49,19 +50,30 @@ function hasBankAccountInput(formData: FormData) {
   return ["bankName", "iik", "bik", "label"].some((key) => String(formData.get(key) ?? "").trim())
 }
 
-function normalizeTenantBankAccountInput(formData: FormData) {
+async function normalizeTenantBankAccountInput(formData: FormData) {
+  const { t } = await getT()
   const label = normalizeOptionalText(formData.get("label"), 80)
   const bankName = normalizeOptionalText(formData.get("bankName"), 160)
   const iik = normalizeIik(String(formData.get("iik") ?? ""))
   const bik = String(formData.get("bik") ?? "").trim().replace(/\s+/g, "").toUpperCase()
 
-  if (!bankName) throw new Error("Укажите название банка")
-  if (!iik) throw new Error("Укажите ИИК")
-  if (!bik) throw new Error("Укажите БИК")
+  if (!bankName) throw new Error(t("adminTenants.requisites.needBankName"))
+  if (!iik) throw new Error(t("adminTenants.requisites.needIik"))
+  if (!bik) throw new Error(t("adminTenants.requisites.needBik"))
 
   const checks = validateRequisites({ bik, iik })
-  if (checks.bik && !checks.bik.ok) throw new Error(checks.bik.warning ?? "Некорректный БИК")
-  if (checks.iik && !checks.iik.ok) throw new Error(checks.iik.warning ?? "Некорректный ИИК")
+  if (checks.bik && !checks.bik.ok)
+    throw new Error(
+      checks.bik.warningKey
+        ? t(`common.requisiteChecks.${checks.bik.warningKey}` as "common.requisiteChecks.bikFormat")
+        : t("adminTenants.requisites.badBik"),
+    )
+  if (checks.iik && !checks.iik.ok)
+    throw new Error(
+      checks.iik.warningKey
+        ? t(`common.requisiteChecks.${checks.iik.warningKey}` as "common.requisiteChecks.iikFormat")
+        : t("adminTenants.requisites.badIik"),
+    )
 
   return { label, bankName, iik, bik }
 }
@@ -288,6 +300,7 @@ export async function checkBlacklist(opts: { bin?: string; iin?: string }) {
 }
 
 export async function updateTenant(tenantId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.editCompany")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
@@ -392,7 +405,11 @@ export async function updateTenant(tenantId: string, formData: FormData) {
     const isVatPayer = formData.get("isVatPayer") === "on"
     data.isVatPayer = isVatPayer
     data.vatRate = isVatPayer
-      ? normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
+      ? normalizeKzVatRate(
+          formData.get("vatRate"),
+          DEFAULT_KZ_VAT_RATE,
+          t("actions.organizationSettings.badVatRate"),
+        )
       : DEFAULT_KZ_VAT_RATE
     // НДС-статус из КГД (человекочитаемый). Пустая строка → null (не определён).
     if (formData.has("vatStatus")) {
@@ -466,7 +483,7 @@ export async function updateTenantRequisites(
     })
 
     const shouldUpdateBank = hasBankAccountInput(formData)
-    const accountInput = shouldUpdateBank ? normalizeTenantBankAccountInput(formData) : null
+    const accountInput = shouldUpdateBank ? await normalizeTenantBankAccountInput(formData) : null
     if (accountInput) {
       const duplicateSecondary = await db.tenantBankAccount.findFirst({
         where: { tenantId, iik: accountInput.iik, isPrimary: false },
@@ -540,7 +557,7 @@ export async function createTenantBankAccount(
     await assertTenantInOrg(tenantId, orgId)
     await assertTenantBuildingAccess(tenantId, orgId)
 
-    const accountInput = normalizeTenantBankAccountInput(formData)
+    const accountInput = await normalizeTenantBankAccountInput(formData)
     const existing = await db.tenantBankAccount.findFirst({
       where: { tenantId, iik: accountInput.iik },
       select: { id: true },
@@ -594,7 +611,7 @@ export async function updateTenantBankAccount(
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
 
-    const accountInput = normalizeTenantBankAccountInput(formData)
+    const accountInput = await normalizeTenantBankAccountInput(formData)
     const duplicate = await db.tenantBankAccount.findFirst({
       where: { tenantId: account.tenantId, iik: accountInput.iik, id: { not: accountId } },
       select: { id: true },

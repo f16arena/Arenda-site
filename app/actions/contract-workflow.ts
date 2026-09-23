@@ -67,6 +67,7 @@ async function landlordExpectedTaxIds(orgId: string): Promise<string[]> {
  * Возвращает { signatureId, signerName } либо бросает Error с понятным текстом.
  */
 async function recordContractEcpSignature(
+  t: T,
   contract: ContractForSign,
   cmsB64: string,
   signerUserId: string | null,
@@ -75,7 +76,7 @@ async function recordContractEcpSignature(
 ): Promise<{ signatureId: string; signerName: string }> {
   const parsed = parseCmsSignature(cmsB64)
   if (!parsed.ok || !parsed.signer) {
-    throw new Error(parsed.error ?? "Не удалось разобрать ЭЦП-подпись")
+    throw new Error(parsed.error ?? t("actions.signing.parseFailed"))
   }
   const signer = parsed.signer
 
@@ -88,24 +89,24 @@ async function recordContractEcpSignature(
   // Привязка: вложенные в CMS данные должны совпадать с текстом договора.
   const expectedB64 = contractPayloadBase64(contract)
   if (parsed.encapsulatedContentB64 && parsed.encapsulatedContentB64 !== expectedB64) {
-    throw new Error("Подпись не соответствует тексту договора (возможно, документ изменён)")
+    throw new Error(t("actions.signing.contractMismatch"))
   }
 
   // Сверка личности (ТЗ 17.2.3): ИИН/БИН из сертификата должен совпасть с ожидаемой
   // стороной договора. Сверяем ТОЛЬКО когда ожидаемые реквизиты известны (12 цифр) —
   // если в базе их нет, не блокируем легитимную подпись.
   const expected = expectedTaxIds.map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
-  const label = opts?.partyLabel ?? "стороны договора"
+  const label = opts?.partyLabel ?? t("actions.signing.partyContract")
   // Строгий режим: реквизиты стороны ОБЯЗАНЫ быть заполнены — иначе сверить личность
   // подписанта не с чем, и подпись недопустима (ТЗ 17.2.3).
   if (opts?.requireIdentity && !expected.length) {
-    throw new Error(`Не заполнен ИИН/БИН ${label}: подпись невозможна, пока реквизиты не указаны (нужны для сверки личности подписанта)`)
+    throw new Error(t("actions.signing.identityMissing", { party: label }))
   }
   if (expected.length) {
     // Для ТОО валиден И БИН организации, И ИИН директора — принимаем оба.
     const got = [signer.iin, signer.bin].filter((x): x is string => !!x)
     if (!got.some((g) => expected.includes(g))) {
-      throw new Error(`ЭЦП подписана не той стороной: ИИН/БИН сертификата (${got.join("/") || "не определён"}) не совпадает с реквизитами ${label}. Подписать может только владелец ключа с этим ИИН/БИН.`)
+      throw new Error(t("actions.signing.wrongSignerParty", { got: got.join("/") || t("actions.signing.taxIdUnknown"), party: label }))
     }
   }
 
@@ -118,10 +119,11 @@ async function recordContractEcpSignature(
   if (process.env.NCANODE_SECRET) {
     const v = await verifyCmsWithNcanode(cmsB64)
     if (!v.valid) {
-      throw new Error("ЭЦП не прошла криптопроверку НУЦ РК: " + (v.reason ?? "подпись недействительна"))
+      throw new Error(t("actions.signing.cryptoCheckFailed", { reason: v.reason ?? t("actions.signing.signatureInvalid") }))
     }
-    const t = v.signers.find((s) => s.tspGenTime)?.tspGenTime
-    if (t) { const d = new Date(t); if (!Number.isNaN(d.getTime())) tspGenTime = d }
+    // Имя t занято переводчиком — метка времени называется stampedAt.
+    const stampedAt = v.signers.find((s) => s.tspGenTime)?.tspGenTime
+    if (stampedAt) { const d = new Date(stampedAt); if (!Number.isNaN(d.getTime())) tspGenTime = d }
     tspSerial = v.signers.find((s) => s.tspSerial)?.tspSerial ?? null
   }
 
@@ -161,11 +163,12 @@ export async function sendContractForSignature(
   contractId: string,
 ): Promise<{ ok: true; signUrl: string } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   try {
     await requireCapabilityAndFeature("documents.sign")
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.accessDenied") }
   }
   const { orgId } = await requireOrgAccess()
 
@@ -180,21 +183,28 @@ export async function sendContractForSignature(
       tenant: {
         select: {
           companyName: true,
-          user: { select: { name: true, email: true, phone: true } },
+          user: { select: { id: true, name: true, email: true, phone: true } },
         },
       },
     },
   })
-  if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
+  if (!contract) return { ok: false, error: t("actions.common.contractNotFoundOrNoAccess") }
 
   if (contract.status === "SIGNED") {
-    return { ok: false, error: "Договор уже подписан обеими сторонами" }
+    return { ok: false, error: t("actions.contractWorkflow.alreadySignedByBoth") }
   }
-  const documentTitle = contract.type === "ADDENDUM" ? "Дополнительное соглашение" : "Договор"
-  const documentTitleLower = contract.type === "ADDENDUM" ? "дополнительное соглашение" : "договор аренды"
-  const documentSentPhrase = contract.type === "ADDENDUM"
-    ? "Вам направлено дополнительное соглашение"
-    : "Вам направлен договор аренды"
+  // Письмо читает арендатор — язык берём из его профиля, а не у отправителя.
+  const { t: tTenant } = await getTForUser(contract.tenant.user.id)
+  const isAddendum = contract.type === "ADDENDUM"
+  const documentTitle = isAddendum
+    ? tTenant("actions.contractWorkflow.addendumTitle")
+    : tTenant("actions.contractWorkflow.contractTitle")
+  const documentTitleLower = isAddendum
+    ? tTenant("actions.contractWorkflow.addendumTitleLower")
+    : tTenant("actions.contractWorkflow.contractTitleLower")
+  const documentSentPhrase = isAddendum
+    ? tTenant("actions.contractWorkflow.addendumSentPhrase")
+    : tTenant("actions.contractWorkflow.contractSentPhrase")
 
   // Регенерируем токен на каждой отправке (старая ссылка протухает)
   const token = crypto.randomBytes(24).toString("hex")
@@ -216,20 +226,28 @@ export async function sendContractForSignature(
   if (tenantEmail) {
     try {
       const html = basicEmailTemplate({
-        title: `${documentTitle} № ${contract.number} на подпись`,
-        body: `<p>Здравствуйте, ${htmlEscape(contract.tenant.user.name)}!</p>
-<p>${documentSentPhrase} <b>№ ${htmlEscape(contract.number)}</b> для компании <b>${htmlEscape(contract.tenant.companyName)}</b>.</p>
-<p>Откройте ссылку, прочитайте текст и нажмите «Подписать», если согласны с условиями. Если есть вопросы — отклоните документ с пояснением, и мы свяжемся.</p>
-<p>Ссылка действительна до момента следующей повторной отправки.</p>`,
-        buttonText: `Открыть ${documentTitleLower}`,
+        title: tTenant("actions.contractWorkflow.mailTitle", { document: documentTitle, number: contract.number ?? "" }),
+        body: `<p>${tTenant("actions.contractWorkflow.mailGreeting", { name: htmlEscape(contract.tenant.user.name) })}</p>
+<p>${tTenant("actions.contractWorkflow.mailLead", {
+          phrase: documentSentPhrase,
+          number: htmlEscape(contract.number ?? ""),
+          company: htmlEscape(contract.tenant.companyName),
+        })}</p>
+<p>${tTenant("actions.contractWorkflow.mailInstruction")}</p>
+<p>${tTenant("actions.contractWorkflow.mailLinkNote")}</p>`,
+        buttonText: tTenant("actions.contractWorkflow.mailButton", { document: documentTitleLower }),
         buttonUrl: signUrl,
-        footer: "Это автоматическое письмо. Если вы не ожидали этот документ — проигнорируйте письмо.",
+        footer: tTenant("actions.contractWorkflow.mailFooter"),
       })
       await sendEmail({
         to: tenantEmail,
-        subject: `${documentTitle} № ${contract.number} — подпишите онлайн`,
+        subject: tTenant("actions.contractWorkflow.mailSubject", { document: documentTitle, number: contract.number ?? "" }),
         html,
-        text: `${documentTitle} ${contract.number} — откройте ссылку ${signUrl}`,
+        text: tTenant("actions.contractWorkflow.mailText", {
+          document: documentTitle,
+          number: contract.number ?? "",
+          url: signUrl,
+        }),
       })
     } catch (e) {
       console.warn("[contract email] failed:", e instanceof Error ? e.message : e)
@@ -249,11 +267,12 @@ export async function getLandlordSignPayload(
   contractId: string,
 ): Promise<{ ok: true; payloadB64: string } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   try {
     await requireCapabilityAndFeature("documents.sign")
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.accessDenied") }
   }
   const { orgId } = await requireOrgAccess()
   const c = await db.contract.findFirst({
@@ -263,7 +282,7 @@ export async function getLandlordSignPayload(
       tenant: { select: { companyName: true } },
     },
   })
-  if (!c) return { ok: false, error: "Договор не найден" }
+  if (!c) return { ok: false, error: t("actions.common.contractNotFound") }
   const payloadB64 = contractPayloadBase64({
     number: c.number,
     type: c.type,
@@ -282,16 +301,17 @@ export async function getLandlordSignPayload(
 export async function markContractSignedByLandlord(
   contractId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   // Перевод договора в «подписан» — только у кого есть право подписи.
   try { await requireCapabilityAndFeature("documents.sign") } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет права подписывать документы" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.signing.noSignRight") }
   }
   const { orgId } = await requireOrgAccess()
   const contract = await db.contract.findFirst({
     where: { id: contractId, ...contractScope(orgId) },
     select: { id: true, status: true, signedByTenantAt: true, sentAt: true },
   })
-  if (!contract) return { ok: false, error: "Договор не найден" }
+  if (!contract) return { ok: false, error: t("actions.common.contractNotFound") }
 
   const now = new Date()
   // Обе стороны → SIGNED. Иначе «SENT» только если договор реально отправлен
@@ -386,7 +406,9 @@ export async function getContractByToken(token: string) {
 export async function getSignedContractPdfByToken(
   token: string,
 ): Promise<{ ok: true; fileName: string; base64: string } | { ok: false; error: string }> {
-  if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
+  if (!token || token.length < 20) return { ok: false, error: t("actions.contractWorkflow.badLink") }
   const contract = await db.contract.findFirst({
     where: { signToken: token, deletedAt: null },
     select: {
@@ -395,21 +417,21 @@ export async function getSignedContractPdfByToken(
       tenant: { select: { companyName: true, bin: true, iin: true, user: { select: { organizationId: true } } } },
     },
   })
-  if (!contract) return { ok: false, error: "Договор не найден" }
+  if (!contract) return { ok: false, error: t("actions.common.contractNotFound") }
   if (contract.status !== "SIGNED") {
-    return { ok: false, error: "Скачивание будет доступно после подписи обеих сторон" }
+    return { ok: false, error: t("actions.contractWorkflow.downloadAfterBothSign") }
   }
   try {
     // Договор из конструктора → полный рендер по builderState; ДС (текст) → отдельный рендер.
     const docx = contract.builderState
       ? await buildSignedContractDocxBuffer(contract)
       : await buildSignedAddendumDocxBuffer(contract)
-    if (!docx) return { ok: false, error: "Документ создан вне конструктора — обратитесь к арендодателю за копией" }
+    if (!docx) return { ok: false, error: t("actions.contractWorkflow.builtOutsideBuilder") }
     const num = (contract.number || "doc").replace(/[^\w.-]+/g, "_")
     const pdf = await convertDocxToPdf(docx, `${num}.docx`)
     return { ok: true, fileName: signedContractFileName(contract), base64: pdf.toString("base64") }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать PDF" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractWorkflow.pdfFailed") }
   }
 }
 
@@ -442,8 +464,9 @@ export async function signContractByTenant(
   // подпись «любым ФИО без сверки личности». Оставлено как защита на сервере
   // на случай прямого вызова в обход UI.
   void signerName
-  if (!token) return { ok: false, error: "Неверная ссылка" }
-  return { ok: false, error: "Договор подписывается только через ЭЦП (НУЦ РК). Простая подпись отключена." }
+  const { t } = await getT()
+  if (!token) return { ok: false, error: t("actions.contractWorkflow.badLink") }
+  return { ok: false, error: t("actions.contractWorkflow.ecpOnly") }
 }
 
 /**
@@ -455,8 +478,10 @@ export async function signContractByTenantEcp(
   token: string,
   cmsB64: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
-  if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
+  if (!token || token.length < 20) return { ok: false, error: t("actions.contractWorkflow.badLink") }
+  if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: t("actions.signing.emptySignature") }
 
   const contract = await db.contract.findFirst({
     where: { signToken: token, deletedAt: null },
@@ -480,18 +505,19 @@ export async function signContractByTenantEcp(
       },
     },
   })
-  if (!contract) return { ok: false, error: "Договор не найден" }
+  if (!contract) return { ok: false, error: t("actions.common.contractNotFound") }
   if (contract.status === "SIGNED" || contract.status === "REJECTED") {
-    return { ok: false, error: "Договор уже завершён" }
+    return { ok: false, error: t("actions.contractWorkflow.alreadyFinished") }
   }
   if (isSignLinkExpired(contract.sentAt, contract.status)) {
-    return { ok: false, error: `Ссылка на подпись устарела (старше ${SIGN_LINK_TTL_DAYS} дней). Попросите арендодателя отправить договор повторно.` }
+    return { ok: false, error: t("actions.contractWorkflow.linkExpired", { days: SIGN_LINK_TTL_DAYS }) }
   }
   const orgId = contract.tenant.user.organizationId
-  if (!orgId) return { ok: false, error: "Договор не привязан к организации" }
+  if (!orgId) return { ok: false, error: t("actions.contractWorkflow.noOrganization") }
 
   try {
     const { signerName } = await recordContractEcpSignature(
+      t,
       {
         id: contract.id,
         organizationId: orgId,
@@ -505,7 +531,7 @@ export async function signContractByTenantEcp(
       cmsB64,
       null,
       [contract.tenant.bin ?? "", contract.tenant.iin ?? ""],
-      { requireIdentity: true, partyLabel: "арендатора" },
+      { requireIdentity: true, partyLabel: t("actions.signing.partyTenant") },
     )
 
     const now = new Date()
@@ -533,7 +559,7 @@ export async function signContractByTenantEcp(
     revalidatePath("/admin/contracts")
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подписать" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.signing.signFailed") }
   }
 }
 
@@ -546,12 +572,14 @@ export async function signContractByLandlordEcp(
   cmsB64: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
-  if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
+  if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: t("actions.signing.emptySignature") }
   try {
     await requireCapabilityAndFeature("documents.sign")
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.accessDenied") }
   }
   const { orgId, userId } = await requireOrgAccess()
 
@@ -570,13 +598,14 @@ export async function signContractByLandlordEcp(
       tenant: { select: { companyName: true } },
     },
   })
-  if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
+  if (!contract) return { ok: false, error: t("actions.common.contractNotFoundOrNoAccess") }
   if (contract.status === "SIGNED" || contract.status === "REJECTED") {
-    return { ok: false, error: "Договор уже завершён" }
+    return { ok: false, error: t("actions.contractWorkflow.alreadyFinished") }
   }
 
   try {
     await recordContractEcpSignature(
+      t,
       {
         id: contract.id,
         organizationId: orgId,
@@ -590,7 +619,7 @@ export async function signContractByLandlordEcp(
       cmsB64,
       userId,
       await landlordExpectedTaxIds(orgId),
-      { requireIdentity: true, partyLabel: "арендодателя (организации)" },
+      { requireIdentity: true, partyLabel: t("actions.signing.partyLandlord") },
     )
 
     const now = new Date()
@@ -619,7 +648,7 @@ export async function signContractByLandlordEcp(
     revalidatePath("/admin/documents")
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подписать" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.signing.signFailed") }
   }
 }
 
@@ -630,9 +659,10 @@ export async function rejectContractByTenant(
   token: string,
   reason: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!token || token.length < 20) return { ok: false, error: "Неверная ссылка" }
+  const { t } = await getT()
+  if (!token || token.length < 20) return { ok: false, error: t("actions.contractWorkflow.badLink") }
   const r = reason.trim().slice(0, 1000)
-  if (r.length < 5) return { ok: false, error: "Опишите причину отказа (минимум 5 символов)" }
+  if (r.length < 5) return { ok: false, error: t("actions.contractWorkflow.rejectReasonTooShort") }
 
   // findFirst + deletedAt: null — soft-delete НЕ перехватывает findUnique (lib/db.ts):
   // удалённый арендодателем договор нельзя отклонить по старой ссылке.
@@ -640,9 +670,9 @@ export async function rejectContractByTenant(
     where: { signToken: token, deletedAt: null },
     select: { id: true, status: true },
   })
-  if (!contract) return { ok: false, error: "Договор не найден" }
+  if (!contract) return { ok: false, error: t("actions.common.contractNotFound") }
   if (contract.status === "SIGNED" || contract.status === "REJECTED") {
-    return { ok: false, error: "Договор уже завершён" }
+    return { ok: false, error: t("actions.contractWorkflow.alreadyFinished") }
   }
 
   await db.contract.update({

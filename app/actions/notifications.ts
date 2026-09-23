@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath, revalidateTag } from "next/cache"
 import { sendTelegram } from "@/lib/telegram"
 import { sendSms } from "@/lib/sms"
@@ -87,7 +88,8 @@ export async function createNotification(opts: {
 
 export async function markNotificationRead(notificationId: string) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   // Только своё уведомление
   await db.notification.updateMany({
@@ -102,7 +104,8 @@ export async function markNotificationRead(notificationId: string) {
 
 export async function markAllRead() {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   await db.notification.updateMany({
     where: { userId: session.user.id, isRead: false },
@@ -116,7 +119,8 @@ export async function markAllRead() {
 
 export async function deleteNotification(notificationId: string) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   // Только своё уведомление
   await db.notification.deleteMany({
@@ -129,7 +133,8 @@ export async function deleteNotification(notificationId: string) {
 
 export async function setMyTelegramChatId(chatId: string) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   await db.user.update({
     where: { id: session.user.id },
@@ -147,11 +152,12 @@ export async function setMyTelegramChatId(chatId: string) {
  */
 export async function generateTelegramConnectLink(): Promise<{ ok: true; url: string } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
 
   const botName = process.env.TELEGRAM_BOT_NAME ?? process.env.NEXT_PUBLIC_TELEGRAM_BOT_NAME
   if (!botName) {
-    return { ok: false, error: "Бот не настроен. Свяжитесь с администратором платформы." }
+    return { ok: false, error: t("actions.notifications.botNotConfigured") }
   }
 
   const { randomBytes } = await import("crypto")
@@ -179,7 +185,8 @@ export async function generateTelegramConnectLink(): Promise<{ ok: true; url: st
  */
 export async function disconnectTelegram() {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   await db.user.update({
     where: { id: session.user.id },

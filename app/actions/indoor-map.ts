@@ -9,6 +9,7 @@ import { assertBuildingAccess } from "@/lib/building-access"
 import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { layoutKind } from "@/lib/indoor-map/layout-source"
 import { buildingFootprint, generateSchemaLayout } from "@/lib/indoor-map/generate"
+import { getT } from "@/lib/i18n/server"
 
 export type GenerateSchemaResult =
   | { success: true; rooms: number }
@@ -24,6 +25,7 @@ export async function generateFloorSchema(
   floorId: string,
   replace = false,
 ): Promise<GenerateSchemaResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
@@ -36,7 +38,7 @@ export async function generateFloorSchema(
       spaces: { select: { id: true, number: true, area: true, kind: true } },
     },
   })
-  if (!floor) throw new Error("Этаж не найден")
+  if (!floor) throw new Error(t("actions.common.floorNotFound"))
   await assertBuildingAccess(floor.buildingId, orgId)
 
   if (!replace && layoutKind(floor.layoutJson) === "drawn") {

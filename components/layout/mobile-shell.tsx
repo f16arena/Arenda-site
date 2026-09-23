@@ -2,12 +2,14 @@
 
 import { useState, useEffect, ReactNode } from "react"
 import { Menu } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
 export function MobileShell({ sidebar, header, children }: {
   sidebar: ReactNode
   header: ReactNode
   children: ReactNode
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
 
   // Закрывать drawer при resize в desktop
@@ -41,7 +43,7 @@ export function MobileShell({ sidebar, header, children }: {
           <button
             onClick={() => setOpen(true)}
             className="lg:hidden text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
-            aria-label="Открыть меню"
+            aria-label={t("common.layout.openMenu")}
           >
             <Menu className="h-5 w-5" />
           </button>

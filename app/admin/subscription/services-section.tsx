@@ -60,13 +60,16 @@ export function ServicesSection({ catalog, active }: { catalog: ServiceCatalogIt
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {active.map((s) => {
+              // Имя услуги из каталога на языке интерфейса; s.serviceName —
+              // снимок на момент заказа, он остаётся запасным.
+              const item = catalog.find((c) => c.code === s.serviceCode)
               const statusKey = toServiceStatus(s.status)
               const style = STATUS_STYLE[statusKey]
               const Icon = style.icon
               return (
                 <div key={s.id} className="px-5 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{s.serviceName}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{item?.label ?? s.serviceName}</p>
                     <p className="text-xs text-slate-500">
                       {formatMoneyL(locale, s.price)} ·
                       <span className={`ml-1 inline-flex items-center gap-1 ${style.cls}`}>

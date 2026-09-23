@@ -5,6 +5,7 @@ import { useMemo, useState } from "react"
 import { BookOpen, ChevronRight, Search, X } from "lucide-react"
 import type { FaqAudience, FaqItem } from "@/lib/faq-types"
 import { faqAudienceLabels } from "@/lib/faq-types"
+import { useT } from "@/lib/i18n/client"
 
 type FaqSearchProps = {
   items: FaqItem[]
@@ -13,6 +14,7 @@ type FaqSearchProps = {
 }
 
 export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps) {
+  const { t, tp } = useT()
   const [query, setQuery] = useState("")
   const [activeAudience, setActiveAudience] = useState<FaqAudience>(defaultAudience)
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
@@ -66,7 +68,7 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Поиск по FAQ: пароль, подпись, счет, заявка..."
+              placeholder={t("common.faq.placeholder")}
               className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/10"
             />
             {query && (
@@ -74,7 +76,7 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
                 type="button"
                 onClick={() => setQuery("")}
                 className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                aria-label="Очистить поиск"
+                aria-label={t("common.faq.clear")}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -103,10 +105,10 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            Раздел: {faqAudienceLabels[activeAudience]}
+            {t("common.faq.section", { name: faqAudienceLabels[activeAudience] })}
           </span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            Найдено: {filtered.length} из {activeTotal}
+            {t("common.faq.found", { count: filtered.length, total: activeTotal })}
           </span>
         </div>
       </section>
@@ -121,7 +123,7 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
                 </div>
                 <div>
                   <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{category}</h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{categoryItems.length} вопросов</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{tp("common.faq.questions", categoryItems.length)}</p>
                 </div>
               </div>
 
@@ -143,9 +145,9 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
           <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
             <Search className="h-5 w-5" />
           </div>
-          <h2 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Ничего не найдено</h2>
+          <h2 className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.faq.nothingFound")}</h2>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Попробуйте другой запрос: договор, счет, подпись, пароль, заявка или счетчик.
+            {t("common.faq.tryAnother")}
           </p>
         </section>
       )}
@@ -162,6 +164,7 @@ function FaqCard({
   isOpen: boolean
   onToggle: () => void
 }) {
+  const { t } = useT()
   const panelId = `faq-panel-${item.id}`
   const preview = item.answer.length > 145 ? `${item.answer.slice(0, 145).trim()}...` : item.answer
 
@@ -234,7 +237,7 @@ function FaqCard({
             onClick={onToggle}
             className="mt-4 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
           >
-            Свернуть
+            {t("common.actions.collapse")}
           </button>
         </div>
       )}

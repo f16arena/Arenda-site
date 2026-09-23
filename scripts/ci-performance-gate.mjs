@@ -39,6 +39,12 @@ const checks = [
     args: ["run", "security:audit"],
     reason: "Проверяет критичные guardrails: cron auth, tenant isolation, RLS и опасные обходы.",
   },
+  {
+    name: "i18n providers",
+    command: npm,
+    args: ["run", "i18n:check"],
+    reason: "Клиентский компонент без своего раздела словаря покажет ключ вместо текста — типы это не ловят.",
+  },
 ]
 
 const rows = []

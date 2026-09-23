@@ -12,6 +12,7 @@
 import { db } from "@/lib/db"
 import { safeServerValue } from "@/lib/server-fallback"
 import { CHARGE_TYPES, EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/utils"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
 // Дефолт: упрощёнка по новому НК РК с 2026 = 4% от оборота (маслихат ±50% → 2–6%).
 // Фактическая ставка настраивается в /admin/settings и приходит параметром.
@@ -54,14 +55,19 @@ export type OwnerPnL = {
   monthly: PnLMonthPoint[]
 }
 
-const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
-
 function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
-function monthLabel(key: string): string {
-  const [y, m] = key.split("-").map(Number)
-  return `${MONTHS_SHORT[m - 1]} ${String(y).slice(2)}`
+/**
+ * Подпись точки на графике: «сен 26» / «қыр 26». Месяц берём из Intl по языку
+ * читателя — своего списка месяцев больше не держим.
+ */
+function monthLabel(key: string, locale: Locale): string {
+  const [year, month] = key.split("-").map(Number)
+  const short = new Intl.DateTimeFormat(INTL_LOCALE[locale], { month: "short" })
+    .format(new Date(year, month - 1, 1))
+    .replace(".", "")
+  return `${short} ${String(year).slice(2)}`
 }
 /** Список «YYYY-MM» месяцев, пересекающих [from, to). */
 function monthsInRange(from: Date, to: Date): string[] {
@@ -93,11 +99,15 @@ export async function getOwnerPnL({
   from,
   to,
   taxRatePercent = TAX_RATE_SIMPLIFIED,
+  // Язык подписей месяцев на графике. Дефолт «ru» сохраняет прежний вид отчёта
+  // у тех, кто ещё не передаёт язык (страница /admin/analytics — другой поток).
+  locale = "ru",
 }: {
   buildingIds: string[]
   from: Date
   to: Date
   taxRatePercent?: number
+  locale?: Locale
 }): Promise<OwnerPnL | null> {
   if (buildingIds.length === 0) return null
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
@@ -249,7 +259,7 @@ export async function getOwnerPnL({
   }
   const monthly: PnLMonthPoint[] = chartMonths.map((period) => ({
     period,
-    label: monthLabel(period),
+    label: monthLabel(period, locale),
     accrualIncome: Math.round(accrualByMonth.get(period) ?? 0),
     cashIncome: Math.round(cashByMonth.get(period) ?? 0),
     expense: Math.round(expenseByMonth.get(period) ?? 0),

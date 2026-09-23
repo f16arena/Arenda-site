@@ -5,19 +5,23 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 export interface Result {
   ok: boolean
   error?: string
 }
 
-async function assertAccountInOrg(accountId: string, orgId: string) {
+// Переводчик приходит параметром: чистый помощник сам его не добывает.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+async function assertAccountInOrg(accountId: string, orgId: string, t: Tr) {
   const acc = await db.cashAccount.findUnique({
     where: { id: accountId },
     select: { organizationId: true },
   })
   if (!acc || acc.organizationId !== orgId) {
-    throw new Error("Счёт не найден или вы не имеете к нему доступа")
+    throw new Error(t("actions.cashAccounts.notFoundOrNoAccess"))
   }
 }
 
@@ -27,7 +31,8 @@ async function assertAccountInOrg(accountId: string, orgId: string) {
 export async function createCashAccount(formData: FormData): Promise<Result> {
   await requireCapabilityAndFeature("finance.manageCashAccounts")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const name = String(formData.get("name") ?? "").trim()
@@ -36,8 +41,8 @@ export async function createCashAccount(formData: FormData): Promise<Result> {
   const balance = parseFloat(balanceStr) || 0
   const notes = String(formData.get("notes") ?? "").trim() || null
 
-  if (!name) return { ok: false, error: "Введите название счёта" }
-  if (!["BANK", "CASH", "CARD"].includes(type)) return { ok: false, error: "Неверный тип счёта" }
+  if (!name) return { ok: false, error: t("actions.cashAccounts.nameRequired") }
+  if (!["BANK", "CASH", "CARD"].includes(type)) return { ok: false, error: t("actions.cashAccounts.badType") }
 
   const account = await db.cashAccount.create({
     data: { organizationId: orgId, name, type, balance, notes },
@@ -66,7 +71,8 @@ export async function createCashAccount(formData: FormData): Promise<Result> {
 export async function depositToAccount(formData: FormData): Promise<Result> {
   await requireCapabilityAndFeature("finance.manageCashAccounts")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const accountId = String(formData.get("accountId") ?? "")
@@ -74,9 +80,9 @@ export async function depositToAccount(formData: FormData): Promise<Result> {
   const amount = parseFloat(amountStr)
   const description = String(formData.get("description") ?? "").trim() || "Пополнение"
 
-  if (!accountId) return { ok: false, error: "Не указан счёт" }
-  if (!isFinite(amount) || amount <= 0) return { ok: false, error: "Сумма должна быть больше нуля" }
-  await assertAccountInOrg(accountId, orgId)
+  if (!accountId) return { ok: false, error: t("actions.cashAccounts.accountRequired") }
+  if (!isFinite(amount) || amount <= 0) return { ok: false, error: t("actions.cashAccounts.amountPositive") }
+  await assertAccountInOrg(accountId, orgId, t)
 
   await db.$transaction([
     db.cashTransaction.create({
@@ -104,7 +110,8 @@ export async function depositToAccount(formData: FormData): Promise<Result> {
 export async function withdrawFromAccount(formData: FormData): Promise<Result> {
   await requireCapabilityAndFeature("finance.manageCashAccounts")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const accountId = String(formData.get("accountId") ?? "")
@@ -112,9 +119,9 @@ export async function withdrawFromAccount(formData: FormData): Promise<Result> {
   const amount = parseFloat(amountStr)
   const description = String(formData.get("description") ?? "").trim() || "Списание"
 
-  if (!accountId) return { ok: false, error: "Не указан счёт" }
-  if (!isFinite(amount) || amount <= 0) return { ok: false, error: "Сумма должна быть больше нуля" }
-  await assertAccountInOrg(accountId, orgId)
+  if (!accountId) return { ok: false, error: t("actions.cashAccounts.accountRequired") }
+  if (!isFinite(amount) || amount <= 0) return { ok: false, error: t("actions.cashAccounts.amountPositive") }
+  await assertAccountInOrg(accountId, orgId, t)
 
   await db.$transaction([
     db.cashTransaction.create({
@@ -142,7 +149,8 @@ export async function withdrawFromAccount(formData: FormData): Promise<Result> {
 export async function transferBetweenAccounts(formData: FormData): Promise<Result> {
   await requireCapabilityAndFeature("finance.manageCashAccounts")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const fromId = String(formData.get("fromId") ?? "")
@@ -151,11 +159,11 @@ export async function transferBetweenAccounts(formData: FormData): Promise<Resul
   const amount = parseFloat(amountStr)
   const description = String(formData.get("description") ?? "").trim() || "Перевод между счетами"
 
-  if (!fromId || !toId) return { ok: false, error: "Укажите оба счёта" }
-  if (fromId === toId) return { ok: false, error: "Счета должны быть разные" }
-  if (!isFinite(amount) || amount <= 0) return { ok: false, error: "Сумма должна быть больше нуля" }
-  await assertAccountInOrg(fromId, orgId)
-  await assertAccountInOrg(toId, orgId)
+  if (!fromId || !toId) return { ok: false, error: t("actions.cashAccounts.bothAccountsRequired") }
+  if (fromId === toId) return { ok: false, error: t("actions.cashAccounts.accountsMustDiffer") }
+  if (!isFinite(amount) || amount <= 0) return { ok: false, error: t("actions.cashAccounts.amountPositive") }
+  await assertAccountInOrg(fromId, orgId, t)
+  await assertAccountInOrg(toId, orgId, t)
 
   await db.$transaction([
     db.cashTransaction.create({
@@ -196,7 +204,8 @@ export async function transferBetweenAccounts(formData: FormData): Promise<Resul
 export async function adjustAccountBalance(formData: FormData): Promise<Result> {
   await requireCapabilityAndFeature("finance.manageCashAccounts")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const accountId = String(formData.get("accountId") ?? "")
@@ -204,12 +213,12 @@ export async function adjustAccountBalance(formData: FormData): Promise<Result> 
   const newBalance = parseFloat(newBalanceStr)
   const description = String(formData.get("description") ?? "").trim() || "Корректировка баланса"
 
-  if (!accountId) return { ok: false, error: "Не указан счёт" }
-  if (!isFinite(newBalance)) return { ok: false, error: "Неверная сумма" }
-  await assertAccountInOrg(accountId, orgId)
+  if (!accountId) return { ok: false, error: t("actions.cashAccounts.accountRequired") }
+  if (!isFinite(newBalance)) return { ok: false, error: t("actions.cashAccounts.badAmount") }
+  await assertAccountInOrg(accountId, orgId, t)
 
   const acc = await db.cashAccount.findUnique({ where: { id: accountId }, select: { balance: true } })
-  if (!acc) return { ok: false, error: "Счёт не найден" }
+  if (!acc) return { ok: false, error: t("actions.cashAccounts.notFound") }
 
   const delta = newBalance - acc.balance
   if (delta === 0) return { ok: true } // нечего менять
@@ -241,9 +250,10 @@ export async function adjustAccountBalance(formData: FormData): Promise<Result> 
 export async function deactivateAccount(accountId: string): Promise<Result> {
   await requireCapabilityAndFeature("finance.manageCashAccounts")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
-  await assertAccountInOrg(accountId, orgId)
+  await assertAccountInOrg(accountId, orgId, t)
 
   await db.cashAccount.update({
     where: { id: accountId },

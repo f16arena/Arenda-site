@@ -2,13 +2,15 @@
 // установленная мощность. Тот же расчёт показывает панель «Сети» и лист чертежа.
 
 import type { Floor, MepSystem } from "@/types/builder"
-import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, polylineLengthMm } from "./catalog"
+import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceNameKey, polylineLengthMm } from "./catalog"
+import type { SheetT } from "@/lib/builder/sheet-text"
 
 export interface SpecRow {
   system: MepSystem
   /** «Розетка», «Кабель ВВГнг(А)-LS 3×2,5» */
   name: string
-  unit: "шт." | "м"
+  /** штуки или погонные метры; подпись единицы — в adminBuilder.mep.unit* */
+  unit: "pcs" | "m"
   qty: number
 }
 
@@ -21,7 +23,7 @@ export interface SystemSummary {
 }
 
 /** Все опущенные вниз/поднятые вверх участки к приборам сюда не входят — запас на монтаж даёт проектировщик. */
-export function mepSpec(floor: Pick<Floor, "mepRuns" | "mepDevices">): SystemSummary[] {
+export function mepSpec(floor: Pick<Floor, "mepRuns" | "mepDevices">, t: SheetT): SystemSummary[] {
   const out = new Map<MepSystem, SystemSummary>()
   const get = (s: MepSystem) => {
     let v = out.get(s)
@@ -38,7 +40,7 @@ export function mepSpec(floor: Pick<Floor, "mepRuns" | "mepDevices">): SystemSum
     sum.devices += 1
     sum.powerW += d.power ?? info?.power ?? 0
     const key = `${d.system}|${d.kind}`
-    const row = devRows.get(key) ?? { system: d.system, name: info?.name ?? d.kind, unit: "шт." as const, qty: 0 }
+    const row = devRows.get(key) ?? { system: d.system, name: t(`adminBuilder.mep.devices.${deviceNameKey(d.kind)}`), unit: "pcs" as const, qty: 0 }
     row.qty += 1
     devRows.set(key, row)
   }
@@ -49,7 +51,7 @@ export function mepSpec(floor: Pick<Floor, "mepRuns" | "mepDevices">): SystemSum
     sum.lengthM += m
     const size = r.size || MEP_SYSTEM_INFO[r.system].size
     const key = `${r.system}|${size}`
-    const row = runRows.get(key) ?? { system: r.system, name: `${MEP_SYSTEM_INFO[r.system].runNoun} ${size}`, unit: "м" as const, qty: 0 }
+    const row = runRows.get(key) ?? { system: r.system, name: `${t(`adminBuilder.mep.runNouns.${MEP_SYSTEM_INFO[r.system].shape}`)} ${size}`, unit: "m" as const, qty: 0 }
     row.qty += m
     runRows.set(key, row)
   }
@@ -57,8 +59,8 @@ export function mepSpec(floor: Pick<Floor, "mepRuns" | "mepDevices">): SystemSum
   const order = Object.keys(MEP_SYSTEM_INFO) as MepSystem[]
   return order.filter((s) => out.has(s)).map((s) => {
     const v = out.get(s) as SystemSummary
-    v.rows.sort((a, b) => (a.unit === b.unit ? a.name.localeCompare(b.name, "ru") : a.unit === "шт." ? -1 : 1))
-    v.rows = v.rows.map((r) => ({ ...r, qty: r.unit === "м" ? Math.round(r.qty * 10) / 10 : r.qty }))
+    v.rows.sort((a, b) => (a.unit === b.unit ? a.name.localeCompare(b.name) : a.unit === "pcs" ? -1 : 1))
+    v.rows = v.rows.map((r) => ({ ...r, qty: r.unit === "m" ? Math.round(r.qty * 10) / 10 : r.qty }))
     v.lengthM = Math.round(v.lengthM * 10) / 10
     return v
   })

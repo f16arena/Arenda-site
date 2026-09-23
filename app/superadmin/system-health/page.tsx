@@ -21,11 +21,15 @@ import {
   type SystemCheckStatus,
 } from "@/lib/system-health"
 import { getReleaseInfo } from "@/lib/release"
+import { getT } from "@/lib/i18n/server"
 import { requirePlatformOwner } from "@/lib/org"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { TestEmailTool } from "./test-email"
+
+/** Проверка отдаёт ключи словаря — подписи для карточек собираем здесь. */
+type CheckRow = { check: SystemCheck; label: string; message: string }
 
 const statusMeta: Record<SystemCheckStatus, {
   label: string
@@ -71,8 +75,16 @@ export default async function SuperadminSystemHealthPage() {
   const summary = summarizeSystemChecks(checks)
   const checkedAt = new Date()
 
-  const critical = checks.filter((check) => check.status === "error")
-  const warnings = checks.filter((check) => check.status === "warning")
+  // Подписи проверок теперь в словаре. Кабинет владельца платформы остаётся
+  // русским, поэтому язык задаём явно, а не по cookie посетителя.
+  const { t } = await getT("ru")
+  const rows: CheckRow[] = checks.map((check) => ({
+    check,
+    label: t(check.labelKey),
+    message: t(check.messageKey, check.messageVars),
+  }))
+  const critical = rows.filter((row) => row.check.status === "error")
+  const warnings = rows.filter((row) => row.check.status === "warning")
 
   return (
     <div className="space-y-6">
@@ -156,20 +168,20 @@ export default async function SuperadminSystemHealthPage() {
             title="Что чинить первым"
             icon={AlertTriangle}
             empty="Критичных проблем нет."
-            checks={critical}
+            rows={critical}
           />
           <PriorityPanel
             title="Что довести после"
             icon={CircleAlert}
             empty="Предупреждений нет."
-            checks={warnings}
+            rows={warnings}
           />
         </section>
       )}
 
       <section className="grid gap-4 xl:grid-cols-2">
-        {checks.map((check) => (
-          <CheckCard key={check.id} check={check} />
+        {rows.map((row) => (
+          <CheckCard key={row.check.id} row={row} />
         ))}
       </section>
     </div>
@@ -180,12 +192,12 @@ function PriorityPanel({
   title,
   icon: Icon,
   empty,
-  checks,
+  rows,
 }: {
   title: string
   icon: LucideIcon
   empty: string
-  checks: SystemCheck[]
+  rows: CheckRow[]
 }) {
   return (
     <Card className="block rounded-2xl p-5">
@@ -193,14 +205,14 @@ function PriorityPanel({
         <Icon className="h-4 w-4 text-amber-500 dark:text-amber-300" />
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
       </div>
-      {checks.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-500">{empty}</p>
       ) : (
         <div className="space-y-3">
-          {checks.slice(0, 5).map((check) => (
-            <div key={check.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{check.message}</p>
+          {rows.slice(0, 5).map((row) => (
+            <div key={row.check.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/70">
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{row.label}</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{row.message}</p>
             </div>
           ))}
         </div>
@@ -209,7 +221,8 @@ function PriorityPanel({
   )
 }
 
-function CheckCard({ check }: { check: SystemCheck }) {
+function CheckCard({ row }: { row: CheckRow }) {
+  const { check, label, message } = row
   const meta = statusMeta[check.status]
 
   return (
@@ -219,12 +232,12 @@ function CheckCard({ check }: { check: SystemCheck }) {
           <StatusIcon status={check.status} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</h2>
               <Badge variant="secondary" className={cn("text-[11px]", meta.pillClass)}>
                 {meta.label}
               </Badge>
             </div>
-            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{check.message}</p>
+            <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{message}</p>
           </div>
           {typeof check.ms === "number" && (
             <span className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-500">

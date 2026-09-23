@@ -11,6 +11,7 @@ import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
 import { replaceUserBuildingAccess } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 import { userCapabilityRole } from "@/lib/capability-keys"
+import { getT } from "@/lib/i18n/server"
 import {
   canManageRoleInOrg,
   displayRoleLabel,
@@ -21,30 +22,33 @@ function parseBuildingIds(formData: FormData) {
   return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
 }
 
-function assertBuildingSelection(role: string, buildingIds: string[]) {
+// Переводчик приходит параметром: чистые помощники сами его не добывают.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+function assertBuildingSelection(role: string, buildingIds: string[], t: Tr) {
   if (isStaffLikeRole(role) && buildingIds.length === 0) {
-    throw new Error("Назначьте сотруднику хотя бы одно здание")
+    throw new Error(t("actions.staff.buildingRequired"))
   }
 }
 
-function assertAssignableRole(role: string, orgId: string) {
+function assertAssignableRole(role: string, orgId: string, t: Tr) {
   if (!canManageRoleInOrg(role, orgId)) {
-    throw new Error("Эту должность нельзя назначить в текущей организации")
+    throw new Error(t("actions.users.roleNotAssignableInOrg"))
   }
 }
 
 // Роль OWNER даёт полный доступ в обход всех проверок прав. Назначать её может
 // только сам владелец организации или платформенный администратор — иначе
 // любой ADMIN с правом users.edit мог бы повысить себя/другого до OWNER.
-function assertCanAssignRole(role: string, actor: { role: string; isPlatformOwner?: boolean }) {
+function assertCanAssignRole(role: string, actor: { role: string; isPlatformOwner?: boolean }, t: Tr) {
   if (role === "OWNER" && actor.role !== "OWNER" && !actor.isPlatformOwner) {
-    throw new Error("Назначить роль «Владелец» может только владелец организации")
+    throw new Error(t("actions.users.ownerRoleByOwnerOnly"))
   }
 }
 
 // Дружелюбная проверка уникальности контактов: phone/email @unique в БД, иначе
 // при дубле летела сырая ошибка Prisma P2002 вместо понятного сообщения.
-async function assertContactAvailable(phone: string | null, email: string | null, excludeUserId?: string) {
+async function assertContactAvailable(phone: string | null, email: string | null, t: Tr, excludeUserId?: string) {
   const or: Array<{ phone: string } | { email: string }> = []
   if (phone) or.push({ phone })
   if (email) or.push({ email })
@@ -54,26 +58,28 @@ async function assertContactAvailable(phone: string | null, email: string | null
     select: { phone: true, email: true },
   })
   if (!existing) return
-  if (phone && existing.phone === phone) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
-  throw new Error(`Email ${email} уже используется другим пользователем`)
+  if (phone && existing.phone === phone) throw new Error(t("actions.users.phoneTaken", { phone }))
+  throw new Error(t("actions.users.emailTaken", { email: email ?? "" }))
 }
 
 async function assertCanManageTargetUser(
   userId: string,
   orgId: string,
   actor: { role: string; isPlatformOwner?: boolean },
+  t: Tr,
 ) {
   const target = await db.user.findFirst({
     where: { id: userId, organizationId: orgId },
     select: { role: true },
   })
-  if (!target) throw new Error("Пользователь не найден")
+  if (!target) throw new Error(t("actions.common.userNotFound"))
   if (target.role === "OWNER" && actor.role !== "OWNER" && !actor.isPlatformOwner) {
-    throw new Error("Пользователя-владельца может менять только владелец")
+    throw new Error(t("actions.users.ownerEditedByOwnerOnly"))
   }
 }
 
 export async function createUserAdmin(formData: FormData) {
+  const { t } = await getT()
   const session = await requireCapabilityAndFeature("users.invite")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
@@ -88,13 +94,13 @@ export async function createUserAdmin(formData: FormData) {
   const salaryStr = String(formData.get("salary") ?? "")
   const buildingIds = parseBuildingIds(formData)
 
-  if (!name) throw new Error("Имя обязательно")
-  if (!phone && !email) throw new Error("Укажите телефон или email")
-  if (password.length < 6) throw new Error("Пароль минимум 6 символов")
-  assertAssignableRole(role, orgId)
-  assertCanAssignRole(role, session)
-  assertBuildingSelection(role, buildingIds)
-  await assertContactAvailable(phone, email)
+  if (!name) throw new Error(t("actions.users.nameRequired"))
+  if (!phone && !email) throw new Error(t("actions.users.phoneOrEmailRequired"))
+  if (password.length < 6) throw new Error(t("actions.users.passwordTooShort"))
+  assertAssignableRole(role, orgId, t)
+  assertCanAssignRole(role, session, t)
+  assertBuildingSelection(role, buildingIds, t)
+  await assertContactAvailable(phone, email, t)
 
   const hash = await bcrypt.hash(password, 10)
 
@@ -128,10 +134,11 @@ export async function createUserAdmin(formData: FormData) {
 }
 
 export async function updateUserAdmin(userId: string, formData: FormData) {
+  const { t } = await getT()
   const session = await requireCapabilityAndFeature("users.edit")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
-  await assertCanManageTargetUser(userId, orgId, session)
+  await assertCanManageTargetUser(userId, orgId, session, t)
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
@@ -140,13 +147,13 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
   const newPassword = String(formData.get("newPassword") ?? "")
   const buildingIds = parseBuildingIds(formData)
 
-  if (!name) throw new Error("Имя обязательно")
+  if (!name) throw new Error(t("actions.users.nameRequired"))
   if (role) {
-    assertAssignableRole(role, orgId)
-    assertCanAssignRole(role, session)
-    assertBuildingSelection(role, buildingIds)
+    assertAssignableRole(role, orgId, t)
+    assertCanAssignRole(role, session, t)
+    assertBuildingSelection(role, buildingIds, t)
   }
-  await assertContactAvailable(phone, email, userId)
+  await assertContactAvailable(phone, email, t, userId)
 
   await db.user.update({
     where: { id: userId },
@@ -179,13 +186,14 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean) {
+  const { t } = await getT()
   const session = await requireCapabilityAndFeature("users.deactivate")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
-  await assertCanManageTargetUser(userId, orgId, session)
+  await assertCanManageTargetUser(userId, orgId, session, t)
   // Защита от самоблокировки: нельзя деактивировать собственный аккаунт.
   if (userId === session.id && !isActive) {
-    throw new Error("Нельзя деактивировать собственный аккаунт")
+    throw new Error(t("actions.users.cannotDeactivateSelf"))
   }
 
   await db.user.update({
@@ -199,12 +207,13 @@ export async function toggleUserActive(userId: string, isActive: boolean) {
 }
 
 export async function resetUserPassword(userId: string, newPassword: string) {
+  const { t } = await getT()
   const session = await requireCapabilityAndFeature("users.resetPassword")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
-  await assertCanManageTargetUser(userId, orgId, session)
+  await assertCanManageTargetUser(userId, orgId, session, t)
 
-  if (newPassword.length < 6) throw new Error("Пароль минимум 6 символов")
+  if (newPassword.length < 6) throw new Error(t("actions.users.passwordTooShort"))
 
   await db.user.update({
     where: { id: userId },
@@ -218,13 +227,14 @@ export async function resetUserPassword(userId: string, newPassword: string) {
 }
 
 export async function deleteUserAdmin(userId: string) {
+  const { t } = await getT()
   const session = await requireCapabilityAndFeature("users.delete")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
-  await assertCanManageTargetUser(userId, orgId, session)
+  await assertCanManageTargetUser(userId, orgId, session, t)
 
   if (userId === session.id) {
-    throw new Error("Нельзя удалить самого себя")
+    throw new Error(t("actions.users.cannotDeleteSelf"))
   }
 
   const tenant = await db.tenant.findUnique({ where: { userId }, select: { id: true } })

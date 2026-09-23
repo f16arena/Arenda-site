@@ -40,6 +40,7 @@ import { MiniMap } from "./MiniMap"
 import { PerfHud } from "./PerfHud"
 import { ShowcaseLead } from "./ShowcaseLead"
 import { islandArea, islandLabel } from "@/lib/builder/islands"
+import { useT } from "@/lib/i18n/client"
 import { StatusBar } from "./StatusBar"
 import { WalkRoomBadge } from "./WalkRoomBadge"
 
@@ -98,13 +99,13 @@ function wallFloor(doc: BuilderDocument, edgeId: string): string | null {
 function groupDelete(ids: string[]): void {
   const d = useDocumentStore.getState().doc
   const commands = ids.flatMap((id): Command[] => {
-    const t = objTarget(d, id)
-    if (t) return [new DeleteObjectCommand(t.target, id)]
+    const obj = objTarget(d, id)
+    if (obj) return [new DeleteObjectCommand(obj.target, id)]
     const fid = wallFloor(d, id)
     const cmd = fid ? replanDeleteWall(d, fid, id, useEditorStore.getState().replanMode) : null
     return cmd ? [cmd] : []
   })
-  if (commands.length) useDocumentStore.getState().execute(new CompositeCommand(`удаление: ${commands.length}`, commands))
+  if (commands.length) useDocumentStore.getState().execute(new CompositeCommand(`delete-${commands.length}`, commands))
   useEditorStore.getState().clearMulti()
 }
 
@@ -125,6 +126,7 @@ function groupWalls(xf: import("@/lib/builder/wall-transform").WallXf, copy: boo
 }
 
 function WallGroupBar() {
+  const { t } = useT()
   const [dx, setDx] = useState("0")
   const [dy, setDy] = useState("0")
   const m = (v: string) => Math.round((parseFloat(v.replace(",", ".")) || 0) * 1000)
@@ -132,18 +134,18 @@ function WallGroupBar() {
   const style = { background: TOKENS.panelBorder, color: TOKENS.text }
   const input = "w-14 rounded-md bg-white/5 px-1.5 py-1 text-xs"
   return (
-    <div className="flex items-center gap-1.5" title="Как MOVE/COPY/ROTATE/MIRROR в AutoCAD: смещение в метрах по осям плана">
+    <div className="flex items-center gap-1.5" title={t("adminBuilder.app.groupHint")}>
       <label className="flex items-center gap-1 text-[11px] font-normal" style={{ color: TOKENS.muted }}>
         ΔX<input id="group-dx" value={dx} onChange={(e) => setDx(e.target.value)} className={input} style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
       </label>
       <label className="flex items-center gap-1 text-[11px] font-normal" style={{ color: TOKENS.muted }}>
         ΔY<input id="group-dy" value={dy} onChange={(e) => setDy(e.target.value)} className={input} style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }} />
       </label>
-      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "move", dx: m(dx), dy: m(dy) }, false)}>Сдвинуть</button>
-      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "move", dx: m(dx), dy: m(dy) }, true)}>Копия</button>
-      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "rotate", deg: 90 }, false)} title="Поворот на 90° против часовой вокруг центра выделения">⟲ 90°</button>
-      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "mirror", axis: "vertical" }, false)} title="Зеркально слева направо">⇋</button>
-      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "mirror", axis: "horizontal" }, false)} title="Зеркально сверху вниз">⇅</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "move", dx: m(dx), dy: m(dy) }, false)}>{t("adminBuilder.app.groupMove")}</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "move", dx: m(dx), dy: m(dy) }, true)}>{t("adminBuilder.app.groupCopy")}</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "rotate", deg: 90 }, false)} title={t("adminBuilder.app.groupRotateHint")}>⟲ 90°</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "mirror", axis: "vertical" }, false)} title={t("adminBuilder.app.groupMirrorVertical")}>⇋</button>
+      <button type="button" className={btn} style={style} onClick={() => groupWalls({ kind: "mirror", axis: "horizontal" }, false)} title={t("adminBuilder.app.groupMirrorHorizontal")}>⇅</button>
     </div>
   )
 }
@@ -218,6 +220,7 @@ const TOOL_KEYS: Record<string, Tool> = {
 const CAM_KEYS: Record<string, CameraMode> = { "1": "orbit", "2": "top", "3": "plan2d", "4": "walk" }
 
 export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseName, shareToken, buildingId }: { initialProjectId?: string; initialDoc?: BuilderDocument; readOnly?: boolean; showcaseName?: string; shareToken?: string; buildingId?: string }) {
+  const { t } = useT()
   const engineRef = useRef<BuilderEngine | null>(null)
   const [ready, setReady] = useState(false)
   const [premiseReady, setPremiseReady] = useState(0)
@@ -313,7 +316,9 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     // Инструмент «Помещение» просто выбирает комнату — карточка выбирается
     // в панели свойств из списка помещений этого здания, а не вводится номером.
     engine.onLinkRoom = (floorId, roomId) => applyPick({ kind: "room", floorId, entityId: roomId })
-    engine.onHud = (t) => setHud(t)
+    engine.onHud = (text) => setHud(text)
+    // подсказки сцены пишет движок, а язык знает только интерфейс
+    engine.tx = t
     engine.onMeasure = (lengthMm, from, to) => {
       // «Совместить»: точка скана встаёт в точку модели сразу, без вопросов.
       // «Калибровать»: панель подложки спросит настоящую длину отрезка.
@@ -324,7 +329,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
         useDocumentStore.getState().execute(new SetUnderlayCommand(floor.id, moveUnderlay(floor.underlay, from, to)))
         useUnderlayIntent.getState().setIntent(null)
         useEditorStore.getState().setTool("select")
-        setHud("Подложка совмещена")
+        setHud(t("adminBuilder.app.underlayMoved"))
         window.setTimeout(() => setHud(null), 1500)
         return
       }
@@ -340,7 +345,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     engine.onLowFps = () => {
       if (useEditorStore.getState().turbo) return
       useEditorStore.getState().setTurbo(true)
-      setHud("Кадров мало — включён лёгкий режим 3D (без теней и свечения)")
+      setHud(t("adminBuilder.app.lowFps"))
       window.setTimeout(() => setHud(null), 4000)
     }
     engine.onCursor = (mm) => useLabelStore.getState().setCursor(mm)
@@ -354,7 +359,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       if (first) useEditorStore.getState().setActiveLevel(first.id)
     }
     setReady(true)
-  }, [readOnly, initialDoc, resolveStatus])
+  }, [readOnly, initialDoc, resolveStatus, t])
 
   // Пересборка сцены при изменении документа/уровня/режима отображения.
   useEffect(() => {
@@ -505,8 +510,8 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
   useEffect(() => {
     if (!ready) return
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return
+      const el = e.target as HTMLElement
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return
       const ed = useEditorStore.getState()
       const docState = useDocumentStore.getState()
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -524,10 +529,10 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
         const sel = ed.selection
         if (sel.type === "object" && sel.id) {
-          const t = objTarget(docState.doc, sel.id)
-          if (t) {
-            objectClipboard = t.obj
-            setHud("Объект скопирован — Ctrl+V вставит")
+          const picked = objTarget(docState.doc, sel.id)
+          if (picked) {
+            objectClipboard = picked.obj
+            setHud(t("adminBuilder.app.objectCopied"))
             window.setTimeout(() => setHud(null), 1500)
           }
         }
@@ -657,23 +662,23 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
       // Стрелки — точное смещение выбранного объекта (Shift — мелкий шаг).
       if (e.key.startsWith("Arrow") && ed.selection.type === "object" && ed.selection.id) {
         e.preventDefault()
-        const t = objTarget(docState.doc, ed.selection.id)
-        if (t) {
+        const picked = objTarget(docState.doc, ed.selection.id)
+        if (picked) {
           const step = e.shiftKey ? 10 : 100
-          let x = t.obj.position.x
-          let z = t.obj.position.z
+          let x = picked.obj.position.x
+          let z = picked.obj.position.z
           if (e.key === "ArrowUp") z -= step
           else if (e.key === "ArrowDown") z += step
           else if (e.key === "ArrowLeft") x -= step
           else if (e.key === "ArrowRight") x += step
-          docState.execute(new MoveObjectCommand(t.target, ed.selection.id, Math.round(x), Math.round(z)))
+          docState.execute(new MoveObjectCommand(picked.target, ed.selection.id, Math.round(x), Math.round(z)))
         }
         return
       }
       // G — тумблер привязки к сетке
       if (e.key === "g" || e.key === "G") {
         ed.toggleSnap()
-        setHud(useEditorStore.getState().snapEnabled ? "Привязка к сетке: вкл" : "Привязка к сетке: выкл")
+        setHud(t(useEditorStore.getState().snapEnabled ? "adminBuilder.app.snapOn" : "adminBuilder.app.snapOff"))
         window.setTimeout(() => setHud(null), 1200)
         return
       }
@@ -718,7 +723,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [ready])
+  }, [ready, t])
 
   return (
     <div className="fixed inset-0 z-[80] overflow-hidden" style={{ background: TOKENS.background, color: TOKENS.text }}>
@@ -766,7 +771,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
               token={shareToken}
               // в заявку уходит наименование места, а не id карточки: владелец
               // читает «Автомат с игрушками», а не cuid
-              premiseNumber={islandLabel(isl)}
+              premiseNumber={islandLabel(isl, (kind) => t(`adminBuilder.islands.kinds.${kind}`))}
               areaM2={islandArea(isl)}
               onClose={() => useEditorStore.getState().setSelection({ type: "none" })}
             />
@@ -797,7 +802,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           className="absolute left-1/2 top-[9.75rem] z-30 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-3 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.accent}`, color: TOKENS.text }}
         >
-          <span style={{ color: TOKENS.accent }}>Выбрано: {multi.length}</span>
+          <span style={{ color: TOKENS.accent }}>{t("adminBuilder.app.selected", { count: multi.length })}</span>
           {multi.some((id) => wallFloor(doc, id)) && <WallGroupBar />}
           {multi.length >= 2 && multi.every((id) => objTarget(doc, id)) && (
             <>
@@ -807,7 +812,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
                 className="rounded-md px-2 py-1 text-xs"
                 style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
               >
-                Выровнять X
+                {t("adminBuilder.app.alignX")}
               </button>
               <button
                 type="button"
@@ -815,7 +820,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
                 className="rounded-md px-2 py-1 text-xs"
                 style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
               >
-                Выровнять Z
+                {t("adminBuilder.app.alignZ")}
               </button>
             </>
           )}
@@ -825,7 +830,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             className="rounded-md px-2 py-1 text-xs"
             style={{ background: TOKENS.panelBorder, color: TOKENS.text }}
           >
-            Дублировать (Ctrl+D)
+            {t("adminBuilder.app.duplicate")}
           </button>}
           <button
             type="button"
@@ -833,7 +838,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             className="rounded-md px-2 py-1 text-xs"
             style={{ background: "rgba(239,68,68,0.18)", color: "#fca5a5" }}
           >
-            Удалить (Del)
+            {t("adminBuilder.app.deleteSelection")}
           </button>
           <button
             type="button"
@@ -841,7 +846,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             className="rounded-md px-2 py-1 text-xs"
             style={{ background: TOKENS.panelBorder, color: TOKENS.muted }}
           >
-            Сбросить (Esc)
+            {t("adminBuilder.app.clearSelection")}
           </button>
         </div>
       )}
@@ -851,7 +856,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           className="absolute left-1/2 top-3 z-30 flex -translate-x-1/2 items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold shadow-xl backdrop-blur-xl"
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
         >
-          <span style={{ color: TOKENS.accent }}>●</span> {showcaseName ?? "Витрина"} · Commrent
+          <span style={{ color: TOKENS.accent }}>●</span> {showcaseName ?? t("adminBuilder.app.showcase")} · Commrent
         </div>
       )}
       {readOnly && !walking && ready && (
@@ -861,7 +866,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
           className="absolute right-3 top-16 z-30 flex flex-col gap-1.5 rounded-xl px-3 py-2 shadow-xl backdrop-blur-xl"
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
         >
-          <span className="text-[11px] font-semibold tabular-nums">Солнце · {hourLabel(hourOfDay)}</span>
+          <span className="text-[11px] font-semibold tabular-nums">{t("adminBuilder.app.sun", { time: hourLabel(hourOfDay) })}</span>
           <input
             type="range"
             min={5}
@@ -870,7 +875,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             value={hourOfDay}
             onChange={(e) => useLabelStore.getState().setHourOfDay(Number(e.target.value))}
             className="h-1 w-32 cursor-pointer accent-sky-400"
-            aria-label="Время суток"
+            aria-label={t("adminBuilder.app.timeOfDay")}
           />
           <button
             type="button"
@@ -878,13 +883,13 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             className="rounded-md px-2 py-1 text-[11px] font-semibold"
             style={{ background: showFurniture ? TOKENS.accent : "rgba(148,163,184,0.16)", color: showFurniture ? "#0b1220" : TOKENS.text }}
           >
-            Мебель
+            {t("adminBuilder.app.furniture")}
           </button>
           {/* убранные предметы автомебели: вернуть все сразу */}
           {!readOnly && hiddenFurnish > 0 && (
             <button
               type="button"
-              title="Вернуть предметы автомебели, убранные инструментом «Удалить»"
+              title={t("adminBuilder.app.restoreFurnitureHint")}
               onClick={() => {
                 const fid = activeLevelId === "site" || activeLevelId === "roof" ? siteFloorId : activeLevelId
                 if (fid) useDocumentStore.getState().execute(new ResetFurnishCommand(fid))
@@ -892,7 +897,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
               className="rounded-md px-2 py-1 text-[11px] font-semibold"
               style={{ background: "rgba(148,163,184,0.16)", color: TOKENS.text }}
             >
-              Вернуть мебель ({hiddenFurnish})
+              {t("adminBuilder.app.restoreFurniture", { count: hiddenFurnish })}
             </button>
           )}
         </div>
@@ -916,7 +921,7 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
             </div>
             <div>
               <div className="text-lg font-semibold tracking-tight">Commrent Building Studio</div>
-              <div className="text-xs" style={{ color: TOKENS.muted }}>Загружаем 3D-сцену…</div>
+              <div className="text-xs" style={{ color: TOKENS.muted }}>{t("adminBuilder.app.loading")}</div>
             </div>
           </div>
           <Loader2 className="h-6 w-6 animate-spin" style={{ color: TOKENS.accent }} />
@@ -928,6 +933,16 @@ export function BuilderApp({ initialProjectId, initialDoc, readOnly, showcaseNam
 
 /** Экран обхода: прицел, подсказка управления и выход. */
 function WalkHud() {
+  const { t } = useT()
+  // пары «клавиша — действие»: строка одна, длинные подписи её ломают
+  const keys: Array<[string, string]> = [
+    [t("adminBuilder.walk.keyClick"), t("adminBuilder.walk.actClick")],
+    [t("adminBuilder.walk.keyMove"), t("adminBuilder.walk.actMove")],
+    [t("adminBuilder.walk.keyLook"), t("adminBuilder.walk.actLook")],
+    [t("adminBuilder.walk.keyRun"), t("adminBuilder.walk.actRun")],
+    [t("adminBuilder.walk.keyDoor"), t("adminBuilder.walk.actDoor")],
+    [t("adminBuilder.walk.keyEsc"), t("adminBuilder.walk.actEsc")],
+  ]
   return (
     <>
       <div className="pointer-events-none absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2">
@@ -935,7 +950,9 @@ function WalkHud() {
       </div>
       <div className="pointer-events-none absolute bottom-6 left-1/2 z-30 -translate-x-1/2 rounded-xl px-4 py-2 text-xs shadow-xl backdrop-blur-xl"
         style={{ background: "rgba(15,23,42,0.72)", border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
-        <b>клик</b> — захватить мышь · <b>W A S D</b> — идти · <b>мышь</b> — осмотреться · <b>Shift</b> — бежать · <b>клик по двери</b> — открыть · <b>Esc</b> — освободить мышь, ещё раз — выйти
+        {keys.map(([key, action], i) => (
+          <span key={key}>{i > 0 ? " · " : ""}<b>{key}</b> — {action}</span>
+        ))}
       </div>
       <button
         type="button"
@@ -943,7 +960,7 @@ function WalkHud() {
         className="absolute left-3 top-3 z-30 rounded-xl px-3 py-2 text-xs font-semibold shadow-xl backdrop-blur-xl"
         style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
       >
-        ← Выйти из обхода
+        {t("adminBuilder.walk.exit")}
       </button>
     </>
   )

@@ -34,39 +34,41 @@ const op = (id: string, type: "door" | "window", offset: number) => ({
   height: type === "door" ? 2100 : 1500, sillHeight: type === "door" ? 0 : 850, offset,
 })
 
+// Подсказка возвращает ключ словаря (adminBuilder.roomNames), а не готовую
+// строку: наименование переводится там, где его подставляют в модель.
 describe("suggestRoomName", () => {
   it("помещение с окном — офис", () => {
     const f = floor({ openings: [op("o1", "window", 2000)] } as unknown as Partial<Floor>)
-    expect(suggestRoomName(f, room("r1", 0, 0, 5000, 4000))).toBe("Офис")
+    expect(suggestRoomName(f, room("r1", 0, 0, 5000, 4000))).toBe("office")
   })
 
   it("большое помещение с окнами — офис открытой планировки", () => {
     const f = floor({ openings: [op("o1", "window", 4000)] } as unknown as Partial<Floor>)
-    expect(suggestRoomName(f, room("r1", 0, 0, 12000, 8000))).toBe("Офис открытой планировки")
+    expect(suggestRoomName(f, room("r1", 0, 0, 12000, 8000))).toBe("openOffice")
   })
 
   it("длинное узкое с двумя дверями — коридор", () => {
     const f = floor({ openings: [op("d1", "door", 1000), op("d2", "door", 12000)] } as unknown as Partial<Floor>)
-    expect(suggestRoomName(f, room("r1", 0, 0, 18000, 2000))).toBe("Коридор")
+    expect(suggestRoomName(f, room("r1", 0, 0, 18000, 2000))).toBe("corridor")
   })
 
   it("маленькое глухое — санузел", () => {
-    expect(suggestRoomName(floor(), room("r1", 0, 0, 1600, 1800))).toBe("Санузел")
+    expect(suggestRoomName(floor(), room("r1", 0, 0, 1600, 1800))).toBe("wc")
   })
 
   it("глухое до 12 м² — кладовая", () => {
-    expect(suggestRoomName(floor(), room("r1", 0, 0, 3000, 3000))).toBe("Кладовая")
+    expect(suggestRoomName(floor(), room("r1", 0, 0, 3000, 3000))).toBe("storage")
   })
 
   it("техническое назначение даёт электрощитовую", () => {
     const f = floor({ roomUse: { r1: "tech" } } as unknown as Partial<Floor>)
-    expect(suggestRoomName(f, room("r1", 0, 0, 2000, 2000))).toBe("Электрощитовая")
+    expect(suggestRoomName(f, room("r1", 0, 0, 2000, 2000))).toBe("electrical")
   })
 
   it("МОП: большое — холл, поменьше — вестибюль", () => {
     const f = floor({ roomUse: { r1: "common", r2: "common" } } as unknown as Partial<Floor>)
-    expect(suggestRoomName(f, room("r1", 0, 0, 8000, 6000))).toBe("Холл")
-    expect(suggestRoomName(f, room("r2", 0, 0, 4000, 4000))).toBe("Вестибюль")
+    expect(suggestRoomName(f, room("r1", 0, 0, 8000, 6000))).toBe("hall")
+    expect(suggestRoomName(f, room("r2", 0, 0, 4000, 4000))).toBe("lobby")
   })
 
   it("заданное вручную наименование не трогаем", () => {
@@ -84,7 +86,7 @@ describe("suggestFloorNames", () => {
     const f = floor({ roomNames: { r2: "Кабинет директора" }, openings: [op("o1", "window", 2000)] } as unknown as Partial<Floor>)
     const rooms = [room("r1", 0, 0, 5000, 4000), room("r2", 6000, 0, 5000, 4000)]
     const names = suggestFloorNames(f, rooms)
-    expect(names.r1).toBe("Офис")
+    expect(names.r1).toBe("office")
     expect(names.r2).toBeUndefined()
   })
 })

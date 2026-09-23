@@ -1,21 +1,45 @@
 import "server-only"
 
 import { db } from "@/lib/db"
+import type { Messages } from "@/lib/i18n/messages"
+import type { TextKey, Vars } from "@/lib/i18n/translate"
 import { safeServerValue } from "@/lib/server-fallback"
 
 export type OnboardingStepCategory = "foundation" | "object" | "people" | "legal" | "finance"
 
+/**
+ * Код шага. Он же путь в словаре: adminChecks.onboardingSteps.steps.<код>.
+ * Заголовок, описание, кнопку и «что это даст» модуль не собирает — язык
+ * страницы известен только при отрисовке.
+ */
+export type OnboardingStepKey =
+  | "requisites"
+  | "building"
+  | "floors"
+  | "spaces"
+  | "rates"
+  | "administrator"
+  | "tenants"
+  | "contacts"
+  | "paymentDetails"
+  | "documentNumbering"
+  | "contract"
+  | "billing"
+  | "tariffs"
+  | "staff"
+  | "payment"
+
+/** Счётчик в бейдже шага: adminChecks.onboardingSteps.units.* */
+export type OnboardingUnitKey = Extract<TextKey<Messages>, `adminChecks.onboardingSteps.units.${string}`>
+
 export type OnboardingStep = {
-  key: string
-  title: string
-  description: string
+  key: OnboardingStepKey
   href: string
   category: OnboardingStepCategory
   done: boolean
   required: boolean
-  actionLabel: string
-  outcome: string
-  countLabel?: string
+  countKey: OnboardingUnitKey
+  countVars?: Vars
 }
 
 export type OnboardingState = {
@@ -198,183 +222,169 @@ export async function getOnboardingState(orgId: string): Promise<OnboardingState
   const steps: OnboardingStep[] = [
     {
       key: "requisites",
-      title: "Заполнить реквизиты арендодателя",
-      description: "ИП/ТОО, ИИН/БИН, директор, основание действия, адрес, телефон, email и банк нужны для договоров, счетов и оплаты.",
       href: "/admin/settings#organization-requisites",
       category: "foundation",
       done: orgRequisitesReady,
       required: true,
-      actionLabel: "Заполнить реквизиты",
-      outcome: "Документы и экран оплаты будут формироваться с правильными данными владельца.",
-      countLabel: orgRequisitesReady ? "готово" : "обязательно",
+      countKey: orgRequisitesReady
+        ? "adminChecks.onboardingSteps.units.done"
+        : "adminChecks.onboardingSteps.units.required",
     },
     {
       key: "building",
-      title: "Добавить первое здание",
-      description: "Здание задает точку учета: помещения, арендаторы, документы, финансы, заявки и сотрудники не смешиваются между объектами.",
       href: "/admin/buildings",
       category: "foundation",
       done: buildings.length > 0,
       required: true,
-      actionLabel: "Добавить здание",
-      outcome: "Появится объект, к которому можно привязать этажи, помещения и команду.",
-      countLabel: buildings.length > 0 ? `${buildings.length} здан.` : "обязательно",
+      countKey: buildings.length > 0
+        ? "adminChecks.onboardingSteps.units.buildings"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: buildings.length },
     },
     {
       key: "floors",
-      title: "Настроить этажи",
-      description: "Этажи нужны для структуры здание -> этаж -> помещение, ставок, площадей и доступа администраторов.",
       href: "/admin/buildings",
       category: "object",
       done: floorCount > 0,
       required: true,
-      actionLabel: "Настроить этажи",
-      outcome: "Система сможет правильно группировать помещения и считать площадь здания.",
-      countLabel: floorCount > 0 ? `${floorCount} эт.` : "обязательно",
+      countKey: floorCount > 0
+        ? "adminChecks.onboardingSteps.units.floors"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: floorCount },
     },
     {
       key: "spaces",
-      title: "Создать помещения",
-      description: "Помещения дают заполняемость, привязку арендаторов, счетчики и расчет аренды по конкретной площади.",
       href: "/admin/spaces",
       category: "object",
       done: rentableSpaceCount > 0,
       required: true,
-      actionLabel: "Создать помещения",
-      outcome: "Можно будет назначать арендаторов и видеть свободную/занятую площадь.",
-      countLabel: rentableSpaceCount > 0 ? `${rentableSpaceCount} пом.` : "обязательно",
+      countKey: rentableSpaceCount > 0
+        ? "adminChecks.onboardingSteps.units.spaces"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: rentableSpaceCount },
     },
     {
       key: "rates",
-      title: "Указать ставки аренды",
-      description: "Нужна ставка этажа, фиксированная аренда этажа или индивидуальная ставка арендатора, иначе прогноз дохода будет пустым.",
       href: "/admin/settings?tab=building",
       category: "object",
       done: pricedFloorCount > 0,
       required: true,
-      actionLabel: "Указать ставки",
-      outcome: "Дашборд владельца начнет показывать расчетный месячный доход.",
-      countLabel: pricedFloorCount > 0 ? `${pricedFloorCount} эт.` : "обязательно",
+      countKey: pricedFloorCount > 0
+        ? "adminChecks.onboardingSteps.units.floors"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: pricedFloorCount },
     },
     {
       key: "administrator",
-      title: "Назначить администратора здания",
-      description: "Арендаторы должны общаться с администратором, а владелец видеть контроль сверху. Можно назначить и самого владельца.",
       href: "/admin/buildings",
       category: "people",
       done: buildings.length > 0 && buildingsWithAdmin === buildings.length,
       required: true,
-      actionLabel: "Назначить администратора",
-      outcome: "У каждого здания появится ответственный контакт для арендаторов и заявок.",
-      countLabel: buildings.length > 0 ? `${buildingsWithAdmin}/${buildings.length}` : "после здания",
+      countKey: buildings.length > 0
+        ? "adminChecks.onboardingSteps.units.ratio"
+        : "adminChecks.onboardingSteps.units.afterBuilding",
+      countVars: { done: buildingsWithAdmin, total: buildings.length },
     },
     {
       key: "tenants",
-      title: "Добавить арендаторов",
-      description: "Арендатора можно добавить вручную или импортировать из Excel, затем привязать к одному или нескольким помещениям/этажам.",
       href: "/admin/tenants",
       category: "people",
       done: tenantCount > 0,
       required: true,
-      actionLabel: "Добавить арендатора",
-      outcome: "Появится карточка арендатора, договоры, начисления и кабинет арендатора.",
-      countLabel: tenantCount > 0 ? `${tenantCount} аренд.` : "обязательно",
+      countKey: tenantCount > 0
+        ? "adminChecks.onboardingSteps.units.tenants"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: tenantCount },
     },
     {
       key: "contacts",
-      title: "Проверить контакты арендаторов",
-      description: "Телефон и email нужны для входа в кабинет, welcome-письма, счетов, уведомлений и подписания документов.",
       href: "/admin/data-quality",
       category: "people",
       done: tenantCount > 0 && tenantWithContactCount === tenantCount,
       required: true,
-      actionLabel: "Проверить контакты",
-      outcome: "Арендаторы смогут войти, получать уведомления и отправлять подтверждения оплат.",
-      countLabel: tenantCount > 0 ? `${tenantWithContactCount}/${tenantCount}` : "после арендаторов",
+      countKey: tenantCount > 0
+        ? "adminChecks.onboardingSteps.units.ratio"
+        : "adminChecks.onboardingSteps.units.afterTenants",
+      countVars: { done: tenantWithContactCount, total: tenantCount },
     },
     {
-      key: "payment-details",
-      title: "Подготовить платежные реквизиты",
-      description: "Основной банковский счет в реквизитах и/или активный счет учета нужен для оплат, сверки и отчетов.",
+      key: "paymentDetails",
       href: "/admin/settings#payment-accounts",
       category: "finance",
       done: orgPaymentDetailsReady || cashAccountCount > 0,
       required: true,
-      actionLabel: "Настроить оплату",
-      outcome: "Арендатор увидит куда платить, а администратор сможет разносить платежи.",
-      countLabel: cashAccountCount > 0 ? `${cashAccountCount} счет.` : orgPaymentDetailsReady ? "банк готов" : "обязательно",
+      countKey: cashAccountCount > 0
+        ? "adminChecks.onboardingSteps.units.accounts"
+        : orgPaymentDetailsReady
+          ? "adminChecks.onboardingSteps.units.bankReady"
+          : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: cashAccountCount },
     },
     {
-      key: "document-numbering",
-      title: "Настроить номера документов",
-      description: "Префиксы договоров, счетов и актов защищают от хаоса, особенно когда у владельца несколько зданий.",
+      key: "documentNumbering",
       href: "/admin/settings?tab=money",
       category: "legal",
       done: buildings.length > 0 && buildingsWithNumbering === buildings.length,
       required: true,
-      actionLabel: "Настроить нумерацию",
-      outcome: "Номера документов будут понятными: здание, год, порядковый номер.",
-      countLabel: buildings.length > 0 ? `${buildingsWithNumbering}/${buildings.length}` : "после здания",
+      countKey: buildings.length > 0
+        ? "adminChecks.onboardingSteps.units.ratio"
+        : "adminChecks.onboardingSteps.units.afterBuilding",
+      countVars: { done: buildingsWithNumbering, total: buildings.length },
     },
     {
       key: "contract",
-      title: "Создать и подписать первый договор",
-      description: "Юридический контур должен подтверждать аренду, помещение, срок, сумму и будущие изменения через доп. соглашения.",
       href: "/admin/documents?create=contract",
       category: "legal",
       done: signedContractCount > 0,
       required: true,
-      actionLabel: "Создать договор",
-      outcome: "Условия аренды будут подкреплены документом и подписью сторон.",
-      countLabel: contractCount > 0 ? `${signedContractCount}/${contractCount} подпис.` : "обязательно",
+      countKey: contractCount > 0
+        ? "adminChecks.onboardingSteps.units.contracts"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { done: signedContractCount, total: contractCount },
     },
     {
       key: "billing",
-      title: "Сформировать первое начисление",
-      description: "После начисления становится виден долг, срок оплаты, счет и финансовая дисциплина арендатора.",
       href: "/admin/finances",
       category: "finance",
       done: chargeCount > 0,
       required: true,
-      actionLabel: "Сформировать начисление",
-      outcome: "Владелец увидит ожидаемый доход, а арендатор - сумму к оплате.",
-      countLabel: chargeCount > 0 ? `${chargeCount} начисл.` : "обязательно",
+      countKey: chargeCount > 0
+        ? "adminChecks.onboardingSteps.units.charges"
+        : "adminChecks.onboardingSteps.units.required",
+      countVars: { count: chargeCount },
     },
     {
       key: "tariffs",
-      title: "Добавить тарифы коммунальных услуг",
-      description: "Электричество, вода, отопление, мусор и интернет можно считать отдельно от аренды, если они нужны конкретному объекту.",
       href: "/admin/settings?tab=building",
       category: "finance",
       done: tariffCount > 0,
       required: false,
-      actionLabel: "Добавить тарифы",
-      outcome: "Коммунальные начисления будут прозрачными и не смешаются с арендной платой.",
-      countLabel: tariffCount > 0 ? `${tariffCount} тариф.` : "если нужно",
+      countKey: tariffCount > 0
+        ? "adminChecks.onboardingSteps.units.tariffs"
+        : "adminChecks.onboardingSteps.units.ifNeeded",
+      countVars: { count: tariffCount },
     },
     {
       key: "staff",
-      title: "Пригласить команду",
-      description: "Бухгалтер, управляющий или сотрудник могут получить роль и доступ только к нужным зданиям.",
       href: "/admin/staff",
       category: "people",
       done: staffCount > 0,
       required: false,
-      actionLabel: "Добавить сотрудника",
-      outcome: "Владелец сможет не работать в операционке каждый день.",
-      countLabel: staffCount > 0 ? `${staffCount} сотр.` : "можно позже",
+      countKey: staffCount > 0
+        ? "adminChecks.onboardingSteps.units.staff"
+        : "adminChecks.onboardingSteps.units.later",
+      countVars: { count: staffCount },
     },
     {
       key: "payment",
-      title: "Принять первый платеж",
-      description: "Платеж закрывает долг и показывает владельцу реальный денежный поток. Это финальная проверка финансового контура.",
       href: "/admin/finances",
       category: "finance",
       done: paymentCount > 0,
       required: false,
-      actionLabel: "Принять платеж",
-      outcome: "Цепочка начисление -> оплата -> закрытие долга будет проверена на практике.",
-      countLabel: paymentCount > 0 ? `${paymentCount} плат.` : "после счета",
+      countKey: paymentCount > 0
+        ? "adminChecks.onboardingSteps.units.payments"
+        : "adminChecks.onboardingSteps.units.afterInvoice",
+      countVars: { count: paymentCount },
     },
   ]
 

@@ -8,11 +8,13 @@ export type RoleOption = {
 
 export type RoleSectionGroup = {
   key: string
-  label: string
-  description: string
   sections: Section[]
 }
 
+// Подписи системных должностей берутся из словаря
+// (adminSettings.roles.systemRoles) там, где их видит владелец. Русский текст
+// здесь остаётся: он идёт в поле «должность» нового сотрудника (это данные в
+// базе, а не интерфейс) и работает запасным для своих должностей организации.
 export const SYSTEM_ROLE_OPTIONS: RoleOption[] = [
   { value: "OWNER", label: "Владелец", system: true },
   { value: "ADMIN", label: "Администратор", system: true },
@@ -25,29 +27,23 @@ export const SYSTEM_ROLE_OPTIONS: RoleOption[] = [
 const SYSTEM_ROLE_LABELS = new Map(SYSTEM_ROLE_OPTIONS.map((role) => [role.value, role.label]))
 const SYSTEM_ROLE_VALUES = new Set(SYSTEM_ROLE_OPTIONS.map((role) => role.value))
 
+// Группировка страниц в матрице прав. Подписи — adminRefs.sectionGroups.<ключ>:
+// здесь только состав групп и порядок.
 export const ROLE_SECTION_GROUPS: RoleSectionGroup[] = [
   {
     key: "workspace",
-    label: "Рабочее пространство",
-    description: "Главные страницы, здания, помещения и арендаторы.",
     sections: ["dashboard", "buildings", "spaces", "tenants", "profile"],
   },
   {
     key: "money",
-    label: "Деньги и документы",
-    description: "Финансы, договоры, документы, шаблоны и аналитика.",
     sections: ["finances", "contracts", "documents", "analytics"],
   },
   {
     key: "operations",
-    label: "Операционная работа",
-    description: "Заявки, задачи, счетчики, сообщения, жалобы и сотрудники.",
     sections: ["meters", "requests", "tasks", "staff", "complaints", "messages"],
   },
   {
     key: "control",
-    label: "Управление",
-    description: "Настройки, должности, права и пользователи.",
     sections: ["settings", "roles", "users"],
   },
 ]

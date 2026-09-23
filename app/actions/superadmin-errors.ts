@@ -4,25 +4,27 @@ import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 import { parseErrorDetails, type ErrorReportDetails } from "@/lib/error-report"
 import { requirePlatformOwner } from "@/lib/org"
+import { getT } from "@/lib/i18n/server"
 
 export type ErrorSupportStatus = "NEW" | "IN_PROGRESS" | "RESOLVED"
 
 const SUPPORT_STATUSES = new Set<ErrorSupportStatus>(["NEW", "IN_PROGRESS", "RESOLVED"])
 
 export async function updateErrorSupportStatus(formData: FormData): Promise<void> {
+  const { t } = await getT()
   const { userId } = await requirePlatformOwner()
   const logId = String(formData.get("logId") ?? "").trim()
   const status = normalizeSupportStatus(String(formData.get("status") ?? ""))
   const note = String(formData.get("note") ?? "").trim().slice(0, 500)
 
-  if (!logId) throw new Error("Не указана ошибка")
-  if (!status) throw new Error("Неверный статус ошибки")
+  if (!logId) throw new Error(t("actions.superadminErrors.logRequired"))
+  if (!status) throw new Error(t("actions.superadminErrors.badStatus"))
 
   const log = await db.auditLog.findFirst({
     where: { id: logId, action: "ERROR" },
     select: { id: true, entityId: true, details: true },
   })
-  if (!log) throw new Error("Ошибка не найдена")
+  if (!log) throw new Error(t("actions.superadminErrors.notFound"))
 
   const details: ErrorReportDetails = parseErrorDetails(log.details)
   const now = new Date().toISOString()

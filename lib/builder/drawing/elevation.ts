@@ -12,6 +12,7 @@ import { pointInPolygon, type Vec2 } from "@/core/geometry/math"
 import { generateRoof } from "@/core/geometry/roof-generator"
 import { generateStair, stairPlanRects, stairRise } from "@/core/geometry/stair-generator"
 import { buildFloorDrawing } from "./floor-drawing"
+import type { SheetT } from "@/lib/builder/sheet-text"
 
 export type Pt = { x: number; y: number }
 
@@ -92,10 +93,10 @@ export function levelText(mm: number): string {
   return `${mm > 0 ? "+" : "−"}${s}`
 }
 
-function floorLabel(f: Floor): string {
-  if (f.level < 0) return "Подвал"
-  if (f.level === 0) return "Цоколь"
-  return `${f.level} этаж`
+function floorLabel(t: SheetT, f: Floor): string {
+  if (f.level < 0) return t("adminBuilderSheet.sheetText.levelBasement")
+  if (f.level === 0) return t("adminBuilderSheet.sheetText.levelPlinth")
+  return t("adminBuilderSheet.sheetText.levelFloor", { level: f.level })
 }
 
 interface WallInfo {
@@ -359,6 +360,7 @@ function paint(layers: Layer[]): EItem[] {
 function axesFor(frame: ViewFrame, floors: Floor[]): { u: number; label: string }[] {
   const base = [...floors].sort((a, b) => a.elevation - b.elevation).find((f) => Object.keys(f.wallGraph.edges).length > 0)
   if (!base) return []
+  // осям нужны только марки («1», «А») — переводить в них нечего
   const plan = buildFloorDrawing(base)
   const out: { u: number; label: string }[] = []
   for (const ax of plan.axes) {
@@ -372,7 +374,7 @@ function axesFor(frame: ViewFrame, floors: Floor[]): { u: number; label: string 
   return out.sort((a, b) => a.u - b.u)
 }
 
-function marksFor(floors: Floor[], topZ: number): { marks: ELevelMark[]; dims: EDim[]; names: { z: number; text: string }[] } {
+function marksFor(floors: Floor[], topZ: number, t: SheetT): { marks: ELevelMark[]; dims: EDim[]; names: { z: number; text: string }[] } {
   const sorted = [...floors].sort((a, b) => a.elevation - b.elevation)
   const marks: ELevelMark[] = []
   const seen = new Set<number>()
@@ -388,7 +390,7 @@ function marksFor(floors: Floor[], topZ: number): { marks: ELevelMark[]; dims: E
   if (last) add(last.elevation + last.height)
   if (topZ > (last ? last.elevation + last.height : 0) + 50) add(topZ)
   const dims: EDim[] = sorted.map((f) => ({ z0: f.elevation, z1: f.elevation + f.height, text: String(Math.round(f.height)) }))
-  const names = sorted.map((f) => ({ z: f.elevation + f.height / 2, text: floorLabel(f) }))
+  const names = sorted.map((f) => ({ z: f.elevation + f.height / 2, text: floorLabel(t, f) }))
   marks.sort((a, b) => a.z - b.z)
   return { marks, dims, names }
 }
@@ -422,7 +424,7 @@ function buildingCenter(floors: Floor[]): Vec2 {
   return Number.isFinite(minX) ? { x: (minX + maxX) / 2, y: (minY + maxY) / 2 } : { x: 0, y: 0 }
 }
 
-export function buildFacade(b: Building, side: FacadeSide): ElevationDrawing {
+export function buildFacade(b: Building, side: FacadeSide, t: SheetT): ElevationDrawing {
   const floors = visibleFloors(b)
   const d = FACADE_DIR[side]
   const frame: ViewFrame = { origin: buildingCenter(floors), d }
@@ -448,7 +450,7 @@ export function buildFacade(b: Building, side: FacadeSide): ElevationDrawing {
   const bounds = boundsOf(items)
   // земля
   items.push({ t: "line", a: { x: bounds.minU - 1500, y: 0 }, b: { x: bounds.maxU + 1500, y: 0 }, weight: "thick" })
-  const m = marksFor(floors, topZ)
+  const m = marksFor(floors, topZ, t)
   return { kind: "facade", axes: axesFor(frame, floors), items, marks: m.marks.filter((x) => x.z >= 0), dims: m.dims.filter((x) => x.z1 > 0).map((x) => (x.z0 < 0 ? { z0: 0, z1: x.z1, text: String(Math.round(x.z1)) } : x)), floorNames: m.names.filter((x) => x.z > 0), bounds: { ...bounds, minZ: Math.min(bounds.minZ, 0) } }
 }
 
@@ -469,7 +471,7 @@ export function sectionFrame(s: SectionLine): ViewFrame {
   return s.look === 1 ? { origin: s.a, d } : { origin: s.b, d }
 }
 
-export function buildSection(b: Building, s: SectionLine): ElevationDrawing {
+export function buildSection(b: Building, s: SectionLine, t: SheetT): ElevationDrawing {
   const floors = visibleFloors(b)
   const frame = sectionFrame(s)
   const L = Math.hypot(s.b.x - s.a.x, s.b.y - s.a.y)
@@ -559,7 +561,7 @@ export function buildSection(b: Building, s: SectionLine): ElevationDrawing {
   const bounds = boundsOf(items)
   const minU = Math.min(bounds.minU, 0), maxU = Math.max(bounds.maxU, L)
   items.push({ t: "line", a: { x: minU - 1500, y: 0 }, b: { x: maxU + 1500, y: 0 }, weight: "thick" })
-  const m = marksFor(floors, topZ)
+  const m = marksFor(floors, topZ, t)
   return { kind: "section", axes: axesFor(frame, floors), items, marks: m.marks, dims: m.dims, floorNames: m.names, bounds: { minU, maxU, minZ: Math.min(bounds.minZ, 0), maxZ: bounds.maxZ } }
 }
 
@@ -593,9 +595,15 @@ function triCut(frame: ViewFrame, t: Tri): [Pt, Pt] | null {
   return pts.length === 2 && Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) > 5 ? [pts[0], pts[1]] : null
 }
 
-export const FACADE_TITLE: Record<FacadeSide, string> = {
-  south: "Фасад южный",
-  north: "Фасад северный",
-  west: "Фасад западный",
-  east: "Фасад восточный",
+/** Ключ названия фасада в словаре (adminBuilder.sheetText). */
+export const FACADE_TITLE_KEY = {
+  south: "facadeSouth",
+  north: "facadeNorth",
+  west: "facadeWest",
+  east: "facadeEast",
+} as const satisfies Record<FacadeSide, string>
+
+/** Название фасада на языке того, кто печатает лист. */
+export function facadeTitle(t: SheetT, side: FacadeSide): string {
+  return t(`adminBuilderSheet.sheetText.${FACADE_TITLE_KEY[side]}`)
 }

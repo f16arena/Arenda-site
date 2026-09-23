@@ -95,7 +95,10 @@ export function TenantIdentityFields({
       // IP → ИП, LZCHP → нотариус/адвокат/ЧСИ по виду практики).
       const taxpayerType = r.info.taxpayerType
       let detected: TenantLegalType | null = null
-      if (taxpayerType === "UL") detected = /акционерное общество/i.test(r.info.name ?? "") ? "AO" : "TOO"
+      if (taxpayerType === "UL")
+        // Справочник МКК возвращает форму на языке регистрации, поэтому
+        // сверяем оба написания: иначе казахское АҚ определится как ЖШС.
+        detected = /акционерное общество|акционерлік қоғам/i.test(r.info.name ?? "") ? "AO" : "TOO"
       else if (taxpayerType === "IP") detected = "IP"
       else if (taxpayerType === "LZCHP") {
         const k = (r.info.lzchpType ?? "").toUpperCase()
@@ -254,9 +257,19 @@ export function TenantIdentityFields({
           ].join(" ")}>
             {iinValidation.ok
               ? iinValidation.birthDate
-                ? `${t("adminTenants.identity.checkOk")} · ${formatKzIinBirthDate(iinValidation.birthDate)} · ${iinValidation.genderLabel ?? t("adminTenants.identity.genderUnknown")}`
+                ? `${t("adminTenants.identity.checkOk")} · ${formatKzIinBirthDate(iinValidation.birthDate)} · ${
+                    iinValidation.gender === "MALE"
+                      ? t("common.iinChecks.male")
+                      : iinValidation.gender === "FEMALE"
+                        ? t("common.iinChecks.female")
+                        : t("adminTenants.identity.genderUnknown")
+                  }`
                 : t("adminTenants.identity.checkOkNoDate")
-              : iinValidation.errors[0]}
+              : iinValidation.errors[0]
+                ? t(`common.iinChecks.${iinValidation.errors[0]}` as "common.iinChecks.length", {
+                    label: t("common.settings.identity.iinLabel"),
+                  })
+                : t("common.iinChecks.invalid", { label: t("common.settings.identity.iinLabel") })}
           </p>
         )}
         <input type="hidden" name={usesBin ? "iin" : "bin"} value="" />

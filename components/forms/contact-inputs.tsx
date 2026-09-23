@@ -2,6 +2,8 @@
 
 import { useState } from "react"
 
+import { useT } from "@/lib/i18n/client"
+
 const EMAIL_PATTERN =
   "^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
 
@@ -17,6 +19,7 @@ type BaseInputProps = {
 }
 
 export function KzPhoneInput({ name, defaultValue, required, className, autoComplete }: BaseInputProps) {
+  const { t } = useT()
   const [value, setValue] = useState(formatKzPhoneInput(defaultValue ?? ""))
 
   return (
@@ -51,13 +54,14 @@ export function KzPhoneInput({ name, defaultValue, required, className, autoComp
       pattern="^\+7\s[67]\d{2}\s\d{3}\s\d{2}\s\d{2}$"
       minLength={16}
       maxLength={16}
-      title="Введите казахстанский номер: +7 7XX XXX XX XX или +7 6XX XXX XX XX"
+      title={t("common.forms.phoneTitle")}
       className={className}
     />
   )
 }
 
 export function AsciiEmailInput({ name, defaultValue, required, className, autoComplete }: BaseInputProps) {
+  const { t } = useT()
   const [value, setValue] = useState(cleanEmail(defaultValue ?? ""))
 
   return (
@@ -76,7 +80,7 @@ export function AsciiEmailInput({ name, defaultValue, required, className, autoC
       placeholder="tenant@example.com"
       pattern={EMAIL_PATTERN}
       maxLength={254}
-      title="Введите email латиницей, обязательно с @ и доменом, например name@gmail.com"
+      title={t("common.forms.emailTitle")}
       className={className}
     />
   )

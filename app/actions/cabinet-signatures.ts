@@ -6,25 +6,27 @@ import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
 import { parseCmsSignature, validateSigner, signerDisplayName } from "@/lib/ncalayer-cms"
 import { verifyCmsWithNcanode } from "@/lib/ncanode"
+import { getT } from "@/lib/i18n/server"
 
 const SIGNABLE_TYPES = ["ACT", "RECONCILIATION"]
 const BLOCKING_WARNINGS = ["Срок действия сертификата истёк", "Сертификат ещё не вступил в силу"]
 
 /** Загружает выставленный документ, принадлежащий текущему арендатору, проверяет тип/повтор. */
 async function loadOwnSignable(documentId: string) {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return { error: "Не авторизован" as const }
+  if (!session?.user) return { error: t("actions.common.noAccess") }
   const tenant = await db.tenant.findUnique({
     where: { userId: session.user.id },
     select: { id: true, bin: true, iin: true, companyName: true, directorName: true, user: { select: { name: true } } },
   })
-  if (!tenant) return { error: "Профиль арендатора не найден" as const }
+  if (!tenant) return { error: t("actions.common.tenantProfileNotFound") }
   const doc = await db.generatedDocument.findFirst({
     where: { id: documentId, tenantId: tenant.id, deletedAt: null },
     select: { id: true, documentType: true, organizationId: true, number: true, fileBytes: true },
   })
-  if (!doc) return { error: "Документ не найден" as const }
-  if (!SIGNABLE_TYPES.includes(doc.documentType)) return { error: "Этот документ не требует подписи" as const }
+  if (!doc) return { error: t("actions.common.documentNotFound") }
+  if (!SIGNABLE_TYPES.includes(doc.documentType)) return { error: t("actions.signing.notSignable") }
 
   const already = await db.documentSignature.findFirst({
     where: { documentType: doc.documentType, documentId: doc.id, signerUserId: session.user.id },
@@ -35,6 +37,8 @@ async function loadOwnSignable(documentId: string) {
 
 /** Простая подпись арендатором (подтверждение/ознакомление) выставленного акта. */
 export async function signIssuedDocumentSimple(documentId: string): Promise<{ ok: boolean; error?: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const r = await loadOwnSignable(documentId)
     if ("error" in r) return { ok: false, error: r.error }
@@ -60,21 +64,22 @@ export async function signIssuedDocumentSimple(documentId: string): Promise<{ ok
     revalidatePath("/admin/documents")
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подписать" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.signing.signFailed") }
   }
 }
 
 /** ЭЦП НУЦ РК (через NCALayer) арендатором: подписывает байты документа. */
 export async function signIssuedDocumentEcp(documentId: string, cmsB64: string): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   try {
-    if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: "Пустая подпись" }
+    if (!cmsB64 || cmsB64.length < 100) return { ok: false, error: t("actions.signing.emptySignature") }
     const r = await loadOwnSignable(documentId)
     if ("error" in r) return { ok: false, error: r.error }
     if (r.alreadySigned) return { ok: true }
     const { session, tenant, doc } = r
 
     const parsed = parseCmsSignature(cmsB64)
-    if (!parsed.ok || !parsed.signer) return { ok: false, error: parsed.error ?? "Не удалось разобрать ЭЦП" }
+    if (!parsed.ok || !parsed.signer) return { ok: false, error: parsed.error ?? t("actions.signing.parseFailed") }
     const signer = parsed.signer
 
     const warnings = validateSigner(signer)
@@ -84,18 +89,18 @@ export async function signIssuedDocumentEcp(documentId: string, cmsB64: string):
     // Привязка: вложенные в CMS данные = байты документа.
     const fileB64 = Buffer.from(doc.fileBytes).toString("base64")
     if (parsed.encapsulatedContentB64 && parsed.encapsulatedContentB64 !== fileB64) {
-      return { ok: false, error: "Подпись не соответствует документу (возможно, файл изменён)" }
+      return { ok: false, error: t("actions.signing.documentMismatch") }
     }
 
     // Сверка личности (строго): реквизиты арендатора обязаны быть заполнены,
     // и ИИН/БИН сертификата должен совпасть с ними.
     const expected = [tenant.bin, tenant.iin].map((x) => String(x ?? "").replace(/\D/g, "")).filter((x) => x.length === 12)
     if (!expected.length) {
-      return { ok: false, error: "У арендатора не заполнен ИИН/БИН — подпись невозможна. Обратитесь к арендодателю, чтобы указал ваши реквизиты." }
+      return { ok: false, error: t("actions.signing.tenantIdentityMissing") }
     }
     const got = [signer.iin, signer.bin].filter((x): x is string => !!x)
     if (!got.some((g) => expected.includes(g))) {
-      return { ok: false, error: `ЭЦП подписана не тем лицом: ИИН/БИН (${got.join("/") || "—"}) не совпадает с арендатором` }
+      return { ok: false, error: t("actions.signing.wrongSignerTenant", { got: got.join("/") || "—" }) }
     }
 
     // Криптопроверка через NCANode (если настроен) + извлечение метки времени (TSP).
@@ -103,9 +108,10 @@ export async function signIssuedDocumentEcp(documentId: string, cmsB64: string):
     let tspSerial: string | null = null
     if (process.env.NCANODE_SECRET) {
       const v = await verifyCmsWithNcanode(cmsB64)
-      if (!v.valid) return { ok: false, error: "ЭЦП не прошла криптопроверку НУЦ РК: " + (v.reason ?? "") }
-      const t = v.signers.find((s) => s.tspGenTime)?.tspGenTime
-      if (t) { const d = new Date(t); if (!Number.isNaN(d.getTime())) tspGenTime = d }
+      if (!v.valid) return { ok: false, error: t("actions.signing.cryptoCheckFailed", { reason: v.reason ?? "" }) }
+      // Имя t занято переводчиком — метка времени называется stampedAt.
+      const stampedAt = v.signers.find((s) => s.tspGenTime)?.tspGenTime
+      if (stampedAt) { const d = new Date(stampedAt); if (!Number.isNaN(d.getTime())) tspGenTime = d }
       tspSerial = v.signers.find((s) => s.tspSerial)?.tspSerial ?? null
     }
 
@@ -133,6 +139,6 @@ export async function signIssuedDocumentEcp(documentId: string, cmsB64: string):
     revalidatePath("/admin/documents")
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось подписать" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.signing.signFailed") }
   }
 }

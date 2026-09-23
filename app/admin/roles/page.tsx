@@ -5,12 +5,16 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { Shield, AlertTriangle, History, Lock } from "lucide-react"
 import { db } from "@/lib/db"
-import { SECTIONS, SECTION_LABELS } from "@/lib/acl"
+import { SECTIONS } from "@/lib/acl"
 import { requireOrgAccess } from "@/lib/org"
-import { PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
+import { planFeatureLabel } from "@/lib/plan-capabilities"
 import {
   ACTION_CAPABILITIES,
   ACTION_CAPABILITY_GROUPS,
+  capabilityDescription,
+  capabilityGroupDescription,
+  capabilityGroupLabel,
+  capabilityLabel,
   isFeatureAvailableInPlan,
 } from "@/lib/capabilities"
 import {
@@ -23,7 +27,7 @@ import { capabilityKeyFromPermission, userIdFromCapabilityRole } from "@/lib/cap
 import { PermissionsMatrix } from "./permissions-matrix"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { TEAM_TABS } from "@/lib/hub-tabs"
+import { teamTabs } from "@/lib/hub-tabs"
 import { getT } from "@/lib/i18n/server"
 
 // Системные роли: подписи из словаря. Свои должности владелец назвал сам —
@@ -58,7 +62,6 @@ export default async function RolesPage() {
     select: { plan: { select: { name: true, features: true } } },
   })
   const planFeatureJson = org?.plan?.features
-  const featureLabels = new Map(PLAN_CAPABILITIES.map((feature) => [feature.key, feature.label]))
   const roleBuilderEnabled = isFeatureAvailableInPlan(planFeatureJson, "roleBuilder")
 
   let rows: { role: string; section: string; canView: boolean; canEdit: boolean }[] = []
@@ -116,19 +119,23 @@ export default async function RolesPage() {
     map[row.role][row.section] = { canView: row.canView, canEdit: row.canEdit }
   }
 
+  // Матрица — клиентский компонент: подписи страниц, групп и прав подставляем
+  // здесь, чтобы в браузер не уезжал весь справочник adminRefs.
   const sections = SECTIONS.map((section) => {
     const requiredFeature = SECTION_REQUIRED_FEATURE[section]
     return {
       key: section,
-      label: SECTION_LABELS[section],
+      label: t(`adminRefs.sections.${section}`),
       requiredFeature: requiredFeature ?? null,
-      requiredFeatureLabel: requiredFeature ? featureLabels.get(requiredFeature) ?? requiredFeature : null,
+      requiredFeatureLabel: requiredFeature ? planFeatureLabel(t, requiredFeature) : null,
       locked: !!requiredFeature && !isFeatureAvailableInPlan(planFeatureJson, requiredFeature),
     }
   })
 
   const groups = ROLE_SECTION_GROUPS.map((group) => ({
-    ...group,
+    key: group.key,
+    label: t(`adminRefs.sectionGroups.${group.key}.label` as Parameters<typeof t>[0]),
+    description: t(`adminRefs.sectionGroups.${group.key}.description` as Parameters<typeof t>[0]),
     sections: group.sections.filter((section) => SECTIONS.includes(section)),
   }))
 
@@ -136,28 +143,26 @@ export default async function RolesPage() {
 
   const capabilities = ACTION_CAPABILITIES.map((capability) => ({
     key: capability.key,
-    label: capability.label,
-    description: capability.description,
+    label: capabilityLabel(t, capability),
+    description: capabilityDescription(t, capability),
     section: capability.section,
     level: capability.level,
     risk: capability.risk ?? "normal",
     requiredFeature: capability.requiredFeature ?? null,
-    requiredFeatureLabel: capability.requiredFeature
-      ? featureLabels.get(capability.requiredFeature) ?? capability.requiredFeature
-      : null,
+    requiredFeatureLabel: capability.requiredFeature ? planFeatureLabel(t, capability.requiredFeature) : null,
     locked: !!capability.requiredFeature && !isFeatureAvailableInPlan(planFeatureJson, capability.requiredFeature),
   }))
 
   const capabilityGroups = ACTION_CAPABILITY_GROUPS.map((group) => ({
     key: group.key,
-    label: group.label,
-    description: group.description,
+    label: capabilityGroupLabel(t, group),
+    description: capabilityGroupDescription(t, group),
     capabilities: group.capabilities.map((capability) => capability.key),
   }))
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={TEAM_TABS} className="mb-2" />
+      <RouteTabs items={teamTabs(t)} className="mb-2" />
       <PageHeader
         icon={Shield}
         tone="violet"

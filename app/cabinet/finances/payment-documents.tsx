@@ -41,13 +41,15 @@ export function PaymentDocuments({ docs }: { docs: PaymentDoc[] }) {
                 <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
                   {typeLabel(d.type)}{d.number ? ` № ${d.number}` : ""}
                 </p>
-                {d.period && <p className="text-xs text-slate-400 dark:text-slate-500">Период {d.period}</p>}
+                {d.period && <p className="text-xs text-slate-400 dark:text-slate-500">
+                    {t("cabinetFinances.docs.period", { period: d.period })}
+                  </p>}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {d.signedByTenant ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
-                  <ShieldCheck className="h-3.5 w-3.5" /> вы подписали
+                  <ShieldCheck className="h-3.5 w-3.5" /> {t("cabinetFinances.docs.youSigned")}
                 </span>
               ) : (
                 <DocumentSignButton documentId={d.id} />
@@ -57,7 +59,7 @@ export function PaymentDocuments({ docs }: { docs: PaymentDoc[] }) {
                 download
                 className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                <Download className="h-3.5 w-3.5" /> Скачать
+                <Download className="h-3.5 w-3.5" /> {t("common.actions.download")}
               </a>
             </div>
           </div>

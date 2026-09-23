@@ -22,14 +22,26 @@ import {
 } from "lucide-react"
 import { ThemeIconToggle } from "@/components/theme-icon-toggle"
 import { formatPersonShortName, getDisplayInitial } from "@/lib/display-name"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getLocale } from "@/lib/i18n/server"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
+import { DialogHost } from "@/components/ui/dialog-host"
 
+/**
+ * Панель владельца платформы. Сами её страницы остаются на русском — их видит
+ * один человек, и переводить их незачем. Но общие компоненты (профиль,
+ * диалоги, таблицы) уже берут текст из словаря, и без провайдера они покажут
+ * здесь ключи вместо слов.
+ */
 export default async function SuperadminLayout({ children }: { children: ReactNode }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   if (!session.user.isPlatformOwner) redirect("/admin")
   const displayUserName = formatPersonShortName(session.user.name)
+  const locale = await getLocale()
 
   return (
+    <I18nProvider locale={locale} messages={pickNamespaces(dictionaries[locale], ["common", "domain"])}>
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-800/50">
       <aside className="flex h-full w-64 flex-col bg-gradient-to-b from-purple-900 to-slate-900">
         <div className="flex items-center gap-3 border-b border-purple-800 px-5 py-5">
@@ -114,8 +126,12 @@ export default async function SuperadminLayout({ children }: { children: ReactNo
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      {/* Общие окна «подтвердить?»/«введите текст» — внутри провайдера
+          словаря: их кнопки берут подписи из common.actions. */}
+      <DialogHost />
       </div>
     </div>
+    </I18nProvider>
   )
 }
 

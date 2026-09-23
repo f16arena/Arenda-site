@@ -14,18 +14,28 @@ import { renderContractText, type ContractState } from "@/lib/contract-engine"
 import { ContractDocumentView } from "@/components/contract-constructor/contract-document-view"
 import { headers } from "next/headers"
 import { egovApi1Url, egovBaseFromEnv } from "@/lib/egov-sign"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
+import { I18nProvider } from "@/lib/i18n/client"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 
-function redactOwnerContact(content: string, contacts: string[]) {
+function redactOwnerContact(content: string, contacts: string[], replacement: string) {
   return contacts.reduce((text, value) => {
     if (!value) return text
-    return text.split(value).join("скрыто, связь через администратора")
+    return text.split(value).join(replacement)
   }, content)
 }
+
+// Статусы ДС, для которых в словаре есть подпись.
+const KNOWN_STATUS = ["SENT", "VIEWED", "SIGNED_BY_TENANT", "SIGNED"]
 
 export default async function SignContractPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const contract = await getContractByToken(token)
   if (!contract) notFound()
+
+  // Язык арендатора, а не того, кто открыл ссылку: документ адресован ему.
+  const { t, tp, locale } = await getTForUser(contract.tenant.userId)
 
   // Гибрид-защита: если открыт залогиненный АРЕНДАТОР — это должен быть именно его договор.
   // Иначе (чужой арендатор зашёл под своей сессией) подпись запрещаем. Анонимный доступ
@@ -44,14 +54,13 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-3">
             <Lock className="h-6 w-6" />
           </div>
-          <h1 className="text-lg font-semibold text-slate-900">Договор привязан к другому арендатору</h1>
-          <p className="text-sm text-slate-600 mt-2">
-            Вы вошли под другим аккаунтом. Выйдите из текущего аккаунта или откройте ссылку
-            в режиме, где вы не авторизованы, чтобы подписать договор предназначенной стороной.
-          </p>
+          <h1 className="text-lg font-semibold text-slate-900">
+            {t("auth.sign.wrongTenantTitle")}
+          </h1>
+          <p className="text-sm text-slate-600 mt-2">{t("auth.sign.wrongTenantText")}</p>
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/api/auth/signout" className="inline-block mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-            Выйти из аккаунта
+            {t("auth.sign.logout")}
           </a>
         </div>
       </div>
@@ -61,8 +70,12 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
   const isCompleted = contract.status === "SIGNED" || contract.status === "REJECTED"
   const tenantSigned = !!contract.signedByTenantAt
   const landlordSigned = !!contract.signedByLandlordAt
-  const documentTitle = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
-  const documentTextTitle = contract.type === "ADDENDUM" ? "Текст доп. соглашения" : "Текст договора"
+  const documentTitle =
+    contract.type === "ADDENDUM" ? t("auth.sign.titleAddendum") : t("auth.sign.titleContract")
+  const documentTextTitle =
+    contract.type === "ADDENDUM"
+      ? t("auth.sign.textTitleAddendum")
+      : t("auth.sign.textTitleContract")
   const landlord = contract.tenant.user.organizationId
     ? await getOrganizationRequisites(contract.tenant.user.organizationId)
     : null
@@ -79,27 +92,31 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
     }
   }
   const redactList = [LANDLORD.phone, LANDLORD.email, landlord?.phone ?? "", landlord?.email ?? ""]
-  const publicContractContent = redactOwnerContact(displayText, redactList)
+  const redacted = t("auth.sign.redacted")
+  const publicContractContent = redactOwnerContact(displayText, redactList, redacted)
   // Снимок конструктора → аккуратный HTML-рендер документа; иначе fallback на текст.
   const builderStateForView = contract.builderState ? (contract.builderState as unknown as ContractState) : null
-  const redactContact = (s: string) => redactOwnerContact(s, redactList)
+  const redactContact = (value: string) => redactOwnerContact(value, redactList, redacted)
 
   // Дополнительные соглашения (ДС) — показываем арендатору вместе с договором.
-  const STATUS_RU: Record<string, string> = {
-    SENT: "отправлено", VIEWED: "просмотрено",
-    SIGNED_BY_TENANT: "подписано вами", SIGNED: "подписано",
-  }
   const addenda = (contract.addenda ?? []).map((a) => {
     let text = a.content
     if (a.builderState) {
-      try { text = renderContractText(a.builderState as unknown as ContractState) } catch { text = a.content }
+      try {
+        text = renderContractText(a.builderState as unknown as ContractState)
+      } catch {
+        text = a.content
+      }
     }
     return {
       id: a.id,
       number: a.number,
-      statusLabel: STATUS_RU[a.status] ?? a.status,
+      // Незнакомый статус показываем кодом — это данные, не текст.
+      statusLabel: KNOWN_STATUS.includes(a.status)
+        ? t(`auth.sign.addendumStatus.${a.status}` as "auth.sign.addendumStatus.SENT")
+        : a.status,
       createdAt: a.createdAt,
-      text: redactOwnerContact(text, redactList),
+      text: redactOwnerContact(text, redactList, redacted),
     }
   })
 
@@ -149,22 +166,22 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
             <div>
               {contract.status === "SIGNED" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-semibold">
-                  <Check className="h-3.5 w-3.5" /> Подписан обеими сторонами
+                  <Check className="h-3.5 w-3.5" /> {t("auth.sign.statusSigned")}
                 </span>
               )}
               {contract.status === "REJECTED" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 text-red-700 text-xs font-semibold">
-                  <X className="h-3.5 w-3.5" /> Отклонён
+                  <X className="h-3.5 w-3.5" /> {t("auth.sign.statusRejected")}
                 </span>
               )}
               {contract.status === "SIGNED_BY_TENANT" && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 text-xs font-semibold">
-                  <Clock className="h-3.5 w-3.5" /> Ждёт подписи арендодателя
+                  <Clock className="h-3.5 w-3.5" /> {t("auth.sign.statusWaitingLandlord")}
                 </span>
               )}
               {(contract.status === "SENT" || contract.status === "VIEWED") && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 text-amber-700 text-xs font-semibold">
-                  <FileSignature className="h-3.5 w-3.5" /> Ожидает подписи
+                  <FileSignature className="h-3.5 w-3.5" /> {t("auth.sign.statusWaitingSignature")}
                 </span>
               )}
             </div>
@@ -173,20 +190,26 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
           <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
             {contract.startDate && (
               <div>
-                <p className="text-slate-400">Начало</p>
-                <p className="text-slate-900 font-medium tabular-nums">{new Date(contract.startDate).toLocaleDateString("ru-RU")}</p>
+                <p className="text-slate-400">{t("auth.sign.start")}</p>
+                <p className="text-slate-900 font-medium tabular-nums">
+                  {formatDateShortL(locale, contract.startDate)}
+                </p>
               </div>
             )}
             {contract.endDate && (
               <div>
-                <p className="text-slate-400">Окончание</p>
-                <p className="text-slate-900 font-medium tabular-nums">{new Date(contract.endDate).toLocaleDateString("ru-RU")}</p>
+                <p className="text-slate-400">{t("auth.sign.end")}</p>
+                <p className="text-slate-900 font-medium tabular-nums">
+                  {formatDateShortL(locale, contract.endDate)}
+                </p>
               </div>
             )}
             {contract.sentAt && (
               <div>
-                <p className="text-slate-400">Отправлен</p>
-                <p className="text-slate-900 font-medium">{new Date(contract.sentAt).toLocaleDateString("ru-RU")}</p>
+                <p className="text-slate-400">{t("auth.sign.sent")}</p>
+                <p className="text-slate-900 font-medium">
+                  {formatDateShortL(locale, contract.sentAt)}
+                </p>
               </div>
             )}
           </div>
@@ -194,21 +217,25 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
 
         {/* Прогресс */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Подписи сторон</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+            {t("auth.sign.signatures")}
+          </p>
           <div className="space-y-2.5">
             <div className="flex items-center gap-3">
               <div className={`flex h-7 w-7 items-center justify-center rounded-full ${tenantSigned ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
                 {tenantSigned ? <Check className="h-3.5 w-3.5" /> : <span className="text-xs font-bold">1</span>}
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-slate-900">Арендатор</p>
+                <p className="text-sm font-medium text-slate-900">{t("auth.sign.tenant")}</p>
                 {tenantSigned ? (
                   <p className="text-xs text-emerald-600">
-                    Подписал {new Date(contract.signedByTenantAt!).toLocaleDateString("ru-RU")}
+                    {t("auth.sign.signedOn", {
+                      date: formatDateShortL(locale, contract.signedByTenantAt!),
+                    })}
                     {contract.signedByTenantName ? ` · ${contract.signedByTenantName}` : ""}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500">Ваша очередь подписать</p>
+                  <p className="text-xs text-slate-500">{t("auth.sign.yourTurn")}</p>
                 )}
               </div>
             </div>
@@ -217,13 +244,15 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
                 {landlordSigned ? <Check className="h-3.5 w-3.5" /> : <span className="text-xs font-bold">2</span>}
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-slate-900">Арендодатель</p>
+                <p className="text-sm font-medium text-slate-900">{t("auth.sign.landlord")}</p>
                 {landlordSigned ? (
                   <p className="text-xs text-emerald-600">
-                    Подписал {new Date(contract.signedByLandlordAt!).toLocaleDateString("ru-RU")}
+                    {t("auth.sign.signedOn", {
+                      date: formatDateShortL(locale, contract.signedByLandlordAt!),
+                    })}
                   </p>
                 ) : (
-                  <p className="text-xs text-slate-500">Подпишет после арендатора</p>
+                  <p className="text-xs text-slate-500">{t("auth.sign.landlordAfter")}</p>
                 )}
               </div>
             </div>
@@ -246,14 +275,16 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
         {addenda.length > 0 && (
           <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
-              Дополнительные соглашения ({addenda.length})
+              {tp("auth.sign.addenda", addenda.length)}
             </p>
             <div className="space-y-3">
               {addenda.map((a) => (
                 <details key={a.id} className="group rounded-xl border border-slate-200 overflow-hidden">
                   <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-900">
-                    ДС № {a.number}
-                    <span className="text-xs font-normal text-slate-500">· {a.statusLabel} · {new Date(a.createdAt).toLocaleDateString("ru-RU")}</span>
+                    {t("auth.sign.addendumNo", { number: a.number })}
+                    <span className="text-xs font-normal text-slate-500">
+                      · {a.statusLabel} · {formatDateShortL(locale, a.createdAt)}
+                    </span>
                     <span className="ml-auto text-slate-400 transition group-open:rotate-180">▾</span>
                   </summary>
                   <div className="border-t border-slate-100 px-4 py-3 whitespace-pre-wrap font-serif text-sm text-slate-800">
@@ -268,25 +299,35 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
         {/* Ссылка устарела */}
         {!isCompleted && contract.signLinkExpired && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 text-center">
-            <p className="text-sm font-semibold text-amber-900">Ссылка устарела</p>
-            <p className="text-xs text-amber-700 mt-1">
-              Срок действия ссылки на подпись истёк. Попросите арендодателя отправить договор повторно.
-            </p>
+            <p className="text-sm font-semibold text-amber-900">{t("auth.sign.linkExpiredTitle")}</p>
+            <p className="text-xs text-amber-700 mt-1">{t("auth.sign.linkExpiredText")}</p>
           </div>
         )}
 
         {/* Действия */}
         {!isCompleted && !tenantSigned && !contract.signLinkExpired && (
-          <SignActions token={token} payloadB64={signingPayloadB64} egovApi1Url={egovApi1} />
+          <I18nProvider
+            locale={locale}
+            messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}
+          >
+            <SignActions token={token} payloadB64={signingPayloadB64} egovApi1Url={egovApi1} />
+          </I18nProvider>
         )}
 
         {/* Подписано обеими сторонами → даём скачать готовый документ */}
         {contract.status === "SIGNED" && (
           <div className="bg-white rounded-2xl border border-slate-200 p-5 mb-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Готовый документ</p>
-            <DownloadSigned token={token} />
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              {t("auth.sign.readyTitle")}
+            </p>
+            <I18nProvider
+              locale={locale}
+              messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}
+            >
+              <DownloadSigned token={token} />
+            </I18nProvider>
             <p className="mt-2 text-[11px] text-slate-400">
-              PDF со штампами ЭЦП обеих сторон и QR-кодом для проверки подлинности.
+              {t("auth.sign.readyHint")}
             </p>
           </div>
         )}
@@ -294,22 +335,20 @@ export default async function SignContractPage({ params }: { params: Promise<{ t
         {/* Арендатор подписал, ждём арендодателя */}
         {!isCompleted && tenantSigned && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-center">
-            <p className="text-sm font-semibold text-emerald-900">Вы подписали договор</p>
-            <p className="text-xs text-emerald-700 mt-1">
-              Ожидаем подпись арендодателя. После неё здесь появится кнопка скачать готовый договор.
-            </p>
+            <p className="text-sm font-semibold text-emerald-900">{t("auth.sign.youSignedTitle")}</p>
+            <p className="text-xs text-emerald-700 mt-1">{t("auth.sign.youSignedText")}</p>
           </div>
         )}
 
         {contract.status === "REJECTED" && contract.rejectionReason && (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-            <p className="text-sm font-semibold text-red-900 mb-1">Договор отклонён</p>
+            <p className="text-sm font-semibold text-red-900 mb-1">{t("auth.sign.rejectedTitle")}</p>
             <p className="text-xs text-red-700">{contract.rejectionReason}</p>
           </div>
         )}
 
         <p className="text-center text-xs text-slate-400 mt-6">
-          Платформа Commrent · защищено токеном · действия логируются
+          {t("auth.sign.footer")}
         </p>
       </div>
     </div>

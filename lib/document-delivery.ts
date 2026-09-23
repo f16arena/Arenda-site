@@ -3,13 +3,10 @@ import { db } from "@/lib/db"
 import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { notifyUser } from "@/lib/notify"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
-const DOC_TYPE_LABEL: Record<string, string> = {
-  INVOICE: "Счёт на оплату",
-  ACT: "Акт выполненных работ",
-  RECONCILIATION: "Акт сверки",
-  HANDOVER: "Акт приёма-передачи",
-}
+const DOC_TYPES = new Set(["INVOICE", "ACT", "RECONCILIATION", "HANDOVER"])
 
 /**
  * Доставка сгенерированного документа арендатору после подписи арендодателем:
@@ -33,16 +30,20 @@ export async function sendGeneratedDocumentToTenant(documentId: string): Promise
     })
     if (!tenant?.user) return
 
-    const label = DOC_TYPE_LABEL[doc.documentType] ?? "Документ"
-    const numberLabel = doc.number ? ` № ${doc.number}` : ""
-    const periodLabel = doc.period ? ` за ${doc.period}` : ""
+    // Письмо и уведомление читает АРЕНДАТОР — язык берём из его профиля,
+    // а не из cookie владельца, который нажал «подписать».
+    const { t, locale } = await getTForUser(tenant.user.id)
+    const typeKey = DOC_TYPES.has(doc.documentType) ? doc.documentType : "OTHER"
+    const label = t(`emails.document.types.${typeKey}` as Parameters<typeof t>[0])
+    const numberLabel = doc.number ? t("emails.document.numberPart", { number: doc.number }) : ""
+    const periodLabel = doc.period ? t("emails.document.periodPart", { period: doc.period }) : ""
 
     // Уведомление в кабинете (best-effort).
     await notifyUser({
       userId: tenant.user.id,
       type: "DOCUMENT_SIGN_REQUEST",
-      title: `${label}${numberLabel} от арендодателя`,
-      message: `${label}${numberLabel}${periodLabel} подписан арендодателем и доступен в кабинете → Документы.`,
+      title: t("emails.document.notifyTitle", { label, number: numberLabel }),
+      message: t("emails.document.notifyMessage", { label, number: numberLabel, period: periodLabel }),
       link: "/cabinet/documents",
       sendEmail: false,
     }).catch(() => {})
@@ -62,17 +63,26 @@ export async function sendGeneratedDocumentToTenant(documentId: string): Promise
       }
     }
 
+    const hasAmount = typeof doc.totalAmount === "number" && doc.totalAmount > 0
+    const bodyVars = {
+      label: htmlEscape(label),
+      number: htmlEscape(numberLabel),
+      period: htmlEscape(periodLabel),
+      amount: hasAmount ? formatMoneyL(locale, doc.totalAmount as number) : "",
+    }
+
     const result = await sendEmail({
       to: email,
-      subject: `${label}${numberLabel}${periodLabel}`,
+      subject: t("emails.document.subject", { label, number: numberLabel, period: periodLabel }),
       html: basicEmailTemplate({
-        title: `${label}${numberLabel}`,
-        body: `<p>Здравствуйте, ${htmlEscape(tenant.user.name)}!</p>
-<p>Арендодатель подписал и направил вам документ: <b>${htmlEscape(label)}${htmlEscape(numberLabel)}${htmlEscape(periodLabel)}</b>${typeof doc.totalAmount === "number" && doc.totalAmount > 0 ? ` на сумму <b>${doc.totalAmount.toLocaleString("ru-RU")} ₸</b>` : ""}.</p>
-<p>Документ во вложении. Он также доступен в личном кабинете в разделе «Документы».</p>`,
-        footer: "Это автоматическое письмо системы управления арендой.",
+        lang: locale,
+        title: t("emails.document.title", { label, number: numberLabel }),
+        body: `<p>${htmlEscape(t("emails.common.greetingNamed", { name: tenant.user.name }))}</p>
+<p>${hasAmount ? t("emails.document.bodyWithAmount", bodyVars) : t("emails.document.body", bodyVars)}</p>
+<p>${htmlEscape(t("emails.document.attachmentNote"))}</p>`,
+        footer: t("emails.common.autoFooter"),
       }),
-      text: `${label}${numberLabel}${periodLabel} подписан арендодателем. Документ во вложении и в кабинете → Документы.`,
+      text: t("emails.document.text", { label, number: numberLabel, period: periodLabel }),
       attachments: [attachment],
     })
     if (!result.ok) {

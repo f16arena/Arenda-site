@@ -8,6 +8,7 @@ import { OrganizationBankFields } from "@/components/settings/organization-bank-
 import { OrganizationIdentityFields } from "@/components/settings/organization-identity-fields"
 import { ServerForm } from "@/components/ui/server-form"
 import { Button } from "@/components/ui/button"
+import { getT } from "@/lib/i18n/server"
 
 type OrganizationRequisitesFormData = {
   id: string
@@ -36,25 +37,25 @@ type OrganizationRequisitesFormData = {
   defaultPenaltyPercent?: number | null
 }
 
-export function OrganizationRequisitesSection({ organization }: { organization: OrganizationRequisitesFormData }) {
+export async function OrganizationRequisitesSection({ organization }: { organization: OrganizationRequisitesFormData }) {
+  const { t } = await getT()
   const inputClass = "w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
   const labelClass = "block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5"
 
   return (
     <CollapsibleCard
-      title="Реквизиты арендодателя"
+      title={t("common.settings.requisites.title")}
       icon={<Landmark className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}
-      headerRight="Подставляются в договоры, счета и экран оплаты"
+      headerRight={t("common.settings.requisites.headerRight")}
     >
       <ServerForm
         action={updateOrganizationRequisites.bind(null, organization.id)}
-        successMessage="Реквизиты организации сохранены"
+        successMessage={t("common.settings.requisites.saved")}
         className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-2"
       >
         <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100 lg:col-span-2">
-          Здесь заполняются данные арендодателя как юридического лица. Они являются единым источником для договоров,
-          счетов, актов и экрана оплаты арендатора. Личный профиль пользователя хранится отдельно в{" "}
-          <a href="/admin/profile" className="font-medium underline">Моём профиле</a>.
+          {t("common.settings.requisites.intro")}{" "}
+          <a href="/admin/profile" className="font-medium underline">{t("common.settings.requisites.myProfile")}</a>.
         </div>
 
         <OrganizationIdentityFields
@@ -66,93 +67,93 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
         />
 
         <div>
-          <label className={labelClass}>Краткое название</label>
+          <label className={labelClass}>{t("common.settings.requisites.shortName")}</label>
           <input
             name="shortName"
             defaultValue={organization.shortName ?? organization.name}
             className={inputClass}
-            placeholder="ИП Иванов И.И."
+            placeholder={t("common.settings.requisites.shortNamePlaceholder")}
           />
         </div>
 
         <div className="lg:col-span-2">
-          <label className={labelClass}>Полное название арендодателя *</label>
+          <label className={labelClass}>{t("common.settings.requisites.legalName")}</label>
           <input
             name="legalName"
             defaultValue={organization.legalName ?? organization.name}
             required
             className={inputClass}
-            placeholder="ТОО «Название» или ИП ФИО"
+            placeholder={t("common.settings.requisites.legalNamePlaceholder")}
           />
         </div>
 
         <div>
-          <label className={labelClass}>ФИО руководителя *</label>
+          <label className={labelClass}>{t("common.settings.requisites.directorName")}</label>
           <input
             name="directorName"
             defaultValue={organization.directorName ?? ""}
             required
             className={inputClass}
-            placeholder="Иванов Иван Иванович"
+            placeholder={t("common.settings.requisites.directorNamePlaceholder")}
           />
         </div>
         <div>
-          <label className={labelClass}>Должность руководителя</label>
+          <label className={labelClass}>{t("common.settings.requisites.directorPosition")}</label>
           <input
             name="directorPosition"
             defaultValue={organization.directorPosition ?? ""}
             className={inputClass}
-            placeholder="Директор"
+            placeholder={t("common.settings.requisites.directorPositionPlaceholder")}
           />
         </div>
 
         <div className="lg:col-span-2">
-          <label className={labelClass}>На основании чего действует *</label>
+          <label className={labelClass}>{t("common.settings.requisites.basis")}</label>
           <input
             name="basis"
             defaultValue={organization.basis ?? ""}
             required
             className={inputClass}
-            placeholder="Устав, приказ, уведомление о начале деятельности..."
+            placeholder={t("common.settings.requisites.basisPlaceholder")}
           />
         </div>
 
         <div>
-          <label className={labelClass}>Юридический адрес *</label>
+          <label className={labelClass}>{t("common.settings.requisites.legalAddress")}</label>
           <AddressAutocompleteInput
             name="legalAddress"
             defaultValue={organization.legalAddress ?? ""}
             required
             includeStructuredFields={false}
             className={inputClass}
-            placeholder="РК, город, улица, дом, офис"
+            placeholder={t("common.settings.requisites.legalAddressPlaceholder")}
           />
         </div>
         <div>
-          <label className={labelClass}>Фактический адрес</label>
+          <label className={labelClass}>{t("common.settings.requisites.actualAddress")}</label>
           <AddressAutocompleteInput
             name="actualAddress"
             defaultValue={organization.actualAddress ?? ""}
             includeStructuredFields={false}
             className={inputClass}
-            placeholder="Если отличается от юридического"
+            placeholder={t("common.settings.requisites.actualAddressPlaceholder")}
           />
         </div>
 
         <div id="payment-accounts" className="rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50 lg:col-span-2">
           <div className="mb-4">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Платёжные счета</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.settings.requisites.accounts")}</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Основной счёт подставляется в документы и оплату. Дополнительный счёт будет показан арендатору как второй вариант оплаты.
+              {t("common.settings.requisites.accountsHint")}
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Основной счёт</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t("common.settings.requisites.mainAccount")}</p>
                 <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
-                  В договорах и оплате
+                  {t("common.settings.requisites.mainAccountHint")}
                 </span>
               </div>
               <OrganizationBankFields
@@ -169,9 +170,9 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
 
             <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
               <div className="mb-3 flex items-center justify-between gap-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Дополнительный счёт</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{t("common.settings.requisites.extraAccount")}</p>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                  Необязательно
+                  {t("common.settings.requisites.extraAccountHint")}
                 </span>
               </div>
               <OrganizationBankFields
@@ -189,27 +190,27 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
 
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>КБе (код бенефициара)</label>
-              <input name="kbe" defaultValue={organization.kbe ?? ""} placeholder="напр. 17 (ТОО) / 19 (ИП)" maxLength={2} className={inputClass} />
-              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">2 цифры. Если пусто — подставится по форме (ТОО→17, ИП→19).</p>
+              <label className={labelClass}>{t("common.settings.requisites.kbe")}</label>
+              <input name="kbe" defaultValue={organization.kbe ?? ""} placeholder={t("common.settings.requisites.kbePlaceholder")} maxLength={2} className={inputClass} />
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("common.settings.requisites.kbeHint")}</p>
             </div>
             <div>
-              <label className={labelClass}>КНП (код назначения платежа)</label>
-              <input name="knp" defaultValue={organization.knp ?? ""} placeholder="напр. 859" maxLength={3} className={inputClass} />
-              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">3 цифры. Код для счетов на оплату аренды (уточните у бухгалтера).</p>
+              <label className={labelClass}>{t("common.settings.requisites.knp")}</label>
+              <input name="knp" defaultValue={organization.knp ?? ""} placeholder={t("common.settings.requisites.knpPlaceholder")} maxLength={3} className={inputClass} />
+              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("common.settings.requisites.knpHint")}</p>
             </div>
           </div>
         </div>
 
         <div>
-          <label className={labelClass}>Телефон организации</label>
+          <label className={labelClass}>{t("common.settings.requisites.orgPhone")}</label>
           <KzPhoneInput name="phone" defaultValue={organization.phone ?? ""} className={inputClass} />
-          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Для документов и экрана оплаты. Личный телефон — в «Моём профиле».</p>
+          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("common.settings.requisites.orgPhoneHint")}</p>
         </div>
         <div>
-          <label className={labelClass}>Email организации</label>
+          <label className={labelClass}>{t("common.settings.requisites.orgEmail")}</label>
           <AsciiEmailInput name="email" defaultValue={organization.email ?? ""} className={inputClass} />
-          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Для документов и связи. Email для входа — в «Моём профиле».</p>
+          <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("common.settings.requisites.orgEmailHint")}</p>
         </div>
 
         {/* Дефолт пени по договорам. Применяется когда у конкретного арендатора
@@ -217,11 +218,11 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
             пеня в РК (см. аудит 2026-05-26 #12-13). */}
         <div className="lg:col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/50">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Договорные условия по умолчанию
+            {t("common.settings.requisites.defaults")}
           </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={labelClass}>Пеня за просрочку, % за день</label>
+              <label className={labelClass}>{t("common.settings.requisites.penaltyPercent")}</label>
               <input
                 name="defaultPenaltyPercent"
                 type="number"
@@ -233,7 +234,7 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
                 placeholder="0.5"
               />
               <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                Подставляется в п. 8.2 договора, если у арендатора не задана своя ставка. Рекомендуется 0,5% (но не более 10% от просроченной суммы).
+                {t("common.settings.requisites.penaltyHint")}
               </p>
             </div>
           </div>
@@ -245,7 +246,7 @@ export function OrganizationRequisitesSection({ organization }: { organization: 
             size="lg"
             className="font-medium"
           >
-            Сохранить реквизиты
+            {t("common.settings.requisites.submit")}
           </Button>
         </div>
       </ServerForm>

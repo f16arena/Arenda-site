@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 interface ConfirmDialogProps {
   trigger: ReactNode
@@ -30,12 +31,13 @@ export function ConfirmDialog({
   trigger,
   title,
   description,
-  confirmLabel = "Подтвердить",
-  cancelLabel = "Отмена",
+  confirmLabel,
+  cancelLabel,
   variant = "default",
   requireText,
   onConfirm,
 }: ConfirmDialogProps) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
   const [typed, setTyped] = useState("")
@@ -91,7 +93,7 @@ export function ConfirmDialog({
           {requireText && (
             <div>
               <label className="mb-1 block text-xs text-slate-500 dark:text-slate-400">
-                Для подтверждения введите{" "}
+                {t("common.dialog.requireText")}{" "}
                 <span className="font-semibold text-slate-700 dark:text-slate-200">«{requireText}»</span>
               </label>
               <Input
@@ -108,7 +110,7 @@ export function ConfirmDialog({
 
           <DialogFooter>
             <Button variant="outline" onClick={close} disabled={pending} className="flex-1">
-              {cancelLabel}
+              {cancelLabel ?? t("common.actions.cancel")}
             </Button>
             <Button
               variant={variant === "danger" ? "danger" : "primary"}
@@ -117,7 +119,7 @@ export function ConfirmDialog({
               loading={pending}
               className="flex-1 font-medium"
             >
-              {pending ? "..." : confirmLabel}
+              {pending ? "…" : confirmLabel ?? t("common.actions.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

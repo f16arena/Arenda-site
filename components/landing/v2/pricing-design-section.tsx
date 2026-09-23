@@ -1,10 +1,18 @@
 import type { PricingPlan, PricingPeriod, PricingMatrix } from "@/components/landing/pricing-data"
+import { createTranslator } from "@/lib/i18n/translate"
+import { dictionaries } from "@/lib/i18n/messages"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
 // Секция тарифов в стиле нового дизайна (классы .plans/.plan/...), но с ЖИВЫМИ
 // данными из БД: цена/мес со скидкой Founding, зачёркнутая обычная, фичи плана,
 // остаток Founding-слотов. Цена показывается за помесячный период.
 
-const fmt = (n: number) => Math.round(n).toLocaleString("ru-RU").replace(/,/g, " ")
+// Разделитель разрядов — неразрывный пробел, как в дизайне: обычный пробел
+// позволил бы цене переноситься на две строки.
+const fmtFor = (locale: Locale) => (n: number) =>
+  Math.round(n)
+    .toLocaleString(INTL_LOCALE[locale])
+    .replace(/[,\u00a0\u202f]/g, " ")
 
 const Check = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -23,13 +31,18 @@ export function PricingDesignSection({
   matrix,
   founding,
   ctaHref = "/signup",
+  locale = "ru",
 }: {
   plans: PricingPlan[]
   periods: PricingPeriod[]
   matrix: PricingMatrix
   founding: { remaining: number; total: number; isActive: boolean } | null
   ctaHref?: string
+  locale?: Locale
 }) {
+  // Секция серверная и вне провайдера словаря — берём переводчик напрямую.
+  const { t } = createTranslator(locale, dictionaries[locale], dictionaries.ru)
+  const fmt = fmtFor(locale)
   const monthly = periods.find((p) => p.monthsCount === 1) ?? periods[0]
   // Только платные тарифы: исключаем FREE и планы с нулевой ценой (триал/бесплатный) —
   // пробный период предлагается отдельной кнопкой, а не карточкой за 0 ₸.
@@ -46,18 +59,23 @@ export function PricingDesignSection({
     <div className="sec" id="pricing">
       <div className="wrap">
         <div className="center-head reveal">
-          <span className="kicker center">Тарифы</span>
-          <h2>От одного здания до сети объектов</h2>
+          <span className="kicker center">{t("landing.pricing.kicker")}</span>
+          <h2>{t("landing.pricing.title")}</h2>
           <p>
-            Гибкие периоды оплаты и скидки за длинный пакет.
+            {t("landing.pricing.lead")}
             {useFounders && founding
-              ? ` Осталось ${founding.remaining} из ${founding.total} мест Founding Members — пожизненная скидка −40%.`
-              : " Первые 15 клиентов — Founding Members с пожизненной скидкой −40%."}
+              ? t("landing.pricing.foundingLeft", {
+                  remaining: founding.remaining,
+                  total: founding.total,
+                })
+              : t("landing.pricing.foundingNone")}
           </p>
         </div>
 
         {paid.length === 0 || !monthly ? (
-          <p className="center-head" style={{ marginTop: 40 }}>Тарифы временно недоступны.</p>
+          <p className="center-head" style={{ marginTop: 40 }}>
+            {t("landing.pricing.unavailable")}
+          </p>
         ) : (
           <div className="plans mt48" style={paid.length > 3 ? { gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" } : undefined}>
             {paid.map((plan, i) => {
@@ -75,14 +93,16 @@ export function PricingDesignSection({
                     {perMonth != null ? (
                       <>
                         <span className="amt tnum">{fmt(perMonth)}</span>
-                        <span className="per">₸ / мес</span>
+                        <span className="per">{t("landing.pricing.perMonth")}</span>
                       </>
                     ) : (
-                      <span className="amt">Индивидуально</span>
+                      <span className="amt">{t("landing.pricing.custom")}</span>
                     )}
                   </div>
                   {hasDiscount && base != null && (
-                    <div className="old tnum">{fmt(base)} ₸ без скидки Founding</div>
+                    <div className="old tnum">
+                      {t("landing.pricing.withoutFounding", { price: fmt(base) })}
+                    </div>
                   )}
                   {plan.highlights.length > 0 && (
                     <ul>
@@ -93,7 +113,8 @@ export function PricingDesignSection({
                   )}
                   <div className="spacer" />
                   <a href={ctaHref} className={`btn ${feat ? "btn-blue" : "btn-line"}`}>
-                    Выбрать{feat ? <Arrow /> : null}
+                    {t("landing.pricing.choose")}
+                    {feat ? <Arrow /> : null}
                   </a>
                 </div>
               )

@@ -2,23 +2,12 @@
 import { db } from "@/lib/db"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getT } from "@/lib/i18n/server"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 
-const actionLabels: Record<string, string> = {
-  CREATE: "Создание",
-  UPDATE: "Изменение",
-  DELETE: "Удаление",
-  LOGIN: "Вход",
-  LOGOUT: "Выход",
-}
-
-const entityLabels: Record<string, string> = {
-  tenant: "арендатор",
-  charge: "начисление",
-  payment: "платёж",
-  contract: "договор",
-  request: "заявка",
-  user: "пользователь",
-}
+// Подписи в словаре: модуль знает только коды из журнала.
+const KNOWN_ACTIONS = ["CREATE", "UPDATE", "DELETE", "LOGIN", "LOGOUT"]
+const KNOWN_ENTITIES = ["tenant", "charge", "payment", "contract", "request", "user"]
 
 export async function TenantHistorySection({
   tenantId,
@@ -27,6 +16,7 @@ export async function TenantHistorySection({
   tenantId: string
   userId: string
 }) {
+  const { t, tp, locale } = await getT()
   const auditLogs = await safeServerValue(
     db.auditLog.findMany({
       where: {
@@ -60,19 +50,26 @@ export async function TenantHistorySection({
 
   return (
     <CollapsibleCard
-      title="История изменений"
+      title={t("adminTenants.history.title")}
       icon={ClipboardList}
-      meta={`${auditLogs.length} событий`}>
+      meta={tp("adminTenants.history.meta", auditLogs.length)}
+    >
       <ul className="max-h-96 divide-y divide-slate-50 overflow-y-auto dark:divide-slate-800">
         {auditLogs.map((log) => (
           <li key={log.id} className="px-5 py-3 text-xs">
             <div className="flex items-center justify-between gap-2">
               <span className="text-slate-700 dark:text-slate-300">
-                <b>{actionLabels[log.action] ?? log.action}</b>{" "}
-                {entityLabels[log.entity] ?? log.entity}
+                <b>
+                  {KNOWN_ACTIONS.includes(log.action)
+                    ? t(`adminTenants.history.actions.${log.action}` as "adminTenants.history.actions.CREATE")
+                    : log.action}
+                </b>{" "}
+                {KNOWN_ENTITIES.includes(log.entity)
+                  ? t(`adminTenants.history.entities.${log.entity}` as "adminTenants.history.entities.tenant")
+                  : log.entity}
               </span>
               <span className="whitespace-nowrap text-slate-400 dark:text-slate-500">
-                {new Date(log.createdAt).toLocaleString("ru-RU", {
+                {new Date(log.createdAt).toLocaleString(INTL_LOCALE[locale], {
                   day: "2-digit",
                   month: "2-digit",
                   year: "2-digit",

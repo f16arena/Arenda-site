@@ -5,7 +5,16 @@
  * деталями. Владельцу они ничего не говорят: раньше в таблице были колонки
  * «DELETE», «cmq9pos9s000» и сырой JSON. Здесь это превращается в обычное
  * предложение, а id и IP остаются только во второй, серой строке.
+ *
+ * Слова и порядок слов — из словаря (adminRefs.audit). Порядок у языков
+ * разный: по-русски «Болат удалил арендатора», по-казахски «Болат жалға
+ * алушыны жойды» — поэтому шаблон фразы целиком лежит в словаре, а здесь
+ * только подстановка.
  */
+
+import { INTL_LOCALE } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
 
 export type AuditLogLike = {
   action: string
@@ -18,38 +27,13 @@ export type AuditLogLike = {
   createdAt: Date | string
 }
 
-/** Кого/что затронули — в винительном падеже, чтобы фраза читалась. */
-const ENTITY_ACCUSATIVE: Record<string, string> = {
-  tenant: "арендатора",
-  building: "здание",
-  floor: "этаж",
-  space: "помещение",
-  charge: "начисление",
-  payment: "платёж",
-  expense: "расход",
-  user: "пользователя",
-  contract: "договор",
-  document: "документ",
-  lead: "лида",
-  tariff: "тариф",
-  meter: "счётчик",
-  request: "заявку",
-  task: "задачу",
-  apiKey: "API-ключ",
-  system: "систему",
-}
+/** Переводчик страницы журнала: const tr = await getT(). */
+type AuditTranslator = Translator<Messages>
 
-const DOCUMENT_LABELS: Record<string, string> = {
-  CONTRACT: "договор",
-  ACT: "АВР",
-  INVOICE: "счёт",
-  RECONCILIATION: "акт сверки",
-}
-
-const VERBS: Record<string, string> = {
-  CREATE: "создал",
-  UPDATE: "изменил",
-  DELETE: "удалил",
+/** Строка словаря по собранному ключу; нет перевода — берём запасной текст. */
+function refText(tr: AuditTranslator, key: string, fallback: string): string {
+  const value = tr.t(key as Parameters<AuditTranslator["t"]>[0])
+  return value === key ? fallback : value
 }
 
 function parseDetails(details: string | null): Record<string, unknown> {
@@ -67,15 +51,18 @@ function str(value: unknown): string | null {
 }
 
 /** Как называется объект в журнале — название компании, номер документа и т.п. */
-function subjectName(entity: string, parsed: Record<string, unknown>): string | null {
+function subjectName(tr: AuditTranslator, entity: string, parsed: Record<string, unknown>): string | null {
   if (entity === "document") {
     const type = str(parsed.documentType)
     const number = str(parsed.number)
-    const label = type ? DOCUMENT_LABELS[type] ?? type.toLowerCase() : "документ"
+    const label = type
+      ? refText(tr, `adminRefs.audit.documentTypes.${type}`, type.toLowerCase())
+      : tr.t("adminRefs.audit.documentFallback")
     const tenant = str(parsed.tenantName)
-    const head = number ? `${label} №${number}` : label
-    return tenant ? `${head} — ${tenant}` : head
+    const head = number ? tr.t("adminRefs.audit.documentNumbered", { label, number }) : label
+    return tenant ? tr.t("adminRefs.audit.documentOfTenant", { document: head, tenant }) : head
   }
+  const number = str(parsed.number)
   return (
     str(parsed.companyName)
     ?? str(parsed.tenantName)
@@ -83,93 +70,117 @@ function subjectName(entity: string, parsed: Record<string, unknown>): string | 
     ?? str(parsed.title)
     ?? str(parsed.label)
     ?? str(parsed.email)
-    ?? (str(parsed.number) ? `№${str(parsed.number)}` : null)
+    ?? (number ? tr.t("adminRefs.audit.numbered", { number }) : null)
   )
 }
 
-/** Что именно изменили в правах — там свой словарь. */
-function permissionSentence(who: string, parsed: Record<string, unknown>): string | null {
+/**
+ * Что именно изменили в правах — там свой словарь.
+ *
+ * Название права берём по КОДУ (details.capability), а не по сохранённой в
+ * журнале подписи: подпись записана на языке того, кто менял права, а читать
+ * журнал может другой человек. details.label остаётся запасным для старых
+ * записей.
+ */
+function permissionSentence(tr: AuditTranslator, who: string, parsed: Record<string, unknown>): string | null {
   const scope = str(parsed.scope)
+  const capabilityCode = str(parsed.capability)
+  const capabilityLabel = capabilityCode
+    ? refText(tr, `adminRefs.capabilities.${capabilityCode}.label`, str(parsed.label) ?? capabilityCode)
+    : str(parsed.label) ?? tr.t("adminRefs.audit.permissions.rightFallback")
+
   if (scope === "role_permission") {
-    const section = str(parsed.section) ?? "раздел"
-    const view = parsed.canView ? "видит" : "не видит"
-    const edit = parsed.canEdit ? "может менять" : "менять не может"
-    return `${who} настроил доступ к разделу «${section}»: ${view}, ${edit}`
+    const sectionCode = str(parsed.section)
+    const section = sectionCode
+      ? refText(tr, `adminRefs.sections.${sectionCode}`, sectionCode)
+      : tr.t("adminRefs.audit.permissions.sectionFallback")
+    return tr.t("adminRefs.audit.permissions.section", {
+      who,
+      section,
+      view: parsed.canView
+        ? tr.t("adminRefs.audit.permissions.sees")
+        : tr.t("adminRefs.audit.permissions.notSees"),
+      edit: parsed.canEdit
+        ? tr.t("adminRefs.audit.permissions.edits")
+        : tr.t("adminRefs.audit.permissions.notEdits"),
+    })
   }
   if (scope === "role_capability") {
-    const label = str(parsed.label) ?? str(parsed.capability) ?? "право"
-    return `${who} ${parsed.enabled ? "включил" : "выключил"} право «${label}» для должности`
+    return tr.t(
+      parsed.enabled ? "adminRefs.audit.permissions.capabilityOn" : "adminRefs.audit.permissions.capabilityOff",
+      { who, label: capabilityLabel },
+    )
   }
   if (scope === "user_capability_override") {
-    const label = str(parsed.label) ?? str(parsed.capability) ?? "право"
-    const target = str(parsed.targetName) ?? "сотруднику"
-    const mode = parsed.mode === "ALLOW" ? "разрешил лично" : parsed.mode === "DENY" ? "запретил лично" : "вернул по должности"
-    return `${who} ${mode} «${label}» — ${target}`
+    const target = str(parsed.targetName) ?? tr.t("adminRefs.audit.permissions.targetFallback")
+    const key = parsed.mode === "ALLOW"
+      ? "adminRefs.audit.permissions.overrideAllow"
+      : parsed.mode === "DENY"
+        ? "adminRefs.audit.permissions.overrideDeny"
+        : "adminRefs.audit.permissions.overrideInherit"
+    return tr.t(key, { who, label: capabilityLabel, target })
   }
   if (scope === "role") {
-    const label = str(parsed.label) ?? "должность"
+    const label = str(parsed.label) ?? tr.t("adminRefs.audit.permissions.roleFallback")
     const source = str(parsed.sourceRole)
-    return `${who} создал должность «${label}»${source ? ` (копия «${source}»)` : ""}`
+    return source
+      ? tr.t("adminRefs.audit.permissions.roleCopied", { who, label, source })
+      : tr.t("adminRefs.audit.permissions.roleCreated", { who, label })
   }
   return null
 }
 
 /** Одна фраза о том, что произошло. */
-export function auditSentence(log: AuditLogLike): string {
+export function auditSentence(log: AuditLogLike, tr: AuditTranslator): string {
   const parsed = parseDetails(log.details)
-  const who = log.userName ?? "Система"
+  const who = log.userName ?? tr.t("adminRefs.audit.system")
 
-  if (log.action === "LOGIN") return `${who} вошёл в систему`
-  if (log.action === "LOGOUT") return `${who} вышел из системы`
+  if (log.action === "LOGIN") return tr.t("adminRefs.audit.login", { who })
+  if (log.action === "LOGOUT") return tr.t("adminRefs.audit.logout", { who })
   if (log.action === "SECURITY") {
-    return str(parsed.message) ?? `Событие безопасности: ${who}`
+    return str(parsed.message) ?? tr.t("adminRefs.audit.security", { who })
   }
   if (log.action === "ERROR") {
-    return str(parsed.message) ?? str(parsed.path) ?? "Ошибка в работе системы"
+    return str(parsed.message) ?? str(parsed.path) ?? tr.t("adminRefs.audit.error")
   }
 
-  const fromPermissions = permissionSentence(who, parsed)
+  const fromPermissions = permissionSentence(tr, who, parsed)
   if (fromPermissions) return fromPermissions
 
-  const verb = VERBS[log.action] ?? log.action.toLowerCase()
-  const what = ENTITY_ACCUSATIVE[log.entity] ?? log.entity
-  const name = subjectName(log.entity, parsed)
-  return name ? `${who} ${verb} ${what} «${name}»` : `${who} ${verb} ${what}`
+  const verb = refText(tr, `adminRefs.audit.verbs.${log.action}`, log.action.toLowerCase())
+  const what = refText(tr, `adminRefs.audit.entities.${log.entity}`, log.entity)
+  const name = subjectName(tr, log.entity, parsed)
+  return name
+    ? tr.t("adminRefs.audit.sentenceNamed", { who, verb, what, name })
+    : tr.t("adminRefs.audit.sentence", { who, verb, what })
 }
 
 /** «сегодня в 18:54», «вчера в 08:42», «19 сент. в 08:42». */
-export function auditWhen(value: Date | string, now: Date = new Date()): string {
+export function auditWhen(value: Date | string, tr: AuditTranslator, now: Date = new Date()): string {
+  const intl = INTL_LOCALE[tr.locale]
   const date = value instanceof Date ? value : new Date(value)
-  const time = date.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+  const time = date.toLocaleTimeString(intl, { hour: "2-digit", minute: "2-digit" })
   const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
   const diffDays = Math.round((day(now) - day(date)) / 86_400_000)
-  if (diffDays === 0) return `сегодня в ${time}`
-  if (diffDays === 1) return `вчера в ${time}`
-  const shown = date.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
+  if (diffDays === 0) return tr.t("adminRefs.audit.when.today", { time })
+  if (diffDays === 1) return tr.t("adminRefs.audit.when.yesterday", { time })
+  const shown = date.toLocaleDateString(intl, { day: "numeric", month: "short" })
   const withYear = date.getFullYear() === now.getFullYear()
     ? shown
     : `${shown} ${date.getFullYear()}`
-  return `${withYear} в ${time}`
+  return tr.t("adminRefs.audit.when.onDate", { date: withYear, time })
 }
 
 /** Серая вторая строка: должность, IP и id — для разбирательств. */
-export function auditTrace(log: AuditLogLike): string {
+export function auditTrace(log: AuditLogLike, tr: AuditTranslator): string {
   const parts: string[] = []
-  if (log.userRole) parts.push(roleLabel(log.userRole))
-  if (log.ip) parts.push(`IP ${log.ip}`)
-  if (log.entityId) parts.push(`код ${log.entityId}`)
+  if (log.userRole) parts.push(roleLabel(log.userRole, tr))
+  if (log.ip) parts.push(tr.t("adminRefs.audit.trace.ip", { ip: log.ip }))
+  if (log.entityId) parts.push(tr.t("adminRefs.audit.trace.code", { code: log.entityId }))
   return parts.join(" · ")
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  OWNER: "владелец",
-  ADMIN: "администратор",
-  MANAGER: "менеджер",
-  ACCOUNTANT: "бухгалтер",
-  TENANT: "арендатор",
-  PLATFORM_OWNER: "платформа",
-}
-
-export function roleLabel(role: string): string {
-  return ROLE_LABELS[role] ?? role.toLowerCase()
+/** Должность со строчной буквы — она идёт в серой строке журнала. */
+export function roleLabel(role: string, tr: AuditTranslator): string {
+  return refText(tr, `adminRefs.audit.roles.${role}`, role.toLowerCase())
 }

@@ -14,6 +14,7 @@ import { closeSession, uploadAwp, queryAwpStatusById, uploadInvoice, queryInvoic
 import { signAwpXml, esfSignerConfigured } from "@/lib/esf/signer"
 import { resolveOrgEsfConfig } from "@/lib/esf/config"
 import { openEsfSession } from "@/lib/esf/session"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Отправка АВР в ИС ЭСФ (КГД): собираем XML формы AwpV1 из тех же данных,
@@ -22,20 +23,21 @@ import { openEsfSession } from "@/lib/esf/session"
  */
 
 function registrationTypeFor(legalType: string | null): "ENTERPRISE" | "ENTREPRENEUR" | "INDIVIDUAL" {
-  const t = String(legalType ?? "").toUpperCase()
-  if (t === "TOO" || t === "AO") return "ENTERPRISE"
-  if (t === "PHYSICAL") return "INDIVIDUAL"
+  const kind = String(legalType ?? "").toUpperCase()
+  if (kind === "TOO" || kind === "AO") return "ENTERPRISE"
+  if (kind === "PHYSICAL") return "INDIVIDUAL"
   return "ENTREPRENEUR" // ИП, ЧСИ, адвокат, нотариус
 }
 
 async function requireStaffAccess() {
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user || session.user.role === "TENANT") throw new Error(t("actions.common.noAccess"))
   if (session.user.role !== "OWNER" && session.user.role !== "ADMIN" && !session.user.isPlatformOwner) {
-    throw new Error("Доступно владельцу и администратору")
+    throw new Error(t("actions.common.ownerAndAdminOnly"))
   }
   if (!(await canPerformCapability(session.user.role, "documents.esf", !!session.user.isPlatformOwner, session.user.id))) {
-    throw new Error("Нет права на отправку в ЭСФ")
+    throw new Error(t("actions.esf.noSendRight"))
   }
   return requireOrgAccess()
 }
@@ -43,12 +45,14 @@ async function requireStaffAccess() {
 export async function sendActToEsf(documentId: string): Promise<
   { ok: true; regNumber: string | null; status: string } | { ok: false; error: string }
 > {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const { orgId } = await requireStaffAccess()
     if (!esfSignerConfigured()) {
       return {
         ok: false,
-        error: "Подпись для ИС ЭСФ не настроена (ESF_SIGN_P12_BASE64 / ESF_SIGN_P12_PASSWORD). Обратитесь к платформе.",
+        error: t("actions.esf.signerNotConfiguredEnv"),
       }
     }
 
@@ -56,10 +60,10 @@ export async function sendActToEsf(documentId: string): Promise<
       where: { id: documentId, organizationId: orgId, documentType: "ACT", deletedAt: null },
       select: { id: true, number: true, tenantId: true, period: true, esfId: true, esfStatus: true },
     })
-    if (!doc) return { ok: false, error: "АВР не найден" }
-    if (!doc.tenantId || !doc.period) return { ok: false, error: "У АВР нет арендатора или периода" }
+    if (!doc) return { ok: false, error: t("actions.esf.actNotFound") }
+    if (!doc.tenantId || !doc.period) return { ok: false, error: t("actions.esf.actNoTenantOrPeriod") }
     if (doc.esfId && doc.esfStatus !== "FAILED" && doc.esfStatus !== "DECLINED") {
-      return { ok: false, error: `АВР уже отправлен в ИС ЭСФ (статус: ${doc.esfStatus ?? "SENT"})` }
+      return { ok: false, error: t("actions.esf.actAlreadySent", { status: doc.esfStatus ?? "SENT" }) }
     }
 
     // Те же данные, что и в DOCX-акте: договор + позиции (или начисления периода)
@@ -83,9 +87,9 @@ export async function sendActToEsf(documentId: string): Promise<
       getActiveContractForTenant(doc.tenantId),
     ])
     const orgTin = (org?.bin || org?.iin || s.executor.binIin || "").replace(/\D/g, "")
-    if (orgTin.length !== 12) return { ok: false, error: "Не заполнен БИН/ИИН организации (Настройки → Реквизиты)" }
+    if (orgTin.length !== 12) return { ok: false, error: t("actions.esf.orgTaxIdMissing") }
     const tenantTin = (s.customer.binIin || "").replace(/\D/g, "")
-    if (tenantTin.length !== 12) return { ok: false, error: "Не заполнен ИИН/БИН арендатора" }
+    if (tenantTin.length !== 12) return { ok: false, error: t("actions.esf.tenantTaxIdMissing") }
 
     // Реквизиты ЭСФ организации (per-org из БД, иначе env bootstrap-орг).
     const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
@@ -144,7 +148,7 @@ export async function sendActToEsf(documentId: string): Promise<
     const awpXml = buildAwpXml(input)
     const signed = await signAwpXml(awpXml, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
     if (!signed.certificatePem) {
-      return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
+      return { ok: false, error: t("actions.esf.signerCertFailed") }
     }
 
     // Сессия по новому протоколу ГОСТ-2015 (createAuthTicket → xmlDsig → createSessionSigned).
@@ -174,7 +178,7 @@ export async function sendActToEsf(documentId: string): Promise<
       await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
   } catch (e) {
-    const message = e instanceof EsfError || e instanceof Error ? e.message : "Не удалось отправить в ИС ЭСФ"
+    const message = e instanceof EsfError || e instanceof Error ? e.message : t("actions.esf.sendFailed")
     // Фиксируем ошибку у документа, чтобы была видна в UI
     await db.generatedDocument.update({
       where: { id: documentId },
@@ -193,25 +197,27 @@ export async function sendActToEsf(documentId: string): Promise<
 export async function sendInvoiceToEsf(documentId: string): Promise<
   { ok: true; regNumber: string | null; status: string } | { ok: false; error: string }
 > {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const { orgId } = await requireStaffAccess()
     if (!esfSignerConfigured()) {
-      return { ok: false, error: "Подпись для ИС ЭСФ не настроена. Обратитесь к платформе." }
+      return { ok: false, error: t("actions.esf.signerNotConfigured") }
     }
 
     const doc = await db.generatedDocument.findFirst({
       where: { id: documentId, organizationId: orgId, documentType: "INVOICE", deletedAt: null },
       select: { id: true, number: true, tenantId: true, period: true, esfId: true, esfStatus: true },
     })
-    if (!doc) return { ok: false, error: "Счёт не найден" }
-    if (!doc.tenantId || !doc.period) return { ok: false, error: "У счёта нет арендатора или периода" }
+    if (!doc) return { ok: false, error: t("actions.esf.invoiceNotFound") }
+    if (!doc.tenantId || !doc.period) return { ok: false, error: t("actions.esf.invoiceNoTenantOrPeriod") }
     if (doc.esfId && doc.esfStatus !== "FAILED" && doc.esfStatus !== "DECLINED") {
-      return { ok: false, error: `Счёт уже отправлен в ИС ЭСФ (статус: ${doc.esfStatus ?? "SENT"})` }
+      return { ok: false, error: t("actions.esf.invoiceAlreadySent", { status: doc.esfStatus ?? "SENT" }) }
     }
     // Признак арендатора: выставлять ли ему ЭСФ (физлицам обычно выкл).
     const tenantEsf = await db.tenant.findFirst({ where: { id: doc.tenantId }, select: { esfEnabled: true } })
     if (tenantEsf && !tenantEsf.esfEnabled) {
-      return { ok: false, error: "Для этого арендатора выставление ЭСФ отключено (включите в карточке арендатора → «Данные компании»)." }
+      return { ok: false, error: t("actions.esf.disabledForTenant") }
     }
 
     const avr = await buildAvrStateForTenant(orgId, doc.tenantId, doc.period)
@@ -229,9 +235,9 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
       getActiveContractForTenant(doc.tenantId),
     ])
     const orgTin = (org?.bin || org?.iin || s.executor.binIin || "").replace(/\D/g, "")
-    if (orgTin.length !== 12) return { ok: false, error: "Не заполнен БИН/ИИН организации (Настройки → Реквизиты)" }
+    if (orgTin.length !== 12) return { ok: false, error: t("actions.esf.orgTaxIdMissing") }
     const tenantTin = (s.customer.binIin || "").replace(/\D/g, "")
-    if (tenantTin.length !== 12) return { ok: false, error: "Не заполнен ИИН/БИН арендатора" }
+    if (tenantTin.length !== 12) return { ok: false, error: t("actions.esf.tenantTaxIdMissing") }
 
     const cfgRes = await resolveOrgEsfConfig(orgId, orgTin)
     if (!cfgRes.ok) return { ok: false, error: cfgRes.error }
@@ -311,7 +317,7 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
     const invoiceXml = buildInvoiceXml(input)
     const signed = await signAwpXml(invoiceXml, { certPath: cfg.certPath, certPin: cfg.certPin, certData: cfg.certData })
     if (!signed.certificatePem) {
-      return { ok: false, error: "Не удалось получить сертификат подписанта от сервиса подписи" }
+      return { ok: false, error: t("actions.esf.signerCertFailed") }
     }
 
     const sessionId = await openEsfSession(cfg)
@@ -337,7 +343,7 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
       await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
   } catch (e) {
-    const message = e instanceof EsfError || e instanceof Error ? e.message : "Не удалось отправить в ИС ЭСФ"
+    const message = e instanceof EsfError || e instanceof Error ? e.message : t("actions.esf.sendFailed")
     await db.generatedDocument.update({
       where: { id: documentId },
       data: { esfStatus: "FAILED", esfError: message.slice(0, 500) },
@@ -351,13 +357,15 @@ export async function sendInvoiceToEsf(documentId: string): Promise<
 export async function refreshInvoiceEsfStatus(documentId: string): Promise<
   { ok: true; status: string | null; regNumber: string | null; error?: string | null } | { ok: false; error: string }
 > {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const { orgId } = await requireStaffAccess()
     const doc = await db.generatedDocument.findFirst({
       where: { id: documentId, organizationId: orgId, documentType: "INVOICE", deletedAt: null },
       select: { id: true, esfId: true },
     })
-    if (!doc?.esfId) return { ok: false, error: "Счёт ещё не отправлен в ИС ЭСФ" }
+    if (!doc?.esfId) return { ok: false, error: t("actions.esf.invoiceNotSentYet") }
 
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { bin: true, iin: true } })
     const orgTin = (org?.bin || org?.iin || "").replace(/\D/g, "")
@@ -388,7 +396,7 @@ export async function refreshInvoiceEsfStatus(documentId: string): Promise<
       await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить статус" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.esf.statusFailed") }
   }
 }
 
@@ -396,13 +404,15 @@ export async function refreshInvoiceEsfStatus(documentId: string): Promise<
 export async function refreshEsfStatus(documentId: string): Promise<
   { ok: true; status: string | null; regNumber: string | null } | { ok: false; error: string }
 > {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const { orgId } = await requireStaffAccess()
     const doc = await db.generatedDocument.findFirst({
       where: { id: documentId, organizationId: orgId, documentType: "ACT", deletedAt: null },
       select: { id: true, esfId: true },
     })
-    if (!doc?.esfId) return { ok: false, error: "АВР ещё не отправлен в ИС ЭСФ" }
+    if (!doc?.esfId) return { ok: false, error: t("actions.esf.actNotSentYet") }
 
     const org = await db.organization.findUnique({ where: { id: orgId }, select: { bin: true, iin: true } })
     const orgTin = (org?.bin || org?.iin || "").replace(/\D/g, "")
@@ -425,6 +435,6 @@ export async function refreshEsfStatus(documentId: string): Promise<
       await closeSession(sessionId, cfg.wsUsername, cfg.wsPassword)
     }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить статус" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.esf.statusFailed") }
   }
 }

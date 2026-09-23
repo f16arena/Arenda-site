@@ -9,10 +9,14 @@ import { requireOrgAccess } from "@/lib/org"
 import {
   ACTION_CAPABILITIES,
   ACTION_CAPABILITY_GROUPS,
+  capabilityDescription,
+  capabilityGroupDescription,
+  capabilityGroupLabel,
+  capabilityLabel,
   getAllowedCapabilityKeysForUser,
   isFeatureAvailableInPlan,
 } from "@/lib/capabilities"
-import { PLAN_CAPABILITIES } from "@/lib/plan-capabilities"
+import { planFeatureLabel } from "@/lib/plan-capabilities"
 import { CAPABILITY_PERMISSION_PREFIX, capabilityKeyFromPermission, capabilityPermissionKey, userCapabilityRole } from "@/lib/capability-keys"
 import {
   buildRoleOptions,
@@ -34,7 +38,7 @@ import {
 import { APPROVAL_PENDING, APPROVAL_REJECTED } from "@/lib/approval"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { TEAM_TABS } from "@/lib/hub-tabs"
+import { teamTabs } from "@/lib/hub-tabs"
 import { getT, getLocale } from "@/lib/i18n/server"
 import { formatDateL } from "@/lib/i18n/format"
 
@@ -154,24 +158,23 @@ export default async function UsersPage() {
   }
 
   const planFeatureJson = org?.plan?.features ?? null
-  const featureLabels = new Map(PLAN_CAPABILITIES.map((feature) => [feature.key, feature.label]))
+  // Подписи прав подставляем на сервере: диалог личных прав — клиентский, и
+  // весь справочник adminRefs в браузер отправлять не нужно.
   const capabilityGroups = ACTION_CAPABILITY_GROUPS.map((group) => ({
     key: group.key,
-    label: group.label,
-    description: group.description,
+    label: capabilityGroupLabel(t, group),
+    description: capabilityGroupDescription(t, group),
     capabilities: group.capabilities.map((capability) => capability.key),
   }))
   const capabilities = ACTION_CAPABILITIES.map((capability) => ({
     key: capability.key,
-    label: capability.label,
-    description: capability.description,
+    label: capabilityLabel(t, capability),
+    description: capabilityDescription(t, capability),
     section: capability.section,
     level: capability.level,
     risk: capability.risk ?? "normal",
     requiredFeature: capability.requiredFeature ?? null,
-    requiredFeatureLabel: capability.requiredFeature
-      ? featureLabels.get(capability.requiredFeature) ?? capability.requiredFeature
-      : null,
+    requiredFeatureLabel: capability.requiredFeature ? planFeatureLabel(t, capability.requiredFeature) : null,
     locked: !!capability.requiredFeature && !isFeatureAvailableInPlan(planFeatureJson, capability.requiredFeature),
   }))
 
@@ -281,7 +284,7 @@ export default async function UsersPage() {
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={TEAM_TABS} className="mb-2" />
+      <RouteTabs items={teamTabs(t)} className="mb-2" />
       <PageHeader
         icon={Shield}
         tone="violet"

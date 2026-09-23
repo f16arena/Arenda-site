@@ -9,6 +9,7 @@ import {
   getTenantStorageScope,
   storeUploadedFile,
 } from "@/lib/storage"
+import { getT } from "@/lib/i18n/server"
 
 /** Текущий арендатор по сессии (профиль кабинета). */
 async function currentTenant() {
@@ -24,14 +25,16 @@ async function currentTenant() {
 
 /** Арендатор загружает свой документ в кабинет («Мои документы»). */
 export async function uploadMyDocument(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   const me = await currentTenant()
-  if (!me) return { ok: false, error: "Профиль арендатора не найден" }
+  if (!me) return { ok: false, error: t("actions.common.tenantProfileNotFound") }
 
   const name = String(formData.get("name") ?? "").trim()
   const type = String(formData.get("type") ?? "OTHER")
   const file = formData.get("file")
-  if (!name) return { ok: false, error: "Укажите название документа" }
-  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Прикрепите файл" }
+  if (!name) return { ok: false, error: t("actions.tenantDocs.nameRequired") }
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: t("actions.tenantDocs.fileRequired") }
 
   const scope = await getTenantStorageScope(me.tenantId)
   let storedFile: { id: string; url: string } | null = null
@@ -57,7 +60,7 @@ export async function uploadMyDocument(formData: FormData): Promise<{ ok: boolea
     if (storedFile) {
       await db.storedFile.update({ where: { id: storedFile.id }, data: { deletedAt: new Date() } }).catch(() => null)
     }
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить файл" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.uploadFailed") }
   }
 
   revalidatePath("/cabinet/documents")
@@ -67,14 +70,15 @@ export async function uploadMyDocument(formData: FormData): Promise<{ ok: boolea
 
 /** Арендатор удаляет СВОЙ загруженный документ. */
 export async function deleteMyDocument(documentId: string): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   const me = await currentTenant()
-  if (!me) return { ok: false, error: "Профиль арендатора не найден" }
+  if (!me) return { ok: false, error: t("actions.common.tenantProfileNotFound") }
 
   const doc = await db.tenantDocument.findFirst({
     where: { id: documentId, tenantId: me.tenantId },
     select: { id: true, storageFileId: true },
   })
-  if (!doc) return { ok: false, error: "Документ не найден" }
+  if (!doc) return { ok: false, error: t("actions.common.documentNotFound") }
 
   await db.tenantDocument.delete({ where: { id: doc.id } })
   if (doc.storageFileId) {

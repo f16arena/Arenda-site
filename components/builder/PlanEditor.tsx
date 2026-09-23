@@ -61,6 +61,9 @@ import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import { STATUS_COLOR, TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
 import { ISLAND_PRESETS, WALL_MOUNTED, fitToFloor, islandLabel, islandPolygon, islandArea } from "@/lib/builder/islands"
+import { useT } from "@/lib/i18n/client"
+import { deviceNameKey as deviceKey } from "@/lib/builder/mep/catalog"
+import type { SheetT } from "@/lib/builder/sheet-text"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { stairRise } from "@/core/geometry/stair-generator"
 import { insideBuilding, pointInObject, objectCorners, objectFootprint, snapColumn, spanAt, fitView, hitTest, perpendicularDelta, snapPoint, toPlan, toScreen, wallsInRect, zoomAt, type Hit, type Snap, type View } from "@/lib/builder/plan-editor-math"
@@ -86,6 +89,7 @@ function fitPad(w: number) {
 }
 
 export function PlanEditor() {
+  const { t } = useT()
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -205,8 +209,8 @@ export function PlanEditor() {
   // Раскладка подписей считается один раз на изменение плана или вида: её берут
   // и слои плана, и размеры выделенного элемента.
   const labels = useMemo(
-    () => (floor && drawing && view ? buildLabelLayout({ v: view, floor, drawing, rooms, look, numbers, resolvePremise }) : null),
-    [floor, drawing, view, rooms, look, numbers, resolvePremise],
+    () => (floor && drawing && view ? buildLabelLayout({ v: view, floor, drawing, rooms, look, numbers, resolvePremise, t }) : null),
+    [floor, drawing, view, rooms, look, numbers, resolvePremise, t],
   )
 
   const gripNodes = useMemo(() => {
@@ -270,12 +274,12 @@ export function PlanEditor() {
           add(fl, twin, Math.hypot(tb.x - ta.x, tb.y - ta.y))
         }
       }
-      execute(cmds.length === 1 ? cmds[0] : new CompositeCommand("витраж", cmds))
+      execute(cmds.length === 1 ? cmds[0] : new CompositeCommand(t("adminBuilder.plan.curtainCommand"), cmds))
       return
     }
     if (L < spec.width + 200) return
-    const t = closestOnSegment(p, a, b).t
-    const offset = Math.round(Math.max(spec.width / 2 + 50, Math.min(L - spec.width / 2 - 50, t * L)))
+    const along = closestOnSegment(p, a, b).t
+    const offset = Math.round(Math.max(spec.width / 2 + 50, Math.min(L - spec.width / 2 - 50, along * L)))
     execute(new AddOpeningCommand(floor.id, { id: uid("op"), wallId, type, variant: spec.variant, width: spec.width, height: spec.height, sillHeight: spec.sill, offset, ...(replanMode ? { phase: "new" as const } : {}) }))
   }
 
@@ -321,7 +325,7 @@ export function PlanEditor() {
     }
     // лестница и лифт — только внутри здания: клик мимо создавал лестницу в поле
     if (!insideBuilding(floor, p)) {
-      setOutsideHint(stairShape === "elevator" ? "Лифт ставится внутри здания" : "Лестница ставится внутри здания; снаружи — «Крыльцо»")
+      setOutsideHint(t(stairShape === "elevator" ? "adminBuilder.plan.outsideElevator" : "adminBuilder.plan.outsideStair"))
       return
     }
     const width = stairShape === "elevator" ? 2000 : 1100
@@ -661,7 +665,7 @@ export function PlanEditor() {
       case "annotate":
         if (annotateKind === "text") {
           const id = uid("an")
-          execute(new AddAnnotationCommand(floor.id, { id, kind: "text", at: snap, text: "Надпись" }))
+          execute(new AddAnnotationCommand(floor.id, { id, kind: "text", at: snap, text: t("adminBuilder.plan.noteDefault") }))
           setSelection({ type: "annotation", id, floorId: floor.id })
         } else if (dimPts.length < 2) {
           if (dimPts.length === 1 && Math.hypot(snap.x - dimPts[0].x, snap.y - dimPts[0].y) < 10) break
@@ -741,23 +745,24 @@ export function PlanEditor() {
   const selStair = sel.type === "stair" ? shown?.stairs.find((s) => s.id === sel.id) : undefined
   const snapMark = cursor?.snap && (cursor.snap.kind === "node" || cursor.snap.kind === "edge") ? S(cursor.snap.p) : null
   const hint =
-    tool === "wall" ? (chain ? `Стена: клик — следующая точка, двойной клик или правая кнопка — конец${lengthInput ? ` · длина ${lengthInput} м, Enter` : " · цифры — длина в м"}` : "Стена: клик — начало, дальше цепочкой. Привязка к узлам и стенам, углы 15° (Alt — без привязки)")
-    : tool === "room" ? "Комната: протяните прямоугольник"
-    : tool === "door" || tool === "window" ? `${tool === "door" ? "Дверь" : "Окно"}: клик по стене`
-    : tool === "stair" ? `${stairShape === "elevator" ? "Лифт" : stairShape === "porch" ? "Крыльцо: клик снаружи у стены" : stairShape === "ramp" ? "Пандус: клик снаружи у стены" : "Лестница"}: клик на плане`
-    : tool === "annotate" ? (annotateKind === "text" ? "Надпись: клик" : dimPts.length === 0 ? "Размер: первая точка" : dimPts.length === 1 ? "Размер: вторая точка" : "Размер: клик — вынос размерной линии")
-    : tool === "delete" ? "Удалить: клик по элементу (в перепланировке существующее помечается демонтажем)"
-    : tool === "select" ? "Клик — выделить, тянуть выделенное — сдвинуть · рамка → внутри, ← задетые · Shift — добавить · ПКМ — панорама · F — вписать"
-    : tool === "measure" ? (measured ? `Рулетка: ${Math.round(Math.hypot(measured.b.x - measured.a.x, measured.b.y - measured.a.y))} мм · клик — новый замер` : pts2.length ? "Рулетка: вторая точка" : "Рулетка: первая точка (привязка к узлам и стенам)")
-    : tool === "section" ? (pts2.length ? "Разрез: вторая точка линии" : "Разрез: первая точка линии")
-    : tool === "mep-run" ? `Трасса ${MEP_SYSTEM_INFO[mepSystem].name}: клики — точки${pts2.length ? `, ${(polylineLengthMm(pts2) / 1000).toFixed(2)} м` : ""}; клик в последней точке, правая кнопка или Enter — готово`
-    : tool === "mep-device" ? `${MEP_DEVICE_BY_KIND[mepDeviceKind]?.name ?? "Прибор"}: клик; настенные встают на ближайшую стену`
-    : tool === "object" ? (armedAsset ? "Объект: клик — поставить. Поворот и размер — в панели справа" : "Объект: выберите его в каталоге снизу")
-    : tool === "island" ? `${ISLAND_PRESETS[islandKind].label}: клик в коридоре или холле — место встанет по центру клика; арендатор и размеры — в панели справа`
-    : "Этот инструмент работает в 3D — переключитесь кнопкой «3D»"
+    tool === "wall" ? (chain ? `${t("adminBuilder.plan.hintWallChain")}${lengthInput ? t("adminBuilder.plan.hintWallLength", { value: lengthInput }) : t("adminBuilder.plan.hintWallDigits")}` : t("adminBuilder.plan.hintWall"))
+    : tool === "room" ? t("adminBuilder.plan.hintRoom")
+    : tool === "door" || tool === "window" ? t("adminBuilder.plan.hintOpening", { name: t(tool === "door" ? "adminBuilder.tools.door" : "adminBuilder.tools.window") })
+    : tool === "stair" ? (stairShape === "porch" ? t("adminBuilder.plan.hintStairPorch") : stairShape === "ramp" ? t("adminBuilder.plan.hintStairRamp") : t("adminBuilder.plan.hintStair", { name: t(stairShape === "elevator" ? "adminBuilder.props.elevator" : "adminBuilder.tools.stair") }))
+    : tool === "annotate" ? (annotateKind === "text" ? t("adminBuilder.plan.hintNote") : dimPts.length === 0 ? t("adminBuilder.plan.hintDim1") : dimPts.length === 1 ? t("adminBuilder.plan.hintDim2") : t("adminBuilder.plan.hintDim3"))
+    : tool === "delete" ? t("adminBuilder.plan.hintDelete")
+    : tool === "select" ? t("adminBuilder.plan.hintSelect")
+    : tool === "measure" ? (measured ? t("adminBuilder.plan.hintMeasured", { value: Math.round(Math.hypot(measured.b.x - measured.a.x, measured.b.y - measured.a.y)) }) : pts2.length ? t("adminBuilder.plan.hintMeasure2") : t("adminBuilder.plan.hintMeasure1"))
+    : tool === "section" ? t(pts2.length ? "adminBuilder.plan.hintSection2" : "adminBuilder.plan.hintSection1")
+    : tool === "mep-run" ? t("adminBuilder.plan.hintMepRun", { name: t(`adminBuilder.mep.systems.${mepSystem}`), length: pts2.length ? t("adminBuilder.plan.hintMepRunLength", { value: (polylineLengthMm(pts2) / 1000).toFixed(2) }) : "" })
+    : tool === "mep-device" ? t("adminBuilder.plan.hintMepDevice", { name: MEP_DEVICE_BY_KIND[mepDeviceKind] ? t(`adminBuilder.mep.devices.${deviceKey(mepDeviceKind)}`) : t("adminBuilder.plan.hintMepDeviceFallback") })
+    : tool === "object" ? t(armedAsset ? "adminBuilder.plan.hintObject" : "adminBuilder.plan.hintObjectPick")
+    : tool === "island" ? t("adminBuilder.plan.hintIsland", { name: t(`adminBuilder.islands.kinds.${islandKind}`) })
+    : t("adminBuilder.plan.hintOnly3D")
 
   // ── Размеры выделенного элемента прямо на плане: клик — ввод числа ─────────
-  type EditDim = { key: string; at: Vec2; label: string; value: number; apply: (v: number) => void; min: number; max: number }
+  // bare — размер, у которого подпись не нужна: длину и ширину читают по месту
+  type EditDim = { key: string; at: Vec2; label: string; value: number; apply: (v: number) => void; min: number; max: number; bare?: boolean }
   const editDims: EditDim[] = []
   if (!drag.current && floor) {
     const fid = floor.id
@@ -773,9 +778,9 @@ export function PlanEditor() {
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
       const off = selWall.thickness / 2 + 26 / v.k
       const wid = sel.id
-      editDims.push({ key: `wl${wid}`, at: S({ x: mid.x + n.x * off, y: mid.y + n.y * off }), label: "Длина", value: Math.round(L), min: 100, max: 200000,
+      editDims.push({ key: `wl${wid}`, at: S({ x: mid.x + n.x * off, y: mid.y + n.y * off }), label: t("adminBuilder.plan.dimLength"), bare: true, value: Math.round(L), min: 100, max: 200000,
         apply: (val) => execute(new MoveNodeCommand(fid, selWall.b, { x: Math.round(a.x + u.x * val), y: Math.round(a.y + u.y * val) })) })
-      editDims.push({ key: `wt${wid}`, at: S({ x: mid.x - n.x * off, y: mid.y - n.y * off }), label: "Толщина", value: selWall.thickness, min: 50, max: 1500,
+      editDims.push({ key: `wt${wid}`, at: S({ x: mid.x - n.x * off, y: mid.y - n.y * off }), label: t("adminBuilder.plan.dimThickness"), value: selWall.thickness, min: 50, max: 1500,
         apply: (val) => execute(new SetWallPropsCommand(fid, wid, { thickness: val })) })
     }
     if (sel.type === "opening" && selOpening && sel.id) {
@@ -788,9 +793,9 @@ export function PlanEditor() {
         const c = { x: a.x + u.x * selOpening.offset, y: a.y + u.y * selOpening.offset }
         const off = e.thickness / 2 + 30 / v.k
         const oid = sel.id
-        editDims.push({ key: `ow${oid}`, at: S({ x: c.x + n.x * off, y: c.y + n.y * off }), label: "Ширина", value: selOpening.width, min: 300, max: Math.max(300, Math.round(L - 100)), apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { width: val })) })
-        editDims.push({ key: `oh${oid}`, at: S({ x: c.x - n.x * off, y: c.y - n.y * off }), label: "Высота", value: selOpening.height, min: 300, max: 6000, apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { height: val })) })
-        if (selOpening.type === "window") editDims.push({ key: `os${oid}`, at: S({ x: c.x - n.x * off * 2.2, y: c.y - n.y * off * 2.2 }), label: "От пола", value: selOpening.sillHeight, min: 0, max: 3000, apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { sillHeight: val })) })
+        editDims.push({ key: `ow${oid}`, at: S({ x: c.x + n.x * off, y: c.y + n.y * off }), label: t("adminBuilder.plan.dimWidth"), bare: true, value: selOpening.width, min: 300, max: Math.max(300, Math.round(L - 100)), apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { width: val })) })
+        editDims.push({ key: `oh${oid}`, at: S({ x: c.x - n.x * off, y: c.y - n.y * off }), label: t("adminBuilder.plan.dimHeight"), value: selOpening.height, min: 300, max: 6000, apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { height: val })) })
+        if (selOpening.type === "window") editDims.push({ key: `os${oid}`, at: S({ x: c.x - n.x * off * 2.2, y: c.y - n.y * off * 2.2 }), label: t("adminBuilder.plan.dimSill"), value: selOpening.sillHeight, min: 0, max: 3000, apply: (val) => execute(new SetOpeningSizeCommand(fid, oid, { sillHeight: val })) })
       }
     }
     if (sel.type === "stair" && selStair && sel.id) {
@@ -804,19 +809,19 @@ export function PlanEditor() {
       const across = Math.round(Math.hypot(hole[1].x - hole[0].x, hole[1].y - hole[0].y))
       const along = Math.round(Math.hypot(hole[2].x - hole[1].x, hole[2].y - hole[1].y))
       if (st.shape === "column") {
-        editDims.push({ key: `cw${sid}`, at: outward(e01, cs, 22), label: columnSizeAll ? "Ширина (все)" : "Ширина", value: st.width, min: 100, max: 3000, apply: (val) => execute(setColumnSizeCommand(floor, sid, { width: val }, columnSizeAll)) })
-        editDims.push({ key: `cd${sid}`, at: outward(e12, cs, 22), label: columnSizeAll ? "Глубина (все)" : "Глубина", value: st.depth ?? st.width, min: 100, max: 3000, apply: (val) => execute(setColumnSizeCommand(floor, sid, { depth: val }, columnSizeAll)) })
+        editDims.push({ key: `cw${sid}`, at: outward(e01, cs, 22), label: t(columnSizeAll ? "adminBuilder.plan.dimWidthAll" : "adminBuilder.plan.dimWidth"), bare: !columnSizeAll, value: st.width, min: 100, max: 3000, apply: (val) => execute(setColumnSizeCommand(floor, sid, { width: val }, columnSizeAll)) })
+        editDims.push({ key: `cd${sid}`, at: outward(e12, cs, 22), label: t(columnSizeAll ? "adminBuilder.plan.dimDepthAll" : "adminBuilder.plan.dimDepth"), value: st.depth ?? st.width, min: 100, max: 3000, apply: (val) => execute(setColumnSizeCommand(floor, sid, { depth: val }, columnSizeAll)) })
       } else if (st.shape === "elevator") {
-        editDims.push({ key: `ew${sid}`, at: outward(e01, cs, 22), label: "Шахта", value: st.width, min: 1200, max: 4000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
+        editDims.push({ key: `ew${sid}`, at: outward(e01, cs, 22), label: t("adminBuilder.plan.dimShaft"), bare: true, value: st.width, min: 1200, max: 4000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
       } else {
         const rise = stairRise(st, floor.height)
         const count = Math.max(st.shape === "porch" ? 1 : 2, Math.round(rise / 170))
         const runs = st.shape === "straight" || st.shape === "spiral" ? count : st.shape === "porch" ? Math.max(1, count - 1) : Math.ceil(count / 2)
         const clampT = (t: number) => Math.max(220, Math.min(450, Math.round(t)))
-        editDims.push({ key: `sw${sid}`, at: outward(e01, cs, 22), label: st.shape === "porch" ? "Ширина" : "Ширина марша", value: st.width, min: 700, max: 6000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
-        editDims.push({ key: `sl${sid}`, at: outward(e12, cs, 22), label: "Длина", value: along, min: 500, max: 20000,
+        editDims.push({ key: `sw${sid}`, at: outward(e01, cs, 22), label: t(st.shape === "porch" ? "adminBuilder.plan.dimWidth" : "adminBuilder.plan.dimFlightWidth"), bare: true, value: st.width, min: 700, max: 6000, apply: (val) => execute(new SetStairCommand(fid, sid, { width: val })) })
+        editDims.push({ key: `sl${sid}`, at: outward(e12, cs, 22), label: t("adminBuilder.plan.dimLength"), bare: true, value: along, min: 500, max: 20000,
           apply: (val) => execute(new SetStairCommand(fid, sid, { tread: clampT(st.shape === "porch" ? (val - 1400) / runs : val / runs) })) })
-        editDims.push({ key: `sh${sid}`, at: { x: cs.x, y: cs.y + 16 }, label: "Высота", value: Math.round(rise), min: 150, max: 6000, apply: (val) => execute(new SetStairCommand(fid, sid, { rise: val })) })
+        editDims.push({ key: `sh${sid}`, at: { x: cs.x, y: cs.y + 16 }, label: t("adminBuilder.plan.dimHeight"), value: Math.round(rise), min: 150, max: 6000, apply: (val) => execute(new SetStairCommand(fid, sid, { rise: val })) })
         void across
       }
     }
@@ -993,12 +998,12 @@ export function PlanEditor() {
               <button
                 type="button"
                 data-testid={`dim-${d.key}`}
-                title={`${d.label}, мм — клик, чтобы изменить`}
+                title={t("adminBuilder.plan.dimEditHint", { label: d.label })}
                 onClick={() => setEditing({ key: d.key, draft: String(d.value) })}
                 className="whitespace-nowrap rounded-md px-1.5 py-0.5 text-[11px] font-bold tabular-nums shadow"
                 style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #7dd3fc" }}
               >
-                {d.label === "Длина" || d.label === "Ширина" || d.label === "Ширина марша" || d.label === "Шахта" ? "" : `${d.label} `}{d.value}
+                {d.bare ? "" : `${d.label} `}{d.value}
               </button>
             )}
           </div>
@@ -1029,8 +1034,8 @@ export function PlanEditor() {
       </svg>
 
       <div className="absolute right-3 bottom-[11.5rem] z-10 flex overflow-hidden rounded-lg shadow" style={{ border: `1px solid ${TOKENS.panelBorder}` }} data-testid="plan-look">
-        {([["draft", "Чертёж"], ["rent", "Аренда"]] as const).map(([k, l]) => (
-          <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{l}</button>
+        {([["draft", "draft"], ["rent", "rent"]] as const).map(([k, label]) => (
+          <button key={k} type="button" onClick={() => setLook(k)} className="px-2.5 py-1 text-[11px] font-semibold" style={{ background: look === k ? TOKENS.accent : TOKENS.panel, color: look === k ? "#0b1220" : TOKENS.text }}>{t(`adminBuilder.plan.${label}`)}</button>
         ))}
       </div>
       <div className="pointer-events-none absolute bottom-[5.5rem] left-1/2 -translate-x-1/2 rounded-lg px-3 py-1.5 text-xs font-medium shadow" style={{ background: outsideHint ? "rgba(239,68,68,0.92)" : "rgba(15,23,42,0.85)", color: "#e2e8f0" }}>
@@ -1039,7 +1044,7 @@ export function PlanEditor() {
       <button
         type="button"
         onClick={() => setHelpOpen((x) => !x)}
-        title="Горячие клавиши"
+        title={t("adminBuilder.plan.hotkeys")}
         className="absolute right-3 bottom-[14.5rem] z-10 h-7 w-7 rounded-lg text-[13px] font-bold shadow"
         style={{ background: helpOpen ? TOKENS.accent : TOKENS.panel, color: helpOpen ? "#0b1220" : TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
       >
@@ -1047,40 +1052,40 @@ export function PlanEditor() {
       </button>
       {helpOpen && (
         <div className="absolute right-3 bottom-[18rem] z-10 w-72 rounded-xl p-3 text-[11px] shadow-xl" style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}>
-          <div className="mb-1.5 text-xs font-semibold">Горячие клавиши</div>
-          {[
-            ["V", "выбор"], ["W", "стена"], ["R", "комната"], ["D", "дверь"], ["N", "окно"],
-            ["S", "лестница"], ["I", "измерить"], ["Del", "удалить выбранное"],
-            ["Ctrl+Z / Ctrl+Y", "отменить / вернуть"], ["Shift", "орто 90° при рисовании"],
-            ["Alt", "без привязок"], ["цифры + Enter", "длина стены в метрах"],
-            ["двойной клик", "конец цепочки стен"], ["колесо", "зум к курсору"],
-            ["ПКМ или пробел+мышь", "сдвиг плана"], ["Esc", "отменить действие"],
-          ].map(([k, t]) => (
+          <div className="mb-1.5 text-xs font-semibold">{t("adminBuilder.plan.hotkeys")}</div>
+          {([
+            ["V", "keySelect"], ["W", "keyWall"], ["R", "keyRoom"], ["D", "keyDoor"], ["N", "keyWindow"],
+            ["S", "keyStair"], ["I", "keyMeasure"], ["Del", "keyDelete"],
+            ["Ctrl+Z / Ctrl+Y", "keyUndo"], ["Shift", "keyOrtho"],
+            ["Alt", "keyNoSnap"], [t("adminBuilder.plan.keyDigits"), "keyLength"],
+            [t("adminBuilder.plan.keyDoubleClick"), "keyChainEnd"], [t("adminBuilder.plan.keyWheel"), "keyZoom"],
+            [t("adminBuilder.plan.keyRmb"), "keyPan"], ["Esc", "keyEscape"],
+          ] as const).map(([k, label]) => (
             <div key={k} className="flex justify-between gap-2 py-0.5">
               <span className="font-mono" style={{ color: TOKENS.accent }}>{k}</span>
-              <span style={{ color: TOKENS.muted }}>{t}</span>
+              <span style={{ color: TOKENS.muted }}>{t(`adminBuilder.plan.${label}`)}</span>
             </div>
           ))}
           {/* короткая шпаргалка по недавним возможностям: иначе их просто не находят */}
           <div className="mt-2 border-t pt-1.5" style={{ borderColor: TOKENS.panelBorder }}>
-            <div className="mb-1 text-xs font-semibold">Где искать</div>
-            {[
-              ["Проверка модели", "панель этажей слева: ошибки и замечания, клик ведёт к месту"],
-              ["Наименования", "там же кнопка «Подставить наименования» на всё здание"],
-              ["Пандус", "инструмент «Лестница» → «Пандус», клик снаружи у стены"],
-              ["Солнце и мебель", "в 3D справа сверху"],
-              ["Узлы и фрагменты", "«Чертежи» → список листов"],
-            ].map(([k, t]) => (
+            <div className="mb-1 text-xs font-semibold">{t("adminBuilder.plan.whereToLook")}</div>
+            {([
+              ["whereCheck", "whereCheckText"],
+              ["whereNames", "whereNamesText"],
+              ["whereRamp", "whereRampText"],
+              ["whereSun", "whereSunText"],
+              ["whereDetails", "whereDetailsText"],
+            ] as const).map(([k, text]) => (
               <div key={k} className="py-0.5">
-                <span style={{ color: TOKENS.accent }}>{k}</span>
-                <span style={{ color: TOKENS.muted }}> — {t}</span>
+                <span style={{ color: TOKENS.accent }}>{t(`adminBuilder.plan.${k}`)}</span>
+                <span style={{ color: TOKENS.muted }}> — {t(`adminBuilder.plan.${text}`)}</span>
               </div>
             ))}
           </div>
         </div>
       )}
       <div className="pointer-events-none absolute bottom-9 left-[13.5rem] rounded-md px-2 py-0.5 text-[11px] tabular-nums" style={{ background: "rgba(255,255,255,0.85)", color: "#334155" }}>
-        {cursor ? `X ${(cursor.plan.x / 1000).toFixed(2)}  Y ${(cursor.plan.y / 1000).toFixed(2)} м · ` : ""}1 м = {px(1000).toFixed(0)} px
+        {cursor ? t("adminBuilder.plan.cursor", { x: (cursor.plan.x / 1000).toFixed(2), y: (cursor.plan.y / 1000).toFixed(2) }) : ""}{t("adminBuilder.plan.scaleLine", { px: px(1000).toFixed(0) })}
       </div>
     </div>
   )
@@ -1107,9 +1112,11 @@ const PlanLayers = memo(function PlanLayers({
   resolvePremise: (id: string) => ReturnType<ReturnType<typeof usePremiseStore.getState>["resolve"]>
   labels: ReturnType<typeof buildLabelLayout>
 }) {
+  const { t } = useT()
+  const islandKindName = (kind: Parameters<typeof islandLabel>[0]["kind"]) => t(`adminBuilder.islands.kinds.${kind}`)
   const { roomLabels, exitLabels, markLabels } = labels
   const S = (p: Vec2) => toScreen(v, p)
-  const pts = (list: Vec2[]) => list.map((q) => { const t = S(q); return `${t.x.toFixed(1)},${t.y.toFixed(1)}` }).join(" ")
+  const pts = (list: Vec2[]) => list.map((q) => { const sp = S(q); return `${sp.x.toFixed(1)},${sp.y.toFixed(1)}` }).join(" ")
   const px = (mm: number) => mm * v.k
   const gridStep = px(1000) >= 14 ? 1000 : px(5000) >= 14 ? 5000 : 10000
   const topLeft = toPlan(v, { x: 0, y: 0 }), bottomRight = toPlan(v, { x: size.w, y: size.h })
@@ -1251,7 +1258,7 @@ const PlanLayers = memo(function PlanLayers({
             <polygon points={pts(lf.shaft)} fill="#e2e8f0" stroke="#0f172a" strokeWidth={2} />
             <polygon points={pts(lf.cabin)} fill="#f8fafc" stroke="#475569" strokeWidth={1} />
             {(() => { const c = lf.cabin.map(S); return <><line x1={c[0].x} y1={c[0].y} x2={c[2].x} y2={c[2].y} stroke="#475569" /><line x1={c[1].x} y1={c[1].y} x2={c[3].x} y2={c[3].y} stroke="#475569" /></> })()}
-            {(() => { const c = S({ x: (lf.shaft[0].x + lf.shaft[2].x) / 2, y: (lf.shaft[0].y + lf.shaft[2].y) / 2 }); return <text x={c.x} y={c.y} fontSize={fontPx} textAnchor="middle" dominantBaseline="middle" fontWeight={700} fill="#0f172a" style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3 }}>ЛИФТ</text> })()}
+            {(() => { const c = S({ x: (lf.shaft[0].x + lf.shaft[2].x) / 2, y: (lf.shaft[0].y + lf.shaft[2].y) / 2 }); return <text x={c.x} y={c.y} fontSize={fontPx} textAnchor="middle" dominantBaseline="middle" fontWeight={700} fill="#0f172a" style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3 }}>{t("adminBuilder.plan.elevatorMark")}</text> })()}
           </g>
         ))}
         {exitLabels.map((ex, i) => (
@@ -1280,14 +1287,14 @@ const PlanLayers = memo(function PlanLayers({
                   ставим её над местом, чтобы было видно, что это за точка */}
               {wide ? (
                 <text x={c.x} y={c.y} fontSize={Math.max(8, fontPx - 2)} textAnchor="middle" dominantBaseline="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>
-                  {islandLabel(isl)}
+                  {islandLabel(isl, islandKindName)}
                   <tspan x={c.x} dy={fontPx}>{area.toFixed(2)} м²</tspan>
                   {/* арендатор: из карточки, если место привязано, иначе из подписи */}
                   {(prem?.tenantName || isl.tenant) && <tspan x={c.x} dy={fontPx} fontWeight={500}>{prem?.tenantName || isl.tenant}</tspan>}
                 </text>
               ) : (
                 <text x={c.x} y={c.y - Math.max(8, px(isl.depth) / 2 + 5)} fontSize={Math.max(8, fontPx - 3)} textAnchor="middle" fill="#0c4a6e" fontWeight={600} style={{ paintOrder: "stroke", stroke: "#f8fafc", strokeWidth: 3, pointerEvents: "none" }}>
-                  {islandLabel(isl)}
+                  {islandLabel(isl, islandKindName)}
                 </text>
               )}
             </g>
@@ -1369,6 +1376,8 @@ type LabelBox = { l: number; t: number; r: number; b: number }
  * на каждое движение мыши.
  */
 function buildLabelLayout(args: {
+  /** переводчик: на плане подписаны лифт, выходы и виды арендных мест */
+  t: SheetT
   v: View
   floor: Floor
   drawing: FloorDrawing
@@ -1377,7 +1386,7 @@ function buildLabelLayout(args: {
   numbers: Map<string, string>
   resolvePremise: (id: string) => ReturnType<ReturnType<typeof usePremiseStore.getState>["resolve"]>
 }) {
-  const { v, floor, drawing, rooms, look, numbers, resolvePremise } = args
+  const { v, floor, drawing, rooms, look, numbers, resolvePremise, t } = args
   const S = (p: Vec2) => toScreen(v, p)
   const px = (mm: number) => mm * v.k
   const fontPx = Math.max(9, Math.min(14, px(320)))
@@ -1404,15 +1413,15 @@ function buildLabelLayout(args: {
     const area = `${(r.areaMm2 / 1e6).toFixed(1).replace(".", ",")} м²`
     const widthPx = px(spanAt(r.polygon, anchor, r.holes)) - 10
     const areaText = look === "draft" ? area.replace(" м²", "") : area
-    const fits = (t: string, f: number) => t.length * f * 0.56 <= widthPx
+    const fits = (line: string, f: number) => line.length * f * 0.56 <= widthPx
     if (widthPx < 18) continue
     let f = fontPx
     while (f > 8 && !fits(areaText, f)) f -= 1
     if (!fits(areaText, f)) continue
-    const cut = (t: string) => {
-      if (fits(t, f)) return t
+    const cut = (line: string) => {
+      if (fits(line, f)) return line
       const k = Math.floor(widthPx / (f * 0.56)) - 1
-      return k >= 3 ? `${t.slice(0, k)}…` : ""
+      return k >= 3 ? `${line.slice(0, k)}…` : ""
     }
     const lines: Array<{ t: string; bold?: boolean; under?: boolean; color: string }> = []
     const num = numbers.get(r.id)
@@ -1434,7 +1443,7 @@ function buildLabelLayout(args: {
     const dir = { x: ex.dir.x, y: -ex.dir.y }
     const L = Math.max(22, px(1200))
     const tip = { x: a.x + dir.x * L, y: a.y + dir.y * L }
-    const text = ex.kind === "emergency" ? "ВЫХОД" : "ВХОД"
+    const text = t(ex.kind === "emergency" ? "adminBuilder.plan.exit" : "adminBuilder.plan.entrance")
     // текст за стрелкой; если занято — сбоку от стрелки
     const cands = [{ x: tip.x + dir.x * 18, y: tip.y + dir.y * 18 }, { x: tip.x - dir.y * 30, y: tip.y + dir.x * 30 }, { x: tip.x + dir.y * 30, y: tip.y - dir.x * 30 }]
     let pos: { x: number; y: number } | null = null

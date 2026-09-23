@@ -7,9 +7,13 @@ import { useEffect } from "react"
 import { ISLAND_KINDS, MEP_SYSTEMS } from "@/types/builder"
 import { MEP_SYSTEM_INFO, devicesOf } from "@/lib/builder/mep/catalog"
 import { useEditorStore, type StairShape, type TerrainMode, type FenceStyle } from "@/store/builder-store"
-import { MATERIALS, TOKENS } from "@/lib/builder/materials"
+import { MATERIALS, TOKENS, materialNameKey } from "@/lib/builder/materials"
 import { presetsFor } from "@/lib/builder/openings"
 import { ISLAND_PRESETS, OUTDOOR_KINDS, ROOF_KINDS } from "@/lib/builder/islands"
+import { useT } from "@/lib/i18n/client"
+import type { Messages } from "@/lib/i18n/messages"
+
+type OptionsKey = keyof Messages["adminBuilder"]["options"]
 
 const PAINT_IDS = [
   // стены/фасад
@@ -25,46 +29,49 @@ const PAINT_IDS = [
   // кровля
   "metal_roof", "metal_roof_graphite", "metal_roof_red", "metal_roof_brown", "metal_roof_green", "metal_roof_blue", "profile_sheet", "profile_sheet_red", "soft_roof", "soft_roof_brown", "soft_roof_green", "ceramic_roof_red", "ceramic_roof_brown", "seam_roof", "seam_roof_dark", "copper_roof", "slate_roof", "roof_red", "roof_brown", "roof_green", "roof_membrane",
 ]
-const STAIRS: { id: StairShape; label: string }[] = [
-  { id: "straight", label: "Прямая" },
-  { id: "l", label: "Г-образная" },
-  { id: "u", label: "П-образная" },
-  { id: "porch", label: "Крыльцо" },
-  { id: "ramp", label: "Пандус" },
-  { id: "elevator", label: "Лифт" },
-  { id: "column", label: "Колонна" },
+// Подписи кнопок — ключи словаря (adminBuilder.options): подписи в двух языках
+// в таблице пресетов держать негде.
+const STAIRS: { id: StairShape; label: OptionsKey }[] = [
+  { id: "straight", label: "stairStraight" },
+  { id: "l", label: "stairL" },
+  { id: "u", label: "stairU" },
+  { id: "porch", label: "stairPorch" },
+  { id: "ramp", label: "stairRamp" },
+  { id: "elevator", label: "stairElevator" },
+  { id: "column", label: "stairColumn" },
 ]
-const TERRAIN: { id: TerrainMode; label: string }[] = [
-  { id: "raise", label: "Поднять" },
-  { id: "lower", label: "Опустить" },
-  { id: "flatten", label: "Выровнять" },
-  { id: "smooth", label: "Сгладить" },
-  { id: "terrace", label: "Террасы" },
+const TERRAIN: { id: TerrainMode; label: OptionsKey }[] = [
+  { id: "raise", label: "terrainRaise" },
+  { id: "lower", label: "terrainLower" },
+  { id: "flatten", label: "terrainFlatten" },
+  { id: "smooth", label: "terrainSmooth" },
+  { id: "terrace", label: "terrainTerrace" },
 ]
-const WATER_DEPTHS: { mm: number; label: string }[] = [
-  { mm: 400, label: "Мелко 0.4 м" },
-  { mm: 800, label: "Средне 0.8 м" },
-  { mm: 1500, label: "Глубоко 1.5 м" },
+const WATER_DEPTHS: { mm: number; label: OptionsKey }[] = [
+  { mm: 400, label: "waterShallow" },
+  { mm: 800, label: "waterMedium" },
+  { mm: 1500, label: "waterDeep" },
 ]
+// Ширина дорожки — только цифры, переводить нечего.
 const PATH_WIDTHS: { mm: number; label: string }[] = [
   { mm: 1200, label: "1.2 м" },
   { mm: 3000, label: "3 м" },
   { mm: 6000, label: "6 м" },
 ]
-const PAVE_MATERIALS: { id: string; label: string }[] = [
-  { id: "asphalt", label: "Асфальт" },
-  { id: "paving", label: "Брусчатка" },
-  { id: "concrete", label: "Бетон" },
-  { id: "tile", label: "Плитка" },
-  { id: "granite", label: "Гранит" },
-  { id: "grass", label: "Газон" },
+const PAVE_MATERIALS: { id: string; label: OptionsKey }[] = [
+  { id: "asphalt", label: "paveAsphalt" },
+  { id: "paving", label: "pavePaving" },
+  { id: "concrete", label: "paveConcrete" },
+  { id: "tile", label: "paveTile" },
+  { id: "granite", label: "paveGranite" },
+  { id: "grass", label: "paveGrass" },
 ]
-const FENCE_STYLES: { id: FenceStyle; label: string }[] = [
-  { id: "profnastil", label: "Профнастил" },
-  { id: "shtaketnik", label: "Евроштакетник" },
-  { id: "mesh", label: "3D-сетка" },
-  { id: "forged", label: "Ковка" },
-  { id: "wood", label: "Дерево" },
+const FENCE_STYLES: { id: FenceStyle; label: OptionsKey }[] = [
+  { id: "profnastil", label: "fenceProfnastil" },
+  { id: "shtaketnik", label: "fenceShtaketnik" },
+  { id: "mesh", label: "fenceMesh" },
+  { id: "forged", label: "fenceForged" },
+  { id: "wood", label: "fenceWood" },
 ]
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -79,6 +86,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 
 export function ToolOptions() {
+  const { t } = useT()
   const wallArc = useEditorStore((st) => st.wallArc)
   const tool = useEditorStore((s) => s.activeTool)
   const paintMaterialId = useEditorStore((s) => s.paintMaterialId)
@@ -91,7 +99,6 @@ export function ToolOptions() {
   // клик поставил бы вендинг посреди двора
   useEffect(() => {
     const onSite = activeLevelId === "site"
-    const onRoof = activeLevelId === "roof"
     if (!ROOF_KINDS.has(islandKind) && OUTDOOR_KINDS.has(islandKind) !== onSite) {
       useEditorStore.getState().setIslandKind(onSite ? "parking" : "vending")
     }
@@ -122,134 +129,135 @@ export function ToolOptions() {
   if (tool === "terrain") {
     return (
       <Shell>
-        <span className="shrink-0">Рельеф:</span>
-        {TERRAIN.map((t) => {
-          const active = terrainMode === t.id
+        <span className="shrink-0">{t("adminBuilder.options.terrain")}</span>
+        {TERRAIN.map((row) => {
+          const active = terrainMode === row.id
           return (
             <button
-              key={t.id}
+              key={row.id}
               type="button"
-              onClick={() => setTerrainMode(t.id)}
+              onClick={() => setTerrainMode(row.id)}
               className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
               style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
             >
-              {t.label}
+              {t(`adminBuilder.options.${row.label}`)}
             </button>
           )
         })}
-        <span className="shrink-0">— зажми и води по газону</span>
+        <span className="shrink-0">{t("adminBuilder.options.terrainHint")}</span>
       </Shell>
     )
   }
   if (tool === "water") {
     return (
       <Shell>
-        <span className="shrink-0">Водоём — глубина:</span>
-        {WATER_DEPTHS.map((d) => {
-          const active = waterDepth === d.mm
+        <span className="shrink-0">{t("adminBuilder.options.waterDepth")}</span>
+        {WATER_DEPTHS.map((row) => {
+          const active = waterDepth === row.mm
           return (
             <button
-              key={d.mm}
+              key={row.mm}
               type="button"
-              onClick={() => setWaterDepth(d.mm)}
+              onClick={() => setWaterDepth(row.mm)}
               className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
               style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
             >
-              {d.label}
+              {t(`adminBuilder.options.${row.label}`)}
             </button>
           )
         })}
-        <span className="shrink-0">— клик ставит точки контура, клик у старта или Enter — залить, Esc — отмена</span>
+        <span className="shrink-0">{t("adminBuilder.options.contourHint")}</span>
       </Shell>
     )
   }
   if (tool === "road") {
     return (
       <Shell>
-        <span className="shrink-0">Тип:</span>
-        {([{ id: "road", label: "Дорога" }, { id: "path", label: "Дорожка" }] as const).map((k) => {
-          const active = pathKind === k.id
+        <span className="shrink-0">{t("adminBuilder.options.pathKind")}</span>
+        {([{ id: "road", label: "pathRoad" }, { id: "path", label: "pathWalk" }] as const).map((row) => {
+          const active = pathKind === row.id
           return (
-            <button key={k.id} type="button" onClick={() => setPathKind(k.id)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
-              {k.label}
+            <button key={row.id} type="button" onClick={() => setPathKind(row.id)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
+              {t(`adminBuilder.options.${row.label}`)}
             </button>
           )
         })}
-        <span className="ml-2 shrink-0">Ширина:</span>
-        {PATH_WIDTHS.map((w) => {
-          const active = pathWidth === w.mm
+        <span className="ml-2 shrink-0">{t("adminBuilder.options.pathWidth")}</span>
+        {PATH_WIDTHS.map((row) => {
+          const active = pathWidth === row.mm
           return (
-            <button key={w.mm} type="button" onClick={() => setPathWidth(w.mm)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
-              {w.label}
+            <button key={row.mm} type="button" onClick={() => setPathWidth(row.mm)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
+              {row.label}
             </button>
           )
         })}
-        <span className="shrink-0">— клик ставит точки, повторный клик в конце или Enter — готово</span>
+        <span className="shrink-0">{t("adminBuilder.options.polylineHint")}</span>
       </Shell>
     )
   }
   if (tool === "pave") {
     return (
       <Shell>
-        <span className="shrink-0">Площадка:</span>
-        {PAVE_MATERIALS.map((m) => {
-          const active = paveMaterial === m.id
-          const def = MATERIALS[m.id]
+        <span className="shrink-0">{t("adminBuilder.options.pave")}</span>
+        {PAVE_MATERIALS.map((row) => {
+          const active = paveMaterial === row.id
+          const def = MATERIALS[row.id]
           return (
-            <button key={m.id} type="button" onClick={() => setPaveMaterial(m.id)} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
+            <button key={row.id} type="button" onClick={() => setPaveMaterial(row.id)} className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 font-medium" style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}>
               {def && <span className="h-3.5 w-3.5 rounded" style={{ background: def.color, border: "1px solid rgba(0,0,0,0.2)" }} />}
-              {m.label}
+              {t(`adminBuilder.options.${row.label}`)}
             </button>
           )
         })}
-        <span className="shrink-0">— клик ставит точки контура, клик у старта или Enter — залить, Esc — отмена</span>
+        <span className="shrink-0">{t("adminBuilder.options.contourHint")}</span>
       </Shell>
     )
   }
   if (tool === "fence") {
     return (
       <Shell>
-        <span className="shrink-0">Забор:</span>
-        {FENCE_STYLES.map((f) => {
-          const active = fenceStyle === f.id
+        <span className="shrink-0">{t("adminBuilder.options.fence")}</span>
+        {FENCE_STYLES.map((row) => {
+          const active = fenceStyle === row.id
           return (
             <button
-              key={f.id}
+              key={row.id}
               type="button"
-              onClick={() => setFenceStyle(f.id)}
+              onClick={() => setFenceStyle(row.id)}
               className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
               style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
             >
-              {f.label}
+              {t(`adminBuilder.options.${row.label}`)}
             </button>
           )
         })}
-        <span className="shrink-0">— клик ставит точки, повторный клик в конце или Enter — готово</span>
+        <span className="shrink-0">{t("adminBuilder.options.polylineHint")}</span>
       </Shell>
     )
   }
   if (tool === "object") {
-    return <Shell><span>{armedAsset ? "Призрак у курсора · R — поворот · клик — поставить · Esc — отмена" : "Выберите ассет в каталоге снизу"}</span></Shell>
+    return <Shell><span>{armedAsset ? t("adminBuilder.options.objectArmed") : t("adminBuilder.options.objectPick")}</span></Shell>
   }
 
   if (tool === "material") {
     return (
       <Shell>
-        <span className="shrink-0">Материал:</span>
+        <span className="shrink-0">{t("adminBuilder.options.material")}</span>
         {PAINT_IDS.map((id) => {
-          const m = MATERIALS[id]
+          const def = MATERIALS[id]
           const active = paintMaterialId === id
+          const name = t(`adminBuilder.materials.${materialNameKey(id)}`)
           return (
             <button
               key={id}
               type="button"
               onClick={() => setPaintMaterial(id)}
-              title={m.name}
+              title={name}
               className="flex shrink-0 items-center gap-1.5 rounded-lg px-1.5 py-1"
               style={{ background: active ? "rgba(56,189,248,0.18)" : "transparent", border: `1px solid ${active ? TOKENS.accent : "transparent"}` }}
             >
-              <span className="h-4 w-4 rounded" style={{ background: m.color, border: "1px solid rgba(0,0,0,0.2)" }} />
-              <span style={{ color: active ? TOKENS.text : TOKENS.muted }}>{m.name}</span>
+              <span className="h-4 w-4 rounded" style={{ background: def.color, border: "1px solid rgba(0,0,0,0.2)" }} />
+              <span className="whitespace-nowrap" style={{ color: active ? TOKENS.text : TOKENS.muted }}>{name}</span>
             </button>
           )
         })}
@@ -271,10 +279,9 @@ export function ToolOptions() {
     const kind = kinds.includes(islandKind) ? islandKind : kinds[0]
     return (
       <Shell>
-        <span className="shrink-0">{onRoof ? "Место на кровле:" : onSite ? "Место на участке:" : "Арендное место:"}</span>
+        <span className="shrink-0">{onRoof ? t("adminBuilder.options.islandRoof") : onSite ? t("adminBuilder.options.islandSite") : t("adminBuilder.options.islandFloor")}</span>
         {kinds.map((k) => {
           const active = kind === k
-          const pr = ISLAND_PRESETS[k]
           return (
             <button
               key={k}
@@ -283,33 +290,49 @@ export function ToolOptions() {
               className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
               style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
             >
-              {pr.label}
+              {t(`adminBuilder.islands.kinds.${k}`)}
             </button>
           )
         })}
-        <span className="shrink-0">— клик {onRoof ? "по крыше ставит место" : onSite ? "по земле размечает место" : "в коридоре или холле ставит место"} {ISLAND_PRESETS[kind].width}×{ISLAND_PRESETS[kind].depth} мм; размеры и арендатор — в панели справа</span>
+        <span className="shrink-0">
+          {t("adminBuilder.options.islandSize", {
+            where: onRoof ? t("adminBuilder.options.islandHintRoof") : onSite ? t("adminBuilder.options.islandHintSite") : t("adminBuilder.options.islandHintFloor"),
+            width: ISLAND_PRESETS[kind].width,
+            depth: ISLAND_PRESETS[kind].depth,
+          })}
+        </span>
       </Shell>
     )
   }
   if (tool === "stair") {
     return (
       <Shell>
-        <span className="shrink-0">Лестница:</span>
-        {STAIRS.map((s) => {
-          const active = stairShape === s.id
+        <span className="shrink-0">{t("adminBuilder.options.stair")}</span>
+        {STAIRS.map((row) => {
+          const active = stairShape === row.id
           return (
             <button
-              key={s.id}
+              key={row.id}
               type="button"
-              onClick={() => setStairShape(s.id)}
+              onClick={() => setStairShape(row.id)}
               className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
               style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
             >
-              {s.label}
+              {t(`adminBuilder.options.${row.label}`)}
             </button>
           )
         })}
-        <span className="shrink-0">{stairShape === "ramp" ? "— клик снаружи у стены: пандус для МГН, уклон 1:20, площадки 1,5 м и поручни на двух уровнях" : stairShape === "porch" ? "— клик снаружи у стены: крыльцо встанет к ней ступенями наружу" : stairShape === "column" ? "— клик ставит колонну 500×500 на всю высоту этажа; сечение — в свойствах" : stairShape === "elevator" ? "— клик ставит лифтовую шахту с вырезом в перекрытии выше" : "— клик на этаже ставит лестницу к верхнему"}</span>
+        <span className="shrink-0">
+          {stairShape === "ramp"
+            ? t("adminBuilder.options.stairHintRamp")
+            : stairShape === "porch"
+              ? t("adminBuilder.options.stairHintPorch")
+              : stairShape === "column"
+                ? t("adminBuilder.options.stairHintColumn")
+                : stairShape === "elevator"
+                  ? t("adminBuilder.options.stairHintElevator")
+                  : t("adminBuilder.options.stairHintDefault")}
+        </span>
       </Shell>
     )
   }
@@ -322,7 +345,7 @@ export function ToolOptions() {
           className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
           style={{ background: !wallArc ? TOKENS.accent : "rgba(148,163,184,0.1)", color: !wallArc ? "#0b1220" : TOKENS.text }}
         >
-          Прямая
+          {t("adminBuilder.options.wallStraight")}
         </button>
         <button
           type="button"
@@ -330,49 +353,46 @@ export function ToolOptions() {
           className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
           style={{ background: wallArc ? TOKENS.accent : "rgba(148,163,184,0.1)", color: wallArc ? "#0b1220" : TOKENS.text }}
         >
-          Дуга
+          {t("adminBuilder.options.wallArc")}
         </button>
-        <span>
-          {wallArc
-            ? "Клик — начало, клик — конец, клик — точка на дуге (радиус). Esc — отмена."
-            : "Клик — начало, клик — конец (цепочкой). Длину — цифрами + Enter. Shift — орто (90°). Esc — стоп."}
-        </span>
+        <span>{wallArc ? t("adminBuilder.options.wallArcHint") : t("adminBuilder.options.wallHint")}</span>
       </Shell>
     )
   }
   if (tool === "room") {
-    return <Shell><span>Зажми и растяни прямоугольник на этаже → 4 стены и пол создаются сразу.</span></Shell>
+    return <Shell><span>{t("adminBuilder.options.roomHint")}</span></Shell>
   }
   if (tool === "door" || tool === "window") {
     const presets = presetsFor(tool)
     return (
       <Shell>
-        <span className="shrink-0">{tool === "door" ? "Дверь:" : "Окно:"}</span>
-        {presets.map((p) => {
-          const active = openingVariant === p.variant
+        <span className="shrink-0">{tool === "door" ? t("adminBuilder.options.door") : t("adminBuilder.options.window")}</span>
+        {presets.map((preset) => {
+          const active = openingVariant === preset.variant
           return (
             <button
-              key={p.variant}
+              key={preset.variant}
               type="button"
-              onClick={() => setOpeningVariant(p.variant)}
+              onClick={() => setOpeningVariant(preset.variant)}
               className="shrink-0 rounded-lg px-2.5 py-1 font-medium"
               style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
             >
-              {p.label}
+              {t(`adminBuilder.openingPresets.${preset.label}`)}
             </button>
           )
         })}
-        <span className="shrink-0">— клик на стене</span>
+        <span className="shrink-0">{t("adminBuilder.options.openingHint")}</span>
       </Shell>
     )
   }
   if (tool === "select") {
-    return <Shell><span>Клик — выбрать (справа свойства). Тяни узел/стену/объект. Высоту/толщину/тип стены — в панели. Delete — удалить.</span></Shell>
+    return <Shell><span>{t("adminBuilder.options.selectHint")}</span></Shell>
   }
   return null
 }
 
 function MepToolOptions({ tool }: { tool: "mep-run" | "mep-device" }) {
+  const { t } = useT()
   const system = useEditorStore((s) => s.mepSystem)
   const setSystem = useEditorStore((s) => s.setMepSystem)
   const kind = useEditorStore((s) => s.mepDeviceKind)
@@ -384,46 +404,51 @@ function MepToolOptions({ tool }: { tool: "mep-run" | "mep-device" }) {
       style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.muted }}
     >
       <div className="flex items-center gap-1.5 overflow-x-auto">
-        <span className="shrink-0">Система:</span>
-        {MEP_SYSTEMS.map((s) => {
-          const it = MEP_SYSTEM_INFO[s]
-          const active = s === system
+        <span className="shrink-0">{t("adminBuilder.options.mepSystem")}</span>
+        {MEP_SYSTEMS.map((sys) => {
+          const it = MEP_SYSTEM_INFO[sys]
+          const active = sys === system
+          const name = t(`adminBuilder.mep.systems.${sys}`)
           return (
             <button
-              key={s}
+              key={sys}
               type="button"
-              onClick={() => setSystem(s)}
-              title={`${it.section} · ${it.name}`}
+              onClick={() => setSystem(sys)}
+              title={`${it.section} · ${name}`}
               className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-medium"
               style={{ background: active ? it.color : "rgba(148,163,184,0.1)", color: active ? "#fff" : TOKENS.text }}
             >
               {!active && <span className="h-2 w-2 rounded-sm" style={{ background: it.color }} />}
-              {it.name}
+              {name}
             </button>
           )
         })}
       </div>
       {tool === "mep-device" ? (
         <div className="flex items-center gap-1.5 overflow-x-auto">
-          <span className="shrink-0">Прибор:</span>
-          {devicesOf(system).map((d) => {
-            const active = d.kind === kind
+          <span className="shrink-0">{t("adminBuilder.options.mepDevice")}</span>
+          {devicesOf(system).map((device) => {
+            const active = device.kind === kind
             return (
               <button
-                key={d.kind}
+                key={device.kind}
                 type="button"
-                onClick={() => setKind(d.kind)}
-                className="shrink-0 rounded-lg px-2 py-1 font-medium"
+                onClick={() => setKind(device.kind)}
+                className="shrink-0 whitespace-nowrap rounded-lg px-2 py-1 font-medium"
                 style={{ background: active ? TOKENS.accent : "rgba(148,163,184,0.1)", color: active ? "#0b1220" : TOKENS.text }}
               >
-                {d.name}
+                {t(`adminBuilder.mep.devices.${device.kind}`)}
               </button>
             )
           })}
         </div>
       ) : (
         <div className="shrink-0">
-          {info.runNoun} {info.size} на высоте {(info.runHeight / 1000).toFixed(2).replace(".", ",")} м · клик — точка, привязка к приборам и 45° (G — выкл), клик в последней точке или Enter — готово
+          {t("adminBuilder.options.mepRunHint", {
+            noun: t(`adminBuilder.mep.runNouns.${info.shape}`),
+            size: info.size,
+            height: (info.runHeight / 1000).toFixed(2).replace(".", ","),
+          })}
         </div>
       )}
     </div>
@@ -431,14 +456,15 @@ function MepToolOptions({ tool }: { tool: "mep-run" | "mep-device" }) {
 }
 
 function AnnotateOptions() {
+  const { t } = useT()
   const kind = useEditorStore((s) => s.annotateKind)
   const setKind = useEditorStore((s) => s.setAnnotateKind)
   return (
     <Shell>
-      {([["dim", "Размер"], ["text", "Надпись"]] as const).map(([k, l]) => (
-        <button key={k} type="button" onClick={() => setKind(k)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: kind === k ? TOKENS.accent : "rgba(148,163,184,0.1)", color: kind === k ? "#0b1220" : TOKENS.text }}>{l}</button>
+      {([["dim", "annotateDim"], ["text", "annotateText"]] as const).map(([key, label]) => (
+        <button key={key} type="button" onClick={() => setKind(key)} className="shrink-0 rounded-lg px-2.5 py-1 font-medium" style={{ background: kind === key ? TOKENS.accent : "rgba(148,163,184,0.1)", color: kind === key ? "#0b1220" : TOKENS.text }}>{t(`adminBuilder.options.${label}`)}</button>
       ))}
-      <span className="shrink-0">{kind === "dim" ? "— точка, точка (привязка к стенам), клик — вынос размерной линии. Размер попадает на лист и в DXF" : "— клик ставит надпись, текст — в свойствах справа"}</span>
+      <span className="shrink-0">{kind === "dim" ? t("adminBuilder.options.annotateDimHint") : t("adminBuilder.options.annotateTextHint")}</span>
     </Shell>
   )
 }

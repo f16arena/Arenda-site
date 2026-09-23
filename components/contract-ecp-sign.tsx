@@ -6,6 +6,7 @@ import { ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
 import { signWithNCALayer, type KeyStoragePref } from "@/lib/ncalayer"
 import { signContractByTenantEcp, signContractByLandlordEcp } from "@/app/actions/contract-workflow"
 import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
+import { useT } from "@/lib/i18n/client"
 
 type Phase = "idle" | "signing" | "saving" | "done" | "error"
 
@@ -26,7 +27,9 @@ interface Props {
  * Подписание договора квалифицированной ЭЦП НУЦ РК через NCALayer.
  * Десктоп-приложение NCALayer должно быть установлено и запущено.
  */
-export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "Подписать ЭЦП", onSigned }: Props) {
+export function ContractEcpSign({ payloadB64, mode, token, contractId, label, onSigned }: Props) {
+  const { t } = useT()
+  const signLabel = label ?? t("common.sign.signEcp")
   const [phase, setPhase] = useState<Phase>("idle")
   const [error, setError] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
@@ -38,7 +41,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
     try {
       const result = await signWithNCALayer(payloadB64, "cms", { tsp: true, storage: keyPref })
       if (!result.ok) {
-        const msg = result.error || "NCALayer не вернул подпись (неизвестная ошибка)"
+        const msg = result.error || t("common.sign.ncaNoSignatureLong")
         setError(msg)
         setPhase("error")
         toast.error(msg)
@@ -55,7 +58,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
       if (!saved.ok) {
         // Здесь приходят важные причины: ИИН/БИН не совпал, сертификат истёк,
         // подпись не соответствует тексту, не прошла криптопроверку НУЦ РК.
-        const msg = saved.error || "Не удалось сохранить подпись (причина не указана)"
+        const msg = saved.error || t("common.sign.saveSignatureFailed")
         setError(msg)
         setPhase("error")
         toast.error(msg)
@@ -63,7 +66,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
       }
 
       setPhase("done")
-      toast.success("Договор подписан ЭЦП")
+      toast.success(t("common.sign.signedContract"))
       onSigned?.()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -78,7 +81,7 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
   if (phase === "done") {
     return (
       <div className="inline-flex items-center gap-2 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-2.5 text-sm font-medium text-emerald-700 dark:bg-emerald-500/10 dark:border-emerald-500/30 dark:text-emerald-300">
-        <CheckCircle2 className="h-4 w-4" /> Подписано ЭЦП
+        <CheckCircle2 className="h-4 w-4" /> {t("common.sign.signedEcp")}
       </div>
     )
   }
@@ -93,9 +96,9 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
         className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 px-4 py-2.5 text-sm font-semibold text-white transition"
       >
         {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-        {phase === "signing" && "Подтвердите в NCALayer…"}
-        {phase === "saving" && "Сохраняем подпись…"}
-        {(phase === "idle" || phase === "error") && label}
+        {phase === "signing" && t("common.sign.confirmInNca")}
+        {phase === "saving" && t("common.sign.savingSignature")}
+        {(phase === "idle" || phase === "error") && signLabel}
       </button>
 
       {phase === "error" && error && (
@@ -108,22 +111,21 @@ export function ContractEcpSign({ payloadB64, mode, token, contractId, label = "
       )}
 
       <p className="text-[11px] text-slate-400">
-        Требуется NCALayer на компьютере.{" "}
+        {t("common.sign.needNca")}{" "}
         <button type="button" onClick={() => setShowHelp((v) => !v)} className="text-blue-600 hover:underline">
-          {showHelp ? "Скрыть" : "Что это?"}
+          {showHelp ? t("common.sign.hide") : t("common.sign.whatIsThis")}
         </button>
       </p>
 
       {showHelp && (
         <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-900 max-w-sm dark:bg-blue-500/10 dark:border-blue-500/30 dark:text-blue-200">
-          <p className="font-medium mb-1">ЭЦП через NCALayer</p>
+          <p className="font-medium mb-1">{t("common.sign.ncaTitle")}</p>
           <p>
-            Государственная программа НУЦ РК для подписания. Скачайте на{" "}
+            {t("common.sign.ncaHelp1")}{" "}
             <a href="https://pki.gov.kz/ncalayer/" target="_blank" rel="noopener" className="underline">
               pki.gov.kz/ncalayer
             </a>{" "}
-            и запустите (значок в трее). Затем нажмите «{label}», выберите свой ключ (файл) и введите пароль.
-            Работает только на компьютере, не на телефоне.
+            {t("common.sign.ncaHelp2", { label: signLabel })}
           </p>
         </div>
       )}

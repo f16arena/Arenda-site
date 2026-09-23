@@ -2,7 +2,14 @@
  * Каталог разовых услуг (concierge-апсейл по плану §9).
  * Клиент заказывает → OrganizationService(status=PENDING) → суперадмин
  * принимает оплату (status=PAID, paidAt) → сдаёт работу (DELIVERED, deliveredAt).
+ *
+ * `code` уходит в базу (OrganizationService.serviceCode) — не переводится.
+ * Подписи для кабинета клиента — в словаре (adminRefs.services.<код>).
  */
+
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
 export type ServiceCatalogItem = {
   code: string
   label: string
@@ -68,4 +75,20 @@ export function servicesForPlan(planCode: string | null | undefined): ServiceCat
     if (s.requiresPlan && !s.requiresPlan.includes(planCode)) return false
     return true
   })
+}
+
+type RefsTranslator = Translator<Messages>["t"]
+
+function refText(t: RefsTranslator, key: string, fallback: string): string {
+  const value = t(key as Parameters<RefsTranslator>[0])
+  return value === key ? fallback : value
+}
+
+/** Тот же каталог, но с подписями на языке клиента — для страницы подписки. */
+export function localizedServicesForPlan(t: RefsTranslator, planCode: string | null | undefined): ServiceCatalogItem[] {
+  return servicesForPlan(planCode).map((item) => ({
+    ...item,
+    label: refText(t, `adminRefs.services.${item.code}.label`, item.label),
+    description: refText(t, `adminRefs.services.${item.code}.description`, item.description),
+  }))
 }

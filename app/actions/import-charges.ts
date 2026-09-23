@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 import { parseExcel, autoMapColumns, getField, parseFlexibleDate, parseFlexibleNumber, extractBinIin } from "@/lib/excel-import"
 
 // История начислений: арендатор + период + тип + сумма (+ оплачено/срок).
@@ -61,12 +62,13 @@ export interface ChargePreviewResult {
 }
 
 export async function previewChargeImport(formData: FormData): Promise<ChargePreviewResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
 
   const file = formData.get("file")
-  if (!file || !(file instanceof File)) throw new Error("Файл не передан")
-  if (file.size > 10 * 1024 * 1024) throw new Error("Размер файла превышает 10 МБ")
+  if (!file || !(file instanceof File)) throw new Error(t("actions.imports.fileMissing"))
+  if (file.size > 10 * 1024 * 1024) throw new Error(t("actions.imports.fileTooBig"))
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const sheet = await parseExcel(buffer)
@@ -99,17 +101,17 @@ export async function previewChargeImport(formData: FormData): Promise<ChargePre
     const tenantName = getField(row, mapping, "tenant").trim()
     const match = (bin && byTax.get(bin)) || (tenantName && byName.get(tenantName.toLowerCase())) || null
     if (!match) {
-      invalidRows.push({ rowIndex, error: `Арендатор не найден (${tenantName || bin || "нет идентификатора"})` })
+      invalidRows.push({ rowIndex, error: t("actions.imports.tenantNotFound", { hint: tenantName || bin || t("actions.imports.noIdentifier") }) })
       continue
     }
     const period = normalizePeriod(getField(row, mapping, "period"))
     if (!period) {
-      invalidRows.push({ rowIndex, error: `Не распознан период (${getField(row, mapping, "period")})` })
+      invalidRows.push({ rowIndex, error: t("actions.imports.badPeriod", { value: getField(row, mapping, "period") }) })
       continue
     }
     const amount = parseFlexibleNumber(getField(row, mapping, "amount"))
     if (amount === null || !(amount > 0)) {
-      invalidRows.push({ rowIndex, error: "Сумма должна быть положительной" })
+      invalidRows.push({ rowIndex, error: t("actions.imports.amountMustBePositive") })
       continue
     }
     const type = mapType(getField(row, mapping, "type"))
@@ -117,7 +119,7 @@ export async function previewChargeImport(formData: FormData): Promise<ChargePre
     const dueDate = parseFlexibleDate(getField(row, mapping, "dueDate"))
     const description = getField(row, mapping, "description")
     const warnings: string[] = []
-    if (!isPaid) warnings.push("Начисление неоплачено — увеличит долг арендатора")
+    if (!isPaid) warnings.push(t("actions.imports.unpaidWarning"))
 
     validRows.push({
       rowIndex,
@@ -136,6 +138,7 @@ export interface ChargeImportResult {
 }
 
 export async function applyChargeImport(rows: ParsedChargeRow[]): Promise<ChargeImportResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("finance.createInvoice")
   const { orgId } = await requireOrgAccess()
 
@@ -146,7 +149,7 @@ export async function applyChargeImport(rows: ParsedChargeRow[]): Promise<Charge
       const d = row.data
       const tenant = await db.tenant.findFirst({ where: { id: d.tenantId, user: { organizationId: orgId } }, select: { id: true } })
       if (!tenant) {
-        result.errors.push({ rowIndex: row.rowIndex, error: "Арендатор вне организации" })
+        result.errors.push({ rowIndex: row.rowIndex, error: t("actions.imports.tenantOutsideOrg") })
         continue
       }
       // Дедуп по уникальному ключу charges (tenant+period+type, deleted_at IS NULL).
@@ -161,6 +164,7 @@ export async function applyChargeImport(rows: ParsedChargeRow[]): Promise<Charge
           period: d.period,
           type: d.type,
           amount: d.amount,
+          // description начисления попадает в счёт и акт сверки — остаётся русским.
           description: d.description || `Импорт: ${d.type} за ${d.period}`,
           isPaid: d.isPaid,
           dueDate: d.dueDate ?? new Date(Number(d.period.slice(0, 4)), Number(d.period.slice(5, 7)) - 1, 10),

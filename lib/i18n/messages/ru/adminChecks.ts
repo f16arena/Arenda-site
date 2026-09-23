@@ -155,6 +155,7 @@ export const adminChecks = {
       contractLabel: "Договор № {number}",
       contractMeta: "{tenant} · {kind} · {reason}",
       contractKindFallback: "изменение",
+      signatureMeta: "{document} · {reason}",
       meterMeta: "{type} {number} · {reason}",
       placementNone: "Размещение не указано",
       placementSpace: "каб. {number}",

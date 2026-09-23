@@ -96,13 +96,27 @@ export function isValidIin(iin: string): boolean {
 
 // ─── Сводный валидатор ────────────────────────────────────────────
 
+/**
+ * Ключ подписи в словаре (common.requisiteChecks.*), а не готовый текст:
+ * валидатор — чистая функция, языка пользователя он не знает.
+ */
+export type CheckKey =
+  | "bikFormat"
+  | "bikUnknown"
+  | "iikFormat"
+  | "iikChecksum"
+  | "binDigits"
+  | "binChecksum"
+  | "iinDigits"
+  | "iinChecksum"
+
 export type RequisitesCheck = {
-  bik: { ok: boolean; bankName?: string; warning?: string } | null
-  iik: { ok: boolean; warning?: string } | null
-  bin: { ok: boolean; warning?: string } | null
-  iin: { ok: boolean; warning?: string } | null
+  bik: { ok: boolean; bankName?: string; warningKey?: CheckKey } | null
+  iik: { ok: boolean; warningKey?: CheckKey } | null
+  bin: { ok: boolean; warningKey?: CheckKey } | null
+  iin: { ok: boolean; warningKey?: CheckKey } | null
   // Дополнительная проверка соответствия БИК и ИИК (банк-код в ИИК должен соотв. БИК)
-  consistency: { ok: boolean; warning?: string } | null
+  consistency: { ok: boolean; warningKey?: CheckKey } | null
 }
 
 export function validateRequisites(input: {
@@ -120,23 +134,23 @@ export function validateRequisites(input: {
     if (!isValidBikFormat(input.bik)) {
       result.bik = {
         ok: false,
-        warning: "БИК должен содержать 8 латинских букв или цифр.",
+        warningKey: "bikFormat",
       }
     } else if (bank) {
       result.bik = { ok: true, bankName: bank.short }
     } else {
       result.bik = {
         ok: true,
-        warning: "БИК не найден в локальном справочнике. Проверьте банк вручную, но сохранить можно.",
+        warningKey: "bikUnknown",
       }
     }
   }
 
   if (input.iik) {
     if (!isValidIikFormat(input.iik)) {
-      result.iik = { ok: false, warning: "Неверный формат: ИИК должен начинаться с KZ и содержать 20 символов." }
+      result.iik = { ok: false, warningKey: "iikFormat" }
     } else if (!isValidIikChecksum(input.iik)) {
-      result.iik = { ok: false, warning: "Контрольная сумма ИИК не сходится — проверьте опечатку." }
+      result.iik = { ok: false, warningKey: "iikChecksum" }
     } else {
       result.iik = { ok: true }
     }
@@ -144,9 +158,9 @@ export function validateRequisites(input: {
 
   if (input.bin) {
     if (!/^[0-9]{12}$/.test(input.bin.replace(/\s+/g, ""))) {
-      result.bin = { ok: false, warning: "БИН должен состоять из 12 цифр." }
+      result.bin = { ok: false, warningKey: "binDigits" }
     } else if (!isValidBin(input.bin)) {
-      result.bin = { ok: false, warning: "Контрольная цифра БИН не сходится — проверьте опечатку." }
+      result.bin = { ok: false, warningKey: "binChecksum" }
     } else {
       result.bin = { ok: true }
     }
@@ -154,9 +168,9 @@ export function validateRequisites(input: {
 
   if (input.iin) {
     if (!/^[0-9]{12}$/.test(input.iin.replace(/\s+/g, ""))) {
-      result.iin = { ok: false, warning: "ИИН должен состоять из 12 цифр." }
+      result.iin = { ok: false, warningKey: "iinDigits" }
     } else if (!isValidIin(input.iin)) {
-      result.iin = { ok: false, warning: "Контрольная цифра ИИН не сходится или дата рождения некорректна." }
+      result.iin = { ok: false, warningKey: "iinChecksum" }
     } else {
       result.iin = { ok: true }
     }

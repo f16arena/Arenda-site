@@ -2,8 +2,9 @@
 // зданию) и экспликация помещений этажа. Один расчёт — для плана, листа и DXF.
 
 import { floorRooms } from "@/lib/builder/rooms"
-import { roomDisplayName, roomUse, type RoomUse } from "@/lib/builder/room-use"
+import { roomDisplayName, roomUse, type RoomNameKey, type RoomUse } from "@/lib/builder/room-use"
 import type { Floor, Opening } from "@/types/builder"
+import type { SheetT } from "@/lib/builder/sheet-text"
 
 export interface OpeningRow {
   mark: string
@@ -21,26 +22,27 @@ export interface OpeningSchedule {
   rows: OpeningRow[]
 }
 
-const VARIANT_RU: Record<string, string> = {
-  single: "однопольная",
-  double: "двупольная",
-  interior: "внутренняя",
-  entrance: "входная",
-  glass: "стеклянная",
-  sliding: "раздвижная",
-  standard: "",
-  small: "",
-  panoramic: "панорамное",
-  curtain: "витражное",
-  arch: "арочная",
-  garage: "гаражная",
-  wide: "широкое",
-}
+// Уточнение вида проёма в ведомости: ключ словаря. У «standard» и «small»
+// уточнения нет — «Окно 1200×1400» и так однозначно.
+const VARIANT_KEY = {
+  single: "variantSingle",
+  double: "variantDouble",
+  interior: "variantInterior",
+  entrance: "variantEntrance",
+  glass: "variantGlass",
+  sliding: "variantSliding",
+  panoramic: "variantPanoramic",
+  curtain: "variantCurtain",
+  arch: "variantArch",
+  garage: "variantGarage",
+  wide: "variantWide",
+} as const satisfies Record<string, string>
 
-export function openingName(r: Pick<OpeningRow, "type" | "variant" | "width" | "height">): string {
-  const v = VARIANT_RU[r.variant] ?? ""
+export function openingName(t: SheetT, r: Pick<OpeningRow, "type" | "variant" | "width" | "height">): string {
+  const variant = r.variant in VARIANT_KEY ? VARIANT_KEY[r.variant as keyof typeof VARIANT_KEY] : null
+  const kind = variant ? t(`adminBuilderSheet.sheetText.${variant}`) : ""
   const size = `${Math.round(r.width)}×${Math.round(r.height)}`
-  return r.type === "window" ? `Окно${v ? ` ${v}` : ""} ${size}` : `Дверь${v ? ` ${v}` : ""} ${size}`
+  return t(r.type === "window" ? "adminBuilderSheet.sheetText.openingWindow" : "adminBuilderSheet.sheetText.openingDoor", { kind, size }).replace("  ", " ").trim()
 }
 
 /**
@@ -89,7 +91,12 @@ export interface RoomRow {
  * номер этажа и порядковый (101, 102…; цоколь — 001, подвал — Ц01). Порядок —
  * сверху вниз, слева направо по плану.
  */
-export function roomExplication(floor: Floor, premiseNumber: (premiseId: string) => string | null = () => null): RoomRow[] {
+export function roomExplication(
+  floor: Floor,
+  premiseNumber: (premiseId: string) => string | null = () => null,
+  /** Перевод авто-наименования помещения; без него в экспликацию попадёт ключ. */
+  names?: (key: RoomNameKey) => string,
+): RoomRow[] {
   const rooms = floorRooms(floor)
     .map((r) => {
       let cx = 0, cy = 0
@@ -126,7 +133,7 @@ export function roomExplication(floor: Floor, premiseNumber: (premiseId: string)
       roomId: r.id,
       use,
       number: use !== "rent" ? "" : fromCard ?? `${prefix}${String(seq).padStart(2, "0")}`,
-      name: roomDisplayName(floor, r),
+      name: roomDisplayName(floor, r, names),
       areaM2: Math.round((r.areaMm2 / 1e6) * 10) / 10,
     }
   })

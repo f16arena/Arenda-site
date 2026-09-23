@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import bcrypt from "bcryptjs"
 import { requireOrgAccess, checkLimit, requireSubscriptionActive } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 import {
   parseExcel,
   autoMapColumns,
@@ -77,14 +78,15 @@ export interface PreviewResult {
  * Шаг 1: парсит Excel и возвращает превью (без сохранения в БД).
  */
 export async function previewTenantImport(formData: FormData): Promise<PreviewResult> {
+  const { t } = await getT()
   // Массовый импорт = массовое создание арендаторов: требует то же право, что и
   // одиночное создание (раньше импорт обходил проверку прав).
   await requireCapabilityAndFeature("tenants.create")
   await requireOrgAccess()
 
   const file = formData.get("file")
-  if (!file || !(file instanceof File)) throw new Error("Файл не передан")
-  if (file.size > 10 * 1024 * 1024) throw new Error("Размер файла превышает 10 МБ")
+  if (!file || !(file instanceof File)) throw new Error(t("actions.imports.fileMissing"))
+  if (file.size > 10 * 1024 * 1024) throw new Error(t("actions.imports.fileTooBig"))
 
   const buffer = Buffer.from(await file.arrayBuffer())
   const sheet = await parseExcel(buffer)
@@ -111,7 +113,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
 
     const companyName = getField(row, mapping, "companyName")
     if (!companyName) {
-      invalidRows.push({ rowIndex: i + 2, error: "Пустое название организации" })
+      invalidRows.push({ rowIndex: i + 2, error: t("actions.imports.emptyCompanyName") })
       continue
     }
 
@@ -124,7 +126,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     } catch (error) {
       invalidRows.push({
         rowIndex: i + 2,
-        error: error instanceof Error ? error.message : "Некорректные контактные данные",
+        error: error instanceof Error ? error.message : t("actions.common.invalidContactData"),
       })
       continue
     }
@@ -138,7 +140,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     } catch (error) {
       invalidRows.push({
         rowIndex: i + 2,
-        error: error instanceof Error ? error.message : "Некорректный БИН/ИИН",
+        error: error instanceof Error ? error.message : t("actions.imports.badTaxId"),
       })
       continue
     }
@@ -155,15 +157,15 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
     const legalAddress = getField(row, mapping, "legalAddress")
     const directorName = getField(row, mapping, "directorName")
 
-    if (!phone && !email) warnings.push("Нет ни телефона, ни email — пользователь не сможет войти")
-    if ((bin || iin) && (bin || iin).length !== 12) warnings.push(`БИН/ИИН должен быть 12 цифр (получено: ${bin || iin})`)
-    if (contractEnd && contractStart && contractEnd < contractStart) warnings.push("Дата окончания раньше даты начала")
+    if (!phone && !email) warnings.push(t("actions.imports.noContactWarning"))
+    if ((bin || iin) && (bin || iin).length !== 12) warnings.push(t("actions.imports.taxIdDigits", { value: bin || iin }))
+    if (contractEnd && contractStart && contractEnd < contractStart) warnings.push(t("actions.common.endBeforeStart"))
     try {
       normalizeTenantRentChoice({ customRate: rate, fixedMonthlyRent })
     } catch (error) {
       invalidRows.push({
         rowIndex: i + 2,
-        error: error instanceof Error ? error.message : "Ставка за м² и фиксированная аренда взаимоисключающие",
+        error: error instanceof Error ? error.message : t("actions.imports.rateOrFixedOnly"),
       })
       continue
     }
@@ -211,6 +213,7 @@ export interface ImportResult {
  * Принимает уже-парсенные строки от previewTenantImport.
  */
 export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<ImportResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.create")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
@@ -238,7 +241,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
     try {
       // Лимит — не подходит ли уже выходим?
       try { await checkLimit(orgId, "tenants") } catch (e) {
-        result.errors.push({ rowIndex: row.rowIndex, error: e instanceof Error ? e.message : "лимит" })
+        result.errors.push({ rowIndex: row.rowIndex, error: e instanceof Error ? e.message : t("actions.imports.limitReached") })
         continue
       }
 
@@ -252,7 +255,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
       } catch (error) {
         result.errors.push({
           rowIndex: row.rowIndex,
-          error: error instanceof Error ? error.message : "Ставка за м² и фиксированная аренда взаимоисключающие",
+          error: error instanceof Error ? error.message : t("actions.imports.rateOrFixedOnly"),
         })
         continue
       }
@@ -294,7 +297,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
         if (conflict) {
           result.errors.push({
             rowIndex: row.rowIndex,
-            error: `Телефон/email уже используется другим пользователем (${d.phone || d.email})`,
+            error: t("actions.imports.contactTaken", { contact: d.phone || d.email }),
           })
           continue
         }
@@ -344,7 +347,7 @@ export async function applyTenantImport(rows: ParsedTenantRow[]): Promise<Import
           select: { id: true },
         })
         if (occupied) {
-          result.errors.push({ rowIndex: row.rowIndex, error: `Помещение ${d.spaceNumber} уже занято — арендатор создан без привязки` })
+          result.errors.push({ rowIndex: row.rowIndex, error: t("actions.imports.spaceOccupied", { number: d.spaceNumber ?? "" }) })
           spaceId = undefined
         }
       }

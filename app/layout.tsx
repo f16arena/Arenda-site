@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next"
 import { Manrope } from "next/font/google"
 import Script from "next/script"
 import { ThemedToaster } from "@/components/themed-toaster"
-import { DialogHost } from "@/components/ui/dialog-host"
 import { ClientErrorMonitor } from "@/components/errors/client-error-monitor"
 import { WebVitalsReporter } from "@/components/performance/web-vitals-reporter"
 import { themeInitScript } from "@/components/theme-toggle"
@@ -101,7 +100,9 @@ export default function RootLayout({
         <ClientErrorMonitor />
         <WebVitalsReporter />
         <ThemedToaster />
-        <DialogHost />
+        {/* DialogHost переехал в layout админки, кабинета и суперадминки:
+            его кнопкам нужен словарь, а корневой layout остаётся статическим
+            (чтение cookie здесь сделало бы динамическими все страницы). */}
       </body>
     </html>
   )

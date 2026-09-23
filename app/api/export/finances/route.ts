@@ -6,26 +6,31 @@ import { getCurrentBuildingId } from "@/lib/current-building"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireOrgFeature, canPerformCapability } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 import ExcelJS from "exceljs"
 
 export const dynamic = "force-dynamic"
 
 // GET /api/export/finances?from=2026-01-01&to=2026-12-31
-// Возвращает .xlsx с тремя листами: Начисления / Платежи / Расходы
+// Возвращает .xlsx с тремя листами: Начисления / Платежи / Расходы.
+// Это таблица для пользователя, а не документ для налоговой, — заголовки
+// колонок переводятся (см. docs/i18n-documents-plan.md про документы).
 export async function GET(req: Request) {
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  const { t, locale } = await getT()
   const { orgId } = await requireOrgAccess()
   if (!(await canPerformCapability(session.user.role, "finance.export", !!session.user.isPlatformOwner, session.user.id))) {
-    return NextResponse.json({ error: "Нет права на экспорт финансов" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.noFinanceRight") }, { status: 403 })
   }
   try {
     await requireOrgFeature(orgId, "excelExport")
   } catch {
-    return NextResponse.json({ error: "Экспорт в Excel доступен на тарифе Starter и выше" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.excelPlan") }, { status: 403 })
   }
   const buildingId = await getCurrentBuildingId()
   if (!buildingId) return NextResponse.json({ error: "Building not selected" }, { status: 400 })
@@ -76,22 +81,37 @@ export async function GET(req: Request) {
   wb.created = new Date()
 
   // ── Sheet 1: Начисления ─────────────────────────────────────
-  const wsCh = wb.addWorksheet("Начисления", {
+  const wsCh = wb.addWorksheet(t("adminDocs.export.finances.sheetCharges"), {
     pageSetup: { paperSize: 9, orientation: "landscape" },
   })
   wsCh.columns = [
-    { header: "Дата", key: "date", width: 12 },
-    { header: "Период", key: "period", width: 10 },
-    { header: "Арендатор", key: "tenant", width: 30 },
-    { header: "БИН/ИИН", key: "bin", width: 15 },
-    { header: "Тип", key: "type", width: 14 },
-    { header: "Описание", key: "description", width: 50 },
-    { header: "Сумма ₸", key: "amount", width: 14 },
-    { header: "Срок", key: "dueDate", width: 12 },
-    { header: "Оплачено", key: "paid", width: 10 },
+    { header: t("adminDocs.export.finances.date"), key: "date", width: 12 },
+    { header: t("adminDocs.export.finances.period"), key: "period", width: 10 },
+    { header: t("adminDocs.export.finances.tenant"), key: "tenant", width: 30 },
+    { header: t("adminDocs.export.finances.taxId"), key: "bin", width: 15 },
+    { header: t("adminDocs.export.finances.type"), key: "type", width: 14 },
+    { header: t("adminDocs.export.finances.description"), key: "description", width: 50 },
+    { header: t("adminDocs.export.finances.amount"), key: "amount", width: 14 },
+    { header: t("adminDocs.export.finances.due"), key: "dueDate", width: 12 },
+    { header: t("adminDocs.export.finances.paid"), key: "paid", width: 10 },
   ]
   wsCh.getRow(1).font = { bold: true }
   wsCh.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } }
+
+  // Вид начисления и способ оплаты — из общего справочника domain, а не кодом
+  // enum: в выгрузке их читает бухгалтер, а не программа.
+  const chargeTypeLabel = (code: string) => {
+    const key = `domain.chargeTypes.${code}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? code : label
+  }
+  const methodLabel = (code: string) => {
+    const key = `domain.paymentMethods.${code}` as Parameters<typeof t>[0]
+    const label = t(key)
+    return label === key ? code : label
+  }
+  const yes = t("adminDocs.export.yes")
+  const no = t("adminDocs.export.no")
 
   let totalCharges = 0
   let totalPaid = 0
@@ -101,11 +121,11 @@ export async function GET(req: Request) {
       period: c.period,
       tenant: c.tenant.companyName,
       bin: c.tenant.bin || c.tenant.iin || "",
-      type: c.type,
+      type: chargeTypeLabel(c.type),
       description: c.description ?? "",
       amount: c.amount,
       dueDate: c.dueDate,
-      paid: c.isPaid ? "Да" : "Нет",
+      paid: c.isPaid ? yes : no,
     })
     totalCharges += c.amount
     if (c.isPaid) totalPaid += c.amount
@@ -113,7 +133,7 @@ export async function GET(req: Request) {
 
   // Итого
   const sumRow = wsCh.addRow({
-    tenant: "ИТОГО",
+    tenant: t("adminDocs.export.total"),
     amount: totalCharges,
   })
   sumRow.font = { bold: true }
@@ -124,14 +144,14 @@ export async function GET(req: Request) {
   wsCh.getColumn("dueDate").numFmt = "dd.mm.yyyy"
 
   // ── Sheet 2: Платежи ────────────────────────────────────────
-  const wsP = wb.addWorksheet("Платежи")
+  const wsP = wb.addWorksheet(t("adminDocs.export.finances.sheetPayments"))
   wsP.columns = [
-    { header: "Дата", key: "date", width: 12 },
-    { header: "Арендатор", key: "tenant", width: 30 },
-    { header: "БИН/ИИН", key: "bin", width: 15 },
-    { header: "Метод", key: "method", width: 12 },
-    { header: "Сумма ₸", key: "amount", width: 14 },
-    { header: "Примечание", key: "note", width: 40 },
+    { header: t("adminDocs.export.finances.date"), key: "date", width: 12 },
+    { header: t("adminDocs.export.finances.tenant"), key: "tenant", width: 30 },
+    { header: t("adminDocs.export.finances.taxId"), key: "bin", width: 15 },
+    { header: t("adminDocs.export.finances.method"), key: "method", width: 12 },
+    { header: t("adminDocs.export.finances.amount"), key: "amount", width: 14 },
+    { header: t("adminDocs.export.finances.note"), key: "note", width: 40 },
   ]
   wsP.getRow(1).font = { bold: true }
   wsP.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } }
@@ -142,26 +162,26 @@ export async function GET(req: Request) {
       date: p.paymentDate,
       tenant: p.tenant.companyName,
       bin: p.tenant.bin || p.tenant.iin || "",
-      method: p.method,
+      method: methodLabel(p.method),
       amount: p.amount,
       note: p.note ?? "",
     })
     totalPayments += p.amount
   }
-  const pSumRow = wsP.addRow({ tenant: "ИТОГО", amount: totalPayments })
+  const pSumRow = wsP.addRow({ tenant: t("adminDocs.export.total"), amount: totalPayments })
   pSumRow.font = { bold: true }
   pSumRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFD1FAE5" } }
   wsP.getColumn("amount").numFmt = "#,##0 ₸"
   wsP.getColumn("date").numFmt = "dd.mm.yyyy"
 
   // ── Sheet 3: Расходы ────────────────────────────────────────
-  const wsE = wb.addWorksheet("Расходы")
+  const wsE = wb.addWorksheet(t("adminDocs.export.finances.sheetExpenses"))
   wsE.columns = [
-    { header: "Дата", key: "date", width: 12 },
-    { header: "Период", key: "period", width: 10 },
-    { header: "Категория", key: "category", width: 18 },
-    { header: "Описание", key: "description", width: 50 },
-    { header: "Сумма ₸", key: "amount", width: 14 },
+    { header: t("adminDocs.export.finances.date"), key: "date", width: 12 },
+    { header: t("adminDocs.export.finances.period"), key: "period", width: 10 },
+    { header: t("adminDocs.export.finances.category"), key: "category", width: 18 },
+    { header: t("adminDocs.export.finances.description"), key: "description", width: 50 },
+    { header: t("adminDocs.export.finances.amount"), key: "amount", width: 14 },
   ]
   wsE.getRow(1).font = { bold: true }
   wsE.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } }
@@ -177,34 +197,44 @@ export async function GET(req: Request) {
     })
     totalExpenses += e.amount
   }
-  const eSumRow = wsE.addRow({ category: "ИТОГО", amount: totalExpenses })
+  const eSumRow = wsE.addRow({ category: t("adminDocs.export.total"), amount: totalExpenses })
   eSumRow.font = { bold: true }
   eSumRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } }
   wsE.getColumn("amount").numFmt = "#,##0 ₸"
   wsE.getColumn("date").numFmt = "dd.mm.yyyy"
 
   // ── Sheet 4: Сводка ─────────────────────────────────────────
-  const wsS = wb.addWorksheet("Сводка")
+  const wsS = wb.addWorksheet(t("adminDocs.export.finances.sheetSummary"))
   wsS.columns = [
-    { header: "Показатель", key: "label", width: 30 },
-    { header: "Значение", key: "value", width: 20 },
+    { header: t("adminDocs.export.finances.metric"), key: "label", width: 30 },
+    { header: t("adminDocs.export.finances.value"), key: "value", width: 20 },
   ]
   wsS.getRow(1).font = { bold: true }
-  wsS.addRow({ label: "Здание", value: building?.name ?? "" })
-  wsS.addRow({ label: "Период", value: `${from.toLocaleDateString("ru-RU")} — ${to.toLocaleDateString("ru-RU")}` })
+  wsS.addRow({ label: t("adminDocs.export.finances.building"), value: building?.name ?? "" })
+  wsS.addRow({
+    label: t("adminDocs.export.finances.period"),
+    value: t("adminDocs.export.finances.range", {
+      from: formatDateShortL(locale, from),
+      to: formatDateShortL(locale, to),
+    }),
+  })
   wsS.addRow({})
-  wsS.addRow({ label: "Начислено всего", value: totalCharges }).getCell("value").numFmt = "#,##0 ₸"
-  wsS.addRow({ label: "Оплачено по начислениям", value: totalPaid }).getCell("value").numFmt = "#,##0 ₸"
-  wsS.addRow({ label: "Поступило платежей", value: totalPayments }).getCell("value").numFmt = "#,##0 ₸"
-  wsS.addRow({ label: "Расходы", value: totalExpenses }).getCell("value").numFmt = "#,##0 ₸"
+  wsS.addRow({ label: t("adminDocs.export.finances.totalCharged"), value: totalCharges }).getCell("value").numFmt = "#,##0 ₸"
+  wsS.addRow({ label: t("adminDocs.export.finances.totalChargePaid"), value: totalPaid }).getCell("value").numFmt = "#,##0 ₸"
+  wsS.addRow({ label: t("adminDocs.export.finances.totalPayments"), value: totalPayments }).getCell("value").numFmt = "#,##0 ₸"
+  wsS.addRow({ label: t("adminDocs.export.finances.totalExpenses"), value: totalExpenses }).getCell("value").numFmt = "#,##0 ₸"
   wsS.addRow({})
   const profit = totalPayments - totalExpenses
-  const profitRow = wsS.addRow({ label: "Прибыль", value: profit })
+  const profitRow = wsS.addRow({ label: t("adminDocs.export.finances.profit"), value: profit })
   profitRow.font = { bold: true }
   profitRow.getCell("value").numFmt = "#,##0 ₸"
 
   const buffer = await wb.xlsx.writeBuffer()
-  const fileName = `Финансы_${building?.name ?? "БЦ"}_${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}.xlsx`
+  const fileName = `${t("adminDocs.export.finances.fileName", {
+    building: building?.name ?? t("adminDocs.export.finances.defaultBuilding"),
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  })}.xlsx`
 
   return new NextResponse(buffer as unknown as BodyInit, {
     headers: {

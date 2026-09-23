@@ -3,6 +3,12 @@ import { ductSection, deviceHeight, MEP_DEVICE_BY_KIND, MEP_DEVICES, MEP_SYSTEM_
 import { mepSpec } from "./spec"
 import { MEP_SYSTEMS } from "@/types/builder"
 
+import { createTranslator } from "@/lib/i18n/translate"
+import { ru } from "@/lib/i18n/messages"
+
+// Тексты на листах собираются переводчиком — в тестах берём русский словарь.
+const { t } = createTranslator("ru", ru)
+
 describe("каталог сетей", () => {
   it("у каждой системы есть приборы, виды приборов не повторяются", () => {
     for (const s of MEP_SYSTEMS) {
@@ -38,16 +44,16 @@ describe("спецификация", () => {
         { id: "r1", system: "power", points: [{ x: 0, y: 0 }, { x: 3000, y: 0 }, { x: 3000, y: 4000 }], height: 2800, size: "", label: "" },
         { id: "r2", system: "power", points: [{ x: 0, y: 0 }, { x: 1500, y: 0 }], height: 2800, size: "", label: "" },
       ],
-    })
+    }, t)
     expect(spec.map((s) => s.system)).toEqual(["power", "water"])
     const p = spec[0]
     expect(p.devices).toBe(3)
     expect(p.powerW).toBe(300 + 300 + 5000)
     expect(p.lengthM).toBe(8.5)
     expect(p.rows).toEqual([
-      { system: "power", name: "Розетка", unit: "шт.", qty: 2 },
-      { system: "power", name: "Щит распределительный", unit: "шт.", qty: 1 },
-      { system: "power", name: "Кабель ВВГнг(А)-LS 3×2,5", unit: "м", qty: 8.5 },
+      { system: "power", name: "Розетка", unit: "pcs", qty: 2 },
+      { system: "power", name: "Щит распределительный", unit: "pcs", qty: 1 },
+      { system: "power", name: "Кабель ВВГнг(А)-LS 3×2,5", unit: "m", qty: 8.5 },
     ])
   })
 })

@@ -8,7 +8,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { emailLogScope } from "@/lib/tenant-scope"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { HISTORY_TABS } from "@/lib/hub-tabs"
+import { historyTabs } from "@/lib/hub-tabs"
 import { auditWhen } from "@/lib/audit-humanize"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { getT } from "@/lib/i18n/server"
@@ -46,7 +46,9 @@ export default async function EmailLogsPage({
   if (!session || session.user.role === "TENANT") redirect("/login")
   if (session.user.role !== "OWNER" && !session.user.isPlatformOwner) redirect("/admin")
   const { orgId } = await requireOrgAccess()
-  const { t } = await getT()
+  // Дата письма форматируется по локали — нужен весь переводчик, не только t.
+  const tr = await getT()
+  const { t } = tr
 
   const { status, type, q, page: pageParam } = await searchParams
   const page = normalizePage(pageParam)
@@ -95,7 +97,7 @@ export default async function EmailLogsPage({
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={HISTORY_TABS} className="mb-2" />
+      <RouteTabs items={historyTabs(t)} className="mb-2" />
 
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.emailLogs.title")}</h1>
@@ -147,7 +149,7 @@ export default async function EmailLogsPage({
                 return (
                   <tr key={log.id} className="border-b border-slate-50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
                     <td className="px-5 py-2.5 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                      {auditWhen(log.sentAt)}
+                      {auditWhen(log.sentAt, tr)}
                     </td>
                     <td className="px-5 py-2.5 text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
                       {log.tenantId ? (

@@ -6,8 +6,10 @@ import { Lock, CheckCircle2 } from "lucide-react"
 import { resetPassword } from "@/app/actions/password-reset"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 export function ResetPasswordForm({ token }: { token: string }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [show, setShow] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,8 +23,10 @@ export function ResetPasswordForm({ token }: { token: string }) {
           <div className="flex items-start gap-3">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-emerald-900">Пароль изменён</p>
-              <p className="text-xs text-emerald-800 mt-1">Теперь вы можете войти с новым паролем.</p>
+              <p className="text-sm font-medium text-emerald-900">{t("auth.resetPassword.doneTitle")}</p>
+              <p className="text-xs text-emerald-800 mt-1">
+                {t("auth.resetPassword.doneText")}
+              </p>
             </div>
           </div>
         </div>
@@ -32,7 +36,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
           onClick={() => router.push("/login")}
           className="w-full font-semibold"
         >
-          Войти
+          {t("auth.resetPassword.login")}
         </Button>
       </div>
     )
@@ -52,7 +56,9 @@ export function ResetPasswordForm({ token }: { token: string }) {
       className="space-y-4"
     >
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Новый пароль</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          {t("auth.resetPassword.newPassword")}
+        </label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -65,11 +71,13 @@ export function ResetPasswordForm({ token }: { token: string }) {
             className="pl-9"
           />
         </div>
-        <p className="text-xs text-slate-500 mt-1">Минимум 8 символов</p>
+        <p className="text-xs text-slate-500 mt-1">{t("auth.resetPassword.minLength")}</p>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1.5">Повторите пароль</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1.5">
+          {t("auth.resetPassword.repeatPassword")}
+        </label>
         <div className="relative">
           <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <Input
@@ -86,7 +94,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
       <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
         <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
-        Показать пароль
+        {t("auth.resetPassword.showPassword")}
       </label>
 
       {error && (
@@ -101,7 +109,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         loading={pending}
         className="w-full font-semibold"
       >
-        {pending ? "Сохранение..." : "Установить новый пароль"}
+        {pending ? t("auth.resetPassword.submitting") : t("auth.resetPassword.submit")}
       </Button>
     </form>
   )

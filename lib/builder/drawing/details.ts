@@ -5,6 +5,7 @@
 
 import type { Building, Floor } from "@/types/builder"
 import type { Vec2 } from "@/core/geometry/math"
+import type { SheetT } from "@/lib/builder/sheet-text"
 
 /** Штриховка по ГОСТ 2.306: бетон, утеплитель, кирпич, стяжка, грунт, металл. */
 export type DetailPattern = "concrete" | "insulation" | "brick" | "screed" | "soil" | "metal" | "glass" | "wood" | "membrane"
@@ -109,7 +110,7 @@ export function structureSizes(floors: Floor[]): { wall: number; inner: number; 
 }
 
 /** Узел 1. Цоколь: стена, отмостка, пол по грунту. */
-function plinthDetail(wall: number, apron = 1000): Detail {
+function plinthDetail(t: SheetT, wall: number, apron = 1000): Detail {
   const below = 700 // условная глубина показа ниже отметки 0.000
   const shapes: DetailShape[] = [
     { poly: rect(0, 0, wall, 900), pattern: "brick", bold: true },
@@ -132,33 +133,33 @@ function plinthDetail(wall: number, apron = 1000): Detail {
   ]
   return {
     id: "d1",
-    mark: "Узел 1",
-    title: "Цоколь и отмостка",
+    mark: t("adminBuilderSheet.sheetText.nodeMark", { number: 1 }),
+    title: t("adminBuilderSheet.sheetText.nodeBase"),
     scale: 10,
     box: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     shapes,
     lines,
     notes: [
-      { at: { x: wall / 2, y: 700 }, to: { x: wall + 700, y: 1100 }, text: `Наружная стена ${wall} мм` },
-      { at: { x: wall + apron / 2, y: -90 }, to: { x: wall + apron + 200, y: 500 }, text: `Отмостка ${apron} мм, уклон 3 %` },
-      { at: { x: -450, y: -30 }, to: { x: -1500, y: 600 }, text: "Пол по грунту" },
+      { at: { x: wall / 2, y: 700 }, to: { x: wall + 700, y: 1100 }, text: t("adminBuilderSheet.sheetText.calloutWall", { value: wall }) },
+      { at: { x: wall + apron / 2, y: -90 }, to: { x: wall + apron + 200, y: 500 }, text: t("adminBuilderSheet.sheetText.calloutApron", { value: apron }) },
+      { at: { x: -450, y: -30 }, to: { x: -1500, y: 600 }, text: t("adminBuilderSheet.sheetText.calloutFloorOnGround") },
     ],
     dims: [
       { a: { x: 0, y: 900 }, b: { x: wall, y: 900 }, offset: 260, text: `${wall}` },
       { a: { x: wall, y: -40 }, b: { x: wall + apron, y: -40 }, offset: -520, text: `${apron}` },
     ],
     layers: [
-      "1. Стяжка цементно-песчаная армированная, 60 мм",
-      "2. Утеплитель ЭППС, 100 мм",
-      "3. Бетонная подготовка В7,5, 160 мм",
-      "4. Уплотнённый грунт основания",
-      "5. Отмостка бетонная по щебёночной подготовке, уклон 3 % от здания",
+      t("adminBuilderSheet.sheetText.baseNote1"),
+      t("adminBuilderSheet.sheetText.baseNote2"),
+      t("adminBuilderSheet.sheetText.baseNote3"),
+      t("adminBuilderSheet.sheetText.baseNote4"),
+      t("adminBuilderSheet.sheetText.baseNote5"),
     ],
   }
 }
 
 /** Узел 2. Примыкание перекрытия к наружной стене. */
-function slabDetail(wall: number, slab: number, height: number): Detail {
+function slabDetail(t: SheetT, wall: number, slab: number, height: number): Detail {
   const bearing = Math.min(200, Math.round(wall / 2))
   const y0 = 0
   const shapes: DetailShape[] = [
@@ -178,32 +179,32 @@ function slabDetail(wall: number, slab: number, height: number): Detail {
   ]
   return {
     id: "d2",
-    mark: "Узел 2",
-    title: "Примыкание перекрытия к наружной стене",
+    mark: t("adminBuilderSheet.sheetText.nodeMark", { number: 2 }),
+    title: t("adminBuilderSheet.sheetText.nodeSlab"),
     scale: 10,
     box: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     shapes,
     lines,
     notes: [
-      { at: { x: wall + 300, y: y0 + slab / 2 }, to: { x: wall + 1500, y: y0 - 500 }, text: `Плита перекрытия ${slab} мм` },
-      { at: { x: wall - bearing / 2, y: y0 + slab / 2 }, to: { x: -900, y: y0 - 700 }, text: `Опирание ${bearing} мм` },
-      { at: { x: wall / 2, y: y0 + slab + 400 }, to: { x: -900, y: y0 + slab + 800 }, text: `Высота этажа ${height} мм` },
+      { at: { x: wall + 300, y: y0 + slab / 2 }, to: { x: wall + 1500, y: y0 - 500 }, text: t("adminBuilderSheet.sheetText.calloutSlab", { value: slab }) },
+      { at: { x: wall - bearing / 2, y: y0 + slab / 2 }, to: { x: -900, y: y0 - 700 }, text: t("adminBuilderSheet.sheetText.calloutBearing", { value: bearing }) },
+      { at: { x: wall / 2, y: y0 + slab + 400 }, to: { x: -900, y: y0 + slab + 800 }, text: t("adminBuilderSheet.sheetText.calloutFloorHeight", { value: height }) },
     ],
     dims: [
       { a: { x: wall + 600, y: y0 }, b: { x: wall + 600, y: y0 + slab }, offset: 700, text: `${slab}`, vertical: true },
       { a: { x: 0, y: y0 + slab + 900 }, b: { x: wall, y: y0 + slab + 900 }, offset: 240, text: `${wall}` },
     ],
     layers: [
-      "1. Плита перекрытия железобетонная",
-      "2. Звукоизоляция под стяжку, 40 мм",
-      "3. Стяжка цементно-песчаная, 60 мм",
-      "4. Утепление торца перекрытия по наружной грани",
+      t("adminBuilderSheet.sheetText.slabNote1"),
+      t("adminBuilderSheet.sheetText.slabNote2"),
+      t("adminBuilderSheet.sheetText.slabNote3"),
+      t("adminBuilderSheet.sheetText.slabNote4"),
     ],
   }
 }
 
 /** Узел 3. Оконный проём: перемычка, четверть, подоконник, отлив. */
-function windowDetail(wall: number, opening: { width: number; height: number; sill: number }): Detail {
+function windowDetail(t: SheetT, wall: number, opening: { width: number; height: number; sill: number }): Detail {
   const lintel = 220
   const quarter = Math.min(65, Math.round(wall / 6))
   const shapes: DetailShape[] = [
@@ -225,33 +226,33 @@ function windowDetail(wall: number, opening: { width: number; height: number; si
   ]
   return {
     id: "d3",
-    mark: "Узел 3",
-    title: "Оконный проём: перемычка, четверть, подоконник",
+    mark: t("adminBuilderSheet.sheetText.nodeMark", { number: 3 }),
+    title: t("adminBuilderSheet.sheetText.nodeWindow"),
     scale: 10,
     box: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     shapes,
     lines,
     notes: [
-      { at: { x: wall / 2, y: 700 + opening.height + lintel / 2 }, to: { x: wall + 900, y: 700 + opening.height + 700 }, text: `Перемычка ${lintel} мм` },
-      { at: { x: quarter / 2, y: 900 }, to: { x: -1100, y: 1200 }, text: `Четверть ${quarter} мм` },
-      { at: { x: quarter + 45, y: 900 }, to: { x: wall + 900, y: 1100 }, text: `Оконный блок ${opening.width}×${opening.height}` },
-      { at: { x: -90, y: 630 }, to: { x: -1100, y: 300 }, text: "Отлив оцинкованный" },
+      { at: { x: wall / 2, y: 700 + opening.height + lintel / 2 }, to: { x: wall + 900, y: 700 + opening.height + 700 }, text: t("adminBuilderSheet.sheetText.calloutLintel", { value: lintel }) },
+      { at: { x: quarter / 2, y: 900 }, to: { x: -1100, y: 1200 }, text: t("adminBuilderSheet.sheetText.calloutQuarter", { value: quarter }) },
+      { at: { x: quarter + 45, y: 900 }, to: { x: wall + 900, y: 1100 }, text: t("adminBuilderSheet.sheetText.calloutWindowBlock", { width: opening.width, height: opening.height }) },
+      { at: { x: -90, y: 630 }, to: { x: -1100, y: 300 }, text: t("adminBuilderSheet.sheetText.calloutDrip") },
     ],
     dims: [
       { a: { x: wall + 300, y: 700 }, b: { x: wall + 300, y: 700 + opening.height }, offset: 500, text: `${opening.height}`, vertical: true },
       { a: { x: wall + 300, y: 0 }, b: { x: wall + 300, y: 700 }, offset: 500, text: `${opening.sill}`, vertical: true },
     ],
     layers: [
-      "1. Оконный блок из ПВХ-профиля с двухкамерным стеклопакетом",
-      "2. Монтажный шов по ГОСТ 30971: пена, ПСУЛ снаружи, пароизоляция внутри",
-      "3. Отлив оцинкованный с уклоном от окна",
-      "4. Подоконная доска",
+      t("adminBuilderSheet.sheetText.windowNote1"),
+      t("adminBuilderSheet.sheetText.windowNote2"),
+      t("adminBuilderSheet.sheetText.windowNote3"),
+      t("adminBuilderSheet.sheetText.windowNote4"),
     ],
   }
 }
 
 /** Узел 4. Парапет плоской кровли. */
-function parapetDetail(wall: number, slab: number, roofThickness: number): Detail {
+function parapetDetail(t: SheetT, wall: number, slab: number, roofThickness: number): Detail {
   const parapet = 600
   const shapes: DetailShape[] = [
     { poly: rect(0, -900, wall, 900 + parapet), pattern: "brick", bold: true },
@@ -271,32 +272,32 @@ function parapetDetail(wall: number, slab: number, roofThickness: number): Detai
   ]
   return {
     id: "d4",
-    mark: "Узел 4",
-    title: "Парапет плоской кровли",
+    mark: t("adminBuilderSheet.sheetText.nodeMark", { number: 4 }),
+    title: t("adminBuilderSheet.sheetText.nodeParapet"),
     scale: 10,
     box: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     shapes,
     lines,
     notes: [
-      { at: { x: wall / 2, y: parapet - 30 }, to: { x: -1200, y: parapet + 500 }, text: "Фартук парапетный оцинкованный" },
-      { at: { x: wall + 700, y: 120 }, to: { x: wall + 1600, y: 800 }, text: `Кровельный пирог ${roofThickness} мм` },
-      { at: { x: wall + 700, y: -slab / 2 }, to: { x: wall + 1600, y: -900 }, text: `Плита покрытия ${slab} мм` },
+      { at: { x: wall / 2, y: parapet - 30 }, to: { x: -1200, y: parapet + 500 }, text: t("adminBuilderSheet.sheetText.calloutParapetApron") },
+      { at: { x: wall + 700, y: 120 }, to: { x: wall + 1600, y: 800 }, text: t("adminBuilderSheet.sheetText.calloutRoofPie", { value: roofThickness }) },
+      { at: { x: wall + 700, y: -slab / 2 }, to: { x: wall + 1600, y: -900 }, text: t("adminBuilderSheet.sheetText.calloutRoofSlab", { value: slab }) },
     ],
     dims: [
       { a: { x: wall - 400, y: 0 }, b: { x: wall - 400, y: parapet }, offset: -900, text: `${parapet}`, vertical: true },
     ],
     layers: [
-      "1. Плита покрытия железобетонная",
-      "2. Пароизоляция",
-      "3. Утеплитель по уклонообразующему слою",
-      "4. Стяжка армированная, 60 мм",
-      "5. Кровельная ПВХ-мембрана с заведением на парапет и креплением под фартук",
+      t("adminBuilderSheet.sheetText.parapetNote1"),
+      t("adminBuilderSheet.sheetText.parapetNote2"),
+      t("adminBuilderSheet.sheetText.parapetNote3"),
+      t("adminBuilderSheet.sheetText.parapetNote4"),
+      t("adminBuilderSheet.sheetText.parapetNote5"),
     ],
   }
 }
 
 /** Узел 4-а. Карниз скатной кровли: мауэрлат, стропило, обрешётка, водосток. */
-function eavesDetail(wall: number, slab: number, pitchDeg: number, overhang: number): Detail {
+function eavesDetail(t: SheetT, wall: number, slab: number, pitchDeg: number, overhang: number): Detail {
   const k = Math.tan((pitchDeg * Math.PI) / 180)
   const run = wall + overhang
   const shapes: DetailShape[] = [
@@ -323,26 +324,26 @@ function eavesDetail(wall: number, slab: number, pitchDeg: number, overhang: num
   ]
   return {
     id: "d4",
-    mark: "Узел 4",
-    title: "Карниз скатной кровли",
+    mark: t("adminBuilderSheet.sheetText.nodeMark", { number: 4 }),
+    title: t("adminBuilderSheet.sheetText.nodeCornice"),
     scale: 10,
     box: { minX: 0, minY: 0, maxX: 0, maxY: 0 },
     shapes,
     lines,
     notes: [
-      { at: { x: wall - 120, y: 80 }, to: { x: wall + 900, y: -500 }, text: "Мауэрлат 150×150" },
-      { at: { x: wall / 2, y: 200 }, to: { x: -overhang - 700, y: 900 }, text: `Стропило, уклон ${Math.round(pitchDeg)}°` },
-      { at: { x: -overhang / 2, y: 245 }, to: { x: -overhang - 700, y: 500 }, text: `Свес ${overhang} мм, водосточный жёлоб` },
+      { at: { x: wall - 120, y: 80 }, to: { x: wall + 900, y: -500 }, text: t("adminBuilderSheet.sheetText.calloutMauerlat") },
+      { at: { x: wall / 2, y: 200 }, to: { x: -overhang - 700, y: 900 }, text: t("adminBuilderSheet.sheetText.calloutRafter", { value: Math.round(pitchDeg) }) },
+      { at: { x: -overhang / 2, y: 245 }, to: { x: -overhang - 700, y: 500 }, text: t("adminBuilderSheet.sheetText.calloutOverhang", { value: overhang }) },
     ],
     dims: [
       { a: { x: -overhang, y: 150 }, b: { x: wall, y: 150 }, offset: -700, text: `${overhang + wall}` },
     ],
     layers: [
-      "1. Кровельное покрытие по обрешётке",
-      "2. Гидроветрозащитная мембрана",
-      "3. Утеплитель между стропилами",
-      "4. Пароизоляция, подшивка",
-      "5. Водосточный жёлоб по свесу с уклоном к воронке",
+      t("adminBuilderSheet.sheetText.corniceNote1"),
+      t("adminBuilderSheet.sheetText.corniceNote2"),
+      t("adminBuilderSheet.sheetText.corniceNote3"),
+      t("adminBuilderSheet.sheetText.corniceNote4"),
+      t("adminBuilderSheet.sheetText.corniceNote5"),
     ],
   }
 }
@@ -351,7 +352,7 @@ function eavesDetail(wall: number, slab: number, pitchDeg: number, overhang: num
  * Узлы по модели здания. Парапет — только для плоской кровли, оконный узел —
  * по самому частому окну в здании (иначе по типовому 1500×1500).
  */
-export function buildDetails(building: Pick<Building, "floors">): Detail[] {
+export function buildDetails(building: Pick<Building, "floors">, t: SheetT): Detail[] {
   const floors = building.floors
   const s = structureSizes(floors)
   const windows = floors.flatMap((f) => f.openings.filter((o) => o.type === "window" && o.variant !== "curtain"))
@@ -363,10 +364,10 @@ export function buildDetails(building: Pick<Building, "floors">): Detail[] {
   const roof = [...floors].sort((a, b) => b.elevation - a.elevation).find((f) => f.roof)?.roof
   const thickness = Math.max(200, Math.round(roof?.thickness ?? 300))
   const out = [
-    plinthDetail(s.wall),
-    slabDetail(s.wall, s.slab, s.height),
-    windowDetail(s.wall, win),
-    !roof || roof.type === "flat" ? parapetDetail(s.wall, s.slab, thickness) : eavesDetail(s.wall, s.slab, roof.pitchDeg || 25, roof.overhang || 500),
+    plinthDetail(t, s.wall),
+    slabDetail(t, s.wall, s.slab, s.height),
+    windowDetail(t, s.wall, win),
+    !roof || roof.type === "flat" ? parapetDetail(t, s.wall, s.slab, thickness) : eavesDetail(t, s.wall, s.slab, roof.pitchDeg || 25, roof.overhang || 500),
   ]
   // габарит узла считаем в конце: в поле должны попасть и выноски, и размеры
   return out.map((d) => ({ ...d, box: bboxOf(d.shapes, d.lines, d.notes, d.dims) }))

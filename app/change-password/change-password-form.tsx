@@ -7,6 +7,7 @@ import { ShieldCheck, AlertCircle, CheckCircle2, KeyRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 type FormState = { ok: boolean; message?: string; error?: string } | undefined
 
@@ -23,16 +24,17 @@ export function ChangePasswordForm({
   userLogin: string
   targetAfter: string
 }) {
+  const { t } = useT()
   const [state, action, isPending] = useActionState<FormState, FormData>(submit, undefined)
   const router = useRouter()
 
   useEffect(() => {
     if (state?.ok) {
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
         router.replace(targetAfter)
         router.refresh()
       }, 1500)
-      return () => clearTimeout(t)
+      return () => clearTimeout(timer)
     }
   }, [state?.ok, router, targetAfter])
 
@@ -43,7 +45,7 @@ export function ChangePasswordForm({
           <KeyRound className="h-6 w-6 text-white" />
         </div>
         <h1 className="text-2xl font-bold text-slate-900">
-          {forced ? "Смените стартовый пароль" : "Смена пароля"}
+          {forced ? t("auth.changePassword.titleForced") : t("auth.changePassword.title")}
         </h1>
         <p className="text-sm text-slate-500 mt-1">{userLogin}</p>
       </div>
@@ -53,8 +55,7 @@ export function ChangePasswordForm({
           <div className="flex items-start gap-2">
             <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
             <span>
-              Ваш текущий пароль был выдан администратором как одноразовый.
-              Задайте собственный пароль, чтобы продолжить работу.
+              {t("auth.changePassword.forcedHint")}
             </span>
           </div>
         </div>
@@ -64,7 +65,7 @@ export function ChangePasswordForm({
         <form action={action} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Текущий пароль
+              {t("common.profile.currentPassword")}
             </label>
             <Input
               name="currentPassword"
@@ -76,7 +77,7 @@ export function ChangePasswordForm({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Новый пароль (минимум 8 символов)
+              {t("common.profile.newPassword")}
             </label>
             <Input
               name="newPassword"
@@ -89,7 +90,7 @@ export function ChangePasswordForm({
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Подтвердите новый пароль
+              {t("auth.changePassword.confirmNewPassword")}
             </label>
             <Input
               name="confirmPassword"
@@ -113,7 +114,7 @@ export function ChangePasswordForm({
             <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
-                <span className="font-medium">{state.message ?? "Пароль изменён."}</span>
+                <span className="font-medium">{state.message ?? t("auth.changePassword.doneTitle")}</span>
               </div>
             </div>
           )}
@@ -125,7 +126,11 @@ export function ChangePasswordForm({
             disabled={state?.ok}
             className="w-full font-semibold"
           >
-            {isPending ? "Сохранение..." : state?.ok ? "Готово" : "Сменить пароль"}
+            {isPending
+              ? t("auth.changePassword.submitting")
+              : state?.ok
+                ? t("common.actions.done")
+                : t("auth.changePassword.submit")}
           </Button>
         </form>
       </Card>

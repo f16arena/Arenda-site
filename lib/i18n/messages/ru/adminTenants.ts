@@ -1052,4 +1052,33 @@ export const adminTenants = {
     loadFailed: "Не удалось загрузить дополнительные данные арендатора",
     noData: "Данные арендатора не загрузились",
   },
+  // ── История писем арендатору ───────────────────────────────────────────
+  emailLog: {
+    title: "История писем",
+    meta: plural({
+      one: "{count} письмо",
+      few: "{count} письма",
+      many: "{count} писем",
+      other: "{count} писем",
+    }),
+    colType: "Тип",
+    colSubject: "Тема",
+    colStatus: "Статус",
+    colSent: "Отправлено",
+    colRead: "Прочитано",
+    types: {
+      INVOICE: "Счёт",
+      ACT: "Акт",
+      CONTRACT: "Договор",
+      HANDOVER: "Акт приёма",
+      NOTIFICATION: "Уведомление",
+      OTHER: "Прочее",
+    },
+    statuses: {
+      QUEUED: "В очереди",
+      SENT: "Отправлено",
+      OPENED: "Прочитано",
+      FAILED: "Ошибка",
+    },
+  },
 }

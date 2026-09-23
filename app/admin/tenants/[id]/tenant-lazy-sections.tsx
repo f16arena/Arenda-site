@@ -4,7 +4,8 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import { AlertTriangle, ClipboardList, FileText, Receipt } from "lucide-react"
 
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
-import { CHARGE_TYPES, formatDate, formatMoney } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
+import { formatDateL, formatMoneyL } from "@/lib/i18n/format"
 import {
   DocumentsChecklistLoader,
   EmailLogLoader,
@@ -300,23 +301,36 @@ function LazyError({ message }: { message: string }) {
 }
 
 function TenantContractsSidebarClient({ items, total, canSign }: { items: ContractItem[]; total: number; canSign: boolean }) {
+  const { t, locale } = useT()
   return (
-    <CollapsibleCard title="Договоры" icon={FileText} meta={`${total} шт.`}>
+    <CollapsibleCard
+      title={t("adminTenants.contracts.title")}
+      icon={FileText}
+      meta={t("adminTenants.contracts.meta", { count: total })}
+    >
       <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {items.map((contract) => {
-          const statusLabels: Record<string, { label: string; cls: string }> = {
-            DRAFT: { label: "Черновик", cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
-            SENT: { label: "Отправлен", cls: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" },
-            VIEWED: { label: "Открыт арендатором", cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300" },
-            SIGNED_BY_TENANT: { label: "Ждет нашей подписи", cls: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
-            SIGNED: { label: "Подписан", cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" },
-            REJECTED: { label: "Отклонен", cls: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" },
+          // Справочник держит только цвет бейджа: подписи в словаре.
+          const statusColors: Record<string, { cls: string }> = {
+            DRAFT: { cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400" },
+            SENT: { cls: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300" },
+            VIEWED: { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300" },
+            SIGNED_BY_TENANT: { cls: "bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300" },
+            SIGNED: { cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" },
+            REJECTED: { cls: "bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300" },
           }
-          const status = statusLabels[contract.status] ?? {
-            label: contract.status,
-            cls: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
+          const known = statusColors[contract.status]
+          const status = {
+            // Незнакомый статус показываем кодом — это данные, не текст.
+            label: known
+              ? t(`adminTenants.contracts.statuses.${contract.status}` as "adminTenants.contracts.statuses.DRAFT")
+              : contract.status,
+            cls: known?.cls ?? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400",
           }
-          const docLabel = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+          const docLabel =
+            contract.type === "ADDENDUM"
+              ? t("adminTenants.contracts.addendum")
+              : t("adminTenants.contracts.contract")
 
           return (
             <div key={contract.id} className="px-4 py-3">
@@ -329,7 +343,8 @@ function TenantContractsSidebarClient({ items, total, canSign }: { items: Contra
                 </span>
               </div>
               <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                {contract.startDate ? formatDate(contract.startDate) : "—"} → {contract.endDate ? formatDate(contract.endDate) : "—"}
+                {contract.startDate ? formatDateL(locale, contract.startDate) : "—"} →{" "}
+                {contract.endDate ? formatDateL(locale, contract.endDate) : "—"}
               </p>
               {contract.type === "ADDENDUM" && (
                 <p className={`mt-1 text-[11px] ${
@@ -339,9 +354,9 @@ function TenantContractsSidebarClient({ items, total, canSign }: { items: Contra
                 }`}>
                   {contract.status === "SIGNED"
                     ? contract.appliedAt
-                      ? "Применено к условиям аренды"
-                      : "Подписано, ожидает применения"
-                    : "Изменения вступят только после подписи"}
+                      ? t("adminTenants.contracts.applied")
+                      : t("adminTenants.contracts.signedWaitingApply")
+                    : t("adminTenants.contracts.needsSignature")}
                 </p>
               )}
               {canSign && (
@@ -353,7 +368,9 @@ function TenantContractsSidebarClient({ items, total, canSign }: { items: Contra
           )
         })}
         {items.length === 0 && (
-          <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">Нет договоров</p>
+          <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            {t("adminTenants.contracts.empty")}
+          </p>
         )}
       </div>
     </CollapsibleCard>
@@ -361,29 +378,38 @@ function TenantContractsSidebarClient({ items, total, canSign }: { items: Contra
 }
 
 function TenantRecentChargesSidebarClient({ items, total }: { items: ChargeItem[]; total: number }) {
+  const { t, tp, locale } = useT()
   return (
-    <CollapsibleCard title="Последние начисления" icon={Receipt} meta={`${total} записей`}>
+    <CollapsibleCard
+      title={t("adminTenants.recentCharges.title")}
+      icon={Receipt}
+      meta={tp("adminTenants.recentCharges.meta", total)}
+    >
       <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {items.map((charge) => (
           <div key={charge.id} className="flex items-center justify-between px-4 py-2.5">
             <div>
               <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                {CHARGE_TYPES[charge.type] ?? charge.type}
+                {t(`domain.chargeTypes.${charge.type}` as "domain.chargeTypes.OTHER")}
               </p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500">{charge.period}</p>
             </div>
             <div className="text-right">
               <p className={`text-xs font-semibold ${charge.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                {formatMoney(charge.amount)}
+                {formatMoneyL(locale, charge.amount)}
               </p>
               <p className="text-[10px] text-slate-400 dark:text-slate-500">
-                {charge.isPaid ? "Оплачено" : "Долг"}
+                {charge.isPaid
+                  ? t("adminTenants.recentCharges.paid")
+                  : t("adminTenants.recentCharges.debt")}
               </p>
             </div>
           </div>
         ))}
         {items.length === 0 && (
-          <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">Начислений нет</p>
+          <p className="px-4 py-4 text-center text-xs text-slate-400 dark:text-slate-500">
+            {t("adminTenants.recentCharges.empty")}
+          </p>
         )}
       </div>
     </CollapsibleCard>

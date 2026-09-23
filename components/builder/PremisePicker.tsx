@@ -8,6 +8,7 @@
 import { useMemo, useState } from "react"
 import { ChevronDown, Search } from "lucide-react"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
 
 export type PickerItem = {
   id: string
@@ -25,7 +26,7 @@ export function PremisePicker({
   items,
   value,
   onChange,
-  emptyLabel = "Не выбрано",
+  emptyLabel,
   showFree = true,
   allowClear = true,
 }: {
@@ -39,6 +40,7 @@ export function PremisePicker({
   /** Пункт «Отвязать» */
   allowClear?: boolean
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState("")
   const current = items.find((i) => i.id === value) ?? null
@@ -75,7 +77,7 @@ export function PremisePicker({
               {current.who && <span style={{ color: TOKENS.muted }}> · {current.who}</span>}
             </>
           ) : (
-            <span style={{ color: TOKENS.muted }}>{emptyLabel}</span>
+            <span style={{ color: TOKENS.muted }}>{emptyLabel ?? t("adminBuilder.picker.empty")}</span>
           )}
         </span>
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition ${open ? "rotate-180" : ""}`} style={{ color: TOKENS.muted }} />
@@ -89,7 +91,7 @@ export function PremisePicker({
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Поиск: номер или название"
+              placeholder={t("adminBuilder.picker.search")}
               className="w-full bg-transparent text-xs outline-none"
               style={{ color: TOKENS.text }}
               onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); e.stopPropagation() }}
@@ -98,10 +100,10 @@ export function PremisePicker({
           <div className="max-h-64 overflow-y-auto py-1">
             {value && allowClear && (
               <button type="button" onClick={() => pick(null)} className="w-full px-2 py-1.5 text-left text-xs hover:bg-white/5" style={{ color: "#fca5a5" }}>
-                Отвязать
+                {t("adminBuilder.picker.unlink")}
               </button>
             )}
-            {groups.length === 0 && <p className="px-2 py-3 text-center text-xs" style={{ color: TOKENS.muted }}>Ничего не найдено</p>}
+            {groups.length === 0 && <p className="px-2 py-3 text-center text-xs" style={{ color: TOKENS.muted }}>{t("adminBuilder.picker.notFound")}</p>}
             {groups.map(([group, list]) => (
               <div key={group}>
                 <p className="px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: TOKENS.muted }}>{group}</p>
@@ -116,7 +118,7 @@ export function PremisePicker({
                     <span className="shrink-0 font-medium">{i.title}</span>
                     {i.meta && <span className="shrink-0" style={{ color: TOKENS.muted }}>{i.meta}</span>}
                     <span className="min-w-0 flex-1 truncate text-right" style={{ color: i.who ? TOKENS.muted : "#6ee7b7" }}>
-                      {i.who ?? (showFree ? "свободно" : "")}
+                      {i.who ?? (showFree ? t("adminBuilder.picker.free") : "")}
                     </span>
                   </button>
                 ))}
@@ -129,12 +131,19 @@ export function PremisePicker({
   )
 }
 
-/** Карточки помещений → позиции списка (номер, площадь, раздел, кто занимает). */
-export function premiseItems(rows: Iterable<{ id: string; number: string; floorNumber: number; floorLabel?: string; areaM2: number | null; tenantName: string | null }>): PickerItem[] {
+/**
+ * Карточки помещений → позиции списка (номер, площадь, раздел, кто занимает).
+ * `floorGroup` даёт подпись раздела «2 этаж» — функция чистая, переводчика у
+ * неё нет, а порядок слов в казахском другой («2-қабат»).
+ */
+export function premiseItems(
+  rows: Iterable<{ id: string; number: string; floorNumber: number; floorLabel?: string; areaM2: number | null; tenantName: string | null }>,
+  floorGroup: (floorNumber: number) => string,
+): PickerItem[] {
   return Array.from(rows).map((p) => ({
     id: p.id,
     title: `№ ${p.number}`,
-    group: p.floorLabel ?? `${p.floorNumber} этаж`,
+    group: p.floorLabel ?? floorGroup(p.floorNumber),
     meta: p.areaM2 && p.areaM2 > 0 ? `${p.areaM2} м²` : undefined,
     who: p.tenantName,
   }))

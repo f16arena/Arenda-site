@@ -11,8 +11,10 @@ import { usePremiseStore } from "@/store/premise-store"
 import { findFloor } from "@/core/document/commands"
 import { TOKENS } from "@/lib/builder/materials"
 import { shortTenantName } from "@/lib/indoor-map/display-name"
+import { useT } from "@/lib/i18n/client"
 
 export function LabelLayer() {
+  const { t } = useT()
   const labels = useLabelStore((s) => s.labels)
   const showDimensions = useLabelStore((s) => s.showDimensions)
   const toggleDimensions = useLabelStore((s) => s.toggleDimensions)
@@ -25,6 +27,7 @@ export function LabelLayer() {
   const doc = useDocumentStore((s) => s.doc)
   const selection = useEditorStore((s) => s.selection)
   const resolvePremise = usePremiseStore((s) => s.resolve)
+  const freeText = t("adminBuilder.labels.free")
 
   // Подписи не должны лезть друг на друга: на маленькой комнате размеры стен
   // закрывали площадь. Порядок важности: выбранная стена → помещения → размеры.
@@ -49,7 +52,7 @@ export function LabelLayer() {
     const floor = findFloor(doc, l.floorId)
     const key = floor?.premiseLinks[l.id]
     const premise = key ? resolvePremise(key) : undefined
-    const text = premise ? `№ ${premise.number} · ${premise.tenantName ?? "свободно"}` : `${(l.areaMm2 / 1_000_000).toFixed(1)} м²`
+    const text = premise ? `№ ${premise.number} · ${premise.tenantName ?? freeText}` : `${(l.areaMm2 / 1_000_000).toFixed(1)} м²`
     return fits(l.x, l.y, Math.min(260, text.length * 6.2 + 14), 20)
   })
 
@@ -60,9 +63,9 @@ export function LabelLayer() {
       <div className="absolute right-3 top-[7.4rem] z-30 flex flex-col items-end gap-1">
         <div className="flex gap-1">
           {([
-            ["Размеры", showDimensions, toggleDimensions, "Размеры стен (L)"],
-            ["Арендаторы", showTenants, toggleTenants, "Арендаторы: имена в подписях и подсветка помещений по статусу"],
-            ["Мебель", showFurniture, toggleFurniture, "Мебель и светильники: расставляются автоматически по назначению помещений (только вид, в документ не пишутся)"],
+            [t("adminBuilder.labels.dimensions"), showDimensions, toggleDimensions, t("adminBuilder.labels.dimensionsHint")],
+            [t("adminBuilder.labels.tenants"), showTenants, toggleTenants, t("adminBuilder.labels.tenantsHint")],
+            [t("adminBuilder.labels.furniture"), showFurniture, toggleFurniture, t("adminBuilder.labels.furnitureHint")],
           ] as Array<[string, boolean, () => void, string]>).map(([label, on, toggle, hint]) => (
             <button
               key={label}
@@ -79,10 +82,10 @@ export function LabelLayer() {
         <div
           className="flex items-center gap-2 rounded-lg px-2 py-1 shadow"
           style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}` }}
-          title="Время суток: солнце, тени и цвет неба. Видно, какие окна утром на солнце, а какие весь день в тени"
+          title={t("adminBuilder.labels.sunHint")}
         >
           <span className="text-[10px] font-semibold tabular-nums" style={{ color: TOKENS.text }}>
-            Солнце · {hourLabel(hourOfDay)}
+            {t("adminBuilder.app.sun", { time: hourLabel(hourOfDay) })}
           </span>
           <input
             type="range"
@@ -92,7 +95,7 @@ export function LabelLayer() {
             value={hourOfDay}
             onChange={(e) => setHourOfDay(Number(e.target.value))}
             className="h-1 w-24 cursor-pointer accent-sky-400"
-            aria-label="Время суток"
+            aria-label={t("adminBuilder.app.timeOfDay")}
           />
         </div>
       </div>
@@ -141,7 +144,7 @@ export function LabelLayer() {
           const premise = key ? resolvePremise(key) : undefined
           // «Арендаторы» выключены — остаётся номер и площадь, без имён и статусов
           const title = premise && showTenants
-            ? `№ ${premise.number}${premise.tenantName ? ` · ${shortTenantName(premise.tenantName)}` : " · свободно"}`
+            ? `№ ${premise.number}${premise.tenantName ? ` · ${shortTenantName(premise.tenantName)}` : ` · ${freeText}`}`
             : premise
               ? `№ ${premise.number} · ${(label.areaMm2 / 1_000_000).toFixed(1)} м²`
               : `${(label.areaMm2 / 1_000_000).toFixed(1)} м²`

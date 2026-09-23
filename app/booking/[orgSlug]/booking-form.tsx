@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useT } from "@/lib/i18n/client"
 import { Check } from "lucide-react"
 import { createBookingLead } from "@/app/actions/booking"
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,7 @@ export function BookingForm({
   orgSlug: string
   buildings: { id: string; name: string }[]
 }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [submitted, setSubmitted] = useState(false)
   const [err, setErr] = useState<string | null>(null)
@@ -25,9 +27,9 @@ export function BookingForm({
         <div className="flex items-start gap-2">
           <Check className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
           <div>
-            <p className="font-semibold text-emerald-900">Заявка отправлена!</p>
+            <p className="font-semibold text-emerald-900">{t("auth.booking.sentTitle")}</p>
             <p className="text-emerald-700 text-xs mt-1">
-              Свяжемся с вами в течение часа в рабочее время.
+              {t("auth.booking.sentText")}
             </p>
           </div>
         </div>
@@ -42,22 +44,22 @@ export function BookingForm({
         startTransition(async () => {
           const r = await createBookingLead(orgSlug, fd)
           if (r.ok) setSubmitted(true)
-          else setErr(r.error ?? "Не удалось отправить")
+          else setErr(r.error ?? t("auth.booking.sendFailed"))
         })
       }}
       className="space-y-3"
     >
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Имя *</label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">{t("auth.booking.name")}</label>
         <Input
           name="name"
           required
           maxLength={100}
-          placeholder="Как к вам обращаться"
+          placeholder={t("auth.booking.formTitle")}
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Телефон *</label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">{t("auth.booking.phone")}</label>
         <KzPhoneInput
           name="phone"
           required
@@ -73,12 +75,12 @@ export function BookingForm({
       </div>
       {buildings.length > 1 && (
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Здание</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">{t("auth.booking.building")}</label>
           <select
             name="buildingId"
             className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm bg-white focus:border-blue-500 focus:outline-none"
           >
-            <option value="">— любое —</option>
+            <option value="">{t("auth.booking.anyBuilding")}</option>
             {buildings.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
             ))}
@@ -89,12 +91,12 @@ export function BookingForm({
         <input type="hidden" name="buildingId" value={buildings[0].id} />
       )}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Что ищете</label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">{t("auth.booking.looking")}</label>
         <Textarea
           name="comment"
           rows={2}
           maxLength={500}
-          placeholder="Кабинет 30-50 м², этаж не выше 3..."
+          placeholder={t("auth.booking.lookingPlaceholder")}
           className="resize-none"
         />
       </div>
@@ -109,10 +111,10 @@ export function BookingForm({
         loading={pending}
         className="w-full font-semibold"
       >
-        {pending ? "Отправка..." : "Оставить заявку"}
+        {pending ? t("auth.booking.submitting") : t("auth.booking.submit")}
       </Button>
       <p className="text-[10px] text-slate-400 text-center">
-        Нажимая, вы соглашаетесь с обработкой персональных данных.
+        {t("auth.booking.consent")}
       </p>
     </form>
   )

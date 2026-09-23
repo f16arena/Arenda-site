@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { contractScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
+import { getT } from "@/lib/i18n/server"
 
 export interface ContractCardData {
   id: string
@@ -45,6 +46,8 @@ function isOwnerLikeSession(session: { user?: { role: string; isPlatformOwner?: 
 export async function getContractCard(
   contractId: string,
 ): Promise<{ ok: true; data: ContractCardData } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const session = await auth()
     const { orgId } = await requireOrgAccess()
@@ -66,25 +69,26 @@ export async function getContractCard(
         },
       },
     })
-    if (!c) return { ok: false, error: "Договор не найден" }
+    if (!c) return { ok: false, error: t("actions.common.contractNotFound") }
     // Сотрудник с частью зданий — только договоры арендаторов своих зданий.
     await assertTenantBuildingAccess(c.tenant.id, orgId)
-    const t = c.tenant
+    // Имя t занято переводчиком — арендатор здесь tn.
+    const tn = c.tenant
 
     const spaces: string[] = []
-    if (t.space) spaces.push(`${t.space.number}${t.space.floor ? ` · ${t.space.floor.name}` : ""}`)
-    for (const ts of t.tenantSpaces) if (ts.space) spaces.push(`${ts.space.number}${ts.space.floor ? ` · ${ts.space.floor.name}` : ""}`)
-    for (const f of t.fullFloors) spaces.push(`${f.name} (целиком)`)
+    if (tn.space) spaces.push(`${tn.space.number}${tn.space.floor ? ` · ${tn.space.floor.name}` : ""}`)
+    for (const ts of tn.tenantSpaces) if (ts.space) spaces.push(`${ts.space.number}${ts.space.floor ? ` · ${ts.space.floor.name}` : ""}`)
+    for (const f of tn.fullFloors) spaces.push(t("actions.contractCard.wholeFloor", { name: f.name }))
 
     // Месячная аренда «как на сейчас»: учитывает фикс-сумму, ставку×площадь,
     // аренду целого этажа и график ступеней (как на карточке арендатора).
     const computedRent = calculateTenantMonthlyRent({
-      fixedMonthlyRent: t.fixedMonthlyRent,
-      customRate: t.customRate,
-      rentSchedule: t.rentSchedule,
-      fullFloors: t.fullFloors,
-      space: t.space,
-      tenantSpaces: t.tenantSpaces,
+      fixedMonthlyRent: tn.fixedMonthlyRent,
+      customRate: tn.customRate,
+      rentSchedule: tn.rentSchedule,
+      fullFloors: tn.fullFloors,
+      space: tn.space,
+      tenantSpaces: tn.tenantSpaces,
     })
     const monthly = computedRent > 0 ? computedRent : null
 
@@ -96,28 +100,28 @@ export async function getContractCard(
         type: c.type,
         isExternal: c.type === "EXTERNAL",
         status: c.status,
-        tenantName: t.companyName,
-        tenantId: t.id,
+        tenantName: tn.companyName,
+        tenantId: tn.id,
         startDate: fmtDate(c.startDate),
         endDate: fmtDate(c.endDate),
         signedAt: fmtDate(c.signedAt),
         signedByLandlord: !!c.signedByLandlordAt,
         signedByTenant: !!c.signedByTenantAt,
         monthlyRent: monthly,
-        rentMode: monthly ? "FIXED" : t.customRate ? "RATE" : null,
-        customRate: t.customRate,
-        deposit: t.depositAmount,
-        serviceFeeExempt: t.serviceFeeExempt,
-        paymentDueDay: t.paymentDueDay,
-        penaltyPercent: t.penaltyPercent,
-        indexationPct: t.indexationPct,
+        rentMode: monthly ? "FIXED" : tn.customRate ? "RATE" : null,
+        customRate: tn.customRate,
+        deposit: tn.depositAmount,
+        serviceFeeExempt: tn.serviceFeeExempt,
+        paymentDueDay: tn.paymentDueDay,
+        penaltyPercent: tn.penaltyPercent,
+        indexationPct: tn.indexationPct,
         spaces,
         attachmentFileId: c.attachmentFileId,
         canManage: isOwnerLikeSession(session),
       },
     }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить карточку" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractCard.loadFailed") }
   }
 }
 
@@ -131,10 +135,12 @@ export async function setContractSignatureManual(
   landlord: boolean,
   tenant: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const session = await auth()
     const { orgId } = await requireOrgAccess()
-    if (!isOwnerLikeSession(session)) return { ok: false, error: "Доступно владельцу и администратору" }
+    if (!isOwnerLikeSession(session)) return { ok: false, error: t("actions.common.ownerAndAdminOnly") }
 
     const c = await db.contract.findFirst({
       where: { AND: [contractScope(orgId), { id: contractId }] },
@@ -147,7 +153,7 @@ export async function setContractSignatureManual(
         tenant: { select: { id: true } },
       },
     })
-    if (!c) return { ok: false, error: "Договор не найден" }
+    if (!c) return { ok: false, error: t("actions.common.contractNotFound") }
 
     // Подпись ЭЦП — криптографический факт, галочкой её не отменить.
     const ecpSignatures = await db.documentSignature.count({
@@ -158,7 +164,7 @@ export async function setContractSignatureManual(
       },
     })
     if (ecpSignatures > 0 && (!landlord || !tenant)) {
-      return { ok: false, error: "Договор подписан ЭЦП — снять отметку вручную нельзя" }
+      return { ok: false, error: t("actions.contractCard.signedByEcp") }
     }
 
     /**
@@ -188,6 +194,6 @@ export async function setContractSignatureManual(
     revalidatePath(`/admin/tenants/${c.tenant.id}`)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить статус" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractCard.saveStatusFailed") }
   }
 }

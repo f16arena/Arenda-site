@@ -16,6 +16,7 @@ import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validatio
 import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
 import { parseTenantSpaceIds } from "@/lib/tenant-spaces"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
+import { getT } from "@/lib/i18n/server"
 
 export type CreateTenantResult = { success: true; tenantId: string } | { success: false; error: string }
 
@@ -34,6 +35,7 @@ export async function createTenant(formData: FormData): Promise<CreateTenantResu
 }
 
 async function createTenantUnchecked(formData: FormData): Promise<CreateTenantResult> {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.create")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
@@ -56,7 +58,11 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
   const legalAddress = String(formData.get("legalAddress") ?? "").trim()
   const actualAddress = String(formData.get("actualAddress") ?? "").trim()
   const isVatPayer = formData.get("isVatPayer") === "on"
-  const vatRate = normalizeKzVatRate(formData.get("vatRate"), DEFAULT_KZ_VAT_RATE)
+  const vatRate = normalizeKzVatRate(
+    formData.get("vatRate"),
+    DEFAULT_KZ_VAT_RATE,
+    t("actions.organizationSettings.badVatRate"),
+  )
   // НДС-статус из КГД (человекочитаемый). Пустая строка → null (не определён).
   const vatStatus = String(formData.get("vatStatus") ?? "").trim() || null
   const spaceIds = parseTenantSpaceIds(formData)

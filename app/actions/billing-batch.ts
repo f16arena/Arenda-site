@@ -7,6 +7,8 @@ import { tenantScope } from "@/lib/tenant-scope"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { formatDateL, formatMoneyL, formatPeriodL } from "@/lib/i18n/format"
 
 export type BatchBillingResult = {
   ok: true
@@ -28,8 +30,9 @@ export type BatchBillingResult = {
  */
 export async function generateMonthlyChargesForOrg(period: string): Promise<BatchBillingResult> {
   await requireCapabilityAndFeature("finance.createInvoice")
+  const { t } = await getT()
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) {
-    return { ok: false, error: "Неверный формат периода (ожидается YYYY-MM)" }
+    return { ok: false, error: t("actions.billingBatch.badPeriodFormat") }
   }
   const { orgId } = await requireOrgAccess()
 
@@ -64,14 +67,14 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
     errors: [],
   }
 
-  for (const t of tenants) {
+  for (const row of tenants) {
     try {
-      if (t.charges.length > 0) {
+      if (row.charges.length > 0) {
         (result as { skipped: number }).skipped++
         continue
       }
 
-      const rentSchedule = calculateTenantRentChargeForPeriod(t, period)
+      const rentSchedule = calculateTenantRentChargeForPeriod(row, period)
       if (!rentSchedule.shouldCreate) {
         if (rentSchedule.skippedReason !== "NO_RENT") {
           (result as { skipped: number }).skipped++
@@ -79,12 +82,12 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
         continue
       }
 
-      const placement = formatTenantPlacement(t)
+      const placement = formatTenantPlacement(row)
       const dueDate = rentSchedule.dueDate
 
       await db.charge.create({
         data: {
-          tenantId: t.id,
+          tenantId: row.id,
           period,
           type: "RENT",
           amount: rentSchedule.amount,
@@ -95,37 +98,43 @@ export async function generateMonthlyChargesForOrg(period: string): Promise<Batc
       ;(result as { rentCreated: number }).rentCreated++
       ;(result as { totalAmount: number }).totalAmount += rentSchedule.amount
 
-      if (t.needsCleaning && t.cleaningFee > 0) {
+      if (row.needsCleaning && row.cleaningFee > 0) {
         await db.charge.create({
           data: {
-            tenantId: t.id,
+            tenantId: row.id,
             period,
             type: "CLEANING",
-            amount: t.cleaningFee,
+            // description начисления попадает в счёт и акт сверки — оставляем русским.
+            amount: row.cleaningFee,
             description: `Уборка помещения за ${period}`,
             dueDate,
           },
         })
         ;(result as { cleaningCreated: number }).cleaningCreated++
-        ;(result as { totalAmount: number }).totalAmount += t.cleaningFee
+        ;(result as { totalAmount: number }).totalAmount += row.cleaningFee
       }
 
-      // In-app уведомление
+      // In-app уведомление. Его читает арендатор — язык берём из его профиля,
+      // а не у того, кто запустил массовое начисление.
       try {
-        const total = rentSchedule.amount + (t.needsCleaning ? t.cleaningFee : 0)
+        const total = rentSchedule.amount + (row.needsCleaning ? row.cleaningFee : 0)
+        const { t: tTenant, locale } = await getTForUser(row.userId)
         await db.notification.create({
           data: {
-            userId: t.userId,
+            userId: row.userId,
             type: "PAYMENT_DUE",
-            title: `Начислена аренда за ${period}`,
-            message: `Сумма к оплате: ${total.toLocaleString("ru-RU")} ₸. Срок — до ${dueDate.toLocaleDateString("ru-RU")}.`,
+            title: tTenant("actions.billingBatch.rentChargedTitle", { period: formatPeriodL(locale, period) }),
+            message: tTenant("actions.billingBatch.rentChargedMessage", {
+              amount: formatMoneyL(locale, total),
+              date: formatDateL(locale, dueDate),
+            }),
             link: "/cabinet/finances",
           },
         })
       } catch { /* notifications may be missing */ }
     } catch (e) {
       (result as { errors: string[] }).errors.push(
-        `${t.companyName}: ${e instanceof Error ? e.message : "unknown"}`,
+        `${row.companyName}: ${e instanceof Error ? e.message : "unknown"}`,
       )
     }
   }

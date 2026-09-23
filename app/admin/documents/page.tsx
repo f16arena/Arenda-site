@@ -18,7 +18,7 @@ import { safeServerValue } from "@/lib/server-fallback"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { DOCUMENTS_TABS } from "@/lib/hub-tabs"
+import { documentsTabs } from "@/lib/hub-tabs"
 import { FileText, FilePlus2 } from "lucide-react"
 import { getLocale, getT } from "@/lib/i18n/server"
 import { formatDateShortL } from "@/lib/i18n/format"
@@ -413,7 +413,7 @@ export default async function DocumentsPage({
   return (
     <I18nProvider locale={locale} messages={messages}>
       <div className="space-y-5">
-        <RouteTabs items={DOCUMENTS_TABS} className="mb-2" />
+        <RouteTabs items={documentsTabs(t)} className="mb-2" />
         <PageHeader
           icon={FileText}
           title={t("adminDocs.list.title")}

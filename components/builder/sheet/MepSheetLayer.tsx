@@ -6,6 +6,7 @@ import type { MepSymbol } from "@/lib/builder/mep/catalog"
 import { MEP_SYSTEM_INFO } from "@/lib/builder/mep/catalog"
 import type { MepDrawing } from "@/lib/builder/drawing/mep-drawing"
 import type { Pt } from "@/lib/builder/drawing/floor-drawing"
+import { useT } from "@/lib/i18n/client"
 
 const SW = 0.3
 
@@ -171,13 +172,14 @@ const ROW_SPEC = 4.6
 
 /** Таблицы справа от плана. Возвращает то, что влезло по высоте. */
 export function MepTables({ md, x, y, w, maxH }: { md: MepDrawing; x: number; y: number; w: number; maxH: number }) {
+  const { t } = useT()
   const out: React.ReactNode[] = []
   let cy = y
   const limit = y + maxH
   const line = (y1: number, key: string, strong = false) => <line key={key} x1={x} y1={y1} x2={x + w} y2={y1} stroke="#000" strokeWidth={strong ? 0.5 : 0.18} />
 
   if (md.legend.length) {
-    out.push(<text key="lt" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Условные обозначения</text>)
+    out.push(<text key="lt" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.legend")}</text>)
     cy += 6
     out.push(line(cy, "l0", true))
     for (const [i, row] of md.legend.entries()) {
@@ -201,22 +203,22 @@ export function MepTables({ md, x, y, w, maxH }: { md: MepDrawing; x: number; y:
 
   if (md.spec.length) {
     const top = cy
-    out.push(<text key="st" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Спецификация (этаж)</text>)
+    out.push(<text key="st" x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.mepSpec")}</text>)
     cy += 6
     const cQty = x + w - 22, cUnit = x + w - 9
     out.push(line(cy, "s0", true))
-    out.push(<text key="h1" x={x + 2} y={cy + 3.3} fontSize={2.3}>Наименование</text>)
-    out.push(<text key="h2" x={cQty + 11} y={cy + 3.3} fontSize={2.3} textAnchor="end">Кол.</text>)
-    out.push(<text key="h3" x={cUnit + 1.5} y={cy + 3.3} fontSize={2.3}>Ед.</text>)
+    out.push(<text key="h1" x={x + 2} y={cy + 3.3} fontSize={2.3}>{t("adminBuilderSheet.sheet.colName")}</text>)
+    out.push(<text key="h2" x={cQty + 11} y={cy + 3.3} fontSize={2.3} textAnchor="end">{t("adminBuilderSheet.sheet.thQtyShort")}</text>)
+    out.push(<text key="h3" x={cUnit + 1.5} y={cy + 3.3} fontSize={2.3}>{t("adminBuilderSheet.sheet.thUnit")}</text>)
     cy += ROW_SPEC + 0.4
     out.push(line(cy, "s1", true))
     let cut = 0
     const rows: { kind: "sys" | "row"; text: string; qty?: string; unit?: string; color?: string }[] = []
     for (const s of md.spec) {
       const info = MEP_SYSTEM_INFO[s.system]
-      const pw = s.powerW ? `, Руст ${(s.powerW / 1000).toFixed(2).replace(".", ",")} кВт` : ""
-      rows.push({ kind: "sys", text: `${info.mark} — ${info.name}${pw}`, color: info.color })
-      for (const r of s.rows) rows.push({ kind: "row", text: r.name, qty: r.unit === "м" ? r.qty.toFixed(1).replace(".", ",") : String(r.qty), unit: r.unit })
+      const pw = s.powerW ? t("adminBuilderSheet.sheet.mepSystemPower", { value: (s.powerW / 1000).toFixed(2).replace(".", ",") }) : ""
+      rows.push({ kind: "sys", text: `${t("adminBuilderSheet.sheet.mepSystemRow", { mark: info.mark, name: t(`adminBuilder.mep.systems.${s.system}`) })}${pw}`, color: info.color })
+      for (const r of s.rows) rows.push({ kind: "row", text: r.name, qty: r.unit === "m" ? r.qty.toFixed(1).replace(".", ",") : String(r.qty), unit: t(r.unit === "m" ? "adminBuilder.mep.unitM" : "adminBuilder.mep.unitPcs") })
     }
     for (const [i, r] of rows.entries()) {
       if (cy + ROW_SPEC > limit - 4) {
@@ -238,7 +240,7 @@ export function MepTables({ md, x, y, w, maxH }: { md: MepDrawing; x: number; y:
     out.push(<line key="v1" x1={cQty} y1={top + 6} x2={cQty} y2={cy} stroke="#000" strokeWidth={0.18} />)
     out.push(<line key="v2" x1={cUnit} y1={top + 6} x2={cUnit} y2={cy} stroke="#000" strokeWidth={0.18} />)
     out.push(<rect key="sr" x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)
-    if (cut) out.push(<text key="cut" x={x} y={cy + 3.5} fontSize={2.2}>…ещё строк: {cut} — полностью в панели «Сети»</text>)
+    if (cut) out.push(<text key="cut" x={x} y={cy + 3.5} fontSize={2.2}>{t("adminBuilderSheet.sheet.moreRowsMep", { count: cut })}</text>)
     cy += 8
   }
 
@@ -246,10 +248,10 @@ export function MepTables({ md, x, y, w, maxH }: { md: MepDrawing; x: number; y:
   for (const pn of md.panels) {
     if (cy + 20 > limit) break
     const top = cy
-    out.push(<text key={`pt${pn.panelId}`} x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">Расчётная таблица {pn.label}</text>)
+    out.push(<text key={`pt${pn.panelId}`} x={x + w / 2} y={cy + 4} fontSize={3} textAnchor="middle">{t("adminBuilderSheet.sheet.panelTable", { label: pn.label })}</text>)
     cy += 6
     const cols = [
-      { w: 7, l: "Гр." }, { w: w - 7 - 11 - 9 - 9 - 23 - 9, l: "Назначение" }, { w: 11, l: "Руст, кВт" }, { w: 9, l: "Iр, А" }, { w: 9, l: "QF, А" }, { w: 23, l: "Кабель" }, { w: 9, l: "ΔU, %" },
+      { w: 7, l: t("adminBuilderSheet.sheet.thGroup") }, { w: w - 7 - 11 - 9 - 9 - 23 - 9, l: t("adminBuilderSheet.sheet.thPurpose") }, { w: 11, l: t("adminBuilderSheet.sheet.thPowerInst") }, { w: 9, l: t("adminBuilderSheet.sheet.thCurrent") }, { w: 9, l: t("adminBuilderSheet.sheet.thBreaker") }, { w: 23, l: t("adminBuilderSheet.sheet.thCable") }, { w: 9, l: t("adminBuilderSheet.sheet.thDrop") },
     ]
     const xs: number[] = []
     let acc = x
@@ -266,7 +268,7 @@ export function MepTables({ md, x, y, w, maxH }: { md: MepDrawing; x: number; y:
       cy += 4.2
       out.push(<line key={`pl${pn.panelId}${g.group}`} x1={x} y1={cy} x2={x + w} y2={cy} stroke="#000" strokeWidth={0.18} />)
     }
-    out.push(<text key={`ptot${pn.panelId}`} x={x + 1} y={cy + 3.3} fontSize={2.1} fontWeight={700}>Руст {(pn.pInstW / 1000).toFixed(2).replace(".", ",")} кВт; Рр {(pn.pCalcW / 1000).toFixed(2).replace(".", ",")} кВт; Iр {pn.currentA.toFixed(1).replace(".", ",")} А; вводной QF {pn.inputBreakerA} А</text>)
+    out.push(<text key={`ptot${pn.panelId}`} x={x + 1} y={cy + 3.3} fontSize={2.1} fontWeight={700}>{t("adminBuilderSheet.sheet.panelTotals", { inst: (pn.pInstW / 1000).toFixed(2).replace(".", ","), calc: (pn.pCalcW / 1000).toFixed(2).replace(".", ","), current: pn.currentA.toFixed(1).replace(".", ","), breaker: pn.inputBreakerA })}</text>)
     cy += 5
     xs.slice(1).forEach((xx, i) => out.push(<line key={`pv${pn.panelId}${i}`} x1={xx} y1={top + 6} x2={xx} y2={cy - 5} stroke="#000" strokeWidth={0.18} />))
     out.push(<rect key={`pb${pn.panelId}`} x={x} y={top + 6} width={w} height={cy - top - 6} fill="none" stroke="#000" strokeWidth={0.5} />)

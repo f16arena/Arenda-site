@@ -8,6 +8,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { contractScope } from "@/lib/tenant-scope"
 import { createActForTenant, createInvoiceForTenant } from "@/lib/auto-documents"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Догенерация счетов и АВР за текущий месяц по ВСЕМ подписанным договорам.
@@ -18,18 +19,19 @@ import { createActForTenant, createInvoiceForTenant } from "@/lib/auto-documents
 export async function backfillMonthlyDocuments(periodInput?: string): Promise<
   { ok: true; created: number; tenants: number; period: string } | { ok: false; error: string }
 > {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.generateBulk")
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.accessDenied") }
   }
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
+  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: t("actions.common.noAccess") }
   if (session.user.role !== "OWNER" && session.user.role !== "ADMIN" && !session.user.isPlatformOwner) {
-    return { ok: false, error: "Доступно владельцу и администратору" }
+    return { ok: false, error: t("actions.common.ownerAndAdminOnly") }
   }
   const { orgId } = await requireOrgAccess()
-  if (!orgId) return { ok: false, error: "Организация не определена" }
+  if (!orgId) return { ok: false, error: t("actions.common.organizationUndefined") }
 
   // Период можно выбрать (напр. закрыть и июнь, и июль). По умолчанию — текущий месяц.
   const currentPeriod = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
@@ -45,7 +47,7 @@ export async function backfillMonthlyDocuments(periodInput?: string): Promise<
   for (const c of contracts) {
     if (!latestByTenant.has(c.tenantId)) latestByTenant.set(c.tenantId, c.tenant.companyName)
   }
-  if (latestByTenant.size === 0) return { ok: false, error: "Подписанных договоров нет" }
+  if (latestByTenant.size === 0) return { ok: false, error: t("actions.autoDocuments.noSignedContracts") }
 
   // Ручной режим: владелец явно попросил — создаём И счёт, И АВР за период
   // (авто-конвейер сам по себе делает счёт при подписании, АВР — в конце месяца).

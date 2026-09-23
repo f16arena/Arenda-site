@@ -14,6 +14,7 @@ import {
   requireOrgFeature,
 } from "@/lib/capabilities"
 import { userCapabilityRole } from "@/lib/capability-keys"
+import { getT } from "@/lib/i18n/server"
 import {
   canManageRoleInOrg,
   isOwnerRole,
@@ -26,20 +27,21 @@ async function assertRoleBuilderEnabled(orgId: string) {
 }
 
 export async function setPermission(role: string, section: string, canView: boolean, canEdit: boolean) {
+  const { t } = await getT()
   await requireOwner()
   const { orgId } = await requireOrgAccess()
   await assertRoleBuilderEnabled(orgId)
 
   if (!canManageRoleInOrg(role, orgId)) {
-    throw new Error("Эту должность нельзя менять в текущей организации")
+    throw new Error(t("actions.permissions.roleNotEditableInOrg"))
   }
 
   if (!SECTIONS.includes(section as (typeof SECTIONS)[number])) {
-    throw new Error("Некорректный раздел прав")
+    throw new Error(t("actions.permissions.badSection"))
   }
 
   if (isOwnerRole(role)) {
-    throw new Error("Владелец всегда имеет полный доступ")
+    throw new Error(t("actions.permissions.ownerAlwaysFull"))
   }
 
   if (canEdit && !canView) canEdit = false
@@ -63,21 +65,22 @@ export async function setPermission(role: string, section: string, canView: bool
 }
 
 export async function setCapability(role: string, capabilityKey: string, enabled: boolean) {
+  const { t } = await getT()
   await requireOwner()
   const { orgId } = await requireOrgAccess()
   await assertRoleBuilderEnabled(orgId)
 
   if (!canManageRoleInOrg(role, orgId)) {
-    throw new Error("Эту должность нельзя менять в текущей организации")
+    throw new Error(t("actions.permissions.roleNotEditableInOrg"))
   }
 
   if (isOwnerRole(role)) {
-    throw new Error("Владелец всегда имеет полный доступ")
+    throw new Error(t("actions.permissions.ownerAlwaysFull"))
   }
 
   const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
   if (!capability) {
-    throw new Error("Некорректное точное право")
+    throw new Error(t("actions.permissions.badCapability"))
   }
 
   const section = capabilityPermissionKey(capabilityKey)
@@ -110,21 +113,22 @@ export async function setUserCapabilityOverride(
   capabilityKey: string,
   mode: "INHERIT" | "ALLOW" | "DENY",
 ) {
+  const { t } = await getT()
   await requireOwner()
   const { orgId } = await requireOrgAccess()
   await assertRoleBuilderEnabled(orgId)
 
   const capability = ACTION_CAPABILITY_BY_KEY.get(capabilityKey)
   if (!capability) {
-    throw new Error("Некорректное точное право")
+    throw new Error(t("actions.permissions.badCapability"))
   }
 
   const target = await db.user.findFirst({
     where: { id: userId, organizationId: orgId },
     select: { id: true, role: true, name: true },
   })
-  if (!target) throw new Error("Пользователь не найден в текущей организации")
-  if (isOwnerRole(target.role)) throw new Error("Владелец всегда имеет полный доступ")
+  if (!target) throw new Error(t("actions.permissions.userNotInOrg"))
+  if (isOwnerRole(target.role)) throw new Error(t("actions.permissions.ownerAlwaysFull"))
 
   const role = userCapabilityRole(userId)
   const section = capabilityPermissionKey(capabilityKey)
@@ -161,6 +165,7 @@ export async function setUserCapabilityOverride(
 }
 
 export async function createRole(formData: FormData) {
+  const { t } = await getT()
   await requireOwner()
   const { orgId } = await requireOrgAccess()
   await assertRoleBuilderEnabled(orgId)
@@ -170,7 +175,7 @@ export async function createRole(formData: FormData) {
   const role = makeOrgRoleCode(orgId, label)
 
   const existing = await db.rolePermission.findFirst({ where: { organizationId: orgId, role }, select: { id: true } })
-  if (existing) throw new Error("Такая должность уже есть")
+  if (existing) throw new Error(t("actions.permissions.roleExists"))
 
   const sourceRows = sourceRole && canManageRoleInOrg(sourceRole, orgId)
     ? await db.rolePermission.findMany({
@@ -211,16 +216,17 @@ export async function createRole(formData: FormData) {
 }
 
 export async function deleteRole(role: string) {
+  const { t, tp } = await getT()
   await requireOwner()
   const { orgId } = await requireOrgAccess()
   await assertRoleBuilderEnabled(orgId)
 
-  if (isSystemRole(role)) throw new Error("Системную роль удалить нельзя")
-  if (!canManageRoleInOrg(role, orgId)) throw new Error("Эту должность нельзя удалить в текущей организации")
+  if (isSystemRole(role)) throw new Error(t("actions.permissions.systemRoleNotDeletable"))
+  if (!canManageRoleInOrg(role, orgId)) throw new Error(t("actions.permissions.roleNotDeletableInOrg"))
 
   const users = await db.user.count({ where: { organizationId: orgId, role } })
   if (users > 0) {
-    throw new Error(`Нельзя удалить должность: она назначена ${users} пользовател${users === 1 ? "ю" : "ям"}`)
+    throw new Error(tp("actions.permissions.roleInUse", users))
   }
 
   await db.rolePermission.deleteMany({ where: { organizationId: orgId, role } })

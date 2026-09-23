@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner"
 import { markNotificationRead, markAllRead, deleteNotification } from "@/app/actions/notifications"
 import { cn } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
 
 export type NotificationItem = {
   id: string
@@ -45,13 +46,13 @@ const TYPE_TO_CATEGORY: Record<string, Category> = {
   COMPLAINT: "alerts",
 }
 
-const CATEGORY_META: Record<Category, { icon: React.ElementType; label: string; color: string }> = {
-  requests: { icon: ClipboardList, label: "Заявки", color: "text-blue-500" },
-  payments: { icon: Wallet, label: "Платежи", color: "text-emerald-500" },
-  documents: { icon: FileText, label: "Документы", color: "text-purple-500" },
-  messages: { icon: MessageSquare, label: "Сообщения", color: "text-cyan-500" },
-  alerts: { icon: AlertTriangle, label: "Важное", color: "text-red-500" },
-  other: { icon: Settings, label: "Прочее", color: "text-slate-500 dark:text-slate-400" },
+const CATEGORY_META: Record<Category, { icon: React.ElementType; color: string }> = {
+  requests: { icon: ClipboardList, color: "text-blue-500" },
+  payments: { icon: Wallet, color: "text-emerald-500" },
+  documents: { icon: FileText, color: "text-purple-500" },
+  messages: { icon: MessageSquare, color: "text-cyan-500" },
+  alerts: { icon: AlertTriangle, color: "text-red-500" },
+  other: { icon: Settings, color: "text-slate-500 dark:text-slate-400" },
 }
 
 const CATEGORY_ORDER: Category[] = ["alerts", "payments", "requests", "documents", "messages", "other"]
@@ -65,6 +66,7 @@ export function NotificationPanel({
   onClose: () => void
   onUnreadChange: (count: number) => void
 }) {
+  const { t } = useT()
   const [items, setItems] = useState<NotificationItem[]>([])
   const [unread, setUnread] = useState(initialUnreadCount)
   const [activeCategory, setActiveCategory] = useState<Category | "all">("all")
@@ -88,11 +90,11 @@ export function NotificationPanel({
       setItems(nextItems)
       syncUnread(nextItems, data.unreadCount ?? 0)
     } catch {
-      toast.error("Не удалось загрузить уведомления")
+      toast.error(t("common.notificationPanel.loadFailed"))
     } finally {
       setLoading(false)
     }
-  }, [syncUnread])
+  }, [syncUnread, t])
 
   useEffect(() => {
     const id = window.setTimeout(() => {
@@ -129,7 +131,7 @@ export function NotificationPanel({
       try {
         await markNotificationRead(id)
       } catch {
-        toast.error("Не удалось отметить уведомление")
+        toast.error(t("common.notificationPanel.markFailed"))
         void loadNotifications()
       }
     })
@@ -142,7 +144,7 @@ export function NotificationPanel({
       try {
         await deleteNotification(id)
       } catch {
-        toast.error("Не удалось удалить уведомление")
+        toast.error(t("common.notificationPanel.deleteFailed"))
         void loadNotifications()
       }
     })
@@ -155,7 +157,7 @@ export function NotificationPanel({
       try {
         await markAllRead()
       } catch {
-        toast.error("Не удалось")
+        toast.error(t("common.state.error"))
         void loadNotifications()
       }
     })
@@ -167,18 +169,23 @@ export function NotificationPanel({
       <div className="absolute right-0 top-8 z-40 flex max-h-[600px] w-[420px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50 px-5 py-3 dark:border-slate-800 dark:bg-slate-800/50">
           <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Уведомления{unread > 0 ? ` · ${unread} новых` : ""}
+            {t("common.notificationPanel.title")}
+            {unread > 0
+              ? t("common.notificationPanel.unreadSuffix", { count: unread })
+              : ""}
           </p>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowRead((value) => !value)}
               className="text-xs text-slate-600 hover:underline dark:text-slate-400"
             >
-              {showRead ? "Только новые" : "Показать все"}
+              {showRead
+                ? t("common.notificationPanel.onlyNew")
+                : t("common.notificationPanel.showAll")}
             </button>
             {unread > 0 && (
               <button onClick={markAllLocal} className="text-xs text-blue-600 hover:underline dark:text-blue-400">
-                Прочитать все
+                {t("common.notificationPanel.readAll")}
               </button>
             )}
           </div>
@@ -189,7 +196,7 @@ export function NotificationPanel({
             <CategoryChip
               active={activeCategory === "all"}
               onClick={() => setActiveCategory("all")}
-              label="Все"
+              label={t("common.actions.all")}
               count={showRead ? items.length : unread}
             />
             {CATEGORY_ORDER.map((cat) => {
@@ -203,7 +210,7 @@ export function NotificationPanel({
                   key={cat}
                   active={activeCategory === cat}
                   onClick={() => setActiveCategory(cat)}
-                  label={meta.label}
+                  label={t(`common.notificationPanel.groups.${cat}` as "common.notificationPanel.groups.other")}
                   icon={meta.icon}
                   iconColor={meta.color}
                   count={showRead ? list.length : unreadInCat}
@@ -217,13 +224,17 @@ export function NotificationPanel({
           {loading ? (
             <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Загружаем уведомления...
+              {t("common.layout.loadingNotifications")}
             </div>
           ) : visibleItems.length === 0 ? (
             <div className="py-12 text-center">
               <Bell className="mx-auto mb-2 h-8 w-8 text-slate-200 dark:text-slate-700" />
               <p className="text-sm text-slate-400 dark:text-slate-500">
-                {items.length === 0 ? "Нет уведомлений" : showRead ? "В этой категории пусто" : "Нет новых уведомлений"}
+                {items.length === 0
+                  ? t("common.notificationPanel.empty")
+                  : showRead
+                    ? t("common.notificationPanel.emptyCategory")
+                    : t("common.notificationPanel.emptyNew")}
               </p>
             </div>
           ) : (
@@ -293,6 +304,7 @@ function NotificationRow({
   onRead: (id: string) => void
   onDelete: (id: string) => void
 }) {
+  const { t } = useT()
   const cat = TYPE_TO_CATEGORY[item.type] ?? "other"
   const meta = CATEGORY_META[cat]
   const Icon = meta.icon
@@ -325,7 +337,7 @@ function NotificationRow({
                 onRead(item.id)
               }}
               className="text-slate-400 hover:text-emerald-600 dark:text-slate-500 dark:hover:text-emerald-400"
-              title="Отметить прочитанным"
+              title={t("common.notificationPanel.markRead")}
             >
               <Check className="h-3.5 w-3.5" />
             </button>
@@ -337,7 +349,7 @@ function NotificationRow({
               onDelete(item.id)
             }}
             className="text-slate-400 hover:text-red-600 dark:text-slate-500 dark:hover:text-red-400"
-            title="Удалить"
+            title={t("common.actions.delete")}
           >
             <X className="h-3.5 w-3.5" />
           </button>

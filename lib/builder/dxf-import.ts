@@ -102,6 +102,9 @@ function bulgePts(x1: number, y1: number, x2: number, y2: number, b: number): Ar
   return b < 0 ? pts.reverse() : pts
 }
 
+/** Код ошибки разбора: в DXF не нашлось ни одной линии. */
+export const DXF_NO_LINES = "dxf-no-lines"
+
 export function parseDxf(text: string): DxfImport {
   const ps = pairs(text)
   // заголовок: единицы
@@ -264,7 +267,8 @@ export function parseDxf(text: string): DxfImport {
     minX = Math.min(minX, ax, bx); maxX = Math.max(maxX, ax, bx)
     minY = Math.min(minY, ay, by); maxY = Math.max(maxY, ay, by)
   }
-  if (!Number.isFinite(minX)) throw new Error("В DXF нет линий: ни LINE, ни полилиний, ни блоков")
+  // код, а не текст: сообщение показывает панель подложки на языке интерфейса
+  if (!Number.isFinite(minX)) throw new Error(DXF_NO_LINES)
   // без единиц: здание меньше 500 «единиц» в ширину — это метры, а не миллиметры
   if (!UNITS[insunits] && Math.max(maxX - minX, maxY - minY) < 500) unit = 1000
   const segments: Seg[] = unit === 1 ? segs : segs.map(([a, b, c, d]) => [a * unit, b * unit, c * unit, d * unit])

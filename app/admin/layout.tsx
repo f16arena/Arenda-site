@@ -34,6 +34,7 @@ import {
   getCachedUnreadNotificationCount,
 } from "@/lib/admin-shell-cache"
 import { isTenantRole } from "@/lib/role-capabilities"
+import { DialogHost } from "@/components/ui/dialog-host"
 
 export default async function AdminLayout({
   children,
@@ -103,7 +104,13 @@ async function renderAdminLayout(children: React.ReactNode) {
       hasOwner: !!o.ownerUserId,
     }))
 
-    return <AdminSelectOrg orgs={mapped} userName={formatPersonShortName(session.user.name, "Платформа")} />
+    const { t } = await getT()
+    return (
+      <AdminSelectOrg
+        orgs={mapped}
+        userName={formatPersonShortName(session.user.name, t("adminShell.scope.platform"))}
+      />
+    )
   }
 
   // Каркас отдаётся сразу; данные сайдбара и шапки (кешируются) стримятся
@@ -138,6 +145,9 @@ async function renderAdminLayout(children: React.ReactNode) {
           />
         </Suspense>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+      {/* Общие окна «подтвердить?»/«введите текст» — внутри провайдера
+          словаря: их кнопки берут подписи из common.actions. */}
+      <DialogHost />
       </div>
     </div>
     </I18nProvider>
@@ -184,7 +194,10 @@ async function SidebarChrome({
     isPlatformOwner,
   })
   const building = allBuildings.find((item) => item.id === currentBuildingId) ?? null
-  const aggregateLabel = isOwnerLike(role, isPlatformOwner) ? "Все здания" : "Мои здания"
+  const { t } = await getT()
+  const aggregateLabel = isOwnerLike(role, isPlatformOwner)
+    ? t("adminShell.scope.allBuildings")
+    : t("adminShell.scope.myBuildings")
 
   return (
     <AdminSidebar
@@ -262,10 +275,12 @@ async function HeaderChrome({
   const daysLeft = planExpiresAt
     ? Math.max(0, Math.ceil((planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
-  const aggregateLabel = isOwnerLike(role, isPlatformOwner) ? "Все здания" : "Мои здания"
+  const aggregateLabel = isOwnerLike(role, isPlatformOwner)
+    ? t("adminShell.scope.allBuildings")
+    : t("adminShell.scope.myBuildings")
   const aggregateSubtitle = isOwnerLike(role, isPlatformOwner)
-    ? "Общая картина по всем зданиям"
-    : "Обзор назначенных зданий"
+    ? t("adminShell.scope.allSubtitle")
+    : t("adminShell.scope.mySubtitle")
 
   return (
     <>

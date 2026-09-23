@@ -5,6 +5,7 @@ import { headers } from "next/headers"
 import { validateSlug } from "@/lib/reserved-slugs"
 import { slugify, suggestSlugs } from "@/lib/slugify"
 import { ROOT_HOST } from "@/lib/host"
+import { getT } from "@/lib/i18n/server"
 import { audit } from "@/lib/audit"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
@@ -28,6 +29,8 @@ export interface SignupResult {
  * + автологин + редирект на slug-поддомен.
  */
 export async function signup(_prev: SignupResult | undefined, formData: FormData): Promise<SignupResult> {
+  // Письмо уходит тому же человеку, кто заполняет форму, — язык запроса верен.
+  const { t } = await getT()
   const details: NonNullable<SignupResult["details"]> = []
   const step = (label: string, t0: number, ok: boolean, note?: string) => {
     details.push({ step: label, ms: Date.now() - t0, ok, note })
@@ -39,7 +42,7 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   if (!rl.ok) {
     return {
       ok: false,
-      error: `Слишком много попыток регистрации. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      error: t("actions.signup.tooManyAttempts", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
       details,
     }
   }
@@ -50,10 +53,14 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   let ownerEmail: string | null
   let ownerPhone: string | null
   try {
-    ownerEmail = normalizeEmail(formData.get("ownerEmail"), { fieldName: "Email владельца" })
-    ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), { fieldName: "Телефон владельца" })
+    ownerEmail = normalizeEmail(formData.get("ownerEmail"), {
+      fieldName: t("actions.organizations.ownerEmailField"),
+    })
+    ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), {
+      fieldName: t("actions.organizations.ownerPhoneField"),
+    })
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Некорректные контактные данные", details }
+    return { ok: false, error: error instanceof Error ? error.message : t("actions.common.invalidContactData"), details }
   }
   const password = String(formData.get("password") ?? "")
   // acceptedTerms (новое название после консолидации с agreed). Серверная
@@ -61,14 +68,14 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   const acceptedTerms = formData.get("acceptedTerms") === "on" || formData.get("agreed") === "on"
 
   // ── Базовая валидация ────────────────────────────────────────
-  if (!companyName) return { ok: false, error: "Введите название организации", details }
-  if (!ownerName) return { ok: false, error: "Введите ФИО владельца", details }
-  if (!ownerEmail && !ownerPhone) return { ok: false, error: "Укажите email или телефон", details }
-  if (password.length < 8) return { ok: false, error: "Пароль минимум 8 символов", details }
-  if (!acceptedTerms) return { ok: false, error: "Нужно принять Публичную оферту, Политику конфиденциальности и Условия использования", details }
+  if (!companyName) return { ok: false, error: t("actions.signup.companyRequired"), details }
+  if (!ownerName) return { ok: false, error: t("actions.signup.ownerNameRequired"), details }
+  if (!ownerEmail && !ownerPhone) return { ok: false, error: t("actions.signup.contactRequired"), details }
+  if (password.length < 8) return { ok: false, error: t("actions.myAccount.newPasswordTooShort"), details }
+  if (!acceptedTerms) return { ok: false, error: t("actions.signup.termsRequired"), details }
 
   const v = validateSlug(slug)
-  if (!v.ok) return { ok: false, error: `Поддомен: ${v.reason}`, details }
+  if (!v.ok) return { ok: false, error: t("actions.signup.slugProblem", { reason: v.reason ?? "" }), details }
 
   // ── Найти/создать TRIAL план ─────────────────────────────────
   let t0 = Date.now()
@@ -77,6 +84,8 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     trialPlan = await db.plan.create({
       data: {
         code: "TRIAL",
+        // Название и описание тарифа — запись в БД, её видят все организации
+        // на любом языке, поэтому остаются русскими.
         name: "Триал 14 дней",
         description: "Бесплатный пробный период со всеми функциями Бизнеса",
         priceMonthly: 0,
@@ -105,7 +114,7 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   step("slug.check", t0, true, existingOrg ? "taken" : "free")
   if (existingOrg) {
     const sug = suggestSlugs(slug).join(", ")
-    return { ok: false, error: `Поддомен «${slug}» занят. Попробуйте: ${sug}`, details }
+    return { ok: false, error: t("actions.organizations.slugTaken", { slug, suggestions: sug }), details }
   }
 
   // ── Проверка не занят ли email/phone ─────────────────────────
@@ -114,14 +123,14 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     const u = await db.user.findUnique({ where: { email: ownerEmail }, select: { id: true } }).catch(() => null)
     if (u) {
       step("user.checkEmail", t0, false, "taken")
-      return { ok: false, error: `Email ${ownerEmail} уже зарегистрирован. Войдите вместо регистрации.`, details }
+      return { ok: false, error: t("actions.signup.emailRegistered", { email: ownerEmail }), details }
     }
   }
   if (ownerPhone) {
     const u = await db.user.findUnique({ where: { phone: ownerPhone }, select: { id: true } }).catch(() => null)
     if (u) {
       step("user.checkPhone", t0, false, "taken")
-      return { ok: false, error: `Телефон ${ownerPhone} уже зарегистрирован`, details }
+      return { ok: false, error: t("actions.signup.phoneRegistered", { phone: ownerPhone }), details }
     }
   }
   step("user.checkUnique", t0, true)
@@ -173,7 +182,7 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     step("create.all", t0, false, msg)
-    return { ok: false, error: `Не удалось создать организацию: ${msg}`, details }
+    return { ok: false, error: t("actions.signup.createFailed", { reason: msg }), details }
   }
 
   await audit({
@@ -206,22 +215,27 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
       const verifyLink = `${proto}://${ROOT_HOST}/verify-email?token=${token}`
 
       const html = basicEmailTemplate({
-        title: "Заявка в Commrent принята",
-        body: `<p>Здравствуйте, ${ownerName}!</p>
-<p>Ваша организация <b>${companyName}</b> отправлена на подтверждение.</p>
-<p>После подтверждения суперадмином вам будет открыт кабинет <b>${slug}.commrent.kz</b>, а 14-дневный триал начнется этой датой.</p>
-<p>Логин: <b>${ownerEmail}</b></p>
-<p>Подтвердите email, чтобы получать важные уведомления (договоры, счета, напоминания):</p>`,
-        buttonText: "Подтвердить email",
+        title: t("actions.signup.mailTitle"),
+        body: `<p>${t("actions.signup.mailGreeting", { name: ownerName })}</p>
+<p>${t("actions.signup.mailPending", { company: companyName })}</p>
+<p>${t("actions.signup.mailCabinet", { host: `${slug}.commrent.kz` })}</p>
+<p>${t("actions.signup.mailLogin", { login: ownerEmail })}</p>
+<p>${t("actions.signup.mailVerifyLead")}</p>`,
+        buttonText: t("actions.signup.mailVerifyButton"),
         buttonUrl: verifyLink,
-        footer: "Если вы не регистрировались — проигнорируйте это письмо или ответьте на него для блокировки аккаунта.",
+        footer: t("actions.signup.mailFooter"),
       })
 
       await sendEmail({
         to: ownerEmail,
-        subject: `Заявка Commrent принята · ${companyName}`,
+        subject: t("actions.signup.mailSubject", { company: companyName }),
         html,
-        text: `Здравствуйте, ${ownerName}!\n\nЗаявка организации ${companyName} отправлена на подтверждение. Кабинет ${slug}.commrent.kz и 14-дневный триал будут открыты после подтверждения суперадмином.\n\nПодтвердите email: ${verifyLink}`,
+        text: t("actions.signup.mailText", {
+          name: ownerName,
+          company: companyName,
+          host: `${slug}.commrent.kz`,
+          link: verifyLink,
+        }),
       })
     } catch (e) {
       console.warn("[signup] welcome email failed:", e instanceof Error ? e.message : e)
@@ -232,7 +246,7 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
     ok: true,
     pendingApproval: true,
     orgSlug: slug,
-    message: `Заявка ${companyName} отправлена на подтверждение. После подтверждения суперадмином владелец сможет войти в ${slug}.${ROOT_HOST}.`,
+    message: t("actions.signup.submitted", { company: companyName, host: `${slug}.${ROOT_HOST}` }),
     details,
   }
 }

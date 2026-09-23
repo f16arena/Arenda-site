@@ -1000,4 +1000,30 @@ export const adminTenants: typeof ru = {
     loadFailed: "Жалға алушының қосымша деректерін жүктеу мүмкін болмады",
     noData: "Жалға алушының деректері жүктелмеді",
   },
+  emailLog: {
+    title: "Хаттар тарихы",
+    meta: plural({
+      one: "{count} хат",
+      other: "{count} хат",
+    }),
+    colType: "Түрі",
+    colSubject: "Тақырыбы",
+    colStatus: "Мәртебесі",
+    colSent: "Жіберілді",
+    colRead: "Оқылды",
+    types: {
+      INVOICE: "Шот",
+      ACT: "Акт",
+      CONTRACT: "Шарт",
+      HANDOVER: "Қабылдау актісі",
+      NOTIFICATION: "Хабарландыру",
+      OTHER: "Өзгесі",
+    },
+    statuses: {
+      QUEUED: "Кезекте",
+      SENT: "Жіберілді",
+      OPENED: "Оқылды",
+      FAILED: "Қате",
+    },
+  },
 }

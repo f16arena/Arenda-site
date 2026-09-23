@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { QrCode, Smartphone, Loader2, Check } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
 /**
  * Подписание договора через eGov Mobile по QR / диплинку (официальный протокол NITEC).
@@ -17,6 +18,7 @@ export function EgovQrSign({
   token: string
   onSigned?: () => void
 }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
   const [signed, setSigned] = useState(false)
@@ -63,7 +65,7 @@ export function EgovQrSign({
         <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-2">
           <Check className="h-5 w-5" />
         </div>
-        <p className="text-sm font-semibold text-emerald-900">Подписано через eGov Mobile</p>
+        <p className="text-sm font-semibold text-emerald-900">{t("common.sign.egovSigned")}</p>
       </div>
     )
   }
@@ -76,7 +78,7 @@ export function EgovQrSign({
         className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
       >
         <Smartphone className="h-4 w-4" />
-        Подписать телефоном (eGov Mobile)
+        {t("common.sign.egovButton")}
       </button>
     )
   }
@@ -85,19 +87,19 @@ export function EgovQrSign({
     <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
       <div className="flex items-center gap-2">
         <QrCode className="h-4 w-4 text-blue-600" />
-        <p className="text-sm font-semibold text-slate-900">Подпись через eGov Mobile</p>
+        <p className="text-sm font-semibold text-slate-900">{t("common.sign.egovTitle")}</p>
       </div>
       <div className="flex flex-col items-center gap-2">
         {qrDataUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={qrDataUrl} alt="QR для подписи в eGov Mobile" width={240} height={240} />
+          <img src={qrDataUrl} alt={t("common.sign.egovQrAlt")} width={240} height={240} />
         ) : (
           <div className="flex h-[240px] w-[240px] items-center justify-center text-slate-400">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         )}
         <p className="text-xs text-slate-500 text-center max-w-xs">
-          Откройте eGov Mobile → «Подписать по QR» и отсканируйте код. После подписи статус обновится автоматически.
+          {t("common.sign.egovHint")}
         </p>
       </div>
       <a
@@ -105,11 +107,11 @@ export function EgovQrSign({
         className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 sm:hidden"
       >
         <Smartphone className="h-4 w-4" />
-        Открыть в eGov Mobile (на этом телефоне)
+        {t("common.sign.egovOpen")}
       </a>
       <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
         <Loader2 className="h-3 w-3 animate-spin" />
-        Ожидаем подпись…
+        {t("common.sign.egovWaiting")}
       </div>
     </div>
   )

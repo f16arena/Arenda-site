@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { FINANCE_TABS } from "@/lib/hub-tabs"
+import { financeTabs } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
 import Link from "next/link"
 import { CalendarClock, ArrowLeft } from "lucide-react"
@@ -107,7 +107,7 @@ export default async function InstallmentsPage() {
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={FINANCE_TABS} className="mb-2" />
+      <RouteTabs items={financeTabs(t)} className="mb-2" />
       <PageHeader
         icon={CalendarClock}
         title={t("adminFinance.installments.title")}

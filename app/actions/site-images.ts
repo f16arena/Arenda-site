@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 
 // Управление изображениями публичного сайта (лендинг). Платформенный уровень —
@@ -12,17 +13,20 @@ const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/avif"])
 
 async function requirePlatformOwner() {
   const session = await auth()
-  if (!session?.user?.isPlatformOwner) throw new Error("Доступ только для платформенного владельца")
+  const { t } = await getT()
+  if (!session?.user?.isPlatformOwner) throw new Error(t("actions.siteImages.platformOwnerOnly"))
 }
 
 export async function uploadSiteImage(slot: string, formData: FormData): Promise<{ ok: boolean; error?: string }> {
   await requirePlatformOwner()
+  const { t } = await getT()
   const key = String(slot ?? "").trim()
-  if (!key) return { ok: false, error: "Не указан slot" }
+  // slot — технический ключ картинки в БД, не переводится.
+  if (!key) return { ok: false, error: t("actions.siteImages.slotRequired") }
   const file = formData.get("file")
-  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Прикрепите изображение" }
-  if (file.size > MAX) return { ok: false, error: "Размер больше 8 МБ" }
-  if (!ALLOWED.has(file.type)) return { ok: false, error: "Только PNG, JPEG, WEBP или AVIF" }
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: t("actions.siteImages.imageRequired") }
+  if (file.size > MAX) return { ok: false, error: t("actions.siteImages.tooBig") }
+  if (!ALLOWED.has(file.type)) return { ok: false, error: t("actions.siteImages.badFormat") }
 
   const data = Buffer.from(await file.arrayBuffer())
   await db.siteImage.upsert({

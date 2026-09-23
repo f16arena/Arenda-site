@@ -8,6 +8,8 @@ import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
 import { notifyUser } from "@/lib/notify"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import { isUniqueConstraintError } from "@/lib/prisma-errors"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 
 export const dynamic = "force-dynamic"
 
@@ -84,6 +86,9 @@ export async function GET(req: Request) {
 
   for (const tenant of tenants) {
     try {
+      // Описание начисления и уведомление читает арендатор — язык из его профиля,
+      // а не из запроса: задачу запускает cron, cookie здесь нет.
+      const { t: tTenant, locale: tenantLocale } = await getTForUser(tenant.userId)
       const chargePeriods = getCronRentPeriods(tenant, period)
       const existingRentPeriods = new Set(tenant.charges.map((charge) => charge.period))
 
@@ -139,7 +144,7 @@ export async function GET(req: Request) {
                 period: chargePeriod,
                 type: "CLEANING",
                 amount: tenant.cleaningFee,
-                description: `Уборка помещения за ${chargePeriod}`,
+                description: tTenant("emails.monthly.cleaningDescription", { period: chargePeriod }),
                 dueDate,
               },
             })
@@ -227,8 +232,11 @@ export async function GET(req: Request) {
           await notifyUser({
             userId: tenant.userId,
             type: "PAYMENT_DUE",
-            title: `Начислена аренда за ${chargePeriod}`,
-            message: `Сумма к оплате: ${totalCharge.toLocaleString("ru-RU")} ₸. Срок оплаты — до ${dueDate.toLocaleDateString("ru-RU")}.`,
+            title: tTenant("emails.monthly.rentChargedTitle", { period: chargePeriod }),
+            message: tTenant("emails.monthly.rentChargedMessage", {
+              amount: formatMoneyL(tenantLocale, totalCharge),
+              date: formatDateShortL(tenantLocale, dueDate),
+            }),
             link: "/cabinet/finances",
             dedupWindowHours: 20,
           })

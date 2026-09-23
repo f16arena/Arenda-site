@@ -8,15 +8,26 @@ import type { Vec2 } from "@/core/geometry/math"
 import { pointInPolygon } from "@/core/geometry/math"
 import { floorRooms, type FloorRoom } from "./rooms"
 import { roomDisplayName, roomUse } from "./room-use"
-import { islandLabel, passageLeft } from "./islands"
+import { islandLabel, passageLeft, type IslandNamer } from "./islands"
+import type { Messages } from "@/lib/i18n/messages"
+
+/** Ключи замечаний в словаре; errors/warns — формы числа для сводки, не текст. */
+export type IssueKey = Exclude<keyof Messages["adminBuilder"]["checks"], "errors" | "warns">
+
+/** Существительное для подстановки в текст замечания — тоже ключ словаря. */
+export type IssueNoun = "nounDoor" | "nounWindow" | "nounDoorLower" | "nounWindowLower" | "nounElevator" | "nounColumn" | "nounStair"
 
 export type IssueLevel = "error" | "warn"
 
 export interface Issue {
   id: string
   level: IssueLevel
-  /** короткий текст для списка */
-  text: string
+  /**
+   * Ключ текста в словаре (adminBuilder.checks) и подстановки к нему. Сам
+   * текст собирает панель проверки: она знает язык, а модуль — только нормы.
+   */
+  key: IssueKey
+  vars?: Record<string, string | number>
   /** что открыть по клику */
   floorId?: string
   target?: { type: "room" | "wall" | "opening" | "stair" | "island"; id: string }
@@ -78,10 +89,19 @@ function openingCenter(floor: Pick<Floor, "wallGraph">, o: Opening): Vec2 | null
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
 }
 
+/**
+ * Замечание о помещении: с наименованием и без — разные строки, а не склейка.
+ * В казахском «помещение «Офис»» стоит в другом порядке, чем в русском.
+ */
+function named(key: "roomNoDoor" | "roomNoWindow" | "roomNoLink" | "roomNoExit", name: string): { key: IssueKey; vars?: Record<string, string> } {
+  return name ? { key: `${key}Named` as IssueKey, vars: { name } } : { key }
+}
+
 /** Проверки одного этажа. */
 export function validateFloor(
   floor: Floor,
   opts: { lowest: boolean; multiFloor: boolean; reachedFromBelow?: boolean },
+  names?: IslandNamer,
 ): Issue[] {
   const out: Issue[] = []
   const g = floor.wallGraph
@@ -91,7 +111,7 @@ export function validateFloor(
   for (const o of floor.openings) {
     const e = g.edges[o.wallId]
     if (!e) {
-      out.push({ id: `op-orphan-${o.id}`, level: "error", text: `Проём без стены (${o.type === "door" ? "дверь" : "окно"})`, floorId: floor.id, target: { type: "opening", id: o.id } })
+      out.push({ id: `op-orphan-${o.id}`, level: "error", key: "openingOrphan", vars: { noun: o.type === "door" ? "nounDoorLower" : "nounWindowLower" }, floorId: floor.id, target: { type: "opening", id: o.id } })
       continue
     }
     const a = g.nodes[e.a], b = g.nodes[e.b]
@@ -101,7 +121,8 @@ export function validateFloor(
       out.push({
         id: `op-out-${o.id}`,
         level: "error",
-        text: `${o.type === "door" ? "Дверь" : "Окно"} шире стены или выходит за её край`,
+        key: "openingOversize",
+        vars: { noun: o.type === "door" ? "nounDoor" : "nounWindow" },
         floorId: floor.id,
         target: { type: "opening", id: o.id },
         at: openingCenter(floor, o) ?? undefined,
@@ -111,7 +132,7 @@ export function validateFloor(
       out.push({
         id: `op-inner-window-${o.id}`,
         level: "warn",
-        text: "Окно во внутренней стене — выходит в соседнее помещение",
+        key: "windowInner",
         floorId: floor.id,
         target: { type: "opening", id: o.id },
         at: openingCenter(floor, o) ?? undefined,
@@ -121,7 +142,8 @@ export function validateFloor(
       out.push({
         id: `op-narrow-${o.id}`,
         level: "warn",
-        text: `Эвакуационная дверь уже ${EXIT_DOOR_MIN} мм (${o.width} мм)`,
+        key: "exitDoorNarrow",
+        vars: { min: EXIT_DOOR_MIN, width: o.width },
         floorId: floor.id,
         target: { type: "opening", id: o.id },
         at: openingCenter(floor, o) ?? undefined,
@@ -138,23 +160,23 @@ export function validateFloor(
     const windows = ops.filter((o) => o.type === "window")
     const at = center(room.polygon)
     if (room.areaMm2 > 2e6 && doors.length === 0) {
-      out.push({ id: `room-nodoor-${room.id}`, level: "error", text: `В помещение${name ? ` «${name}»` : ""} нет входа: ни одной двери`, floorId: floor.id, target: { type: "room", id: room.id }, at })
+      out.push({ id: `room-nodoor-${room.id}`, level: "error", ...named("roomNoDoor", name), floorId: floor.id, target: { type: "room", id: room.id }, at })
     }
     if (use === "rent" && room.areaMm2 > 8e6 && windows.length === 0) {
-      out.push({ id: `room-nowin-${room.id}`, level: "warn", text: `Помещение${name ? ` «${name}»` : ""} без окон — нет естественного освещения`, floorId: floor.id, target: { type: "room", id: room.id }, at })
+      out.push({ id: `room-nowin-${room.id}`, level: "warn", ...named("roomNoWindow", name), floorId: floor.id, target: { type: "room", id: room.id }, at })
     }
     if (use === "rent" && room.areaMm2 > 10e6 && !floor.premiseLinks?.[room.id]) {
       out.push({
         id: `room-nolink-${room.id}`,
         level: "warn",
-        text: `Помещение${name ? ` «${name}»` : ""} не связано с помещением из базы — арендатор и статус не покажутся`,
+        ...named("roomNoLink", name),
         floorId: floor.id,
         target: { type: "room", id: room.id },
         at,
       })
     }
     if (use === "rent" && !name) {
-      out.push({ id: `room-noname-${room.id}`, level: "warn", text: "Помещение без наименования — в экспликации будет пусто", floorId: floor.id, target: { type: "room", id: room.id }, at })
+      out.push({ id: `room-noname-${room.id}`, level: "warn", key: "roomNoName", floorId: floor.id, target: { type: "room", id: room.id }, at })
     }
   }
 
@@ -202,7 +224,7 @@ export function validateFloor(
         out.push({
           id: `room-noexit-${room.id}`,
           level: "error",
-          text: `Из помещения${name ? ` «${name}»` : ""} нет пути наружу: двери не связывают его с выходом`,
+          ...named("roomNoExit", name),
           floorId: floor.id,
           target: { type: "room", id: room.id },
           at: center(room.polygon),
@@ -214,7 +236,7 @@ export function validateFloor(
   // 3. связь между этажами: свой марш либо марш снизу, который сюда приходит
   const links = (floor.stairs ?? []).filter((s) => s.shape !== "column" && s.shape !== "porch" && s.shape !== "ramp")
   if (opts.multiFloor && links.length === 0 && !opts.reachedFromBelow) {
-    out.push({ id: `floor-nostair-${floor.id}`, level: "error", text: `Этаж «${floor.name}» ни с чем не связан: нет лестницы или лифта`, floorId: floor.id })
+    out.push({ id: `floor-nostair-${floor.id}`, level: "error", key: "floorNoStair", vars: { name: floor.name }, floorId: floor.id })
   }
 
   // 4. вход с перепадом без пандуса — нижний этаж
@@ -225,7 +247,8 @@ export function validateFloor(
       out.push({
         id: `floor-noramp-${floor.id}`,
         level: "warn",
-        text: `Вход выше земли на ${Math.round(Math.abs(floor.elevation))} мм, а пандуса нет — здание недоступно для МГН`,
+        key: "noRamp",
+        vars: { value: Math.round(Math.abs(floor.elevation)) },
         floorId: floor.id,
         at: openingCenter(floor, entrances[0]) ?? undefined,
       })
@@ -239,7 +262,7 @@ export function validateFloor(
       out.push({
         id: `floor-noexit-${floor.id}`,
         level: "warn",
-        text: "Ни одна дверь не отмечена как выход — план эвакуации будет пустым",
+        key: "noExitMarked",
         floorId: floor.id,
       })
     }
@@ -247,7 +270,7 @@ export function validateFloor(
 
   // 5. высота этажа
   if (floor.height > 0 && floor.height < LOW_CEILING) {
-    out.push({ id: `floor-low-${floor.id}`, level: "warn", text: `Высота этажа «${floor.name}» всего ${floor.height} мм`, floorId: floor.id })
+    out.push({ id: `floor-low-${floor.id}`, level: "warn", key: "lowCeiling", vars: { name: floor.name, value: floor.height }, floorId: floor.id })
   }
 
   // 6. вырожденные стены
@@ -257,7 +280,7 @@ export function validateFloor(
     if (!a || !b) continue
     const len = Math.hypot(b.x - a.x, b.y - a.y)
     if (len < 50) {
-      out.push({ id: `wall-short-${id}`, level: "error", text: `Стена длиной ${Math.round(len)} мм — скорее всего, случайный клик`, floorId: floor.id, target: { type: "wall", id } })
+      out.push({ id: `wall-short-${id}`, level: "error", key: "wallShort", vars: { value: Math.round(len) }, floorId: floor.id, target: { type: "wall", id } })
     }
   }
 
@@ -269,7 +292,8 @@ export function validateFloor(
       out.push({
         id: `stair-out-${st.id}`,
         level: "error",
-        text: `${st.shape === "elevator" ? "Лифт" : st.shape === "column" ? "Колонна" : "Лестница"} стоит вне здания`,
+        key: "outside",
+        vars: { noun: st.shape === "elevator" ? "nounElevator" : st.shape === "column" ? "nounColumn" : "nounStair" },
         floorId: floor.id,
         target: { type: "stair", id: st.id },
         at: { x: st.position.x, y: st.position.y },
@@ -285,7 +309,8 @@ export function validateFloor(
       out.push({
         id: `island-out-${isl.id}`,
         level: "error",
-        text: `${islandLabel(isl)}: место стоит вне здания`,
+        key: "islandOutside",
+        vars: { name: islandLabel(isl, names) },
         floorId: floor.id,
         target: { type: "island", id: isl.id },
         at: { x: isl.position.x, y: isl.position.y },
@@ -297,7 +322,8 @@ export function validateFloor(
       out.push({
         id: `island-narrow-${isl.id}`,
         level: "warn",
-        text: `${islandLabel(isl)}: проход рядом ${Math.round(left)} мм — по нормам эвакуации нужно от ${MIN_PASSAGE} мм`,
+        key: "islandNarrow",
+        vars: { name: islandLabel(isl, names), value: Math.round(left), min: MIN_PASSAGE },
         floorId: floor.id,
         target: { type: "island", id: isl.id },
         at: { x: isl.position.x, y: isl.position.y },
@@ -309,7 +335,7 @@ export function validateFloor(
 }
 
 /** Проверка всей модели: по всем зданиям и этажам. */
-export function validateDocument(doc: BuilderDocument): Issue[] {
+export function validateDocument(doc: BuilderDocument, names?: IslandNamer): Issue[] {
   const out: Issue[] = []
   for (const b of doc.buildings) {
     const floors = [...b.floors].sort((x, y) => x.elevation - y.elevation)
@@ -325,22 +351,18 @@ export function validateDocument(doc: BuilderDocument): Issue[] {
     for (const f of floors) {
       const hasWalls = Object.keys(f.wallGraph.edges).length > 0
       if (!hasWalls) continue
-      out.push(...validateFloor(f, { lowest: f.id === floors[0].id, multiFloor: multi, reachedFromBelow: reached.has(f.id) }))
+      out.push(...validateFloor(f, { lowest: f.id === floors[0].id, multiFloor: multi, reachedFromBelow: reached.has(f.id) }, names))
     }
   }
   // сначала ошибки, потом предупреждения
   return out.sort((a, c) => (a.level === c.level ? 0 : a.level === "error" ? -1 : 1))
 }
 
-/** Сводка для кнопки: «2 ошибки, 5 предупреждений». */
-export function issuesSummary(issues: Issue[]): string {
-  const e = issues.filter((i) => i.level === "error").length
-  const w = issues.length - e
-  if (!issues.length) return "Замечаний нет"
-  const plural = (n: number, one: string, few: string, many: string) =>
-    n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many
-  const parts: string[] = []
-  if (e) parts.push(`${e} ${plural(e, "ошибка", "ошибки", "ошибок")}`)
-  if (w) parts.push(`${w} ${plural(w, "замечание", "замечания", "замечаний")}`)
-  return parts.join(", ")
+/**
+ * Сводка для кнопки: сколько ошибок и сколько замечаний. Склонения у чисел
+ * свои в каждом языке, поэтому строки собирает вызывающий через tp().
+ */
+export function issuesCount(issues: Issue[]): { errors: number; warns: number } {
+  const errors = issues.filter((i) => i.level === "error").length
+  return { errors, warns: issues.length - errors }
 }

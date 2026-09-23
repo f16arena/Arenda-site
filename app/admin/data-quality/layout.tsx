@@ -11,7 +11,7 @@ export default async function AdminDataQualityLayout({ children }: { children: R
   return (
     <I18nProvider
       locale={locale}
-      messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminSettings"])}
+      messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminSettings", "adminChecks"])}
     >
       {children}
     </I18nProvider>

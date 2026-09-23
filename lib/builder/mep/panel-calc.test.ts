@@ -3,6 +3,12 @@ import { emptyGraph, insertWall } from "@/core/geometry/wall-graph"
 import type { Floor, MepDevice } from "@/types/builder"
 import { autoAssignGroups, calcPanels } from "./panel-calc"
 
+import { createTranslator } from "@/lib/i18n/translate"
+import { ru } from "@/lib/i18n/messages"
+
+// Тексты на листах собираются переводчиком — в тестах берём русский словарь.
+const { t } = createTranslator("ru", ru)
+
 function floorWith(devices: MepDevice[]): Floor {
   let g = emptyGraph()
   const pts = [[0, 0], [12000, 0], [12000, 6000], [0, 6000], [0, 0]]
@@ -41,7 +47,7 @@ describe("расчёт щита", () => {
     const f = sample()
     const a = autoAssignGroups(f)
     const assigned = { ...f, mepDevices: f.mepDevices.map((d) => { const x = a.find((y) => y.deviceId === d.id); return x ? { ...d, panelId: x.panelId, group: x.group } : d }) }
-    const [panel] = calcPanels(assigned)
+    const [panel] = calcPanels(assigned, t)
     expect(panel.label).toBe("ЩР-1")
     const sockets6 = panel.groups.find((g) => g.kind === "sockets" && g.deviceIds.length === 6)!
     // 1800 Вт × 0,8 / (230 × 0,9) ≈ 6,96 А → автомат 16 А (минимум для розеток), кабель 3×2,5
@@ -70,7 +76,7 @@ describe("расчёт щита", () => {
       mepDevices: f.mepDevices.map((d) => { const x = a.find((y) => y.deviceId === d.id); return x ? { ...d, panelId: x.panelId, group: x.group } : d }),
       mepRuns: [{ id: "r", system: "lighting", points: [{ x: 200, y: 3000 }, { x: 25200, y: 3000 }], height: 2900, size: "", label: `гр.${light.group}` }],
     }
-    const g = calcPanels(withRun)[0].groups.find((x) => x.group === light.group)!
+    const g = calcPanels(withRun, t)[0].groups.find((x) => x.group === light.group)!
     expect(g.lengthM).toBe(25)
   })
 })

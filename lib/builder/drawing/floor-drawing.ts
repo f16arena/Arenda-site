@@ -19,6 +19,7 @@ import { floorAtStage } from "@/lib/builder/replan"
 import { generateStair, RAMP_SLOPE, stairPlanRects, stairToWorld } from "@/core/geometry/stair-generator"
 import { stairHoleWorld } from "@/lib/builder/stair-hole"
 import { islandLabel, islandMark, islandPolygon } from "../islands"
+import type { SheetT } from "@/lib/builder/sheet-text"
 import type { Floor } from "@/types/builder"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { centroid, pointInPolygon } from "@/core/geometry/math"
@@ -62,6 +63,12 @@ export interface DrawingOptions {
   openingMarks?: Map<string, string>
   /** номера помещений для неподвязанных к карточкам (roomId → «105») */
   roomNumbers?: Map<string, string>
+  /**
+   * Переводчик для подписей на плане: наименование помещения, вид арендного
+   * места, «Лифт», уклон пандуса. Без него в подписи попадут ключи словаря —
+   * так план видят только тесты.
+   */
+  t?: SheetT
 }
 
 /** Стадия листа: обмерный план (было), демонтаж, монтаж, стало. */
@@ -319,7 +326,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
           stairToWorld(st, cab.x - cab.w / 2, cab.z - cab.d / 2), stairToWorld(st, cab.x + cab.w / 2, cab.z - cab.d / 2),
           stairToWorld(st, cab.x + cab.w / 2, cab.z + cab.d / 2), stairToWorld(st, cab.x - cab.w / 2, cab.z + cab.d / 2),
         ],
-        label: "Лифт",
+        label: options.t ? options.t("adminBuilderSheet.sheetText.elevatorMark") : "elevatorMark",
       })
       for (const c of hole) {
         minX = Math.min(minX, c.x); maxX = Math.max(maxX, c.x)
@@ -332,7 +339,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
       const all = rects.flat()
       const cx = all.reduce((a, q) => a + q.x, 0) / all.length
       const cy = all.reduce((a, q) => a + q.y, 0) / all.length
-      rampLabels.push({ at: { x: cx, y: cy }, text: `Пандус i=1:${RAMP_SLOPE}` })
+      rampLabels.push({ at: { x: cx, y: cy }, text: options.t ? options.t("adminBuilderSheet.sheetText.rampSlope", { slope: RAMP_SLOPE }) : `i=1:${RAMP_SLOPE}` })
     }
     if (st.shape !== "porch" && st.shape !== "ramp" && rects.length >= 2) {
       stairArrows.push(rects.map((q) => ({ x: (q[0].x + q[2].x) / 2, y: (q[0].y + q[2].y) / 2 })))
@@ -361,7 +368,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     const obstacles = floor.stairs.map((st) => stairHoleWorld(st, floor.height)).filter((h) => pointInPolygon({ x: (h[0].x + h[2].x) / 2, y: (h[0].y + h[2].y) / 2 }, r.polygon))
     const use = roomUse(floor, r)
     const number = use === "rent" ? (key ? premiseNumber(key) : null) ?? options.roomNumbers?.get(r.id) ?? null : null
-    return { roomId: r.id, at: labelPoint(r.polygon, [...(r.holes ?? []), ...obstacles]), number, areaM2: r.areaMm2 / 1_000_000, use, name: use === "rent" ? "" : roomDisplayName(floor, r), polygon: r.polygon, holes: r.holes ?? [] }
+    return { roomId: r.id, at: labelPoint(r.polygon, [...(r.holes ?? []), ...obstacles]), number, areaM2: r.areaMm2 / 1_000_000, use, name: use === "rent" ? "" : roomDisplayName(floor, r, (key) => (options.t ? options.t(`adminBuilder.roomNames.${key}`) : key)), polygon: r.polygon, holes: r.holes ?? [] }
   })
 
   // размерные цепочки по четырём фасадам
@@ -470,7 +477,7 @@ export function buildFloorDrawing(source: Floor, premiseNumber: (premiseId: stri
     poly: islandPolygon(isl),
     at: { x: isl.position.x, y: isl.position.y },
     mark: islandMark(floor.level, i),
-    text: islandLabel(isl),
+    text: islandLabel(isl, (kind) => (options.t ? options.t(`adminBuilder.islands.kinds.${kind}`) : kind)),
   }))
   const levelMark = { at: { x: minX + (maxX - minX) * 0.22, y: maxY - 2600 }, text: levelText }
 

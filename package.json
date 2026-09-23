@@ -12,6 +12,7 @@
     "perf:audit": "node scripts/performance-audit.mjs",
     "security:audit": "node scripts/security-isolation-audit.mjs",
     "security:scan": "node scripts/audit-isolation.mjs",
+    "i18n:check": "node scripts/check-i18n-providers.mjs",
     "backfill:cash-link": "tsx scripts/backfill-cash-payment-link.ts",
     "ci:performance-gate": "node scripts/ci-performance-gate.mjs",
     "test:unit": "vitest run",

@@ -32,6 +32,7 @@ import { assertBuildingAccess, assertTenantBuildingAccess, getAccessibleBuilding
 import { PaymentCreateSchema, firstZodError } from "@/lib/schemas"
 import { isUniqueConstraintError } from "@/lib/prisma-errors"
 import { getT, getTForUser } from "@/lib/i18n/server"
+import { formatDateL, formatMoneyL, formatPeriodL } from "@/lib/i18n/format"
 import type { Prisma } from "@/app/generated/prisma/client"
 
 function parseChargeAmount(value: FormDataEntryValue | null) {
@@ -426,27 +427,27 @@ export async function listChargeableTenants(period: string) {
   })
 
   const rows = await Promise.all(
-    tenants.map(async (t) => {
-      const schedule = calculateTenantRentChargeForPeriod(t, period)
+    tenants.map(async (row) => {
+      const schedule = calculateTenantRentChargeForPeriod(row, period)
       let amount = schedule.shouldCreate ? schedule.amount : 0
       // Полная сумма = позиции договора (аренда + эксп.расходы + услуги), как в счёте.
-      const contract = await getActiveContractForTenant(t.id)
+      const contract = await getActiveContractForTenant(row.id)
       if (contract) {
-        const positions = await buildContractPositions(t.id, period, contract)
+        const positions = await buildContractPositions(row.id, period, contract)
         const total = positions.reduce((s, p) => s + p.amount, 0)
         if (total > 0) amount = total
       }
       return {
-        id: t.id,
-        name: t.companyName ?? "—",
-        placement: formatTenantPlacement(t, { includeFloorName: false }),
+        id: row.id,
+        name: row.companyName ?? "—",
+        placement: formatTenantPlacement(row, { includeFloorName: false }),
         amount,
         shouldCreate: amount > 0,
-        alreadyCharged: t.charges.length > 0,
+        alreadyCharged: row.charges.length > 0,
       }
     }),
   )
-  return rows.filter((t) => t.shouldCreate || t.alreadyCharged).sort((a, b) => a.name.localeCompare(b.name, "ru"))
+  return rows.filter((row) => row.shouldCreate || row.alreadyCharged).sort((a, b) => a.name.localeCompare(b.name, "ru"))
 }
 
 /**
@@ -582,20 +583,20 @@ export async function addCharge(formData: FormData) {
   const tenantUser = await db.tenant.findUnique({ where: { id: tenantId }, select: { userId: true } })
   if (tenantUser?.userId) {
     // Уведомление читает арендатор — берём язык получателя, а не автора начисления.
-    const { t: tRecipient } = await getTForUser(tenantUser.userId)
+    const { t: tRecipient, locale: recipientLocale } = await getTForUser(tenantUser.userId)
     const chargeName = CHARGE_TYPES[type] ?? type
-    const money = amount.toLocaleString("ru-RU")
+    const sum = formatMoneyL(recipientLocale, amount)
     await notifyUser({
       userId: tenantUser.userId,
       type: "PAYMENT_DUE",
-      title: tRecipient("actions.finance.chargeCreatedTitle", { period }),
+      title: tRecipient("actions.finance.chargeCreatedTitle", { period: formatPeriodL(recipientLocale, period) }),
       message: dueDateStr
         ? tRecipient("actions.finance.chargeCreatedMessageDue", {
             type: chargeName,
-            amount: money,
-            date: new Date(dueDateStr).toLocaleDateString("ru-RU"),
+            amount: sum,
+            date: formatDateL(recipientLocale, new Date(dueDateStr)),
           })
-        : tRecipient("actions.finance.chargeCreatedMessage", { type: chargeName, amount: money }),
+        : tRecipient("actions.finance.chargeCreatedMessage", { type: chargeName, amount: sum }),
       link: "/cabinet/finances",
     }).catch(() => {})
   }
@@ -611,14 +612,15 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
   await assertTenantInOrg(tenantId, orgId)
   await assertTenantBuildingAccess(tenantId, orgId)
 
+  const { t, locale } = await getT()
   const period = parsePeriod(formData.get("period"))
-  if (!period) throw new Error("Укажите период в формате YYYY-MM")
+  if (!period) throw new Error(t("actions.finance.periodFormat"))
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     select: { paymentDueDay: true },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
 
   const [year, month] = period.split("-").map(Number)
   const lastDayOfMonth = new Date(year, month, 0).getDate()
@@ -630,7 +632,7 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
     .filter(isServiceChargeType)
 
   if (selectedTypes.length === 0) {
-    throw new Error("Выберите хотя бы одну услугу")
+    throw new Error(t("actions.finance.selectService"))
   }
 
   const uniqueTypes = [...new Set(selectedTypes)]
@@ -643,12 +645,13 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
   for (const type of uniqueTypes) {
     const amount = parseChargeAmount(formData.get(`amount_${type}`))
     if (amount === null) {
-      throw new Error(`Укажите сумму для услуги «${getServiceChargeDescription(type)}»`)
+      throw new Error(t("actions.finance.serviceAmountRequired", { service: getServiceChargeDescription(type) }))
     }
     const customDescription = String(formData.get(`description_${type}`) ?? "").trim()
     operations.push({
       type,
       amount,
+      // description начисления попадает в счёт и акт сверки — остаётся русским.
       description: customDescription || `${getServiceChargeDescription(type)} за ${period}`,
     })
   }
@@ -664,7 +667,10 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
       })
 
       if (existing?.isPaid) {
-        throw new Error(`Начисление «${getServiceChargeDescription(item.type)}» за ${period} уже оплачено`)
+        throw new Error(t("actions.finance.chargeAlreadyPaid", {
+          service: getServiceChargeDescription(item.type),
+          period: formatPeriodL(locale, period),
+        }))
       }
 
       if (existing) {
@@ -702,6 +708,7 @@ export async function saveTenantServiceCharges(tenantId: string, formData: FormD
 }
 
 export async function deleteCharge(chargeId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("finance.deleteRecords")
   const { orgId } = await requireOrgAccess()
   await assertChargeInOrg(chargeId, orgId)
@@ -711,7 +718,7 @@ export async function deleteCharge(chargeId: string) {
     where: { id: chargeId, ...chargeScope(orgId) },
     select: { tenantId: true },
   })
-  if (!charge) throw new Error("Начисление не найдено или нет доступа")
+  if (!charge) throw new Error(t("actions.finance.chargeNotFoundOrNoAccess"))
   // Soft delete (миграция 019). Восстановление возможно через recycle bin.
   await db.charge.update({ where: { id: chargeId }, data: { deletedAt: new Date() } })
   // Пени по этому начислению тоже в корзину — иначе они «осиротеют» (пеня на
@@ -725,6 +732,7 @@ export async function deleteCharge(chargeId: string) {
 }
 
 export async function deletePayment(paymentId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("finance.deleteRecords")
   const { orgId } = await requireOrgAccess()
   await assertPaymentInOrg(paymentId, orgId)
@@ -733,7 +741,7 @@ export async function deletePayment(paymentId: string) {
     where: { id: paymentId, ...paymentScope(orgId) },
     select: { tenantId: true, amount: true },
   })
-  if (!payment) throw new Error("Платёж не найден или нет доступа")
+  if (!payment) throw new Error(t("actions.finance.paymentNotFoundOrNoAccess"))
 
   // Soft-delete платежа + компенсация баланса кассы. Иначе CashAccount.balance
   // расходится с реальностью (см. AUDIT_2026-05-26.md, проблема #5).
@@ -766,18 +774,19 @@ export async function confirmCashReceipt(
   await requireCapabilityAndFeature("finance.confirmPayment")
   await requireCapabilityAndFeature("finance.cashPayment")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const payment = await db.payment.findFirst({
     where: { id: paymentId, ...paymentScope(orgId) },
     select: { id: true, method: true, receiptConfirmedAt: true },
   })
-  if (!payment) return { ok: false, error: "Платёж не найден или нет доступа" }
+  if (!payment) return { ok: false, error: t("actions.finance.paymentNotFoundOrNoAccess") }
   if (payment.method !== "CASH") {
-    return { ok: false, error: "Квитанция о приёме наличных доступна только для оплат наличными" }
+    return { ok: false, error: t("actions.finance.receiptCashOnly") }
   }
-  if (payment.receiptConfirmedAt) return { ok: false, error: "Квитанция уже подтверждена" }
+  if (payment.receiptConfirmedAt) return { ok: false, error: t("actions.finance.receiptAlreadyConfirmed") }
 
   await db.payment.update({
     where: { id: paymentId },
@@ -804,6 +813,8 @@ export async function deleteExpense(expenseId: string) {
  * deletedAt — поэтому проверяем явно через withDeleted-вариант).
  */
 export async function restoreCharge(chargeId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
     const { orgId } = await requireOrgAccess()
@@ -814,13 +825,13 @@ export async function restoreCharge(chargeId: string): Promise<{ ok: true } | { 
       where: { id: chargeId, deletedAt: { not: null }, tenant: { user: { organizationId: orgId } } },
       select: { id: true, tenantId: true },
     })
-    if (!charge) return { ok: false, error: "Начисление не найдено" }
+    if (!charge) return { ok: false, error: t("actions.finance.chargeNotFound") }
     await db.charge.update({ where: { id: chargeId }, data: { deletedAt: null } })
     revalidatePath("/admin/finances")
     if (charge.tenantId) revalidatePath(`/admin/tenants/${charge.tenantId}`)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось восстановить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.finance.restoreFailed") }
   }
 }
 
@@ -828,6 +839,8 @@ export async function restoreCharge(chargeId: string): Promise<{ ok: true } | { 
  * Восстановить soft-deleted платёж.
  */
 export async function restorePayment(paymentId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
     const { orgId } = await requireOrgAccess()
@@ -838,7 +851,7 @@ export async function restorePayment(paymentId: string): Promise<{ ok: true } | 
       where: { id: paymentId, deletedAt: { not: null }, tenant: { user: { organizationId: orgId } } },
       select: { id: true, tenantId: true },
     })
-    if (!payment) return { ok: false, error: "Платёж не найден" }
+    if (!payment) return { ok: false, error: t("actions.common.paymentNotFound") }
     // Восстанавливаем платёж и возвращаем баланс кассы (deletePayment его
     // декрементировал, проводку оставил привязанной).
     await db.$transaction(async (tx) => {
@@ -850,7 +863,7 @@ export async function restorePayment(paymentId: string): Promise<{ ok: true } | 
     if (payment.tenantId) revalidatePath(`/admin/tenants/${payment.tenantId}`)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось восстановить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.finance.restoreFailed") }
   }
 }
 
@@ -861,9 +874,11 @@ export async function restorePayment(paymentId: string): Promise<{ ok: true } | 
 export async function bulkMarkChargesPaid(
   ids: string[],
 ): Promise<{ ok: true; updated: number } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.recordPayment")
-    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Не выбрано ни одного начисления" }
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: t("actions.finance.noChargesSelected") }
     const { orgId } = await requireOrgAccess()
     // updateMany с scope защищает от чужих ID.
     const result = await db.charge.updateMany({
@@ -875,7 +890,7 @@ export async function bulkMarkChargesPaid(
     revalidatePath("/admin/finances")
     return { ok: true, updated: result.count }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось отметить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.deposits.markPaidFailed") }
   }
 }
 
@@ -886,9 +901,11 @@ export async function bulkMarkChargesPaid(
 export async function bulkDeletePayments(
   ids: string[],
 ): Promise<{ ok: true; deleted: string[] } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
-    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Не выбрано ни одного платежа" }
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: t("actions.finance.noPaymentsSelected") }
     const { orgId } = await requireOrgAccess()
     // updateMany со scope защитит от чужих ID — paymentScope фильтрует
     // tenant.user.organizationId.
@@ -897,7 +914,7 @@ export async function bulkDeletePayments(
       select: { id: true },
     })
     const eligibleIds = eligible.map((p) => p.id)
-    if (eligibleIds.length === 0) return { ok: false, error: "Нет доступных для удаления платежей" }
+    if (eligibleIds.length === 0) return { ok: false, error: t("actions.finance.noDeletablePayments") }
     // Удаляем платежи ВМЕСТЕ со связанными кассовыми проводками и компенсируем
     // баланс каждого счёта — как одиночный deletePayment. Иначе bulk-delete
     // оставляет CashAccount.balance завышенным (см. AUDIT_2026-05-26.md, #5).
@@ -912,7 +929,7 @@ export async function bulkDeletePayments(
     revalidatePath("/admin/finances/balance")
     return { ok: true, deleted: eligibleIds }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось удалить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.deleteFailed") }
   }
 }
 
@@ -923,16 +940,18 @@ export async function bulkDeletePayments(
 export async function bulkDeleteCharges(
   ids: string[],
 ): Promise<{ ok: true; deleted: string[] } | { ok: false; error: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("finance.deleteRecords")
-    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: "Не выбрано ни одного начисления" }
+    if (!Array.isArray(ids) || ids.length === 0) return { ok: false, error: t("actions.finance.noChargesSelected") }
     const { orgId } = await requireOrgAccess()
     const eligible = await db.charge.findMany({
       where: { AND: [chargeScope(orgId), { id: { in: ids } }] },
       select: { id: true },
     })
     const eligibleIds = eligible.map((c) => c.id)
-    if (eligibleIds.length === 0) return { ok: false, error: "Нет доступных для удаления начислений" }
+    if (eligibleIds.length === 0) return { ok: false, error: t("actions.finance.noDeletableCharges") }
     await db.charge.updateMany({
       where: { id: { in: eligibleIds } },
       data: { deletedAt: new Date() },
@@ -945,16 +964,17 @@ export async function bulkDeleteCharges(
     revalidatePath("/admin/finances")
     return { ok: true, deleted: eligibleIds }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось удалить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.deleteFailed") }
   }
 }
 
 export async function addExpense(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("finance.manageExpenses")
   const { orgId } = await requireOrgAccess()
   const selectedBuildingId = String(formData.get("buildingId") ?? "").trim()
   const buildingId = (await getCurrentBuildingId()) ?? selectedBuildingId
-  if (!buildingId) return { error: "Здание не выбрано" }
+  if (!buildingId) return { error: t("actions.common.buildingNotSelected") }
   await assertBuildingAccess(buildingId, orgId)
 
   const category = formData.get("category") as string
@@ -967,7 +987,7 @@ export async function addExpense(formData: FormData) {
 
   const amount = parseFloat(amountStr)
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { error: "Сумма расхода должна быть положительным числом" }
+    return { error: t("actions.recurringExpenses.invalidAmount") }
   }
 
   if (cashAccountId) {
@@ -976,7 +996,7 @@ export async function addExpense(formData: FormData) {
       select: { organizationId: true },
     })
     if (!acc || acc.organizationId !== orgId) {
-      return { error: "Указан недействительный счёт" }
+      return { error: t("actions.finance.invalidCashAccount") }
     }
   }
 

@@ -75,7 +75,7 @@ export function buildSlabPlan(floor: Floor): SlabPlan {
 
   for (const r of floorRooms(floor)) {
     // шахты лифтов и лестничные клетки перекрываются отдельно
-    if (roomUse(floor, r) !== "rent" && /лифт|лестн/i.test(floor.roomNames?.[r.id] ?? "")) continue
+    if (roomUse(floor, r) !== "rent" && /лифт|лестн|лифт|баспалдақ/i.test(floor.roomNames?.[r.id] ?? "")) continue
     const b = bbox(r.polygon)
     if (b.w < MIN_SIDE || b.h < MIN_SIDE) continue
     const span = Math.min(b.w, b.h)

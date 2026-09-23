@@ -20,11 +20,13 @@ export async function GET() {
       release,
       checkedAt: new Date().toISOString(),
       summary,
+      // Подписи проверок отдаём ключами словаря: JSON читает мониторинг, и он
+      // не должен меняться от языка того, кто открыл страницу.
       checks: canSeeDetails
         ? checks
         : checks.map((check) => ({
             id: check.id,
-            label: check.label,
+            labelKey: check.labelKey,
             status: check.status,
             ms: check.ms,
           })),

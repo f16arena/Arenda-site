@@ -8,7 +8,7 @@ import type { Vec2 } from "@/core/geometry/math"
 import { pointInPolygon } from "@/core/geometry/math"
 import { ASSET_SIZES } from "./asset-sizes"
 import type { FloorRoom } from "./rooms"
-import { roomDisplayName, roomUse } from "./room-use"
+import { roomNameOrKey, roomUse } from "./room-use"
 import { suggestRoomName } from "./room-naming"
 
 export interface FurnishItem {
@@ -25,11 +25,15 @@ export interface FurnishItem {
 /** Чем занято помещение — от этого зависит набор мебели. */
 export type FurnishKind = "office" | "lobby" | "retail" | "cafe" | "meeting" | "tech" | "none"
 
-const RETAIL = /магазин|торг|бутик|салон|шоурум|аптек/i
-const CAFE = /кафе|ресторан|столов|бар|кофе|пекарн|фуд/i
-const MEET = /переговор|совещан|конференц/i
-const LOBBY = /холл|фойе|вестибюл|ресепш|приём|входная|тамбур/i
-const SKIP = /санузел|туалет|уборн|душ|кладов|лестни|лифт|шахта|венткамер/i
+const RETAIL = /магазин|торг|бутик|салон|шоурум|аптек|дүкен|сауда|дәріхана/i
+const CAFE = /кафе|ресторан|столов|бар|кофе|пекарн|фуд|мейрамхана|асхана|наубайхана/i
+const MEET = /переговор|совещан|конференц|келіссөз|кеңес/i
+const LOBBY = /холл|фойе|вестибюл|ресепш|приём|входная|тамбур|кіреберіс/i
+// В названии на любом языке узнаём то, что мебели не получает.
+const SKIP = /санузел|туалет|уборн|душ|кладов|лестни|лифт|шахта|венткамер|дәретхана|жуынатын|қойма|баспалдақ|желдету/i
+
+/** Те же помещения, но опознанные подсказкой: ключ надёжнее шаблона. */
+const SKIP_KEYS: ReadonlySet<string> = new Set(["wc", "storage", "utility", "tech", "electrical", "stairwell", "elevatorHall"])
 
 function bbox(poly: Vec2[]): { minX: number; minY: number; maxX: number; maxY: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -46,9 +50,16 @@ function bbox(poly: Vec2[]): { minX: number; minY: number; maxX: number; maxY: n
 export function furnishKind(floor: Pick<Floor, "roomUse" | "roomNames" | "stairs" | "wallGraph" | "height" | "openings">, room: FloorRoom): FurnishKind {
   // у безымянного помещения берём то наименование, которое предложила бы кнопка
   // «Подставить наименования» — санузел и кладовая мебели не получают
-  const name =
-    roomDisplayName(floor as Parameters<typeof roomDisplayName>[0], room) ||
-    (floor.openings ? suggestRoomName(floor as Parameters<typeof suggestRoomName>[0], room) ?? "" : "")
+  // Имя, введённое руками, разбираем шаблонами — оно на любом языке. Если имени
+  // нет, помещение опознаётся ключом: авто-имя (лестничная клетка, лифтовой холл)
+  // или подсказка кнопки «Подставить наименования».
+  const value = roomNameOrKey(floor as Parameters<typeof roomNameOrKey>[0], room)
+  const own = value && "own" in value ? value.own : ""
+  const key = value && "key" in value
+    ? value.key
+    : own ? null : floor.openings ? suggestRoomName(floor as Parameters<typeof suggestRoomName>[0], room) : null
+  const name = own
+  if (key && SKIP_KEYS.has(key)) return "none"
   if (SKIP.test(name)) return "none"
   const use = roomUse(floor as Parameters<typeof roomUse>[0], room)
   if (use === "tech") return "tech"

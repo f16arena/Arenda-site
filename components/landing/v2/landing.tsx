@@ -171,6 +171,7 @@ export function LandingV2({
         {/* Секция тарифов рендерится всегда (якорь #pricing из шапки должен жить):
             при недоступной БД pricing=null → пустые массивы, заголовок и CTA остаются. */}
         <PricingDesignSection
+          locale={locale}
           plans={pricing?.plans ?? []}
           periods={pricing?.periods ?? []}
           matrix={pricing?.matrix ?? {}}

@@ -20,6 +20,11 @@ export const cabinetFinances = {
     rejected: "Отклонено",
     checking: "На проверке",
   },
+  // Документы к оплате: счета и акты, которые видит арендатор.
+  docs: {
+    period: "Период {period}",
+    youSigned: "вы подписали",
+  },
   history: {
     title: "История оплат",
     done: "Проведено",

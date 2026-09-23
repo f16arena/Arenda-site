@@ -23,7 +23,7 @@ import {
 import { getReleaseInfo } from "@/lib/release"
 import { PageHeader } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { HEALTH_TABS } from "@/lib/hub-tabs"
+import { healthTabs } from "@/lib/hub-tabs"
 import { getT, getLocale } from "@/lib/i18n/server"
 import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
@@ -70,7 +70,7 @@ export default async function SystemHealthPage() {
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={HEALTH_TABS} className="mb-2" />
+      <RouteTabs items={healthTabs(t)} className="mb-2" />
       <PageHeader
         icon={ShieldCheck}
         title={t("adminSettings.systemHealth.title")}
@@ -125,7 +125,13 @@ export default async function SystemHealthPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {checks.map((check) => (
-          <CheckCard key={check.id} check={check} statusLabel={t(`adminSettings.systemHealth.statuses.${check.status}`)} />
+          <CheckCard
+            key={check.id}
+            check={check}
+            label={t(check.labelKey)}
+            message={t(check.messageKey, check.messageVars)}
+            statusLabel={t(`adminSettings.systemHealth.statuses.${check.status}`)}
+          />
         ))}
       </div>
 
@@ -146,7 +152,18 @@ export default async function SystemHealthPage() {
   )
 }
 
-function CheckCard({ check, statusLabel }: { check: SystemCheck; statusLabel: string }) {
+// Проверка возвращает ключи; подписи переводит страница и передаёт строками.
+function CheckCard({
+  check,
+  label,
+  message,
+  statusLabel,
+}: {
+  check: SystemCheck
+  label: string
+  message: string
+  statusLabel: string
+}) {
   const meta = statusMeta[check.status]
   const Icon = meta.icon
 
@@ -159,12 +176,12 @@ function CheckCard({ check, statusLabel }: { check: SystemCheck; statusLabel: st
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{check.label}</h2>
-              <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</h2>
+              <span className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${meta.pill}`}>
                 {statusLabel}
               </span>
             </div>
-            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{check.message}</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{message}</p>
           </div>
           {typeof check.ms === "number" && (
             <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">

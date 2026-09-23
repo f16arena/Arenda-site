@@ -10,8 +10,10 @@ import {
   serializeFaqList,
   serializeFaqSteps,
 } from "@/lib/faq-db"
+import { getT } from "@/lib/i18n/server"
 
 export async function saveFaqArticle(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("faq.manage")
   const { orgId } = await requireOrgAccess()
 
@@ -25,8 +27,8 @@ export async function saveFaqArticle(formData: FormData) {
   const sortOrder = Number(readString(formData, "sortOrder") || "0")
   const isActive = formData.get("isActive") === "on"
 
-  if (!isFaqAudience(audience)) throw new Error("Некорректная аудитория FAQ")
-  if (!category || !question || !answer) throw new Error("Заполните раздел, вопрос и ответ")
+  if (!isFaqAudience(audience)) throw new Error(t("actions.faq.badAudience"))
+  if (!category || !question || !answer) throw new Error(t("actions.faq.fieldsRequired"))
 
   const data = {
     audience,
@@ -46,7 +48,7 @@ export async function saveFaqArticle(formData: FormData) {
       where: { id, organizationId: orgId },
       select: { id: true },
     })
-    if (!existing) throw new Error("FAQ-запись не найдена")
+    if (!existing) throw new Error(t("actions.faq.notFound"))
     await db.faqArticle.update({ where: { id }, data })
   } else {
     await db.faqArticle.create({
@@ -62,10 +64,11 @@ export async function saveFaqArticle(formData: FormData) {
 }
 
 export async function archiveFaqArticle(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("faq.manage")
   const { orgId } = await requireOrgAccess()
   const id = readString(formData, "id")
-  if (!id) throw new Error("FAQ-запись не передана")
+  if (!id) throw new Error(t("actions.faq.idMissing"))
 
   await db.faqArticle.updateMany({
     where: { id, organizationId: orgId },

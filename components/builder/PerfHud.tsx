@@ -8,8 +8,10 @@ import { useEffect, useRef, useState } from "react"
 import { Gauge, Zap } from "lucide-react"
 import { useEditorStore } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
 
 export function PerfHud({ getFps }: { getFps: () => number }) {
+  const { t } = useT()
   const [fps, setFps] = useState(60)
   const turbo = useEditorStore((s) => s.turbo)
   const setTurbo = useEditorStore((s) => s.setTurbo)
@@ -36,12 +38,12 @@ export function PerfHud({ getFps }: { getFps: () => number }) {
       <button
         type="button"
         onClick={() => setTurbo(!turbo)}
-        title="Турбо: рендер в пониженном разрешении для высокого FPS"
+        title={t("adminBuilder.perf.turboHint")}
         className="flex items-center gap-1 rounded-md px-2 py-0.5"
         style={{ background: turbo ? TOKENS.accent : "rgba(148,163,184,0.12)", color: turbo ? "#0b1220" : TOKENS.muted }}
       >
         <Zap className="h-3 w-3" />
-        Турбо
+        {t("adminBuilder.perf.turbo")}
       </button>
     </div>
   )

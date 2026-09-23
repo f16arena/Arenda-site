@@ -1,6 +1,8 @@
 import { db } from "@/lib/db"
 import { sendTelegram } from "@/lib/telegram"
-import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
+import { getT } from "@/lib/i18n/server"
+import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n/config"
 import { sendSms } from "@/lib/sms"
 import { sendPushToUser } from "@/lib/push"
 import { isNotificationTypeMuted } from "@/lib/notification-preferences"
@@ -22,7 +24,10 @@ export interface NotifyOpts {
   pushData?: Record<string, unknown>
   /** Опционально — кастомный HTML письма (иначе генерируем basicEmailTemplate) */
   emailHtml?: string
-  /** Текст кнопки в письме (по умолчанию "Открыть в кабинете") */
+  /**
+   * Текст кнопки в письме. Если не задан — emails.common.openInCabinet на
+   * языке получателя. Передавая свой, переводите его тем же getTForUser.
+   */
   emailButtonText?: string
   /**
    * Дедупликация: если за последние N часов было уведомление этого же типа
@@ -60,7 +65,7 @@ export async function notifyUser(opts: NotifyOpts) {
     where: { id: opts.userId },
     select: {
       telegramChatId: true, email: true, phone: true, name: true,
-      organizationId: true,
+      organizationId: true, locale: true,
       notifyEmail: true, notifyTelegram: true, notifySms: true,
       notifyInApp: true, notifyMutedTypes: true,
     },
@@ -125,14 +130,23 @@ export async function notifyUser(opts: NotifyOpts) {
         ? `https://${rootHost}${opts.link.startsWith("/") ? "" : "/"}${opts.link}`
         : undefined
 
+      // Обёртка письма (приветствие, кнопка, подпись) — на языке ПОЛУЧАТЕЛЯ:
+      // уведомление часто шлёт ночной cron, и cookie запроса тут нет вообще.
+      // Заголовок и текст приходят от вызывающего кода уже переведёнными.
+      const locale = isLocale(user.locale) ? user.locale : DEFAULT_LOCALE
+      const { t } = await getT(locale)
+
       const html = opts.emailHtml ?? basicEmailTemplate({
+        lang: locale,
         title: opts.title,
-        body: `<p>Здравствуйте, ${user.name}!</p><p>${opts.message}</p>`,
-        buttonText: fullLink ? (opts.emailButtonText ?? "Открыть в кабинете") : undefined,
+        // Имя и текст эскейпим: body уходит в HTML как есть.
+        body: `<p>${htmlEscape(t("emails.common.greetingNamed", { name: user.name }))}</p><p>${htmlEscape(opts.message)}</p>`,
+        buttonText: fullLink ? (opts.emailButtonText ?? t("emails.common.openInCabinet")) : undefined,
         buttonUrl: fullLink,
+        footer: t("emails.common.footer"),
       })
 
-      const subject = `Commrent · ${opts.title}`
+      const subject = t("emails.common.notifySubject", { title: opts.title })
       const result = await sendEmail({
         to: user.email,
         subject,

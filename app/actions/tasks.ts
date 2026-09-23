@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { getCurrentBuildingId } from "@/lib/current-building"
@@ -15,7 +16,8 @@ const ALLOWED_PRIORITIES = ["LOW", "MEDIUM", "HIGH", "URGENT"]
 export async function createTask(formData: FormData) {
   await requireCapabilityAndFeature("tasks.manage")
   const session = await auth()
-  if (!session) return { error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session) return { error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   // Привязываем задачу к текущему зданию (если выбрано) — это даёт нам
@@ -37,27 +39,27 @@ export async function createTask(formData: FormData) {
   const dueDateStr = String(formData.get("dueDate") ?? "").trim()
   const assignedToId = String(formData.get("assignedToId") ?? "").trim()
 
-  if (!title || title.length < 2) return { error: "Введите название задачи" }
-  if (!ALLOWED_CATEGORIES.includes(category)) return { error: "Неверная категория" }
-  if (!ALLOWED_PRIORITIES.includes(priority)) return { error: "Неверный приоритет" }
+  if (!title || title.length < 2) return { error: t("actions.tasks.titleRequired") }
+  if (!ALLOWED_CATEGORIES.includes(category)) return { error: t("actions.tasks.badCategory") }
+  if (!ALLOWED_PRIORITIES.includes(priority)) return { error: t("actions.tasks.badPriority") }
 
   // Валидация floorNumber: только число, ограниченный диапазон.
   // Нужен для UI-фильтра, не для БД-связи.
   let floorNumber: number | null = null
   if (floorNumberStr) {
     const n = parseInt(floorNumberStr, 10)
-    if (!isFinite(n) || n < -10 || n > 200) return { error: "Этаж должен быть числом от -10 до 200" }
+    if (!isFinite(n) || n < -10 || n > 200) return { error: t("actions.tasks.badFloor") }
     floorNumber = n
   }
 
   // spaceNumber — короткая строка (без HTML/спецсимволов в опасном виде)
-  if (spaceNumber.length > 50) return { error: "Слишком длинный номер помещения" }
+  if (spaceNumber.length > 50) return { error: t("actions.tasks.spaceNumberTooLong") }
 
   // estimatedCost — число
   let estimatedCost: number | null = null
   if (estimatedCostStr) {
     const n = parseFloat(estimatedCostStr.replace(",", "."))
-    if (!isFinite(n) || n < 0) return { error: "Неверная сумма" }
+    if (!isFinite(n) || n < 0) return { error: t("actions.tasks.badAmount") }
     estimatedCost = n
   }
 
@@ -107,6 +109,7 @@ export async function deleteTask(taskId: string) {
 }
 
 export async function updateTask(taskId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tasks.manage")
   const { orgId } = await requireOrgAccess()
   await assertTaskInOrg(taskId, orgId)
@@ -121,20 +124,20 @@ export async function updateTask(taskId: string, formData: FormData) {
   const dueDateStr = String(formData.get("dueDate") ?? "").trim()
   const assignedToId = String(formData.get("assignedToId") ?? "").trim()
 
-  if (!title || title.length < 2) return { error: "Введите название задачи" }
-  if (!ALLOWED_CATEGORIES.includes(category)) return { error: "Неверная категория" }
-  if (!ALLOWED_PRIORITIES.includes(priority)) return { error: "Неверный приоритет" }
+  if (!title || title.length < 2) return { error: t("actions.tasks.titleRequired") }
+  if (!ALLOWED_CATEGORIES.includes(category)) return { error: t("actions.tasks.badCategory") }
+  if (!ALLOWED_PRIORITIES.includes(priority)) return { error: t("actions.tasks.badPriority") }
 
   let estimatedCost: number | null = null
   if (estimatedCostStr) {
     const n = parseFloat(estimatedCostStr.replace(",", "."))
-    if (!isFinite(n) || n < 0) return { error: "Неверная плановая сумма" }
+    if (!isFinite(n) || n < 0) return { error: t("actions.tasks.badEstimatedCost") }
     estimatedCost = n
   }
   let actualCost: number | null = null
   if (actualCostStr) {
     const n = parseFloat(actualCostStr.replace(",", "."))
-    if (!isFinite(n) || n < 0) return { error: "Неверная фактическая сумма" }
+    if (!isFinite(n) || n < 0) return { error: t("actions.tasks.badActualCost") }
     actualCost = n
   }
 

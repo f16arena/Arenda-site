@@ -3,12 +3,29 @@ import { money } from "@/lib/money"
 import { db } from "@/lib/db"
 import { notifyUser } from "@/lib/notify"
 import { authorizeCronRequest } from "@/lib/cron-auth"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 
 export const dynamic = "force-dynamic"
 
 const CONTRACT_WARN_DAYS = 20
 const PAYMENT_WARN_DAYS = 10
 const PENALTY_GRACE_DAYS = 1
+
+/**
+ * Уведомление читает получатель, а шлёт его ночной cron — cookie запроса тут
+ * нет. Переводчик берём по языку из профиля каждого адресата и кешируем: за
+ * один прогон один и тот же сотрудник упоминается десятки раз.
+ */
+type Translator = Awaited<ReturnType<typeof getT>>
+
+async function translatorFor(cache: Map<string, Translator>, userId: string): Promise<Translator> {
+  const cached = cache.get(userId)
+  if (cached) return cached
+  const tr = await getTForUser(userId)
+  cache.set(userId, tr)
+  return tr
+}
 
 // Кэш: orgId → staff list (чтобы не тащить из БД на каждого арендатора)
 async function getStaffForOrg(cache: Map<string, { id: string; name: string; telegramChatId: string | null }[]>, orgId: string) {
@@ -28,15 +45,15 @@ async function getStaffForOrg(cache: Map<string, { id: string; name: string; tel
 
 // Возвращает orgId арендатора через цепочку space → floor → building.
 async function tenantOrgId(tenantId: string): Promise<string | null> {
-  const t = await db.tenant.findUnique({
+  const row = await db.tenant.findUnique({
     where: { id: tenantId },
     select: {
       space: { select: { floor: { select: { building: { select: { organizationId: true } } } } } },
       fullFloors: { select: { building: { select: { organizationId: true } } }, take: 1 },
     },
   })
-  return t?.space?.floor.building.organizationId
-    ?? t?.fullFloors[0]?.building.organizationId
+  return row?.space?.floor.building.organizationId
+    ?? row?.fullFloors[0]?.building.organizationId
     ?? null
 }
 
@@ -60,6 +77,7 @@ export async function GET(req: Request) {
   }
 
   const staffCache = new Map<string, { id: string; name: string; telegramChatId: string | null }[]>()
+  const trCache = new Map<string, Translator>()
 
   // ── 0. Индексация аренды: в дату nextIndexationAt повышаем ставку/сумму на
   //       indexationPct % и сдвигаем дату на год вперёд (аудит 2026-06-10, п.14).
@@ -80,59 +98,85 @@ export async function GET(req: Request) {
         nextIndexationAt: true,
       },
     })
-    for (const t of dueIndexation) {
-      const pct = t.indexationPct ?? 0
+    for (const tenant of dueIndexation) {
+      const pct = tenant.indexationPct ?? 0
       const factor = 1 + pct / 100
       const data: { customRate?: number; fixedMonthlyRent?: number; nextIndexationAt: Date } = {
-        nextIndexationAt: new Date(new Date(t.nextIndexationAt!).setFullYear(t.nextIndexationAt!.getFullYear() + 1)),
+        nextIndexationAt: new Date(new Date(tenant.nextIndexationAt!).setFullYear(tenant.nextIndexationAt!.getFullYear() + 1)),
       }
-      let summary = ""
-      if (typeof t.fixedMonthlyRent === "number" && t.fixedMonthlyRent > 0) {
-        data.fixedMonthlyRent = money(t.fixedMonthlyRent * factor)
-        summary = `аренда ${t.fixedMonthlyRent.toLocaleString("ru-RU")} → ${data.fixedMonthlyRent.toLocaleString("ru-RU")} ₸/мес`
-      } else if (typeof t.customRate === "number" && t.customRate > 0) {
-        data.customRate = money(t.customRate * factor)
-        summary = `ставка ${t.customRate.toLocaleString("ru-RU")} → ${data.customRate.toLocaleString("ru-RU")} ₸/м²`
+      // Ставка/сумма до и после — цифры одинаковы в любом языке, поэтому
+      // подставляем их в шаблон, а фразу собирает словарь.
+      let summaryFrom = 0
+      let summaryTo = 0
+      let summaryKind: "fixed" | "rate" | null = null
+      if (typeof tenant.fixedMonthlyRent === "number" && tenant.fixedMonthlyRent > 0) {
+        data.fixedMonthlyRent = money(tenant.fixedMonthlyRent * factor)
+        summaryFrom = tenant.fixedMonthlyRent
+        summaryTo = data.fixedMonthlyRent
+        summaryKind = "fixed"
+      } else if (typeof tenant.customRate === "number" && tenant.customRate > 0) {
+        data.customRate = money(tenant.customRate * factor)
+        summaryFrom = tenant.customRate
+        summaryTo = data.customRate
+        summaryKind = "rate"
       } else {
         // Аренда по ставке этажа — повышать нечего у арендатора. Сообщаем владельцу
         // и сдвигаем дату, чтобы не спамить каждый день.
-        await db.tenant.update({ where: { id: t.id }, data: { nextIndexationAt: data.nextIndexationAt } })
-        const orgId = await tenantOrgId(t.id)
+        await db.tenant.update({ where: { id: tenant.id }, data: { nextIndexationAt: data.nextIndexationAt } })
+        const orgId = await tenantOrgId(tenant.id)
         if (orgId) {
           for (const staff of await getStaffForOrg(staffCache, orgId)) {
+            const { t } = await translatorFor(trCache, staff.id)
             await notifyUser({
               userId: staff.id,
               type: "BULK_INFO",
-              title: `Индексация «${t.companyName}»: ставка этажная`,
-              message: `У арендатора настроена индексация ${pct}%/год, но аренда считается по ставке этажа. Повысьте ставку этажа вручную или задайте индивидуальную ставку.`,
-              link: `/admin/tenants/${t.id}`,
+              title: t("emails.deadlines.indexationFloorRateTitle", { tenant: tenant.companyName }),
+              message: t("emails.deadlines.indexationFloorRateMessage", { pct }),
+              link: `/admin/tenants/${tenant.id}`,
             }).catch(() => {})
           }
         }
         continue
       }
 
-      await db.tenant.update({ where: { id: t.id }, data } )
+      await db.tenant.update({ where: { id: tenant.id }, data } )
       results.indexationsApplied++
 
-      const orgId = await tenantOrgId(t.id)
+      const summaryFor = (tr: Translator) =>
+        summaryKind === "fixed"
+          ? tr.t("emails.deadlines.indexationSummaryFixed", {
+              from: formatMoneyL(tr.locale, summaryFrom),
+              to: formatMoneyL(tr.locale, summaryTo),
+            })
+          : tr.t("emails.deadlines.indexationSummaryRate", {
+              from: formatMoneyL(tr.locale, summaryFrom),
+              to: formatMoneyL(tr.locale, summaryTo),
+            })
+
+      const orgId = await tenantOrgId(tenant.id)
       if (orgId) {
         for (const staff of await getStaffForOrg(staffCache, orgId)) {
+          const tr = await translatorFor(trCache, staff.id)
           await notifyUser({
             userId: staff.id,
             type: "BULK_INFO",
-            title: `Индексация аренды: ${t.companyName}`,
-            message: `Применена индексация ${pct}%: ${summary}. Следующая — ${data.nextIndexationAt.toLocaleDateString("ru-RU")}. Новая сумма попадёт в начисления со следующего месяца.`,
-            link: `/admin/tenants/${t.id}`,
+            title: tr.t("emails.deadlines.indexationStaffTitle", { tenant: tenant.companyName }),
+            message: tr.t("emails.deadlines.indexationStaffMessage", {
+              pct,
+              summary: summaryFor(tr),
+              date: formatDateShortL(tr.locale, data.nextIndexationAt),
+            }),
+            link: `/admin/tenants/${tenant.id}`,
           }).catch(() => {})
         }
       }
       // Арендатору — уведомление о повышении (договорное условие).
+      const trTenant = await translatorFor(trCache, tenant.userId)
       await notifyUser({
-        userId: t.userId,
+        userId: tenant.userId,
         type: "BULK_INFO",
-        title: "Индексация арендной платы",
-        message: `Согласно условиям договора применена ежегодная индексация ${pct}%: ${summary}.`,
+        title: trTenant.t("emails.deadlines.indexationTenantTitle"),
+        message: trTenant.t("emails.deadlines.indexationTenantMessage", { pct, summary: summaryFor(trTenant) }),
         link: "/cabinet/finances",
       }).catch(() => {})
     }
@@ -156,54 +200,61 @@ export async function GET(req: Request) {
     })
     results.contractsChecked = tenantsExpiring.length
 
-    for (const t of tenantsExpiring) {
-      if (!t.contractEnd) continue
-      const daysLeft = Math.ceil((t.contractEnd.getTime() - now.getTime()) / 86_400_000)
+    for (const tenant of tenantsExpiring) {
+      if (!tenant.contractEnd) continue
+      const daysLeft = Math.ceil((tenant.contractEnd.getTime() - now.getTime()) / 86_400_000)
 
       const recentNotif = await db.notification.findFirst({
         where: {
           type: "CONTRACT_EXPIRING",
-          message: { contains: t.id },
+          message: { contains: tenant.id },
           createdAt: { gte: new Date(now.getTime() - 24 * 3600 * 1000) },
         },
       })
       if (recentNotif) continue
 
-      const title = `Договор истекает через ${daysLeft} дн.`
-      const message = `Арендатор «${t.companyName}» (id:${t.id}). Окончание договора: ${t.contractEnd.toLocaleDateString("ru-RU")}. Необходимо подготовить продление.`
-      const link = `/admin/tenants/${t.id}`
+      const link = `/admin/tenants/${tenant.id}`
 
-      // Арендатору — in-app + Telegram + email + SMS (если контракт истекает <= 7 дней)
+      // Арендатору — in-app + Telegram + email
+      const trTenant = await translatorFor(trCache, tenant.user.id)
       await notifyUser({
-        userId: t.user.id,
+        userId: tenant.user.id,
         type: "CONTRACT_EXPIRING",
-        title: `Ваш договор истекает через ${daysLeft} дн.`,
-        message: `Договор аренды истекает ${t.contractEnd.toLocaleDateString("ru-RU")}. Свяжитесь с администрацией для продления.`,
+        title: trTenant.t("emails.deadlines.contractExpiringTenantTitle", { days: daysLeft }),
+        message: trTenant.t("emails.deadlines.contractExpiringTenantMessage", {
+          date: formatDateShortL(trTenant.locale, tenant.contractEnd),
+        }),
         link: "/cabinet",
-        emailButtonText: "Открыть кабинет",
+        emailButtonText: trTenant.t("emails.common.openCabinet"),
         // SMS убран: email+Telegram достаточно для не-срочных предупреждений.
         // SMS оставляем только для уже наступившей просрочки (см. блок ниже).
         sendSms: false,
       })
       results.notificationsCreated++
-      if (t.user.telegramChatId) results.telegramSent++
+      if (tenant.user.telegramChatId) results.telegramSent++
 
       // Сотрудникам — in-app + Telegram (без email, чтобы не спамить инбокс
       // ежедневными напоминаниями про каждого арендатора).
-      const orgId = await tenantOrgId(t.id)
+      const orgId = await tenantOrgId(tenant.id)
       if (!orgId) continue
-      const staff = await getStaffForOrg(staffCache, orgId)
-      for (const s of staff) {
+      const staffList = await getStaffForOrg(staffCache, orgId)
+      for (const staff of staffList) {
+        const tr = await translatorFor(trCache, staff.id)
         await notifyUser({
-          userId: s.id,
+          userId: staff.id,
           type: "CONTRACT_EXPIRING",
-          title,
-          message,
+          title: tr.t("emails.deadlines.contractExpiringStaffTitle", { days: daysLeft }),
+          // id арендатора в тексте — по нему дедуп находит вчерашнее уведомление.
+          message: tr.t("emails.deadlines.contractExpiringStaffMessage", {
+            tenant: tenant.companyName,
+            id: tenant.id,
+            date: formatDateShortL(tr.locale, tenant.contractEnd),
+          }),
           link,
           sendEmail: false,
         })
         results.notificationsCreated++
-        if (s.telegramChatId) results.telegramSent++
+        if (staff.telegramChatId) results.telegramSent++
       }
 
       results.contractsWarned++
@@ -222,11 +273,11 @@ export async function GET(req: Request) {
       },
     })
 
-    for (const t of tenantsWithDebt) {
-      const totalDebt = t.charges.reduce((s, c) => s + c.amount, 0)
-      const earliestDue = t.charges
-        .map((c) => c.dueDate)
-        .filter((d): d is Date => d !== null)
+    for (const tenant of tenantsWithDebt) {
+      const totalDebt = tenant.charges.reduce((sum, charge) => sum + charge.amount, 0)
+      const earliestDue = tenant.charges
+        .map((charge) => charge.dueDate)
+        .filter((date): date is Date => date !== null)
         .sort((a, b) => a.getTime() - b.getTime())[0]
 
       if (!earliestDue) continue
@@ -236,7 +287,7 @@ export async function GET(req: Request) {
 
       const recentNotif = await db.notification.findFirst({
         where: {
-          userId: t.user.id,
+          userId: tenant.user.id,
           type: "PAYMENT_DUE",
           createdAt: { gte: new Date(now.getTime() - 24 * 3600 * 1000) },
         },
@@ -244,44 +295,54 @@ export async function GET(req: Request) {
       if (recentNotif) continue
 
       const overdue = daysToDue < 0
-      const title = overdue
-        ? `Просрочка оплаты ${Math.abs(daysToDue)} дн.`
-        : `Оплата через ${daysToDue} дн.`
-      const message = overdue
-        ? `У вас просроченная задолженность ${totalDebt.toLocaleString("ru-RU")} ₸. Начисляется пеня ${t.penaltyPercent}% в день.`
-        : `Не забудьте оплатить аренду до ${earliestDue.toLocaleDateString("ru-RU")}. Сумма к оплате: ${totalDebt.toLocaleString("ru-RU")} ₸.`
+      const trTenant = await translatorFor(trCache, tenant.user.id)
+      const debtText = formatMoneyL(trTenant.locale, totalDebt)
 
       // Арендатору — in-app + Telegram + email + SMS (если просрочка)
       await notifyUser({
-        userId: t.user.id,
+        userId: tenant.user.id,
         type: "PAYMENT_DUE",
-        title,
-        message,
+        title: overdue
+          ? trTenant.t("emails.deadlines.overdueTitle", { days: Math.abs(daysToDue) })
+          : trTenant.t("emails.deadlines.dueSoonTitle", { days: daysToDue }),
+        message: overdue
+          ? trTenant.t("emails.deadlines.overdueMessage", { amount: debtText, percent: tenant.penaltyPercent })
+          : trTenant.t("emails.deadlines.dueSoonMessage", {
+              date: formatDateShortL(trTenant.locale, earliestDue),
+              amount: debtText,
+            }),
         link: "/cabinet/finances",
-        emailButtonText: overdue ? "Оплатить срочно" : "Перейти к оплате",
+        emailButtonText: overdue
+          ? trTenant.t("emails.deadlines.payNow")
+          : trTenant.t("emails.deadlines.payGo"),
         sendSms: overdue,  // SMS только при реальной просрочке (платное)
       })
       results.notificationsCreated++
-      if (t.user.telegramChatId) results.telegramSent++
+      if (tenant.user.telegramChatId) results.telegramSent++
       results.paymentsWarned++
 
       // Сотрудникам организации — при просрочке > 5 дней.
       // С email — это серьёзное событие (много долгов = риск).
       if (overdue && Math.abs(daysToDue) > 5) {
-        const orgId = await tenantOrgId(t.id)
+        const orgId = await tenantOrgId(tenant.id)
         if (!orgId) continue
-        const staff = await getStaffForOrg(staffCache, orgId)
-        for (const s of staff) {
+        const staffList = await getStaffForOrg(staffCache, orgId)
+        for (const staff of staffList) {
+          const tr = await translatorFor(trCache, staff.id)
           await notifyUser({
-            userId: s.id,
+            userId: staff.id,
             type: "PAYMENT_DUE",
-            title: `Просрочка: ${t.companyName}`,
-            message: `Арендатор «${t.companyName}» не оплатил ${totalDebt.toLocaleString("ru-RU")} ₸ (${Math.abs(daysToDue)} дн. просрочки).`,
-            link: `/admin/tenants/${t.id}`,
-            emailButtonText: "Открыть карточку арендатора",
+            title: tr.t("emails.deadlines.staffOverdueTitle", { tenant: tenant.companyName }),
+            message: tr.t("emails.deadlines.staffOverdueMessage", {
+              tenant: tenant.companyName,
+              amount: formatMoneyL(tr.locale, totalDebt),
+              days: Math.abs(daysToDue),
+            }),
+            link: `/admin/tenants/${tenant.id}`,
+            emailButtonText: tr.t("emails.deadlines.openTenantCard"),
           })
           results.notificationsCreated++
-          if (s.telegramChatId) results.telegramSent++
+          if (staff.telegramChatId) results.telegramSent++
         }
       }
     }
@@ -307,14 +368,17 @@ export async function GET(req: Request) {
         ...(contractCursor ? { skip: 1, cursor: { id: contractCursor } } : {}),
       })
       if (batch.length === 0) break
-      for (const c of batch) {
-        const waitDays = c.sentAt ? Math.floor((now.getTime() - c.sentAt.getTime()) / 86_400_000) : 0
-        const docTitle = c.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+      for (const contract of batch) {
+        const waitDays = contract.sentAt ? Math.floor((now.getTime() - contract.sentAt.getTime()) / 86_400_000) : 0
+        const { t } = await translatorFor(trCache, contract.tenant.userId)
+        const doc = contract.type === "ADDENDUM"
+          ? t("emails.deadlines.docAddendum")
+          : t("emails.deadlines.docContract")
         await notifyUser({
-          userId: c.tenant.userId,
+          userId: contract.tenant.userId,
           type: "DOCUMENT_SIGN_REQUEST",
-          title: `${docTitle} № ${c.number} ждёт вашей подписи`,
-          message: `${docTitle} № ${c.number} отправлен вам на подпись ${waitDays} дн. назад и ещё не подписан. Откройте кабинет → Документы, проверьте условия и подпишите (или отклоните с причиной).`,
+          title: t("emails.deadlines.signContractTitle", { doc, number: contract.number ?? "—" }),
+          message: t("emails.deadlines.signContractMessage", { doc, number: contract.number ?? "—", days: waitDays }),
           link: "/cabinet/documents",
           dedupWindowHours: 71, // не чаще раза в ~3 дня
         })
@@ -334,12 +398,13 @@ export async function GET(req: Request) {
         ...(requestCursor ? { skip: 1, cursor: { id: requestCursor } } : {}),
       })
       if (batch.length === 0) break
-      for (const r of batch) {
+      for (const request of batch) {
+        const { t } = await translatorFor(trCache, request.recipientUserId)
         await notifyUser({
-          userId: r.recipientUserId,
+          userId: request.recipientUserId,
           type: "DOCUMENT_SIGN_REQUEST",
-          title: "Документ ждёт вашей подписи",
-          message: `«${r.title}» ожидает подписания. Откройте раздел «Документы» и подпишите.`,
+          title: t("emails.deadlines.signRequestTitle"),
+          message: t("emails.deadlines.signRequestMessage", { title: request.title }),
           link: "/cabinet/documents",
           dedupWindowHours: 71,
         })
@@ -377,20 +442,21 @@ export async function GET(req: Request) {
         (await db.documentSignature.findMany({
           where: { documentType: { in: ["INVOICE", "ACT"] }, documentId: { in: periodDocs.map((d) => d.id) } },
           select: { documentId: true },
-        })).map((s) => s.documentId).filter((x): x is string => !!x),
+        })).map((signature) => signature.documentId).filter((x): x is string => !!x),
       )
       const unsignedByOrg = new Map<string, number>()
-      for (const d of periodDocs) {
-        if (signedDocIds.has(d.id)) continue
-        unsignedByOrg.set(d.organizationId, (unsignedByOrg.get(d.organizationId) ?? 0) + 1)
+      for (const doc of periodDocs) {
+        if (signedDocIds.has(doc.id)) continue
+        unsignedByOrg.set(doc.organizationId, (unsignedByOrg.get(doc.organizationId) ?? 0) + 1)
       }
       for (const [orgId, count] of unsignedByOrg) {
-        for (const s of await getStaffForOrg(staffCache, orgId)) {
+        for (const staff of await getStaffForOrg(staffCache, orgId)) {
+          const { t, tp } = await translatorFor(trCache, staff.id)
           await notifyUser({
-            userId: s.id,
+            userId: staff.id,
             type: "DOCUMENT_SIGN_REQUEST",
-            title: `${count} документ(ов) ждут вашей подписи`,
-            message: `Счета и АВР за ${currentPeriodStr} (${count} шт) созданы, но не подписаны. После подписи ЭЦП они автоматически уйдут арендаторам. Раздел «Документы».`,
+            title: tp("emails.deadlines.ownerSignTitle", count),
+            message: t("emails.deadlines.ownerSignMessage", { period: currentPeriodStr, count }),
             link: "/admin/documents",
             dedupWindowHours: 71,
           })
@@ -407,11 +473,11 @@ export async function GET(req: Request) {
     })
     const autoFeesOrgIds = new Set<string>()
     const orgGraceMap = new Map<string, number>()
-    for (const o of orgsForFees) {
-      orgGraceMap.set(o.id, typeof o.penaltyGraceDays === "number" ? o.penaltyGraceDays : PENALTY_GRACE_DAYS)
+    for (const org of orgsForFees) {
+      orgGraceMap.set(org.id, typeof org.penaltyGraceDays === "number" ? org.penaltyGraceDays : PENALTY_GRACE_DAYS)
       try {
-        const f = JSON.parse(o.plan?.features ?? "{}") as { automatedFees?: boolean }
-        if (f?.automatedFees === true) autoFeesOrgIds.add(o.id)
+        const features = JSON.parse(org.plan?.features ?? "{}") as { automatedFees?: boolean }
+        if (features?.automatedFees === true) autoFeesOrgIds.add(org.id)
       } catch { /* битый json — пропуск */ }
     }
 
@@ -427,7 +493,7 @@ export async function GET(req: Request) {
       select: { id: true },
     })
     if (brokenPlans.length > 0) {
-      const brokenIds = brokenPlans.map((p) => p.id)
+      const brokenIds = brokenPlans.map((plan) => plan.id)
       await db.charge.updateMany({ where: { installmentPlanId: { in: brokenIds } }, data: { installmentPlanId: null } })
       await db.debtInstallmentPlan.updateMany({ where: { id: { in: brokenIds } }, data: { status: "BROKEN" } })
     }
@@ -463,19 +529,19 @@ export async function GET(req: Request) {
       },
     })
 
-    for (const c of overdueCharges) {
-      if (!c.dueDate) continue
+    for (const charge of overdueCharges) {
+      if (!charge.dueDate) continue
       // Gate: автопеня только для орг с фичей automatedFees (Starter+).
-      const orgId = c.tenant.user?.organizationId
+      const orgId = charge.tenant.user?.organizationId
       if (!orgId || !autoFeesOrgIds.has(orgId)) continue
       // Льготный период — из настроек организации (fallback на дефолт).
       const graceDays = orgGraceMap.get(orgId) ?? PENALTY_GRACE_DAYS
-      const daysOverdue = Math.floor((now.getTime() - c.dueDate.getTime()) / 86_400_000) - graceDays
+      const daysOverdue = Math.floor((now.getTime() - charge.dueDate.getTime()) / 86_400_000) - graceDays
       if (daysOverdue <= 0) continue
 
-      const penaltyPercent = c.tenant.penaltyPercent ?? 1
-      const penaltyAmount = Math.round((c.amount * penaltyPercent / 100) * daysOverdue)
-      const cap = Math.round(c.amount * 0.1)
+      const penaltyPercent = charge.tenant.penaltyPercent ?? 1
+      const penaltyAmount = Math.round((charge.amount * penaltyPercent / 100) * daysOverdue)
+      const cap = Math.round(charge.amount * 0.1)
 
       // Идемпотентность «раз в день» — по дате создания (не по period, т.к. период
       // пени теперь = месяц исходного начисления, а не сегодняшняя дата).
@@ -483,10 +549,10 @@ export async function GET(req: Request) {
       startOfToday.setHours(0, 0, 0, 0)
       const existingPenaltyToday = await db.charge.findFirst({
         where: {
-          tenantId: c.tenant.id,
+          tenantId: charge.tenant.id,
           type: "PENALTY",
           createdAt: { gte: startOfToday },
-          description: { contains: c.id },
+          description: { contains: charge.id },
         },
       })
       if (existingPenaltyToday) continue
@@ -496,11 +562,11 @@ export async function GET(req: Request) {
       // (аудит 2026-06-10, п.3).
       const paidPenalties = await db.charge.aggregate({
         where: {
-          tenantId: c.tenant.id,
+          tenantId: charge.tenant.id,
           type: "PENALTY",
           isPaid: true,
           deletedAt: null,
-          description: { contains: c.id },
+          description: { contains: charge.id },
         },
         _sum: { amount: true },
       })
@@ -510,22 +576,35 @@ export async function GET(req: Request) {
 
       await db.charge.deleteMany({
         where: {
-          tenantId: c.tenant.id,
+          tenantId: charge.tenant.id,
           type: "PENALTY",
           isPaid: false,
-          description: { contains: c.id },
+          description: { contains: charge.id },
         },
       })
 
+      // Описание начисления читает арендатор в своём кабинете — пишем его на
+      // языке арендатора. id исходного начисления остаётся в тексте: по нему
+      // задача на следующий день находит уже начисленную пеню.
+      const trTenant = await translatorFor(trCache, charge.tenant.userId)
+      const paidPart = alreadyPaid > 0
+        ? trTenant.t("emails.deadlines.penaltyPaidPart", { amount: formatMoneyL(trTenant.locale, alreadyPaid) })
+        : ""
+
       await db.charge.create({
         data: {
-          tenantId: c.tenant.id,
+          tenantId: charge.tenant.id,
           // Период пени = месяц просроченного начисления (чтобы пеня была видна и
           // отменяема в том же месяце, что и долг; раньше был today → пеня «терялась»).
-          period: c.period,
+          period: charge.period,
           type: "PENALTY",
           amount: actualPenalty,
-          description: `Пеня по начислению ${c.id} (${daysOverdue} дн. × ${penaltyPercent}%, не более 10%${alreadyPaid > 0 ? `, оплачено ранее ${alreadyPaid}` : ""})`,
+          description: trTenant.t("emails.deadlines.penaltyDescription", {
+            id: charge.id,
+            days: daysOverdue,
+            percent: penaltyPercent,
+            paid: paidPart,
+          }),
           dueDate: new Date(now.getTime() + 7 * 24 * 3600 * 1000),
         },
       })

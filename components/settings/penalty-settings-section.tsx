@@ -7,6 +7,7 @@ import { ServerForm } from "@/components/ui/server-form"
 import { CollapsibleCard } from "@/components/settings/collapsible-card"
 import { updatePenaltySettings } from "@/app/actions/organization-settings"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/lib/i18n/client"
 
 interface Props {
   organization: { id: string; defaultPenaltyPercent: number; penaltyGraceDays: number }
@@ -16,35 +17,37 @@ const inputCls = FIELD_CLS
 
 /** Настройки пени за просрочку: ставка %/день + льготный период. */
 export function PenaltySettingsSection({ organization }: Props) {
+  const { t } = useT()
   const [percent, setPercent] = useState(organization.defaultPenaltyPercent)
   const [grace, setGrace] = useState(organization.penaltyGraceDays)
 
   return (
-    <CollapsibleCard title="Пеня за просрочку" icon={<AlertTriangle className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
+    <CollapsibleCard title={t("common.settings.penalty.title")} icon={<AlertTriangle className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}>
       <ServerForm
         action={updatePenaltySettings.bind(null, organization.id)}
-        successMessage="Настройки пени сохранены"
+        successMessage={t("common.settings.penalty.saved")}
         className="p-5 space-y-4"
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Пеня, %/день (по умолчанию)</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("common.settings.penalty.rate")}</label>
             <input name="defaultPenaltyPercent" type="number" min={0} max={10} step={0.1} value={percent} onChange={(e) => setPercent(Number(e.target.value))} className={inputCls} />
-            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">У арендатора может быть своя ставка — она переопределяет это значение.</p>
+            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("common.settings.penalty.rateHint")}</p>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Льготный период, дней</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("common.settings.penalty.grace")}</label>
             <input name="penaltyGraceDays" type="number" min={0} max={60} step={1} value={grace} onChange={(e) => setGrace(Number(e.target.value))} className={inputCls} />
-            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Столько дней после срока оплаты пеня ещё НЕ начисляется.</p>
+            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{t("common.settings.penalty.graceHint")}</p>
           </div>
         </div>
 
-        <div className="rounded-lg bg-blue-50 dark:bg-blue-500/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-blue-800 dark:text-blue-200">
-          Пеня начисляется <b>только на аренду и услуги</b> (не на депозит). Старт — после <b>дня оплаты</b> арендатора (обычно 10-е число) плюс льготный период. Потолок — <b>10%</b> от суммы начисления. Отменить пеню можно на странице «Финансы».
-        </div>
+        <div
+          className="rounded-lg bg-blue-50 dark:bg-blue-500/10 px-3 py-2.5 text-[11.5px] leading-relaxed text-blue-800 dark:text-blue-200"
+          dangerouslySetInnerHTML={{ __html: t("common.settings.penalty.note") }}
+        />
 
         <div className="flex justify-end">
-          <Button type="submit" variant="primary" size="sm">Сохранить</Button>
+          <Button type="submit" variant="primary" size="sm">{t("common.actions.save")}</Button>
         </div>
       </ServerForm>
     </CollapsibleCard>

@@ -9,6 +9,7 @@ import bcrypt from "bcryptjs"
 import crypto from "crypto"
 import type { Result } from "./my-account"
 import { audit } from "@/lib/audit"
+import { getT, getTForUser } from "@/lib/i18n/server"
 
 /**
  * Шаг 1: пользователь вводит email на /forgot-password.
@@ -17,11 +18,12 @@ import { audit } from "@/lib/audit"
  * чтобы по ответу нельзя было узнать, существует ли аккаунт.
  */
 export async function requestPasswordReset(formData: FormData): Promise<Result & { previewLink?: string }> {
+  const { t } = await getT()
   let email: string
   try {
     email = normalizeEmail(formData.get("email"), { required: true })!
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Введите корректный email" }
+    return { ok: false, error: error instanceof Error ? error.message : t("actions.myAccount.invalidEmail") }
   }
 
   // Rate limit: 5 запросов сброса за 15 минут с одного IP
@@ -30,7 +32,7 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
   if (!rl.ok) {
     return {
       ok: false,
-      error: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      error: t("actions.common.tooManyRequests", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
     }
   }
 
@@ -42,7 +44,7 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
   // Если юзер не найден или неактивен — молча возвращаем успех
   // (не раскрываем существование аккаунта).
   if (!user || !user.isActive) {
-    return { ok: true, message: `Если аккаунт с email ${email} существует — на него отправлено письмо со ссылкой для сброса пароля.` }
+    return { ok: true, message: t("actions.passwordReset.maybeSent", { email }) }
   }
 
   const token = crypto.randomBytes(32).toString("hex")
@@ -66,21 +68,23 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
   const linkHost = host.includes(rootHost) ? rootHost : host
   const link = `${proto}://${linkHost}/reset-password?token=${token}`
 
+  // Письмо читает владелец аккаунта — берём язык из его профиля.
+  const { t: tUser } = await getTForUser(user.id)
   const html = basicEmailTemplate({
-    title: "Сброс пароля",
-    body: `<p>Здравствуйте, ${user.name}!</p>
-<p>Вы (или кто-то от вашего имени) запросили сброс пароля для аккаунта в Commrent.</p>
-<p>Перейдите по ссылке для установки нового пароля. Ссылка действительна <b>1 час</b>.</p>`,
-    buttonText: "Сбросить пароль",
+    title: tUser("actions.passwordReset.mailTitle"),
+    body: `<p>${tUser("actions.passwordReset.mailGreeting", { name: user.name })}</p>
+<p>${tUser("actions.passwordReset.mailLead")}</p>
+<p>${tUser("actions.passwordReset.mailAction")}</p>`,
+    buttonText: tUser("actions.passwordReset.mailButton"),
     buttonUrl: link,
-    footer: "Если вы не запрашивали сброс — просто проигнорируйте это письмо. Текущий пароль остаётся в силе.",
+    footer: tUser("actions.passwordReset.mailFooter"),
   })
 
   const emailResult = await sendEmail({
     to: email,
-    subject: "Сброс пароля для Commrent",
+    subject: tUser("actions.passwordReset.mailSubject"),
     html,
-    text: `Перейдите по ссылке для сброса пароля: ${link}`,
+    text: tUser("actions.passwordReset.mailText", { link }),
   })
 
   if (!emailResult.ok) {
@@ -88,21 +92,21 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
       console.error("[email] password reset delivery failed", emailResult.error)
       return {
         ok: true,
-        message: `Если аккаунт с email ${email} существует — на него отправлено письмо со ссылкой для сброса пароля.`,
+        message: t("actions.passwordReset.maybeSent", { email }),
       }
     }
 
     // Resend не настроен — отдаём ссылку прямо в UI (для разработки/первого запуска)
     return {
       ok: true,
-      message: "Email-отправка пока не настроена. Используйте ссылку:",
+      message: t("actions.myAccount.mailNotConfigured"),
       previewLink: link,
     }
   }
 
   return {
     ok: true,
-    message: `Если аккаунт с email ${email} существует — на него отправлено письмо со ссылкой для сброса пароля.`,
+    message: t("actions.passwordReset.maybeSent", { email }),
   }
 }
 
@@ -111,26 +115,28 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
  * и устанавливает новый пароль.
  */
 export async function resetPassword(formData: FormData): Promise<Result> {
+  const { t } = await getT()
   const token = String(formData.get("token") ?? "")
   const newPassword = String(formData.get("newPassword") ?? "")
   const confirmPassword = String(formData.get("confirmPassword") ?? "")
 
-  if (!token) return { ok: false, error: "Токен отсутствует" }
-  if (newPassword.length < 8) return { ok: false, error: "Пароль минимум 8 символов" }
-  if (newPassword !== confirmPassword) return { ok: false, error: "Пароли не совпадают" }
+  if (!token) return { ok: false, error: t("actions.passwordReset.tokenMissing") }
+  if (newPassword.length < 8) return { ok: false, error: t("actions.myAccount.newPasswordTooShort") }
+  if (newPassword !== confirmPassword) return { ok: false, error: t("actions.myAccount.passwordsMismatch") }
 
-  const t = await db.verificationToken.findUnique({ where: { token } })
-  if (!t) return { ok: false, error: "Токен не найден" }
-  if (t.usedAt) return { ok: false, error: "Ссылка уже использована" }
-  if (t.expiresAt < new Date()) return { ok: false, error: "Срок действия ссылки истёк" }
-  if (t.type !== "PASSWORD_RESET") return { ok: false, error: "Неверный тип токена" }
-  if (!t.userId) return { ok: false, error: "Токен не привязан к пользователю" }
+  // Имя t занято переводчиком — запись токена называется record.
+  const record = await db.verificationToken.findUnique({ where: { token } })
+  if (!record) return { ok: false, error: t("actions.myAccount.tokenNotFound") }
+  if (record.usedAt) return { ok: false, error: t("actions.myAccount.linkAlreadyUsed") }
+  if (record.expiresAt < new Date()) return { ok: false, error: t("actions.myAccount.linkExpired") }
+  if (record.type !== "PASSWORD_RESET") return { ok: false, error: t("actions.myAccount.tokenWrongType") }
+  if (!record.userId) return { ok: false, error: t("actions.myAccount.tokenNoUser") }
 
   const hash = await bcrypt.hash(newPassword, 10)
 
   await db.$transaction([
     db.user.update({
-      where: { id: t.userId },
+      where: { id: record.userId },
       data: {
         password: hash,
         mustChangePassword: false,
@@ -138,17 +144,17 @@ export async function resetPassword(formData: FormData): Promise<Result> {
       },
     }),
     db.verificationToken.update({
-      where: { id: t.id },
+      where: { id: record.id },
       data: { usedAt: new Date() },
     }),
     // Инвалидируем все остальные активные password-reset токены этого юзера —
     // чтобы старые ссылки не остались работающими.
     db.verificationToken.updateMany({
       where: {
-        userId: t.userId,
+        userId: record.userId,
         type: "PASSWORD_RESET",
         usedAt: null,
-        id: { not: t.id },
+        id: { not: record.id },
       },
       data: { usedAt: new Date() },
     }),
@@ -157,9 +163,9 @@ export async function resetPassword(formData: FormData): Promise<Result> {
   await audit({
     action: "UPDATE",
     entity: "user",
-    entityId: t.userId,
+    entityId: record.userId,
     details: { type: "password_change", source: "reset_token" },
   })
 
-  return { ok: true, message: "Пароль изменён. Теперь вы можете войти с новым паролем." }
+  return { ok: true, message: t("actions.passwordReset.passwordChanged") }
 }

@@ -1,11 +1,23 @@
+/**
+ * Ключи подписей в словаре (common.iinChecks.*), а не готовый текст: файл
+ * попадает и в браузер, тянуть туда словарь целиком незачем. Подпись
+ * подставляется там, где ошибку показывают.
+ */
+export type KzIinIssue =
+  | "onlyDigits"
+  | "length"
+  | "repeated"
+  | "checkDigit"
+  | "noBirthDate"
+  | "noGender"
+
 export type KzIinValidation = {
   ok: boolean
   value: string
-  errors: string[]
-  warnings: string[]
+  errors: KzIinIssue[]
+  warnings: KzIinIssue[]
   birthDate: Date | null
   gender: "MALE" | "FEMALE" | null
-  genderLabel: string | null
 }
 
 const FIRST_CYCLE_WEIGHTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -17,38 +29,38 @@ export function normalizeDigits(value: unknown) {
 
 export function validateKazakhstanIin(value: unknown): KzIinValidation {
   const compact = normalizeDigits(value)
-  const errors: string[] = []
-  const warnings: string[] = []
+  const errors: KzIinIssue[] = []
+  const warnings: KzIinIssue[] = []
 
   if (!compact) {
-    return { ok: true, value: "", errors, warnings, birthDate: null, gender: null, genderLabel: null }
+    return { ok: true, value: "", errors, warnings, birthDate: null, gender: null }
   }
 
   if (!/^\d+$/.test(String(value ?? "").replace(/\s/g, "")) && String(value ?? "").trim()) {
-    errors.push("ИИН должен содержать только цифры")
+    errors.push("onlyDigits")
   }
 
   if (compact.length !== 12) {
-    errors.push("ИИН должен состоять из 12 цифр")
-    return { ok: false, value: compact, errors, warnings, birthDate: null, gender: null, genderLabel: null }
+    errors.push("length")
+    return { ok: false, value: compact, errors, warnings, birthDate: null, gender: null }
   }
 
   if (/^(\d)\1{11}$/.test(compact)) {
-    errors.push("ИИН не может состоять из одной повторяющейся цифры")
+    errors.push("repeated")
   }
 
   const expectedCheckDigit = calculateIinCheckDigit(compact.slice(0, 11))
   const actualCheckDigit = Number(compact[11])
   if (expectedCheckDigit === null || expectedCheckDigit !== actualCheckDigit) {
-    errors.push("Некорректная контрольная цифра ИИН")
+    errors.push("checkDigit")
   }
 
   const decoded = decodeLegacyBirthDateAndGender(compact)
   if (!decoded.birthDate) {
-    warnings.push("Первые 6 цифр не расшифровываются как классическая дата рождения")
+    warnings.push("noBirthDate")
   }
   if (!decoded.gender) {
-    warnings.push("7-я цифра не расшифровывается как классический код пола и века")
+    warnings.push("noGender")
   }
 
   return {
@@ -58,17 +70,46 @@ export function validateKazakhstanIin(value: unknown): KzIinValidation {
     warnings,
     birthDate: decoded.birthDate,
     gender: decoded.gender,
-    genderLabel: decoded.genderLabel,
   }
 }
 
-export function assertKazakhstanIin(value: unknown, label = "ИИН") {
+/**
+ * Бросает ошибку, если ИИН не проходит проверку.
+ *
+ * translate — переводчик вызывающей стороны; там, где его ещё не передали,
+ * остаётся русский запасной текст. Тянуть словарь сюда нельзя: файл
+ * попадает в браузерную сборку.
+ */
+export function assertKazakhstanIin(
+  value: unknown,
+  label = "ИИН",
+  translate?: (issue: KzIinIssue | null, label: string) => string,
+) {
   const result = validateKazakhstanIin(value)
   if (!result.value) return null
   if (!result.ok) {
-    throw new Error(result.errors[0]?.replace(/^ИИН/, label) ?? `${label} некорректен`)
+    const issue = result.errors[0] ?? null
+    throw new Error(
+      translate ? translate(issue, label) : fallbackIinMessage(issue, label),
+    )
   }
   return result.value
+}
+
+/** Запасной русский текст для путей, куда переводчик ещё не проброшен. */
+function fallbackIinMessage(issue: KzIinIssue | null, label: string): string {
+  switch (issue) {
+    case "onlyDigits":
+      return `${label} должен содержать только цифры`
+    case "length":
+      return `${label} должен состоять из 12 цифр`
+    case "repeated":
+      return `${label} не может состоять из одной повторяющейся цифры`
+    case "checkDigit":
+      return `Некорректная контрольная цифра ${label}`
+    default:
+      return `${label} некорректен`
+  }
 }
 
 export function formatKzIinBirthDate(date: Date) {
@@ -117,11 +158,7 @@ function decodeLegacyBirthDateAndGender(iin: string) {
       ? "FEMALE"
       : null
 
-  return {
-    birthDate,
-    gender,
-    genderLabel: gender === "MALE" ? "мужчина" : gender === "FEMALE" ? "женщина" : null,
-  }
+  return { birthDate, gender }
 }
 
 function makeValidDate(year: number, month: number, day: number) {

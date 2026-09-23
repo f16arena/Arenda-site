@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { shortAgent, viewsSummary } from "./share-log"
+import { lastViewAt, shortAgent } from "./share-log"
 import { clientIp, visitorHash } from "./share-log-server"
 
 const headers = (map: Record<string, string>) => ({ get: (n: string) => map[n] ?? null })
@@ -49,20 +49,12 @@ describe("shortAgent", () => {
   })
 })
 
-describe("viewsSummary", () => {
-  it("без открытий", () => {
-    expect(viewsSummary(0, null)).toBe("ещё не открывали")
+describe("lastViewAt", () => {
+  it("без даты — пусто", () => {
+    expect(lastViewAt("ru-RU", null)).toBe("")
   })
 
-  it("склонение по числу", () => {
-    expect(viewsSummary(1, null)).toContain("1 открытие")
-    expect(viewsSummary(3, null)).toContain("3 открытия")
-    expect(viewsSummary(11, null)).toContain("11 открытий")
-    expect(viewsSummary(22, null)).toContain("22 открытия")
-  })
-
-  it("показывает время последнего открытия", () => {
-    const s = viewsSummary(2, new Date("2026-09-18T14:22:00"))
-    expect(s).toMatch(/последнее 18\.09 в \d{2}:\d{2}/)
+  it("день, месяц и время", () => {
+    expect(lastViewAt("ru-RU", new Date("2026-09-18T14:22:00"))).toMatch(/^18\.09 \d{2}:\d{2}$/)
   })
 })

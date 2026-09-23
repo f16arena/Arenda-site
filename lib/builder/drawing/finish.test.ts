@@ -5,6 +5,12 @@ import { buildEvacuation } from "./evacuation"
 import { floorRooms } from "@/lib/builder/rooms"
 import type { Floor } from "@/types/builder"
 
+import { createTranslator } from "@/lib/i18n/translate"
+import { ru } from "@/lib/i18n/messages"
+
+// Тексты на листах собираются переводчиком — в тестах берём русский словарь.
+const { t } = createTranslator("ru", ru)
+
 // две комнаты 5×4 м с дверью наружу и дверью между ними
 function floor(): Floor {
   let g = emptyGraph()
@@ -28,7 +34,7 @@ function floor(): Floor {
 
 describe("ведомость отделки", () => {
   it("площадь пола и стен, материалы из модели", () => {
-    const rows = finishSchedule(floor())
+    const rows = finishSchedule(floor(), t)
     expect(rows).toHaveLength(2)
     const r = rows[0]
     expect(r.floor).toBe("Плитка сер.")
@@ -37,10 +43,10 @@ describe("ведомость отделки", () => {
     expect(r.wallsM2).toBeGreaterThan(r.floorM2)
   })
   it("экспликация полов сводит помещения по типу покрытия", () => {
-    const t = floorTypes(floor())
-    expect(t).toHaveLength(1)
-    expect(t[0].covering).toBe("Плитка сер.")
-    expect(t[0].layers).toContain("стяжка")
+    const types = floorTypes(floor(), t)
+    expect(types).toHaveLength(1)
+    expect(types[0].covering).toBe("Плитка сер.")
+    expect(types[0].layers).toContain("стяжка")
   })
 })
 

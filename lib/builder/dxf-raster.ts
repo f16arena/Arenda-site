@@ -11,6 +11,9 @@ export interface RasterUnderlay {
   y: number
 }
 
+/** Код ошибки: браузер не дал 2D-контекст для отрисовки подложки. */
+export const NO_CANVAS = "no-canvas"
+
 export function rasterizeDxf(d: DxfImport, maxDim = 3000): RasterUnderlay {
   const pad = Math.max(d.bounds.maxX - d.bounds.minX, d.bounds.maxY - d.bounds.minY) * 0.01 + 1
   const minX = d.bounds.minX - pad, minY = d.bounds.minY - pad
@@ -21,7 +24,8 @@ export function rasterizeDxf(d: DxfImport, maxDim = 3000): RasterUnderlay {
   canvas.width = Math.max(1, Math.round(wMm * k))
   canvas.height = Math.max(1, Math.round(hMm * k))
   const ctx = canvas.getContext("2d")
-  if (!ctx) throw new Error("Браузер не дал нарисовать подложку")
+  // код, а не текст: сообщение показывает панель подложки на языке интерфейса
+  if (!ctx) throw new Error(NO_CANVAS)
   ctx.strokeStyle = "#0f172a"
   ctx.lineWidth = 1.4
   ctx.lineCap = "round"

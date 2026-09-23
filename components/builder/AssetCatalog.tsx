@@ -7,175 +7,200 @@
 import { useState } from "react"
 import { useEditorStore } from "@/store/builder-store"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
+import type { Messages } from "@/lib/i18n/messages"
+
+// Имя ассета берём из словаря по его id: подписи двух языков не должны лежать
+// в списке ассетов, иначе он превратится в таблицу переводов.
+type AssetId = keyof Messages["adminBuilder"]["catalog"]["items"]
+type CategoryId = "construction" | "furniture" | "tech" | "light" | "decor" | "gaming" | "cafe" | "water" | "nature" | "street" | "fences" | "paving"
 
 interface Asset {
-  id: string
-  name: string
-  category: string
+  id: AssetId
+  category: CategoryId
   icon: string
 }
 
 const ASSETS: Asset[] = [
   // Стройка
-  { id: "column_round", name: "Колонна ○", category: "Стройка", icon: "🏛️" },
-  { id: "column_square", name: "Колонна □", category: "Стройка", icon: "🏛️" },
-  { id: "arch", name: "Арка", category: "Стройка", icon: "🌉" },
-  { id: "balcony", name: "Балкон", category: "Стройка", icon: "🪟" },
-  { id: "terrace", name: "Терраса", category: "Стройка", icon: "🪵" },
-  { id: "awning", name: "Навес", category: "Стройка", icon: "⛱️" },
-  { id: "canopy", name: "Тент", category: "Стройка", icon: "⛱️" },
-  { id: "railing", name: "Перила", category: "Стройка", icon: "🚧" },
+  { id: "column_round", category: "construction", icon: "🏛️" },
+  { id: "column_square", category: "construction", icon: "🏛️" },
+  { id: "arch", category: "construction", icon: "🌉" },
+  { id: "balcony", category: "construction", icon: "🪟" },
+  { id: "terrace", category: "construction", icon: "🪵" },
+  { id: "awning", category: "construction", icon: "⛱️" },
+  { id: "canopy", category: "construction", icon: "⛱️" },
+  { id: "railing", category: "construction", icon: "🚧" },
   // Мебель
-  { id: "sofa", name: "Диван", category: "Мебель", icon: "🛋️" },
-  { id: "armchair", name: "Кресло", category: "Мебель", icon: "🪑" },
-  { id: "chair", name: "Стул", category: "Мебель", icon: "🪑" },
-  { id: "table", name: "Стол", category: "Мебель", icon: "🪟" },
-  { id: "coffee_table", name: "Журнальный", category: "Мебель", icon: "▭" },
-  { id: "desk", name: "Стол раб.", category: "Мебель", icon: "🖥️" },
-  { id: "meeting_table", name: "Переговорный", category: "Мебель", icon: "⬭" },
-  { id: "wardrobe", name: "Шкаф", category: "Мебель", icon: "🚪" },
-  { id: "shelf", name: "Стеллаж", category: "Мебель", icon: "🗄️" },
-  { id: "bookshelf", name: "Книжный", category: "Мебель", icon: "📚" },
-  { id: "filing_cabinet", name: "Картотека", category: "Мебель", icon: "🗄️" },
-  { id: "whiteboard", name: "Доска", category: "Мебель", icon: "📋" },
-  { id: "bed", name: "Кровать", category: "Мебель", icon: "🛏️" },
-  { id: "dining_table", name: "Обеденный", category: "Мебель", icon: "🍽️" },
-  { id: "stool", name: "Табурет", category: "Мебель", icon: "🪑" },
-  { id: "lounge_chair", name: "Лаунж", category: "Мебель", icon: "🛋️" },
-  { id: "ottoman", name: "Пуф", category: "Мебель", icon: "🟤" },
-  { id: "sideboard", name: "Комод", category: "Мебель", icon: "🗄️" },
-  { id: "tv_stand", name: "Тумба ТВ", category: "Мебель", icon: "📺" },
-  { id: "nightstand", name: "Тумба", category: "Мебель", icon: "🛏️" },
-  { id: "locker", name: "Локер", category: "Мебель", icon: "🔒" },
-  { id: "coat_rack", name: "Вешалка", category: "Мебель", icon: "🧥" },
-  { id: "reception", name: "Ресепшн", category: "Мебель", icon: "🛎️" },
-  { id: "display_case", name: "Витрина", category: "Мебель", icon: "🪟" },
+  { id: "sofa", category: "furniture", icon: "🛋️" },
+  { id: "armchair", category: "furniture", icon: "🪑" },
+  { id: "chair", category: "furniture", icon: "🪑" },
+  { id: "table", category: "furniture", icon: "🪟" },
+  { id: "coffee_table", category: "furniture", icon: "▭" },
+  { id: "desk", category: "furniture", icon: "🖥️" },
+  { id: "meeting_table", category: "furniture", icon: "⬭" },
+  { id: "wardrobe", category: "furniture", icon: "🚪" },
+  { id: "shelf", category: "furniture", icon: "🗄️" },
+  { id: "bookshelf", category: "furniture", icon: "📚" },
+  { id: "filing_cabinet", category: "furniture", icon: "🗄️" },
+  { id: "whiteboard", category: "furniture", icon: "📋" },
+  { id: "bed", category: "furniture", icon: "🛏️" },
+  { id: "dining_table", category: "furniture", icon: "🍽️" },
+  { id: "stool", category: "furniture", icon: "🪑" },
+  { id: "lounge_chair", category: "furniture", icon: "🛋️" },
+  { id: "ottoman", category: "furniture", icon: "🟤" },
+  { id: "sideboard", category: "furniture", icon: "🗄️" },
+  { id: "tv_stand", category: "furniture", icon: "📺" },
+  { id: "nightstand", category: "furniture", icon: "🛏️" },
+  { id: "locker", category: "furniture", icon: "🔒" },
+  { id: "coat_rack", category: "furniture", icon: "🧥" },
+  { id: "reception", category: "furniture", icon: "🛎️" },
+  { id: "display_case", category: "furniture", icon: "🪟" },
   // Техника
-  { id: "tv", name: "Телевизор", category: "Техника", icon: "📺" },
-  { id: "monitor", name: "Монитор", category: "Техника", icon: "🖥️" },
-  { id: "pc", name: "ПК", category: "Техника", icon: "🖲️" },
-  { id: "printer", name: "Принтер", category: "Техника", icon: "🖨️" },
-  { id: "fridge", name: "Холодильник", category: "Техника", icon: "🧊" },
-  { id: "microwave", name: "Микроволновка", category: "Техника", icon: "📦" },
-  { id: "ac", name: "Кондиционер", category: "Техника", icon: "❄️" },
-  { id: "projector", name: "Проектор", category: "Техника", icon: "📽️" },
-  { id: "server_rack", name: "Серверная", category: "Техника", icon: "🖥️" },
-  { id: "vending", name: "Вендинг", category: "Техника", icon: "🥤" },
-  { id: "atm", name: "Банкомат", category: "Техника", icon: "🏧" },
-  { id: "kiosk", name: "Киоск", category: "Техника", icon: "🏪" },
-  { id: "turnstile", name: "Турникет", category: "Техника", icon: "🚪" },
-  { id: "copier", name: "МФУ", category: "Техника", icon: "🖨️" },
-  { id: "safe", name: "Сейф", category: "Техника", icon: "🔐" },
-  { id: "monitor_dual", name: "2 монитора", category: "Техника", icon: "🖥️" },
+  { id: "tv", category: "tech", icon: "📺" },
+  { id: "monitor", category: "tech", icon: "🖥️" },
+  { id: "pc", category: "tech", icon: "🖲️" },
+  { id: "printer", category: "tech", icon: "🖨️" },
+  { id: "fridge", category: "tech", icon: "🧊" },
+  { id: "microwave", category: "tech", icon: "📦" },
+  { id: "ac", category: "tech", icon: "❄️" },
+  { id: "projector", category: "tech", icon: "📽️" },
+  { id: "server_rack", category: "tech", icon: "🖥️" },
+  { id: "vending", category: "tech", icon: "🥤" },
+  { id: "atm", category: "tech", icon: "🏧" },
+  { id: "kiosk", category: "tech", icon: "🏪" },
+  { id: "turnstile", category: "tech", icon: "🚪" },
+  { id: "copier", category: "tech", icon: "🖨️" },
+  { id: "safe", category: "tech", icon: "🔐" },
+  { id: "monitor_dual", category: "tech", icon: "🖥️" },
   // Свет
-  { id: "ceiling_light", name: "Люстра", category: "Свет", icon: "💡" },
-  { id: "wall_light", name: "Бра", category: "Свет", icon: "🔆" },
-  { id: "floor_lamp", name: "Торшер", category: "Свет", icon: "🛋️" },
-  { id: "table_lamp", name: "Настольная", category: "Свет", icon: "💡" },
-  { id: "spot", name: "Точечный", category: "Свет", icon: "🔅" },
-  { id: "led_strip", name: "LED-лента", category: "Свет", icon: "🌈" },
-  { id: "street_lamp", name: "Фонарь", category: "Свет", icon: "🏮" },
+  { id: "ceiling_light", category: "light", icon: "💡" },
+  { id: "wall_light", category: "light", icon: "🔆" },
+  { id: "floor_lamp", category: "light", icon: "🛋️" },
+  { id: "table_lamp", category: "light", icon: "💡" },
+  { id: "spot", category: "light", icon: "🔅" },
+  { id: "led_strip", category: "light", icon: "🌈" },
+  { id: "street_lamp", category: "light", icon: "🏮" },
   // Декор
-  { id: "painting", name: "Картина", category: "Декор", icon: "🖼️" },
-  { id: "poster", name: "Постер", category: "Декор", icon: "🪧" },
-  { id: "mirror", name: "Зеркало", category: "Декор", icon: "🪞" },
-  { id: "clock", name: "Часы", category: "Декор", icon: "🕐" },
-  { id: "plant_pot", name: "Растение", category: "Декор", icon: "🪴" },
-  { id: "vase", name: "Ваза", category: "Декор", icon: "🏺" },
-  { id: "rug", name: "Ковёр", category: "Декор", icon: "🟪" },
-  { id: "curtain", name: "Штора", category: "Декор", icon: "🪟" },
-  { id: "wall_panel", name: "Стен. панель", category: "Декор", icon: "🪵" },
+  { id: "painting", category: "decor", icon: "🖼️" },
+  { id: "poster", category: "decor", icon: "🪧" },
+  { id: "mirror", category: "decor", icon: "🪞" },
+  { id: "clock", category: "decor", icon: "🕐" },
+  { id: "plant_pot", category: "decor", icon: "🪴" },
+  { id: "vase", category: "decor", icon: "🏺" },
+  { id: "rug", category: "decor", icon: "🟪" },
+  { id: "curtain", category: "decor", icon: "🪟" },
+  { id: "wall_panel", category: "decor", icon: "🪵" },
   // Гейминг
-  { id: "gaming_desk", name: "Игровой стол", category: "Гейминг", icon: "🎮" },
-  { id: "gaming_chair", name: "Игр. кресло", category: "Гейминг", icon: "🪑" },
-  { id: "pc_rgb", name: "ПК RGB", category: "Гейминг", icon: "🌈" },
-  { id: "monitor_triple", name: "3 монитора", category: "Гейминг", icon: "🖥️" },
-  { id: "console_zone", name: "Консоль-зона", category: "Гейминг", icon: "🎮" },
-  { id: "streaming_setup", name: "Стрим-сетап", category: "Гейминг", icon: "🎙️" },
+  { id: "gaming_desk", category: "gaming", icon: "🎮" },
+  { id: "gaming_chair", category: "gaming", icon: "🪑" },
+  { id: "pc_rgb", category: "gaming", icon: "🌈" },
+  { id: "monitor_triple", category: "gaming", icon: "🖥️" },
+  { id: "console_zone", category: "gaming", icon: "🎮" },
+  { id: "streaming_setup", category: "gaming", icon: "🎙️" },
   // Кафе
-  { id: "cafe_table", name: "Столик", category: "Кафе", icon: "☕" },
-  { id: "cafe_chair", name: "Стул кафе", category: "Кафе", icon: "🪑" },
-  { id: "bar_stool", name: "Барный стул", category: "Кафе", icon: "🍸" },
-  { id: "bar_counter", name: "Барная стойка", category: "Кафе", icon: "🍹" },
-  { id: "coffee_machine", name: "Кофемашина", category: "Кафе", icon: "☕" },
-  { id: "menu_board", name: "Меню-борд", category: "Кафе", icon: "📋" },
-  { id: "kitchen_counter", name: "Кух. тумба", category: "Кафе", icon: "🍳" },
-  { id: "stove", name: "Плита", category: "Кафе", icon: "🔥" },
-  { id: "dishwasher", name: "Посудомойка", category: "Кафе", icon: "🍽️" },
-  { id: "pastry_case", name: "Витрина-хол.", category: "Кафе", icon: "🧁" },
-  { id: "water_cooler", name: "Кулер", category: "Кафе", icon: "💧" },
+  { id: "cafe_table", category: "cafe", icon: "☕" },
+  { id: "cafe_chair", category: "cafe", icon: "🪑" },
+  { id: "bar_stool", category: "cafe", icon: "🍸" },
+  { id: "bar_counter", category: "cafe", icon: "🍹" },
+  { id: "coffee_machine", category: "cafe", icon: "☕" },
+  { id: "menu_board", category: "cafe", icon: "📋" },
+  { id: "kitchen_counter", category: "cafe", icon: "🍳" },
+  { id: "stove", category: "cafe", icon: "🔥" },
+  { id: "dishwasher", category: "cafe", icon: "🍽️" },
+  { id: "pastry_case", category: "cafe", icon: "🧁" },
+  { id: "water_cooler", category: "cafe", icon: "💧" },
   // Природа / Улица / Ограды / Покрытия
-  { id: "tree", name: "Дерево", category: "Природа", icon: "🌳" },
-  { id: "spruce", name: "Ёлка", category: "Природа", icon: "🌲" },
-  { id: "birch", name: "Берёза", category: "Природа", icon: "🌿" },
-  { id: "bush", name: "Куст", category: "Природа", icon: "🪴" },
-  { id: "flowerbed", name: "Клумба", category: "Природа", icon: "🌼" },
-  { id: "plant_big", name: "Растение XL", category: "Природа", icon: "🪴" },
-  { id: "fern", name: "Папоротник", category: "Природа", icon: "🌿" },
-  { id: "lamp", name: "Уличн. фонарь", category: "Улица", icon: "🏮" },
-  { id: "bench", name: "Скамейка", category: "Улица", icon: "🪑" },
-  { id: "bin", name: "Урна", category: "Улица", icon: "🗑️" },
-  { id: "fence", name: "Забор", category: "Ограды", icon: "🧱" },
-  { id: "gate", name: "Ворота", category: "Ограды", icon: "🚪" },
-  { id: "road", name: "Дорога", category: "Покрытия", icon: "🛣️" },
-  { id: "path", name: "Дорожка", category: "Покрытия", icon: "〰️" },
-  { id: "parking", name: "Парковка", category: "Покрытия", icon: "🅿️" },
+  { id: "tree", category: "nature", icon: "🌳" },
+  { id: "spruce", category: "nature", icon: "🌲" },
+  { id: "birch", category: "nature", icon: "🌿" },
+  { id: "bush", category: "nature", icon: "🪴" },
+  { id: "flowerbed", category: "nature", icon: "🌼" },
+  { id: "plant_big", category: "nature", icon: "🪴" },
+  { id: "fern", category: "nature", icon: "🌿" },
+  { id: "lamp", category: "street", icon: "🏮" },
+  { id: "bench", category: "street", icon: "🪑" },
+  { id: "bin", category: "street", icon: "🗑️" },
+  { id: "fence", category: "fences", icon: "🧱" },
+  { id: "gate", category: "fences", icon: "🚪" },
+  { id: "road", category: "paving", icon: "🛣️" },
+  { id: "path", category: "paving", icon: "〰️" },
+  { id: "parking", category: "paving", icon: "🅿️" },
   // Вода
-  { id: "pond", name: "Пруд", category: "Вода", icon: "🟦" },
-  { id: "pool", name: "Бассейн", category: "Вода", icon: "🏊" },
-  { id: "fountain", name: "Фонтан", category: "Вода", icon: "⛲" },
-  { id: "water_strip", name: "Река", category: "Вода", icon: "🌊" },
+  { id: "pond", category: "water", icon: "🟦" },
+  { id: "pool", category: "water", icon: "🏊" },
+  { id: "fountain", category: "water", icon: "⛲" },
+  { id: "water_strip", category: "water", icon: "🌊" },
   // Доп. наполнение
-  { id: "cubicle", name: "Рабочее место", category: "Мебель", icon: "🧑‍💻" },
-  { id: "coworking_desk", name: "Общий стол", category: "Мебель", icon: "🪑" },
-  { id: "clothing_rack", name: "Стойка одежды", category: "Мебель", icon: "👕" },
-  { id: "checkout_counter", name: "Касса", category: "Мебель", icon: "🛒" },
-  { id: "goods_shelf", name: "Торг. стеллаж", category: "Мебель", icon: "🏬" },
-  { id: "corner_sofa", name: "Угловой диван", category: "Мебель", icon: "🛋️" },
-  { id: "round_pouf", name: "Круглый пуф", category: "Мебель", icon: "🟤" },
-  { id: "lockers_row", name: "Ряд локеров", category: "Мебель", icon: "🔐" },
-  { id: "conference_phone", name: "Спикерфон", category: "Техника", icon: "☎️" },
-  { id: "tv_large", name: "ТВ-панель XL", category: "Техника", icon: "📺" },
-  { id: "mannequin", name: "Манекен", category: "Декор", icon: "🧍" },
+  { id: "cubicle", category: "furniture", icon: "🧑‍💻" },
+  { id: "coworking_desk", category: "furniture", icon: "🪑" },
+  { id: "clothing_rack", category: "furniture", icon: "👕" },
+  { id: "checkout_counter", category: "furniture", icon: "🛒" },
+  { id: "goods_shelf", category: "furniture", icon: "🏬" },
+  { id: "corner_sofa", category: "furniture", icon: "🛋️" },
+  { id: "round_pouf", category: "furniture", icon: "🟤" },
+  { id: "lockers_row", category: "furniture", icon: "🔐" },
+  { id: "conference_phone", category: "tech", icon: "☎️" },
+  { id: "tv_large", category: "tech", icon: "📺" },
+  { id: "mannequin", category: "decor", icon: "🧍" },
   // масштабные фигуры: по человеку и машине видно реальные габариты
-  { id: "person", name: "Человек", category: "Декор", icon: "🧍‍♂️" },
-  { id: "person2", name: "Человек 2", category: "Декор", icon: "🧍‍♀️" },
-  { id: "car", name: "Автомобиль", category: "Улица", icon: "🚗" },
-  { id: "car2", name: "Автомобиль 2", category: "Улица", icon: "🚙" },
-  { id: "shopping_cart", name: "Тележка", category: "Декор", icon: "🛒" },
-  { id: "sculpture", name: "Скульптура", category: "Декор", icon: "🗿" },
-  { id: "aquarium", name: "Аквариум", category: "Декор", icon: "🐠" },
-  { id: "neon_sign", name: "Неон-вывеска", category: "Декор", icon: "💡" },
-  { id: "art_pedestal", name: "Постамент", category: "Декор", icon: "🏺" },
-  { id: "hanging_plant", name: "Подвес. растение", category: "Декор", icon: "🪴" },
-  { id: "floor_vase_big", name: "Напольная ваза", category: "Декор", icon: "🏺" },
-  { id: "vr_station", name: "VR-станция", category: "Гейминг", icon: "🥽" },
-  { id: "arcade_machine", name: "Аркада", category: "Гейминг", icon: "🕹️" },
-  { id: "tournament_stage", name: "Турнир-подиум", category: "Гейминг", icon: "🏆" },
-  { id: "display_fridge", name: "Витрина-хол. XL", category: "Кафе", icon: "🧊" },
-  { id: "ice_cream_case", name: "Морозильник", category: "Кафе", icon: "🍦" },
-  { id: "napkin_stand", name: "Салфетница", category: "Кафе", icon: "🧻" },
+  { id: "person", category: "decor", icon: "🧍‍♂️" },
+  { id: "person2", category: "decor", icon: "🧍‍♀️" },
+  { id: "car", category: "street", icon: "🚗" },
+  { id: "car2", category: "street", icon: "🚙" },
+  { id: "shopping_cart", category: "decor", icon: "🛒" },
+  { id: "sculpture", category: "decor", icon: "🗿" },
+  { id: "aquarium", category: "decor", icon: "🐠" },
+  { id: "neon_sign", category: "decor", icon: "💡" },
+  { id: "art_pedestal", category: "decor", icon: "🏺" },
+  { id: "hanging_plant", category: "decor", icon: "🪴" },
+  { id: "floor_vase_big", category: "decor", icon: "🏺" },
+  { id: "vr_station", category: "gaming", icon: "🥽" },
+  { id: "arcade_machine", category: "gaming", icon: "🕹️" },
+  { id: "tournament_stage", category: "gaming", icon: "🏆" },
+  { id: "display_fridge", category: "cafe", icon: "🧊" },
+  { id: "ice_cream_case", category: "cafe", icon: "🍦" },
+  { id: "napkin_stand", category: "cafe", icon: "🧻" },
 ]
 
-const CATEGORIES = ["Все", "Стройка", "Мебель", "Техника", "Свет", "Декор", "Гейминг", "Кафе", "Вода", "Природа", "Улица", "Ограды", "Покрытия"]
+// «all» — не категория ассета, а пункт фильтра «Все».
+const CATEGORIES: (CategoryId | "all")[] = ["all", "construction", "furniture", "tech", "light", "decor", "gaming", "cafe", "water", "nature", "street", "fences", "paving"]
+
+// Ключ подписи категории в словаре: catAll, catConstruction…
+const CAT_KEY = {
+  all: "catAll",
+  construction: "catConstruction",
+  furniture: "catFurniture",
+  tech: "catTech",
+  light: "catLight",
+  decor: "catDecor",
+  gaming: "catGaming",
+  cafe: "catCafe",
+  water: "catWater",
+  nature: "catNature",
+  street: "catStreet",
+  fences: "catFences",
+  paving: "catPaving",
+} as const satisfies Record<CategoryId | "all", string>
 
 // Какую категорию показать по умолчанию для режима.
-const MODE_CATEGORY: Record<string, string> = { buy: "Мебель", water: "Вода", landscape: "Природа" }
+const MODE_CATEGORY: Record<string, CategoryId> = { buy: "furniture", water: "water", landscape: "nature" }
 
 export function AssetCatalog() {
+  const { t } = useT()
   const armedAsset = useEditorStore((s) => s.armedAsset)
   const armAsset = useEditorStore((s) => s.armAsset)
   const setTool = useEditorStore((s) => s.setTool)
   const mode = useEditorStore((s) => s.mode)
   // Категория по умолчанию для режима (AssetCatalog ремаунтится по key={mode}).
-  const [cat, setCat] = useState(() => MODE_CATEGORY[mode] ?? "Все")
+  const [cat, setCat] = useState<CategoryId | "all">(() => MODE_CATEGORY[mode] ?? "all")
   const activeTool = useEditorStore((s) => s.activeTool)
   // В режиме «Строить» каталог мебели съедал низ экрана, где инженер обводит
   // план. Свёрнут, пока его не открыли или не взяли инструмент «Объект».
   const [expanded, setExpanded] = useState(() => mode !== "build")
   const open = expanded || activeTool === "object"
 
-  const items = cat === "Все" ? ASSETS : ASSETS.filter((a) => a.category === cat)
+  const items = cat === "all" ? ASSETS : ASSETS.filter((item) => item.category === cat)
 
   const arm = (id: string) => {
     setTool("object")
@@ -190,7 +215,7 @@ export function AssetCatalog() {
         className="absolute bottom-9 left-1/2 z-20 -translate-x-1/2 rounded-xl px-3 py-1.5 text-[11px] font-medium shadow-xl backdrop-blur-xl"
         style={{ background: TOKENS.panel, border: `1px solid ${TOKENS.panelBorder}`, color: TOKENS.text }}
       >
-        Каталог объектов ▴
+        {t("adminBuilder.catalog.collapsed")}
       </button>
     )
   }
@@ -208,41 +233,44 @@ export function AssetCatalog() {
               setExpanded(false)
               if (activeTool === "object") setTool("select")
             }}
-            title="Свернуть каталог"
+            title={t("adminBuilder.catalog.collapse")}
             className="rounded-lg px-2 py-1 text-[11px] font-medium"
             style={{ background: "rgba(148,163,184,0.1)", color: TOKENS.muted }}
           >
             ▾
           </button>
         )}
-        {CATEGORIES.map((c) => (
+        {CATEGORIES.map((id) => (
           <button
-            key={c}
+            key={id}
             type="button"
-            onClick={() => setCat(c)}
+            onClick={() => setCat(id)}
             className="rounded-lg px-2.5 py-1 text-[11px] font-medium transition-all"
-            style={{ background: cat === c ? TOKENS.accent : "rgba(148,163,184,0.1)", color: cat === c ? "#0b1220" : TOKENS.text }}
+            style={{ background: cat === id ? TOKENS.accent : "rgba(148,163,184,0.1)", color: cat === id ? "#0b1220" : TOKENS.text }}
           >
-            {c}
+            {t(`adminBuilder.catalog.${CAT_KEY[id]}`)}
           </button>
         ))}
-        <span className="ml-1 text-[10px]" style={{ color: TOKENS.muted }}>выбери → призрак у курсора · R — поворот · клик — поставить</span>
+        <span className="ml-1 text-[10px]" style={{ color: TOKENS.muted }}>{t("adminBuilder.catalog.hint")}</span>
       </div>
       <div className="flex items-center gap-2 overflow-x-auto pb-0.5">
-        {items.map((a) => {
-          const armed = armedAsset === a.id
+        {items.map((item) => {
+          const armed = armedAsset === item.id
+          const name = t(`adminBuilder.catalog.items.${item.id}`)
           return (
             <button
-              key={a.id}
+              key={item.id}
               type="button"
-              onClick={() => arm(a.id)}
+              onClick={() => arm(item.id)}
+              title={name}
               className="flex w-20 shrink-0 flex-col items-center gap-1 rounded-xl p-2 transition-all hover:scale-[1.03]"
               style={{ background: armed ? "rgba(56,189,248,0.18)" : "rgba(148,163,184,0.08)", border: `1px solid ${armed ? TOKENS.accent : TOKENS.panelBorder}` }}
             >
               <div className="grid h-10 w-full place-items-center rounded-lg" style={{ background: "rgba(56,189,248,0.12)" }}>
-                <span className="text-lg">{a.icon}</span>
+                <span className="text-lg">{item.icon}</span>
               </div>
-              <span className="text-[10px]" style={{ color: TOKENS.text }}>{a.name}</span>
+              {/* Карточка 80px: длинное имя обрезаем, полностью оно в title */}
+              <span className="w-full truncate text-center text-[10px]" style={{ color: TOKENS.text }}>{name}</span>
             </button>
           )
         })}

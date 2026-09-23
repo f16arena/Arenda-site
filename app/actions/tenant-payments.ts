@@ -4,11 +4,12 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { notifyUser } from "@/lib/notify"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import { requireOrgAccess } from "@/lib/org"
 import { paymentReportScope, chargeScope } from "@/lib/tenant-scope"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 import { assertTenantBuildingAccess } from "@/lib/building-access"
-import { PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
 import {
   PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
@@ -55,16 +56,19 @@ function parsePaymentMethod(value: FormDataEntryValue | string | null) {
   return PAYMENT_METHODS.has(method) ? method : null
 }
 
-async function parseReceipt(fileValue: FormDataEntryValue | null) {
+// Переводчик приходит параметром: помощник сам его не добывает.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+async function parseReceipt(fileValue: FormDataEntryValue | null, t: Tr) {
   if (!(fileValue instanceof File) || fileValue.size === 0) return null
 
   const mime = fileValue.type.trim().toLowerCase()
   if (!PAYMENT_RECEIPT_ALLOWED_MIME_TYPES.has(mime)) {
-    return { error: "Чек должен быть PDF, JPG, PNG или WebP" as const }
+    return { error: t("actions.tenantPayments.badReceiptType") }
   }
 
   if (fileValue.size > PAYMENT_RECEIPT_MAX_BYTES) {
-    return { error: "Файл чека не должен быть больше 2 МБ" as const }
+    return { error: t("actions.tenantPayments.receiptTooBig") }
   }
 
   const buffer = Buffer.from(await fileValue.arrayBuffer())
@@ -77,28 +81,30 @@ async function parseReceipt(fileValue: FormDataEntryValue | null) {
 
 export async function reportTenantPayment(formData: FormData): Promise<ActionResult> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
-  if (session.user.role !== "TENANT") return { ok: false, error: "Действие доступно только арендатору" }
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t, locale } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
+  if (session.user.role !== "TENANT") return { ok: false, error: t("actions.tenantPayments.tenantOnly") }
 
   const amount = parsePositiveAmount(formData.get("amount"))
-  if (!amount) return { ok: false, error: "Введите корректную сумму оплаты" }
+  if (!amount) return { ok: false, error: t("actions.tenantPayments.badAmount") }
 
   const paymentDate = parseDate(formData.get("paymentDate"))
-  if (!paymentDate) return { ok: false, error: "Введите корректную дату оплаты" }
+  if (!paymentDate) return { ok: false, error: t("actions.tenantPayments.badDate") }
 
   const method = parsePaymentMethod(formData.get("method"))
-  if (!method) return { ok: false, error: "Выберите корректный способ оплаты" }
+  if (!method) return { ok: false, error: t("actions.tenantPayments.badMethod") }
 
   const note = String(formData.get("note") ?? "").trim().slice(0, 500)
   const paymentPurpose = String(formData.get("paymentPurpose") ?? "").trim().slice(0, 300)
-  const receipt = await parseReceipt(formData.get("receipt"))
+  const receipt = await parseReceipt(formData.get("receipt"), t)
   if (receipt && "error" in receipt) return { ok: false, error: receipt.error }
   // Чек обязателен для безналичных способов (наличные подтверждает администратор).
   if (method !== "CASH" && !receipt) {
-    return { ok: false, error: "Прикрепите чек об оплате — без чека подтверждение невозможно (кроме наличных)" }
+    return { ok: false, error: t("actions.tenantPayments.receiptRequired") }
   }
   const organizationId = session.user.organizationId
-  if (!organizationId) return { ok: false, error: "Организация не найдена" }
+  if (!organizationId) return { ok: false, error: t("actions.common.organizationNotFound") }
 
   const tenant = await db.tenant.findUnique({
     where: { userId: session.user.id },
@@ -118,32 +124,38 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
       },
     },
   })
-  if (!tenant) return { ok: false, error: "Арендатор не найден" }
+  if (!tenant) return { ok: false, error: t("actions.common.tenantNotFound") }
 
   const admins = await getTenantAdminContactsForUser(session.user.id)
   if (admins.length === 0) {
-    return { ok: false, error: "Для вашего помещения не назначен администратор. Напишите в поддержку здания." }
+    return { ok: false, error: t("actions.tenantPayments.noAdminForSpace") }
   }
 
   const placement = formatTenantPlacement(tenant, {
     includeFloorName: false,
-    emptyLabel: "помещение по договору",
+    emptyLabel: t("actions.tenantPayments.placementFallback"),
   })
-  const formattedDate = paymentDate.toLocaleDateString("ru-RU")
-  const methodLabel = PAYMENT_METHOD_LABELS[method] ?? method
+  const formattedDate = formatDateShortL(locale, paymentDate)
+  // Способ оплаты берём из общего раздела domain — он переведён.
+  const methodLabel = t(`domain.paymentMethods.${method}` as "domain.paymentMethods.CASH")
+  // Сообщение пишет арендатор администратору — берём язык автора сообщения.
   const body = [
-    "Здравствуйте. Сообщаю об оплате.",
+    t("actions.tenantPayments.msgIntro"),
     "",
-    `Арендатор: ${tenant.companyName}`,
-    `Помещение: ${placement}`,
-    `Сумма: ${formatMoney(amount)}`,
-    `Дата оплаты: ${formattedDate}`,
-    `Способ оплаты: ${methodLabel}`,
-    paymentPurpose ? `Назначение платежа: ${paymentPurpose}` : null,
-    note ? `Комментарий: ${note}` : null,
-    receipt ? `Чек: ${receipt.name}` : method === "CASH" ? "Чек/расписка: не приложены" : "Чек: не приложен",
+    t("actions.tenantPayments.msgTenant", { tenant: tenant.companyName }),
+    t("actions.tenantPayments.msgSpace", { placement }),
+    t("actions.tenantPayments.msgAmount", { amount: formatMoneyL(locale, amount) }),
+    t("actions.tenantPayments.msgDate", { date: formattedDate }),
+    t("actions.tenantPayments.msgMethod", { method: methodLabel }),
+    paymentPurpose ? t("actions.tenantPayments.msgPurpose", { purpose: paymentPurpose }) : null,
+    note ? t("actions.tenantPayments.msgNote", { note }) : null,
+    receipt
+      ? t("actions.tenantPayments.msgReceipt", { name: receipt.name })
+      : method === "CASH"
+        ? t("actions.tenantPayments.msgNoCashReceipt")
+        : t("actions.tenantPayments.msgNoReceipt"),
     "",
-    "Пожалуйста, проверьте поступление и отметьте платеж в системе.",
+    t("actions.tenantPayments.msgOutro"),
   ].filter(Boolean).join("\n")
 
   let storedReceipt: { id: string; url: string } | null = null
@@ -193,18 +205,27 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
       data: admins.map((admin) => ({
         fromId: session.user.id,
         toId: admin.id,
-        subject: "Арендатор сообщил об оплате",
-        body: `${body}\n\nЗаявка об оплате: #${report.id}`,
+        subject: t("actions.tenantPayments.msgSubject"),
+        body: `${body}\n\n${t("actions.tenantPayments.msgReportId", { id: report.id })}`,
         attachmentUrl: storedReceipt?.url ?? null,
       })),
     })
 
     for (const admin of admins) {
+      // Уведомление читает администратор — берём язык получателя.
+      const { t: tAdmin, locale: adminLocale } = await getTForUser(admin.id)
       await notifyUser({
         userId: admin.id,
         type: "PAYMENT_REPORTED",
-        title: `Оплата от ${tenant.companyName}`,
-        message: `${formatMoney(amount)} за ${formattedDate}. ${methodLabel}. ${receipt ? "Чек приложен." : "Чек не приложен."}`,
+        title: tAdmin("actions.tenantPayments.notifyTitle", { tenant: tenant.companyName }),
+        message: tAdmin("actions.tenantPayments.notifyMessage", {
+          amount: formatMoneyL(adminLocale, amount),
+          date: formatDateShortL(adminLocale, paymentDate),
+          method: tAdmin(`domain.paymentMethods.${method}` as "domain.paymentMethods.CASH"),
+          receipt: receipt
+            ? tAdmin("actions.tenantPayments.receiptAttached")
+            : tAdmin("actions.tenantPayments.receiptMissing"),
+        }),
         link: "/admin/finances",
         sendEmail: false,
         // Дедуп: арендатор перезагрузил страницу и платёж улетел дважды.
@@ -218,7 +239,7 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
         data: { deletedAt: new Date() },
       }).catch(() => null)
     }
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить чек" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.tenantPayments.receiptSaveFailed") }
   }
 
   revalidatePath("/cabinet/finances")
@@ -227,17 +248,18 @@ export async function reportTenantPayment(formData: FormData): Promise<ActionRes
   revalidatePath("/admin/finances")
   revalidatePath(`/admin/tenants/${tenant.id}`)
 
-  return { ok: true, message: "Администратор получил уведомление об оплате" }
+  return { ok: true, message: t("actions.tenantPayments.reported") }
 }
 
 export async function confirmPaymentReport(formData: FormData): Promise<ActionResult> {
   // Гард доступа (assertTenantBuildingAccess) и транзакция могут бросить исключение —
   // нельзя ронять страницу белым экраном (#0HBM6GB). Превращаем в понятный {ok:false}.
+  const { t } = await getT()
   try {
     return await confirmPaymentReportImpl(formData)
   } catch (e) {
     if (isNextControlFlowError(e)) throw e
-    return actionErrorResult(e, "Не удалось провести платёж", {
+    return actionErrorResult(e, t("actions.tenantPayments.confirmFailed"), {
       source: "tenant-payments.confirmPaymentReport",
       route: "/admin/finances",
     })
@@ -247,11 +269,12 @@ export async function confirmPaymentReport(formData: FormData): Promise<ActionRe
 async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResult> {
   await requireCapabilityAndFeature("finance.confirmPayment")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t, locale } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const reportId = String(formData.get("reportId") ?? "").trim()
-  if (!reportId) return { ok: false, error: "Не указана заявка об оплате" }
+  if (!reportId) return { ok: false, error: t("actions.tenantPayments.reportRequired") }
 
   const cashAccountId = String(formData.get("cashAccountId") ?? "").trim() || null
   const requestedMethod = String(formData.get("method") ?? "").trim()
@@ -270,12 +293,12 @@ async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResul
       tenant: { select: { companyName: true } },
     },
   })
-  if (!report) return { ok: false, error: "Заявка об оплате не найдена или уже обработана" }
+  if (!report) return { ok: false, error: t("actions.tenantPayments.reportNotFound") }
 
   await assertTenantBuildingAccess(report.tenantId, orgId)
 
   const method = parsePaymentMethod(requestedMethod || report.method)
-  if (!method) return { ok: false, error: "Выберите корректный способ оплаты" }
+  if (!method) return { ok: false, error: t("actions.tenantPayments.badMethod") }
   if (method === "CASH") await requireCapabilityAndFeature("finance.cashPayment")
 
   if (cashAccountId) {
@@ -283,7 +306,7 @@ async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResul
       where: { id: cashAccountId, organizationId: orgId, isActive: true },
       select: { id: true },
     })
-    if (!account) return { ok: false, error: "Указан недоступный счет зачисления" }
+    if (!account) return { ok: false, error: t("actions.tenantPayments.badCashAccount") }
   }
 
   let validChargeIds: string[] = []
@@ -301,7 +324,7 @@ async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResul
     validChargeIds = validCharges.map((charge) => charge.id)
     selectedChargesTotal = Math.round(validCharges.reduce((sum, charge) => sum + charge.amount, 0) * 100) / 100
     if (validChargeIds.length !== chargeIds.length) {
-      return { ok: false, error: "Некоторые начисления недоступны для текущей организации" }
+      return { ok: false, error: t("actions.finance.chargesNotInOrg") }
     }
   }
 
@@ -309,7 +332,10 @@ async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResul
     if (selectedChargesTotal > report.amount + 0.01) {
       return {
         ok: false,
-        error: `Нельзя закрыть начисления на ${formatMoney(selectedChargesTotal)} платежом ${formatMoney(report.amount)}. Снимите лишние начисления или уточните сумму оплаты.`,
+        error: t("actions.tenantPayments.chargesExceedPayment", {
+          charges: formatMoneyL(locale, selectedChargesTotal),
+          payment: formatMoneyL(locale, report.amount),
+        }),
       }
     }
   }
@@ -329,11 +355,15 @@ async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResul
     select: { userId: true },
   })
   if (tenant?.userId) {
+    // Уведомление читает арендатор — берём язык получателя.
+    const { t: tTenant, locale: tenantLocale } = await getTForUser(tenant.userId)
     await notifyUser({
       userId: tenant.userId,
       type: "PAYMENT_CONFIRMED",
-      title: "Оплата подтверждена",
-      message: `Администратор провел платеж ${formatMoney(report.amount)}.`,
+      title: tTenant("actions.tenantPayments.confirmedTitle"),
+      message: tTenant("actions.tenantPayments.confirmedMessage", {
+        amount: formatMoneyL(tenantLocale, report.amount),
+      }),
       link: "/cabinet/finances",
       sendEmail: false,
     })
@@ -345,17 +375,24 @@ async function confirmPaymentReportImpl(formData: FormData): Promise<ActionResul
   revalidatePath(`/admin/tenants/${report.tenantId}`)
 
   const closedText = validChargeIds.length > 0
-    ? ` Закрыто начислений: ${validChargeIds.length} на ${formatMoney(selectedChargesTotal)}.`
+    ? ` ${t("actions.tenantPayments.chargesClosed", {
+        count: validChargeIds.length,
+        amount: formatMoneyL(locale, selectedChargesTotal),
+      })}`
     : ""
-  return { ok: true, message: `Платеж проведен: ${formatMoney(result.amount)}.${closedText}` }
+  return {
+    ok: true,
+    message: t("actions.tenantPayments.paymentDone", { amount: formatMoneyL(locale, result.amount) }) + closedText,
+  }
 }
 
 export async function markPaymentReportDisputed(formData: FormData): Promise<ActionResult> {
+  const { t } = await getT()
   try {
     return await markPaymentReportDisputedImpl(formData)
   } catch (e) {
     if (isNextControlFlowError(e)) throw e
-    return actionErrorResult(e, "Не удалось пометить оплату спорной", {
+    return actionErrorResult(e, t("actions.tenantPayments.disputeFailed"), {
       source: "tenant-payments.markPaymentReportDisputed",
       route: "/admin/finances",
     })
@@ -365,19 +402,20 @@ export async function markPaymentReportDisputed(formData: FormData): Promise<Act
 async function markPaymentReportDisputedImpl(formData: FormData): Promise<ActionResult> {
   await requireCapabilityAndFeature("finance.disputePayment")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const reportId = String(formData.get("reportId") ?? "").trim()
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 500)
-  if (!reportId) return { ok: false, error: "Не указана заявка об оплате" }
-  if (reason.length < 5) return { ok: false, error: "Коротко укажите, что нужно уточнить по оплате" }
+  if (!reportId) return { ok: false, error: t("actions.tenantPayments.reportRequired") }
+  if (reason.length < 5) return { ok: false, error: t("actions.tenantPayments.disputeReasonRequired") }
 
   const report = await db.paymentReport.findFirst({
     where: { id: reportId, status: { in: ["PENDING", "DISPUTED"] }, ...paymentReportScope(orgId) },
     select: { id: true, tenantId: true, amount: true, userId: true, note: true },
   })
-  if (!report) return { ok: false, error: "Заявка об оплате не найдена или уже обработана" }
+  if (!report) return { ok: false, error: t("actions.tenantPayments.reportNotFound") }
 
   await assertTenantBuildingAccess(report.tenantId, orgId)
 
@@ -387,30 +425,36 @@ async function markPaymentReportDisputedImpl(formData: FormData): Promise<Action
       status: "DISPUTED",
       reviewedById: session.user.id,
       reviewedAt: new Date(),
+      // note заявки — учётная запись в БД, остаётся русской.
       note: [report.note, `Спорная оплата: ${reason}`].filter(Boolean).join("\n\n"),
     },
   })
 
+  // Уведомление читает арендатор — берём язык получателя.
+  const { t: tTenant, locale: tenantLocale } = await getTForUser(report.userId)
   await notifyUser({
     userId: report.userId,
     type: "PAYMENT_DISPUTED",
-    title: "Оплата требует уточнения",
-    message: reason || `Администратор уточняет платеж ${formatMoney(report.amount)}.`,
+    title: tTenant("actions.tenantPayments.needsClarificationTitle"),
+    message: reason || tTenant("actions.tenantPayments.disputedMessage", {
+      amount: formatMoneyL(tenantLocale, report.amount),
+    }),
     link: "/cabinet/finances",
     sendEmail: false,
   })
 
   revalidatePath("/admin/finances")
   revalidatePath("/cabinet/finances")
-  return { ok: true, message: "Оплата помечена как спорная" }
+  return { ok: true, message: t("actions.tenantPayments.markedDisputed") }
 }
 
 export async function rejectPaymentReport(formData: FormData): Promise<ActionResult> {
+  const { t } = await getT()
   try {
     return await rejectPaymentReportImpl(formData)
   } catch (e) {
     if (isNextControlFlowError(e)) throw e
-    return actionErrorResult(e, "Не удалось отклонить заявку об оплате", {
+    return actionErrorResult(e, t("actions.tenantPayments.rejectFailed"), {
       source: "tenant-payments.rejectPaymentReport",
       route: "/admin/finances",
     })
@@ -420,18 +464,19 @@ export async function rejectPaymentReport(formData: FormData): Promise<ActionRes
 async function rejectPaymentReportImpl(formData: FormData): Promise<ActionResult> {
   await requireCapabilityAndFeature("finance.rejectPayment")
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const reportId = String(formData.get("reportId") ?? "").trim()
   const reason = String(formData.get("reason") ?? "").trim().slice(0, 300)
-  if (!reportId) return { ok: false, error: "Не указана заявка об оплате" }
+  if (!reportId) return { ok: false, error: t("actions.tenantPayments.reportRequired") }
 
   const report = await db.paymentReport.findFirst({
     where: { id: reportId, status: { in: ["PENDING", "DISPUTED"] }, ...paymentReportScope(orgId) },
     select: { id: true, tenantId: true, amount: true, userId: true, note: true },
   })
-  if (!report) return { ok: false, error: "Заявка об оплате не найдена или уже обработана" }
+  if (!report) return { ok: false, error: t("actions.tenantPayments.reportNotFound") }
 
   await assertTenantBuildingAccess(report.tenantId, orgId)
 
@@ -441,22 +486,27 @@ async function rejectPaymentReportImpl(formData: FormData): Promise<ActionResult
       status: "REJECTED",
       reviewedById: session.user.id,
       reviewedAt: new Date(),
+      // note заявки — учётная запись в БД, остаётся русской.
       note: reason
         ? [report.note, `Отклонено: ${reason}`].filter(Boolean).join("\n\n")
         : report.note,
     },
   })
 
+  // Уведомление читает арендатор — берём язык получателя.
+  const { t: tTenant, locale: tenantLocale } = await getTForUser(report.userId)
   await notifyUser({
     userId: report.userId,
     type: "PAYMENT_REJECTED",
-    title: "Оплата требует уточнения",
-    message: reason || `Администратор не смог подтвердить платеж ${formatMoney(report.amount)}.`,
+    title: tTenant("actions.tenantPayments.needsClarificationTitle"),
+    message: reason || tTenant("actions.tenantPayments.rejectedMessage", {
+      amount: formatMoneyL(tenantLocale, report.amount),
+    }),
     link: "/cabinet/finances",
     sendEmail: false,
   })
 
   revalidatePath("/admin/finances")
   revalidatePath("/cabinet/finances")
-  return { ok: true, message: "Заявка об оплате отклонена" }
+  return { ok: true, message: t("actions.tenantPayments.rejected") }
 }

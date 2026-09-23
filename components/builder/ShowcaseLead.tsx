@@ -8,6 +8,7 @@
 import { useState, type FormEvent } from "react"
 import { TOKENS } from "@/lib/builder/materials"
 import { submitBuilderLead } from "@/app/actions/builder-premise"
+import { useT } from "@/lib/i18n/client"
 
 export type ShowcaseLeadProps = {
   token?: string
@@ -22,6 +23,7 @@ function formatMoney(v: number): string {
 }
 
 export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: ShowcaseLeadProps) {
+  const { t } = useT()
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [message, setMessage] = useState("")
@@ -71,7 +73,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold" style={{ color: TOKENS.text }}>
-            {premiseNumber ? `Помещение № ${premiseNumber}` : "Свободное помещение"}
+            {premiseNumber ? t("adminBuilder.lead.premise", { number: premiseNumber }) : t("adminBuilder.lead.vacant")}
           </h3>
           {(areaM2 != null || rate != null) && (
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm" style={{ color: TOKENS.muted }}>
@@ -94,7 +96,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
           <button
             type="button"
             onClick={onClose}
-            aria-label="Закрыть"
+            aria-label={t("adminBuilder.lead.close")}
             className="rounded-lg px-2 py-1 text-lg leading-none transition-colors"
             style={{ color: TOKENS.muted }}
           >
@@ -128,7 +130,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-sm">
-            <span style={{ color: TOKENS.muted }}>Ваше имя</span>
+            <span style={{ color: TOKENS.muted }}>{t("adminBuilder.lead.name")}</span>
             <input
               type="text"
               value={name}
@@ -142,7 +144,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
           </label>
 
           <label className="flex flex-col gap-1 text-sm">
-            <span style={{ color: TOKENS.muted }}>Телефон</span>
+            <span style={{ color: TOKENS.muted }}>{t("adminBuilder.lead.phone")}</span>
             <input
               type="tel"
               value={phone}
@@ -157,7 +159,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
           </label>
 
           <label className="flex flex-col gap-1 text-sm">
-            <span style={{ color: TOKENS.muted }}>Сообщение</span>
+            <span style={{ color: TOKENS.muted }}>{t("adminBuilder.lead.message")}</span>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -180,7 +182,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
             className="mt-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition-opacity disabled:opacity-60"
             style={{ background: TOKENS.accent, color: TOKENS.background }}
           >
-            {state === "sending" ? "Отправка…" : "Оставить заявку"}
+            {t(state === "sending" ? "adminBuilder.lead.sending" : "adminBuilder.lead.submit")}
           </button>
         </form>
       )}

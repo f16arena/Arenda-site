@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/db"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
-import { CHARGE_TYPES, formatMoney } from "@/lib/utils"
+import { getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 /**
  * Группирует charges арендатора по contracts. Charges без contract_id (исторические,
@@ -15,6 +16,8 @@ export async function ChargesByContractSection({
   tenantId: string
   orgId: string
 }) {
+  const { t, tp, locale } = await getT()
+  const money = (value: number) => formatMoneyL(locale, value)
   const [charges, contracts] = await Promise.all([
     db.charge.findMany({
       where: { tenantId, tenant: { user: { organizationId: orgId } } },
@@ -58,16 +61,20 @@ export async function ChargesByContractSection({
 
   return (
     <CollapsibleCard
-      title="Начисления по договорам"
+      title={t("adminTenants.chargesByContract.title")}
       icon={FileText}
-      meta={`${charges.length} записей`}>
+      meta={tp("adminTenants.chargesByContract.meta", charges.length)}
+    >
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {sortedKeys.map((key) => {
           const list = groups.get(key) ?? []
           const total = list.reduce((s, c) => s + c.amount, 0)
           const unpaid = list.filter((c) => !c.isPaid).reduce((s, c) => s + c.amount, 0)
           const contract = key === "__unbound__" ? null : contractMap.get(key)
-          const docLabel = contract?.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"
+          const docLabel =
+            contract?.type === "ADDENDUM"
+              ? t("adminTenants.contracts.addendum")
+              : t("adminTenants.contracts.contract")
 
           return (
             <div key={key} className="px-5 py-3">
@@ -76,7 +83,7 @@ export async function ChargesByContractSection({
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {contract
                       ? `${docLabel} № ${contract.number}${contract.version > 1 ? ` (v${contract.version})` : ""}`
-                      : "Начисления без привязки к договору"}
+                      : t("adminTenants.chargesByContract.unbound")}
                   </p>
                   {contract && (
                     <p className="text-[11px] text-slate-400 dark:text-slate-500">
@@ -85,9 +92,12 @@ export async function ChargesByContractSection({
                   )}
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Всего: <b className="text-slate-900 dark:text-slate-100">{formatMoney(total)}</b></p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t("adminTenants.chargesByContract.total")}{" "}
+                    <b className="text-slate-900 dark:text-slate-100">{money(total)}</b></p>
                   {unpaid > 0 && (
-                    <p className="text-xs text-red-600 dark:text-red-400">Долг: {formatMoney(unpaid)}</p>
+                    <p className="text-xs text-red-600 dark:text-red-400">
+                      {t("adminTenants.chargesByContract.debt", { amount: money(unpaid) })}
+                    </p>
                   )}
                 </div>
               </div>
@@ -95,16 +105,16 @@ export async function ChargesByContractSection({
                 {list.slice(0, 12).map((c) => (
                   <div key={c.id} className="flex items-center justify-between text-xs px-2 py-1 rounded hover:bg-slate-50 dark:hover:bg-slate-800/40">
                     <span className="text-slate-600 dark:text-slate-400">
-                      {CHARGE_TYPES[c.type] ?? c.type} · {c.period}
+                      {t(`domain.chargeTypes.${c.type}` as "domain.chargeTypes.OTHER")} · {c.period}
                     </span>
                     <span className={c.isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
-                      {formatMoney(c.amount)}
+                      {money(c.amount)}
                     </span>
                   </div>
                 ))}
                 {list.length > 12 && (
                   <p className="col-span-full text-[11px] text-slate-400 dark:text-slate-500 text-center mt-1">
-                    + ещё {list.length - 12} начислений
+                    {tp("adminTenants.chargesByContract.more", list.length - 12)}
                   </p>
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { parseDxf } from "./dxf-import"
+import { DXF_NO_LINES, parseDxf } from "./dxf-import"
 import { buildFloorDrawing } from "./drawing/floor-drawing"
 import { floorDrawingToDxf } from "./drawing/dxf"
 import { buildDemoProject } from "./demo-project"
@@ -41,6 +41,7 @@ describe("импорт DXF", () => {
   })
 
   it("пустой файл — понятная ошибка", () => {
-    expect(() => parseDxf(dxf("", "", ""))).toThrow(/нет линий/)
+    // текст сообщения живёт в словаре, модуль отдаёт код
+    expect(() => parseDxf(dxf("", "", ""))).toThrow(DXF_NO_LINES)
   })
 })

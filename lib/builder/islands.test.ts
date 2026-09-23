@@ -70,7 +70,8 @@ describe("наименование", () => {
 
   it("без имени подставляется вид места", () => {
     expect(islandLabel(island())).toBe(ISLAND_PRESETS.vending.label)
-    expect(islandLabel(island({ kind: "atm" }))).toBe("Банкомат")
+    // подпись вида приходит из словаря: модуль отдаёт ключ
+    expect(islandLabel(island({ kind: "atm" }), (kind) => (kind === "atm" ? "Банкомат" : kind))).toBe("Банкомат")
   })
 })
 
@@ -220,8 +221,8 @@ describe("парковочные места на участке", () => {
     )
     expect(rows).toHaveLength(2)
     expect(rows[1].mark).toBe("П1")
-    expect(rows[1].floorName).toBe("Участок")
-    expect(rows[1].place).toBe("Парковка")
+    expect(rows[1].floorName).toBe("siteFloor")
+    expect(rows[1].place).toBe("placeParking")
     expect(rows[1].area).toBeCloseTo(13.25)
   })
 
@@ -244,7 +245,7 @@ describe("места на кровле и на территории", () => {
 
   it("в ведомости у антенны размещение — «Кровля»", () => {
     const rows = islandSchedule([floor([island({ id: "a1", kind: "antenna", tenant: "Beeline", mountHeight: 10500 })])])
-    expect(rows[0].place).toBe("Кровля")
+    expect(rows[0].place).toBe("placeRoof")
     expect(rows[0].tenant).toBe("Beeline")
   })
 

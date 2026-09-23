@@ -1,6 +1,7 @@
 "use client"
 
 import { AlertCircle, RotateCcw, Home } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 import { usePathname } from "next/navigation"
 import { useEffect, useMemo } from "react"
 import Link from "next/link"
@@ -14,6 +15,7 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const { t } = useT()
   const pathname = usePathname()
   const errorId = useMemo(() => formatErrorId(error.digest), [error.digest])
   const isDev = process.env.NODE_ENV !== "production"
@@ -28,13 +30,13 @@ export default function Error({
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 dark:bg-red-500/10">
           <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Что-то пошло не так</h2>
+        <h2 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-100">{t("adminShell.error.title")}</h2>
         <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Мы записали ошибку. Сообщите код поддержке или разработчику.
+          {t("adminShell.error.hint")}
         </p>
         <div className="mt-3 space-y-1">
-          <p className="text-xs text-slate-400 dark:text-slate-500">Страница: <span className="font-mono">{pathname}</span></p>
-          <p className="text-xs text-slate-400 dark:text-slate-500">Ошибка: <span className="font-mono">#{errorId}</span></p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">{t("adminShell.error.page")} <span className="font-mono">{pathname}</span></p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">{t("adminShell.error.code")} <span className="font-mono">#{errorId}</span></p>
           {isDev && error.message && (
             <p className="break-words text-xs text-slate-400 dark:text-slate-500">{error.message}</p>
           )}
@@ -45,14 +47,14 @@ export default function Error({
             className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800"
           >
             <RotateCcw className="h-4 w-4" />
-            Попробовать снова
+            {t("adminShell.error.retry")}
           </button>
           <Link
             href="/admin"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-800 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
             <Home className="h-4 w-4" />
-            На главную
+            {t("adminShell.error.toHome")}
           </Link>
         </div>
       </div>

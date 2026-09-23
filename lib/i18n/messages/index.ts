@@ -30,6 +30,8 @@ import { emails as kkEmails } from "./kk/emails"
 import { adminShell as ruAdminShell } from "./ru/adminShell"
 import { adminShell as kkAdminShell } from "./kk/adminShell"
 import { adminBuilder as ruAdminBuilder } from "./ru/adminBuilder"
+import { adminBuilderSheet as ruAdminBuilderSheet } from "./ru/adminBuilderSheet"
+import { adminBuilderSheet as kkAdminBuilderSheet } from "./kk/adminBuilderSheet"
 import { adminBuilder as kkAdminBuilder } from "./kk/adminBuilder"
 import { adminObjects as ruAdminObjects } from "./ru/adminObjects"
 import { adminObjects as kkAdminObjects } from "./kk/adminObjects"
@@ -49,6 +51,10 @@ import { domain as ruDomain } from "./ru/domain"
 import { domain as kkDomain } from "./kk/domain"
 import { actions as ruActions } from "./ru/actions"
 import { actions as kkActions } from "./kk/actions"
+import { adminChecks as ruAdminChecks } from "./ru/adminChecks"
+import { adminChecks as kkAdminChecks } from "./kk/adminChecks"
+import { adminRefs as ruAdminRefs } from "./ru/adminRefs"
+import { adminRefs as kkAdminRefs } from "./kk/adminRefs"
 
 export const ru = {
   common: ruCommon,
@@ -67,6 +73,7 @@ export const ru = {
   adminShell: ruAdminShell,
   adminObjects: ruAdminObjects,
   adminBuilder: ruAdminBuilder,
+  adminBuilderSheet: ruAdminBuilderSheet,
   adminTenants: ruAdminTenants,
   adminFinance: ruAdminFinance,
   adminDocs: ruAdminDocs,
@@ -74,6 +81,8 @@ export const ru = {
   adminSettings: ruAdminSettings,
   landing: ruLanding,
   actions: ruActions,
+  adminChecks: ruAdminChecks,
+  adminRefs: ruAdminRefs,
 }
 
 export type Messages = typeof ru
@@ -96,6 +105,7 @@ export const kk: Messages = {
   adminShell: kkAdminShell,
   adminObjects: kkAdminObjects,
   adminBuilder: kkAdminBuilder,
+  adminBuilderSheet: kkAdminBuilderSheet,
   adminTenants: kkAdminTenants,
   adminFinance: kkAdminFinance,
   adminDocs: kkAdminDocs,
@@ -103,6 +113,8 @@ export const kk: Messages = {
   adminSettings: kkAdminSettings,
   landing: kkLanding,
   actions: kkActions,
+  adminChecks: kkAdminChecks,
+  adminRefs: kkAdminRefs,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }

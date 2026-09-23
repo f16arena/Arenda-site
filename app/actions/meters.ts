@@ -8,6 +8,7 @@ import { assertMeterInOrg, assertSpaceInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertBuildingAccess } from "@/lib/building-access"
 import { resolveMeterTariff } from "@/lib/meter-tariff"
+import { getT } from "@/lib/i18n/server"
 
 const CHARGE_TYPE_BY_METER: Record<string, string> = {
   ELECTRICITY: "ELECTRICITY",
@@ -16,6 +17,7 @@ const CHARGE_TYPE_BY_METER: Record<string, string> = {
 }
 
 async function saveMeterReadingForMeter(meterId: string, valueStr: string, period: string) {
+  const { t } = await getT()
   const meter = await db.meter.findUnique({
     where: { id: meterId },
     include: {
@@ -29,16 +31,16 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
       },
     },
   })
-  if (!meter) return { error: "Счётчик не найден" }
+  if (!meter) return { error: t("actions.meters.notFound") }
 
   const value = parseFloat(valueStr)
   if (!Number.isFinite(value) || value < 0) {
-    return { error: "Введите корректное неотрицательное показание счётчика" }
+    return { error: t("actions.meters.badReading") }
   }
 
   const previous = meter.readings[0]?.value ?? 0
   if (value < previous) {
-    return { error: `Текущее показание не может быть меньше предыдущего (${previous})` }
+    return { error: t("actions.meters.readingBelowPrevious", { previous }) }
   }
 
   const consumption = Math.max(0, value - previous)
@@ -65,6 +67,7 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
             period,
             type: chargeType,
             amount,
+            // description начисления попадает в счёт и акт сверки — остаётся русским.
             description: `${tariff.name}: ${consumption} ${tariff.unit} × ${tariff.rate} ₸`,
             dueDate: new Date(parseInt(period.split("-")[0]), parseInt(period.split("-")[1]) - 1, 10),
           },
@@ -79,6 +82,7 @@ async function saveMeterReadingForMeter(meterId: string, valueStr: string, perio
 }
 
 export async function saveMeterReading(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
   const meterId = formData.get("meterId") as string
@@ -87,7 +91,7 @@ export async function saveMeterReading(formData: FormData) {
     where: { id: meterId },
     select: { space: { select: { floor: { select: { buildingId: true } } } } },
   })
-  if (!meter) throw new Error("Счётчик не найден")
+  if (!meter) throw new Error(t("actions.meters.notFound"))
   await assertBuildingAccess(meter.space.floor.buildingId, orgId)
 
   const valueStr = formData.get("value") as string
@@ -99,7 +103,8 @@ export async function saveMeterReading(formData: FormData) {
 // действительно принадлежит арендатору-в-сессии.
 export async function submitTenantMeterReading(formData: FormData) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   const meterId = formData.get("meterId") as string
   const valueStr = formData.get("value") as string
@@ -118,12 +123,13 @@ export async function submitTenantMeterReading(formData: FormData) {
     },
     select: { id: true },
   })
-  if (!owns) throw new Error("Счётчик не принадлежит вам")
+  if (!owns) throw new Error(t("actions.meters.notYours"))
 
   return saveMeterReadingForMeter(meterId, valueStr, period)
 }
 
 export async function createMeter(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
   const spaceId = formData.get("spaceId") as string
@@ -132,7 +138,7 @@ export async function createMeter(formData: FormData) {
     where: { id: spaceId },
     select: { floor: { select: { buildingId: true } } },
   })
-  if (!space) throw new Error("Помещение не найдено")
+  if (!space) throw new Error(t("actions.common.spaceNotFound"))
   await assertBuildingAccess(space.floor.buildingId, orgId)
 
   const type = formData.get("type") as string
@@ -140,15 +146,15 @@ export async function createMeter(formData: FormData) {
   const initialValueStr = formData.get("initialValue") as string
   const allowedTypes = new Set(["ELECTRICITY", "WATER", "HEAT"])
 
-  if (!allowedTypes.has(type)) throw new Error("Выберите корректный тип счётчика")
-  if (!number) throw new Error("Укажите номер счётчика")
+  if (!allowedTypes.has(type)) throw new Error(t("actions.meters.badType"))
+  if (!number) throw new Error(t("actions.meters.numberRequired"))
 
   const meter = await db.meter.create({ data: { spaceId, type, number } })
 
   if (initialValueStr) {
     const initialValue = parseFloat(initialValueStr)
     if (!Number.isFinite(initialValue) || initialValue < 0) {
-      throw new Error("Начальное показание должно быть неотрицательным числом")
+      throw new Error(t("actions.meters.badInitialValue"))
     }
     if (!Number.isNaN(initialValue)) {
       const period = new Date().toISOString().slice(0, 7)
@@ -163,6 +169,7 @@ export async function createMeter(formData: FormData) {
 }
 
 export async function deleteMeter(meterId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
 
@@ -173,7 +180,7 @@ export async function deleteMeter(meterId: string) {
     },
     select: { id: true, space: { select: { floor: { select: { buildingId: true } } } } },
   })
-  if (!meter) return { error: "Счётчик не найден или нет доступа" }
+  if (!meter) return { error: t("actions.meters.notFoundOrNoAccess") }
   await assertBuildingAccess(meter.space.floor.buildingId, orgId)
 
   const [readings] = await db.$transaction([
@@ -187,6 +194,7 @@ export async function deleteMeter(meterId: string) {
 }
 
 export async function deleteMeterReading(readingId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("meters.manage")
   const { orgId } = await requireOrgAccess()
   // Проверка через scope: meter → space → floor → building → org
@@ -197,7 +205,7 @@ export async function deleteMeterReading(readingId: string) {
     },
     select: { id: true },
   })
-  if (!reading) throw new Error("Показание не найдено или нет доступа")
+  if (!reading) throw new Error(t("actions.meters.readingNotFoundOrNoAccess"))
 
   await db.meterReading.delete({ where: { id: readingId } })
   revalidatePath("/admin/meters")

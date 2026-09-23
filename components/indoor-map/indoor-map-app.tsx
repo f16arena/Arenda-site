@@ -29,6 +29,8 @@ import { generateBuildingSchemas, generateFloorSchema } from "@/app/actions/indo
 import { readLayout as parseLayout } from "@/lib/indoor-map/layout-source"
 import { buildFloorView, type SpaceLite } from "@/lib/indoor-map/model"
 import { STATUS_ORDER, STATUS_STYLE } from "@/lib/indoor-map/tokens"
+import { useT } from "@/lib/i18n/client"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
 import { FloorMap, type FloorMapHandle, type MapFilter } from "./floor-map"
 import type { RoomView } from "@/lib/indoor-map/model"
 
@@ -53,6 +55,7 @@ export function IndoorMapApp({
   floors,
   canEdit = false,
 }: Props) {
+  const { t, tp, locale } = useT()
   const withPlan = useMemo(
     () => floors.filter((floor) => parseLayout(floor.layoutJson) !== null),
     [floors],
@@ -75,7 +78,7 @@ export function IndoorMapApp({
     startTransition(async () => {
       const result = await generateBuildingSchemas(buildingId)
       if (result.built === 0) {
-        setSchemaError("Ни на одном этаже нет помещений с площадью — собирать схемы не из чего.")
+        setSchemaError(t("adminObjects.map.noAreasBuilding"))
         return
       }
       router.refresh()
@@ -92,7 +95,7 @@ export function IndoorMapApp({
         return
       }
       if (result.reason === "no-spaces") {
-        setSchemaError("У этажа нет помещений с площадью — собирать схему не из чего.")
+        setSchemaError(t("adminObjects.map.noAreasFloor"))
       } else {
         setConfirmReplace(true)
       }
@@ -167,11 +170,15 @@ export function IndoorMapApp({
     <div className="flex h-full min-h-0 flex-col gap-3">
       {/* печатная шапка — на экране не видна */}
       <div className="hidden print:block">
-        <p className="text-base font-semibold">{active?.name ?? "План этажа"}</p>
+        <p className="text-base font-semibold">{active?.name ?? t("adminObjects.map.floorFallback")}</p>
         <p className="text-xs text-slate-500">
           {view
-            ? `Свободно ${view.vacantArea.toFixed(0)} м² в ${view.vacantCount} помещениях${
-                occupancy !== null ? ` · заполняемость ${occupancy}%` : ""
+            ? `${tp("adminObjects.map.printVacant", view.vacantCount, {
+                area: view.vacantArea.toFixed(0),
+              })}${
+                occupancy !== null
+                  ? ` · ${t("adminObjects.map.occupancy", { percent: occupancy })}`
+                  : ""
               }`
             : ""}
         </p>
@@ -183,16 +190,16 @@ export function IndoorMapApp({
           href={`/admin/builder/${buildingId}`}
           className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
         >
-          <Box className="h-3.5 w-3.5" /> Конструктор 3D
+          <Box className="h-3.5 w-3.5" /> {t("adminObjects.map.builder3d")}
         </Link>
 
         <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
           {(
             [
-              { key: "all", label: "Все" },
-              { key: "vacant", label: "Свободные" },
-              { key: "expiring", label: "Освобождаются" },
-              { key: "debt", label: "С долгом" },
+              { key: "all", label: t("adminObjects.map.filters.all") },
+              { key: "vacant", label: t("adminObjects.map.filters.vacant") },
+              { key: "expiring", label: t("adminObjects.map.filters.expiring") },
+              { key: "debt", label: t("adminObjects.map.filters.debt") },
             ] as Array<{ key: MapFilter; label: string }>
           ).map((item) => (
             <button
@@ -216,7 +223,7 @@ export function IndoorMapApp({
             id="indoor-map-search"
             value={query}
             onChange={(event) => handleQuery(event.target.value)}
-            placeholder="Найти арендатора на этаже"
+            placeholder={t("adminObjects.map.searchTenant")}
             className="h-8 w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
           />
         </div>
@@ -255,7 +262,7 @@ export function IndoorMapApp({
                     borderColor: STATUS_STYLE[status].edge,
                   }}
                 />
-                {STATUS_STYLE[status].label}
+                {t(`adminObjects.map.status.${status}` as "adminObjects.map.status.VACANT")}
               </span>
             ))}
           </div>
@@ -265,10 +272,12 @@ export function IndoorMapApp({
                 type="button"
                 onClick={() =>
                   mapRef.current?.exportPng(
-                    `${active?.name ?? "этаж"} — план.png`.replace(/[\/:*?"<>|]/g, "-"),
+                    t("adminObjects.map.fileNamePlan", {
+                      floor: active?.name ?? t("adminObjects.map.fileNameFloorFallback"),
+                    }).replace(/[\/:*?"<>|]/g, "-"),
                   )
                 }
-                title="Скачать план картинкой"
+                title={t("adminObjects.map.downloadPng")}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
               >
                 <Download className="h-3.5 w-3.5" /> PNG
@@ -276,19 +285,19 @@ export function IndoorMapApp({
               {active ? (
                 <Link
                   href={`/admin/builder/${buildingId}/sheet?dbFloor=${active.id}`}
-                  title="Лист чертежа по ГОСТ: размеры, оси, штамп; PDF и DXF для AutoCAD"
+                  title={t("adminObjects.map.sheetHint")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
                 >
-                  <PencilRuler className="h-3.5 w-3.5" /> Чертёж
+                  <PencilRuler className="h-3.5 w-3.5" /> {t("adminObjects.map.sheet")}
                 </Link>
               ) : null}
               <button
                 type="button"
                 onClick={() => window.print()}
-                title="Распечатать план или сохранить в PDF"
+                title={t("adminObjects.map.printHint")}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
               >
-                <Printer className="h-3.5 w-3.5" /> Печать
+                <Printer className="h-3.5 w-3.5" /> {t("adminObjects.map.print")}
               </button>
             </>
           ) : null}
@@ -298,7 +307,7 @@ export function IndoorMapApp({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete("scan")}
-                  title="Убрать загруженный скан с этого этажа — и на карте, и в 3D-конструкторе"
+                  title={t("adminObjects.map.dropScanHint")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:text-red-600 dark:border-slate-800 dark:text-slate-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> Скан
@@ -308,7 +317,7 @@ export function IndoorMapApp({
                 <button
                   type="button"
                   onClick={() => setConfirmDelete("plan")}
-                  title="Удалить план этажа — и на карте, и в 3D-конструкторе. Помещения и площади останутся"
+                  title={t("adminObjects.map.dropPlanHint")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:text-red-600 dark:border-slate-800 dark:text-slate-400"
                 >
                   <Trash2 className="h-3.5 w-3.5" /> План
@@ -326,7 +335,7 @@ export function IndoorMapApp({
                   : "border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
               }`}
             >
-              <PencilRuler className="h-3.5 w-3.5" /> {editing ? "Правка включена" : "Править план"}
+              <PencilRuler className="h-3.5 w-3.5" /> {editing ? t("adminObjects.map.editOn") : t("adminObjects.map.editOff")}
             </button>
           ) : null}
         </div>
@@ -337,8 +346,7 @@ export function IndoorMapApp({
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
           <span>
-            Схема по площадям помещений, а не обмерный план: расположение условное, площади
-            настоящие. Точную геометрию даст обводка по подложке в редакторе.
+            {t("adminObjects.map.schemaNotice")}
           </span>
           <button
             type="button"
@@ -357,8 +365,8 @@ export function IndoorMapApp({
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
           <span>
             {confirmDelete === "scan"
-              ? `Удалить скан с этажа «${active.name}»? Стены и помещения останутся.`
-              : `Удалить план этажа «${active.name}»? Уйдут стены, скан и привязки в 3D-модели этого этажа. Карточки помещений, площади и договоры не меняются.`}
+              ? t("adminObjects.map.dropScanConfirm", { floor: active.name })
+              : t("adminObjects.map.dropPlanConfirm", { floor: active.name })}
           </span>
           <button
             type="button"
@@ -366,7 +374,7 @@ export function IndoorMapApp({
             onClick={() => void removeFromFloor(confirmDelete)}
             className="ml-auto rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60"
           >
-            {deleting ? "Удаляю…" : "Да, удалить"}
+            {deleting ? t("adminObjects.map.deleting") : t("adminObjects.map.confirmDelete")}
           </button>
           <button
             type="button"
@@ -381,14 +389,14 @@ export function IndoorMapApp({
       {confirmReplace && active ? (
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
           <TriangleAlert className="h-3.5 w-3.5 shrink-0" />
-          <span>У этажа есть нарисованный план. Схема затрёт его — это не отменить.</span>
+          <span>{t("adminObjects.map.replaceWarn")}</span>
           <button
             type="button"
             disabled={pending}
             onClick={() => buildSchema(active.id, true)}
             className="ml-auto rounded-md bg-red-600 px-2 py-1 font-medium text-white hover:bg-red-700 disabled:opacity-60"
           >
-            Затереть и собрать
+            {t("adminObjects.map.replaceConfirm")}
           </button>
           <button
             type="button"
@@ -406,8 +414,12 @@ export function IndoorMapApp({
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-800 dark:bg-slate-900">
             {(
               [
-                { key: "select", label: "Выбор", icon: MousePointer2 },
-                { key: "rect", label: "Помещение", icon: SquarePlus },
+                {
+                  key: "select",
+                  label: t("adminObjects.map.tools.select"),
+                  icon: MousePointer2,
+                },
+                { key: "rect", label: t("adminObjects.map.tools.rect"), icon: SquarePlus },
               ] as Array<{ key: "select" | "rect"; label: string; icon: typeof Box }>
             ).map((item) => (
               <button
@@ -431,10 +443,10 @@ export function IndoorMapApp({
             onClick={editor.undo}
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:text-slate-400"
           >
-            <Undo2 className="h-3.5 w-3.5" /> Отменить
+            <Undo2 className="h-3.5 w-3.5" /> {t("common.actions.undo")}
           </button>
           <span className="text-xs text-slate-500">
-            {editor.dirty ? "Есть несохранённые правки" : "Правок нет"}
+            {editor.dirty ? t("adminObjects.map.dirty") : t("adminObjects.map.clean")}
           </span>
           <div className="ml-auto flex items-center gap-2">
             <button
@@ -445,7 +457,7 @@ export function IndoorMapApp({
               }}
               className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-400"
             >
-              Выйти без сохранения
+              {t("adminObjects.map.exitNoSave")}
             </button>
             <button
               type="button"
@@ -453,7 +465,7 @@ export function IndoorMapApp({
               onClick={save}
               className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
             >
-              {saving ? "Сохраняю…" : "Сохранить план"}
+              {saving ? t("common.actions.saving") : t("adminObjects.map.savePlan")}
             </button>
           </div>
         </div>
@@ -493,11 +505,10 @@ export function IndoorMapApp({
           ) : (
             <div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-slate-700 dark:bg-slate-900/40">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                У этого этажа ещё нет плана
+                {t("adminObjects.map.noPlanTitle")}
               </p>
               <p className="mt-1 max-w-md text-xs text-slate-500 dark:text-slate-400">
-                Точный план обводится в редакторе по подложке из PDF архитектора. Если его пока
-                нет, соберём схему по площадям помещений — статусы и арендаторы будут видны сразу.
+                {t("adminObjects.map.noPlanHint")}
               </p>
               {active ? (
                 <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -508,7 +519,7 @@ export function IndoorMapApp({
                     className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900"
                   >
                     <LayoutGrid className="h-3.5 w-3.5" />
-                    {pending ? "Собираю…" : "Собрать схему из помещений"}
+                    {pending ? t("adminObjects.map.rebuilding") : t("adminObjects.map.buildFromSpaces")}
                   </button>
                   {floors.length > 1 ? (
                     <button
@@ -517,7 +528,7 @@ export function IndoorMapApp({
                       onClick={buildAllSchemas}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                     >
-                      <LayoutGrid className="h-3.5 w-3.5" /> Сразу для всех этажей
+                      <LayoutGrid className="h-3.5 w-3.5" /> {t("adminObjects.map.allFloorsSchema")}
                     </button>
                   ) : null}
                   <button
@@ -546,7 +557,7 @@ export function IndoorMapApp({
                 <button
                   key={floor.id}
                   type="button"
-                  title={`${floor.name}${has ? "" : " — плана нет"}`}
+                  title={has ? floor.name : t("adminObjects.map.floorNoPlan", { floor: floor.name })}
                   onClick={() => {
                     setActiveId(floor.id)
                     setSelected(null)
@@ -583,21 +594,28 @@ export function IndoorMapApp({
                 {selected.title}
               </span>
               <span className="text-xs text-slate-500">
-                {STATUS_STYLE[selected.status].label}
-                {selected.number ? ` · помещение ${selected.number}` : ""} ·{" "}
+                {t(`adminObjects.map.status.${selected.status}` as "adminObjects.map.status.VACANT")}
+                {selected.number
+                  ? ` · ${t("adminObjects.map.selectedPremise", { number: selected.number })}`
+                  : ""}{" "}
+                ·{" "}
                 {selected.area.toFixed(1)} м²
               </span>
             </div>
             {selected.debt > 0 ? (
               <p className="mt-0.5 text-xs font-semibold text-red-600 dark:text-red-400">
-                Долг {Math.round(selected.debt).toLocaleString("ru-RU")} ₸
+                {t("adminObjects.map.debtTitle", {
+                  amount: formatMoneyL(locale, Math.round(selected.debt)),
+                })}
               </p>
             ) : null}
             {selected.contractEnd ? (
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Договор до {new Date(selected.contractEnd).toLocaleDateString("ru-RU")}
+                {t("adminObjects.map.contractUntil", {
+                  date: formatDateShortL(locale, selected.contractEnd),
+                })}
                 {selected.daysLeft !== null && selected.daysLeft >= 0
-                  ? ` — осталось ${selected.daysLeft} дн.`
+                  ? ` — ${t("adminObjects.map.daysLeftSuffix", { days: selected.daysLeft })}`
                   : ""}
               </p>
             ) : null}
@@ -607,7 +625,7 @@ export function IndoorMapApp({
                   href={`/admin/tenants/${selected.tenantId}`}
                   className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900"
                 >
-                  Карточка арендатора
+                  {t("adminObjects.map.tenantCard")}
                 </Link>
               ) : null}
               {selected.spaceId ? (
@@ -615,7 +633,7 @@ export function IndoorMapApp({
                   href={`/admin/spaces?buildingId=${buildingId}&spaceId=${selected.spaceId}`}
                   className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  Помещение
+                  {t("adminObjects.map.premiseLink")}
                 </Link>
               ) : null}
             </div>
@@ -623,7 +641,7 @@ export function IndoorMapApp({
           <button
             type="button"
             onClick={() => setSelected(null)}
-            aria-label="Закрыть карточку"
+            aria-label={t("adminObjects.map.closeCard")}
             className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
           >
             <X className="h-4 w-4" />

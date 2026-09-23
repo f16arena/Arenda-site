@@ -1,49 +1,75 @@
 // Хабы редизайна (этап 1, docs/REDESIGN-PLAN.md): связанные страницы выглядят
 // одним разделом со вкладками (components/ui/route-tabs). Одна задача — одно
 // место входа; роуты и права страниц сохраняются.
+//
+// Здесь только маршруты и порядок. Подписи живут в словаре
+// (adminRefs.tabs.*): вкладки рисуются на 17 страницах, и держать их текст
+// рядом с роутом значило бы держать его на одном языке.
 
-export const TEAM_TABS = [
-  { href: "/admin/staff", label: "Сотрудники" },
-  { href: "/admin/users", label: "Доступы и здания" },
-  { href: "/admin/roles", label: "Роли и права" },
-]
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
 
-export const HEALTH_TABS = [
-  { href: "/admin/onboarding", label: "Здоровье платформы" },
-  { href: "/admin/data-quality", label: "Качество данных" },
-  { href: "/admin/system-health", label: "Проверка системы" },
-]
+/** Переводчик страницы: const { t } = await getT() в серверном компоненте. */
+type TabsTranslator = Translator<Messages>["t"]
 
-export const DOCUMENTS_TABS = [
-  { href: "/admin/documents", label: "Все документы" },
-  { href: "/admin/contracts", label: "Договоры" },
-]
+export type RouteTab = { href: string; label: string }
 
-export const IMPORT_TABS = [
-  { href: "/admin/import/tenants", label: "Арендаторы" },
-  { href: "/admin/import/contracts", label: "Договоры" },
-  { href: "/admin/import/charges", label: "Начисления" },
-  { href: "/admin/finances/import", label: "Платежи из банка" },
-]
+export function teamTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/staff", label: t("adminRefs.tabs.team.staff") },
+    { href: "/admin/users", label: t("adminRefs.tabs.team.users") },
+    { href: "/admin/roles", label: t("adminRefs.tabs.team.roles") },
+  ]
+}
+
+export function healthTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/onboarding", label: t("adminRefs.tabs.health.onboarding") },
+    { href: "/admin/data-quality", label: t("adminRefs.tabs.health.dataQuality") },
+    { href: "/admin/system-health", label: t("adminRefs.tabs.health.systemHealth") },
+  ]
+}
+
+export function documentsTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/documents", label: t("adminRefs.tabs.documents.all") },
+    { href: "/admin/contracts", label: t("adminRefs.tabs.documents.contracts") },
+  ]
+}
+
+export function importTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/import/tenants", label: t("adminRefs.tabs.importData.tenants") },
+    { href: "/admin/import/contracts", label: t("adminRefs.tabs.importData.contracts") },
+    { href: "/admin/import/charges", label: t("adminRefs.tabs.importData.charges") },
+    { href: "/admin/finances/import", label: t("adminRefs.tabs.importData.payments") },
+  ]
+}
 
 // История: что делали люди и что ушло арендаторам на почту. Раньше это были
 // два отдельных пункта меню — «Журнал операций» и «Журнал email».
-export const HISTORY_TABS = [
-  { href: "/admin/audit", label: "Действия" },
-  { href: "/admin/email-logs", label: "Письма" },
-]
+export function historyTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/audit", label: t("adminRefs.tabs.history.actions") },
+    { href: "/admin/email-logs", label: t("adminRefs.tabs.history.emails") },
+  ]
+}
 
-export const SERVICE_TABS = [
-  { href: "/admin/requests", label: "Заявки" },
-  { href: "/admin/complaints", label: "Жалобы и предложения" },
-]
+export function serviceTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/requests", label: t("adminRefs.tabs.service.requests") },
+    { href: "/admin/complaints", label: t("adminRefs.tabs.service.complaints") },
+  ]
+}
 
 // Финансы: месяц (начисления, оплаты, расходы) + разделы, которые раньше были
 // шестью разноцветными кнопками в шапке страницы.
-export const FINANCE_TABS = [
-  { href: "/admin/finances", label: "Месяц" },
-  { href: "/admin/finances/deposits", label: "Депозиты" },
-  { href: "/admin/finances/installments", label: "Рассрочки" },
-  { href: "/admin/finances/recurring", label: "Постоянные расходы" },
-  { href: "/admin/finances/balance", label: "Счета и касса" },
-]
+export function financeTabs(t: TabsTranslator): RouteTab[] {
+  return [
+    { href: "/admin/finances", label: t("adminRefs.tabs.finance.month") },
+    { href: "/admin/finances/deposits", label: t("adminRefs.tabs.finance.deposits") },
+    { href: "/admin/finances/installments", label: t("adminRefs.tabs.finance.installments") },
+    { href: "/admin/finances/recurring", label: t("adminRefs.tabs.finance.recurring") },
+    { href: "/admin/finances/balance", label: t("adminRefs.tabs.finance.balance") },
+  ]
+}

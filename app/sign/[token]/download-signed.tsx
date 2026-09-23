@@ -3,9 +3,11 @@
 import { useState } from "react"
 import { Download, Loader2 } from "lucide-react"
 import { getSignedContractPdfByToken } from "@/app/actions/contract-workflow"
+import { useT } from "@/lib/i18n/client"
 
 /** Скачивание подписанного договора в PDF по токену — после подписи обеих сторон. */
 export function DownloadSigned({ token }: { token: string }) {
+  const { t } = useT()
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -24,7 +26,7 @@ export function DownloadSigned({ token }: { token: string }) {
       document.body.appendChild(a); a.click(); a.remove()
       URL.revokeObjectURL(url)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Ошибка скачивания")
+      setErr(e instanceof Error ? e.message : t("auth.sign.downloadFailed"))
     } finally {
       setBusy(false)
     }

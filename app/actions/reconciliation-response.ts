@@ -1,6 +1,7 @@
 "use server"
 
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 import { respondReconciliationByUser } from "@/lib/reconciliation-response"
 
@@ -13,7 +14,7 @@ export async function respondToReconciliation(
   note?: string,
 ): Promise<{ success: true } | { error: string }> {
   const session = await auth()
-  if (!session?.user) return { error: "Не авторизованы" }
+  if (!session?.user) return { error: (await getT()).t("actions.common.noAccess") }
 
   const result = await respondReconciliationByUser(session.user.id, documentId, agree, note)
   if ("success" in result) {

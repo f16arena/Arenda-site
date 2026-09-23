@@ -25,8 +25,9 @@ import {
 import { uid } from "@/core/id"
 import type { BuilderDocument, Floor, Building, Stair, MepSystem } from "@/types/builder"
 import { MEP_SYSTEMS } from "@/types/builder"
-import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
+import { MEP_DEVICE_BY_KIND, MEP_SYSTEM_INFO, deviceNameKey, deviceHeight, polylineLengthMm } from "@/lib/builder/mep/catalog"
 import { snapMepPoint, wallMount } from "@/lib/builder/mep/snap"
+import type { SheetT } from "@/lib/builder/sheet-text"
 import { ISLAND_PRESETS, OUTDOOR_KINDS, ROOF_KINDS, WALL_MOUNTED, fitToFloor, isRoofPlace } from "@/lib/builder/islands"
 import type { Island, IslandKind } from "@/types/builder"
 import { buildMep } from "./builders/mep-builder"
@@ -388,6 +389,17 @@ export class BuilderEngine {
   onLinkRoom: (floorId: string, roomId: string) => void = () => {}
   onCommand: (cmd: Command) => void = () => {}
   onHud: (text: string | null) => void = () => {}
+  /**
+   * Переводчик подсказок сцены. Ставится из BuilderApp вместе с onHud: движок
+   * не знает про React и язык интерфейса, а подсказки читает человек.
+   * По умолчанию отдаёт ключ — так пропущенную привязку видно сразу.
+   */
+  tx: SheetT = (key) => key
+
+  /** Подпись вида арендного места для строки подсказки. */
+  private islandName(): string {
+    return this.tx(`adminBuilder.islands.kinds.${this.islandKind}`)
+  }
   /** экранные подписи активного этажа — раз в кадр */
   onLabels: (labels: ScreenLabel[]) => void = () => {}
   /** координаты курсора на плоскости этажа, мм */
@@ -430,7 +442,7 @@ export class BuilderEngine {
       if (this.overlapsExisting(targetKey, box, sel.id)) {
         const orig = this.findObjectPos(target, sel.id)
         if (node && orig) node.setAbsolutePosition(new Vector3(orig.x * S, node.getAbsolutePosition().y, orig.z * S))
-        this.onHud("Нельзя ставить объект на объект")
+        this.onHud(this.tx("adminBuilder.hud.objectOnObject"))
         return
       }
       this.onCommand(new MoveObjectCommand(target, sel.id, cx, cz))
@@ -1479,7 +1491,7 @@ export class BuilderEngine {
     if (!item) return null
     const id = uid("o")
     this.onCommand(
-      new CompositeCommand("предмет мебели", [
+      new CompositeCommand("furniture-item", [
         new HideFurnishCommand(floorId, itemId),
         new AddObjectCommand({ floorId }, {
           id,
@@ -1901,7 +1913,7 @@ export class BuilderEngine {
       if (!p) return
       const end: Vec2 = { x: snapToGrid(p.x * 1000, 100), y: snapToGrid(p.z * 1000, 100) }
       this.drawDragPreview(this.pathDragStart, end)
-      this.onHud(this.tool === "pave" ? "Площадка: протяните прямоугольник и отпустите" : "Дорога: протяните линию и отпустите (одиночный клик — ввод по точкам)")
+      this.onHud(this.tx(this.tool === "pave" ? "adminBuilder.hud.paveDrag" : "adminBuilder.hud.roadDrag"))
       return
     }
     if (this.roomStart) {
@@ -1933,7 +1945,7 @@ export class BuilderEngine {
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
         this.previewFloorDrag(w.floorId, new MoveWallCommand(w.floorId, w.edgeId, d.dx, d.dy))
-        this.onHud(`Сдвиг стены ${(d.offset / 1000).toFixed(2)} м`)
+        this.onHud(this.tx("adminBuilder.hud.wallOffset", { value: (d.offset / 1000).toFixed(2) }))
       }
       return
     }
@@ -1999,7 +2011,7 @@ export class BuilderEngine {
       if (now - this.lastMoveAt > 33) {
         this.lastMoveAt = now
         this.previewFloorDrag(dn.floorId, new MoveNodeCommand(dn.floorId, dn.nodeId, target))
-        this.onHud(`Узел X ${(target.x / 1000).toFixed(2)} · Y ${(target.y / 1000).toFixed(2)} м`)
+        this.onHud(this.tx("adminBuilder.hud.nodeAt", { x: (target.x / 1000).toFixed(2), y: (target.y / 1000).toFixed(2) }))
       }
       return
     }
@@ -2035,7 +2047,7 @@ export class BuilderEngine {
         const end = this.sectionEnd({ x: p.x * 1000, y: p.z * 1000 })
         this.sectionPreview?.dispose()
         this.sectionPreview = this.drawSectionLine(this.docRoot, { id: "preview", name: "", a: this.sectionStart, b: end, look: 1 }, this.activeFloorPlaneY(), true)
-        this.onHud(`Разрез: ${(Math.hypot(end.x - this.sectionStart.x, end.y - this.sectionStart.y) / 1000).toFixed(2)} м · стрелки — куда смотрим · клик — готово, Esc — отмена`)
+        this.onHud(this.tx("adminBuilder.hud.sectionDrag", { value: (Math.hypot(end.x - this.sectionStart.x, end.y - this.sectionStart.y) / 1000).toFixed(2) }))
       }
       return
     }
@@ -2185,7 +2197,7 @@ export class BuilderEngine {
         const move = new MoveIslandCommand(fid === "site" ? { site: true } : { floorId: fid }, iid, to.x, to.y)
         this.onCommand(
           m && isl && Math.round(m.rotation) !== Math.round(isl.rotationDeg)
-            ? new CompositeCommand("перемещение места", [move, new SetIslandCommand({ floorId: fid }, iid, { rotationDeg: Math.round(m.rotation) })])
+            ? new CompositeCommand("island-move", [move, new SetIslandCommand({ floorId: fid }, iid, { rotationDeg: Math.round(m.rotation) })])
             : move,
         )
       }
@@ -2237,7 +2249,7 @@ export class BuilderEngine {
           // Наложение — откатываем объект на исходную позицию (команду не шлём).
           const orig = this.findObjectPos(drag.target, drag.objectId)
           if (node && orig) node.setAbsolutePosition(new Vector3(orig.x * S, node.getAbsolutePosition().y, orig.z * S))
-          this.onHud("Нельзя ставить объект на объект")
+          this.onHud(this.tx("adminBuilder.hud.objectOnObject"))
         } else {
           this.onCommand(new MoveObjectCommand(drag.target, drag.objectId, cx, cz))
         }
@@ -2349,7 +2361,7 @@ export class BuilderEngine {
       const fz = this.pickFurnish()
       if (fz) {
         this.onCommand(new HideFurnishCommand(fz.floorId, fz.itemId))
-        this.onHud("Предмет убран. Ctrl+Z — вернуть")
+        this.onHud(this.tx("adminBuilder.hud.furnitureRemoved"))
         return
       }
       this.handleDelete(meta)
@@ -2376,7 +2388,7 @@ export class BuilderEngine {
       if (fz) {
         const obj = this.materializeFurnish(fz.floorId, fz.itemId)
         if (obj) {
-          this.onHud("Предмет стал объектом — тяните мышью, размеры и поворот в панели")
+          this.onHud(this.tx("adminBuilder.hud.furnitureToObject"))
           this.onPick({ kind: "object", floorId: fz.floorId, entityId: obj, target: fz.floorId })
           return
         }
@@ -2398,7 +2410,7 @@ export class BuilderEngine {
     if (!this.measureStart) {
       this.measureStart = r.world
       this.showStartMarker(r.world)
-      this.onHud("Вторая точка отрезка")
+      this.onHud(this.tx("adminBuilder.hud.measureSecond"))
       return
     }
     const from: Vec2 = { x: this.measureStart.x * 1000, y: this.measureStart.z * 1000 }
@@ -2406,7 +2418,7 @@ export class BuilderEngine {
     const len = Math.hypot(to.x - from.x, to.y - from.y)
     this.measureStart = null
     this.preview?.dispose()
-    this.onHud(`${(len / 1000).toFixed(2)} м`)
+    this.onHud(this.tx("adminBuilder.hud.meters", { value: (len / 1000).toFixed(2) }))
     this.onMeasure(len, from, to)
   }
 
@@ -2425,7 +2437,7 @@ export class BuilderEngine {
         this.arcEnd = r.mm
         this.preview?.dispose()
         this.preview = null
-        this.onHud("Точка на дуге — задаёт радиус")
+        this.onHud(this.tx("adminBuilder.hud.arcThird"))
         return
       }
       this.commitArc(p)
@@ -2441,7 +2453,7 @@ export class BuilderEngine {
     const pts = arcPoints(a, this.arcEnd, { x: through.x * 1000, y: through.z * 1000 })
     const cmds = []
     for (let i = 0; i < pts.length - 1; i++) cmds.push(new InsertWallCommand(this.toolFloorId, pts[i], pts[i + 1], this.wallDefaults()))
-    this.onCommand(new CompositeCommand("дуговая стена", cmds))
+    this.onCommand(new CompositeCommand("arc-wall", cmds))
     this.cancelWallTool()
   }
 
@@ -2457,7 +2469,7 @@ export class BuilderEngine {
     line.isPickable = false
     this.arcPreview = line as unknown as Mesh
     const r = Math.hypot(this.arcEnd.x - a.x, this.arcEnd.y - a.y)
-    this.onHud(`Дуга: хорда ${(r / 1000).toFixed(2)} м, участков ${pts.length - 1}`)
+    this.onHud(this.tx("adminBuilder.hud.arcInfo", { value: (r / 1000).toFixed(2), count: pts.length - 1 }))
   }
 
   private commitWall(end: Vec2): void {
@@ -2494,7 +2506,7 @@ export class BuilderEngine {
     else if (/^[0-9]$/.test(key)) this.lengthInput += key
     else if ((key === "," || key === ".") && !/[.,]/.test(this.lengthInput)) this.lengthInput += ","
 
-    this.onHud(this.lengthInput ? `${this.lengthInput} м` : null)
+    this.onHud(this.lengthInput ? this.tx("adminBuilder.hud.meters", { value: this.lengthInput }) : null)
   }
 
   private updateWallPreview(r: { mm: Vec2; world: Vector3 }): void {
@@ -2514,7 +2526,7 @@ export class BuilderEngine {
     box.visibility = 0.4
     box.material = this.reg.status("#38BDF8")
     this.preview = box
-    if (!this.lengthInput) this.onHud(`${len.toFixed(2)} м`)
+    if (!this.lengthInput) this.onHud(this.tx("adminBuilder.hud.meters", { value: len.toFixed(2) }))
   }
 
   // Маркер привязки: квадрат — узел, ромб — точка на стене. Виден и до первого
@@ -2629,7 +2641,7 @@ export class BuilderEngine {
           add(fl.id, twin, distance({ x: ta.x, y: ta.y }, { x: tb.x, y: tb.y }), te.height)
         }
       }
-      this.onCommand(cmds.length === 1 ? cmds[0] : new CompositeCommand("витраж", cmds))
+      this.onCommand(cmds.length === 1 ? cmds[0] : new CompositeCommand("curtain-wall", cmds))
       return
     }
     const offset = Math.max(spec.width / 2 + 50, Math.min(len - spec.width / 2 - 50, c.t * len))
@@ -2681,7 +2693,7 @@ export class BuilderEngine {
     if (ROOF_KINDS.has(this.islandKind)) {
       const { meta, point } = this.pickMeta()
       if (!meta || meta.kind !== "roof" || !meta.floorId || !point) {
-        this.onHud("Кликните по кровле: антенна ставится на крышу")
+        this.onHud(this.tx("adminBuilder.hud.roofIslandHint"))
         return
       }
       const f = doc ? findFloor(doc, meta.floorId) : undefined
@@ -2701,7 +2713,7 @@ export class BuilderEngine {
         // высота крепления считается от пола этажа: кровля выше него
         mountHeight: Math.max(0, Math.round(point.y * 1000 - f.elevation)),
       }))
-      this.onHud(`${preset.label}: поставлено на кровлю. Арендатор — в панели справа`)
+      this.onHud(this.tx("adminBuilder.hud.islandOnRoof", { name: this.islandName() }))
       this.onPick({ kind: "island", floorId: f.id, entityId: id })
       return
     }
@@ -2722,7 +2734,7 @@ export class BuilderEngine {
         height: preset.height,
         rotationDeg: 0,
       }))
-      this.onHud(`${preset.label}: размечено. Размеры и арендатор — в панели справа`)
+      this.onHud(this.tx("adminBuilder.hud.islandOnSite", { name: this.islandName() }))
       this.onPick({ kind: "island", floorId: "site", entityId: id })
       return
     }
@@ -2733,7 +2745,7 @@ export class BuilderEngine {
     const raw = { x: p.x * 1000, y: p.z * 1000 }
     const onWall = WALL_MOUNTED.has(this.islandKind) ? wallMount(raw, f.wallGraph, preset.depth) : null
     if (WALL_MOUNTED.has(this.islandKind) && !onWall) {
-      this.onHud("Реклама вешается на стену — кликните ближе к стене")
+      this.onHud(this.tx("adminBuilder.hud.adOnWall"))
       return
     }
     const g = this.snapEnabled ? 50 : 1
@@ -2754,7 +2766,7 @@ export class BuilderEngine {
       height: preset.height,
       rotationDeg: onWall ? onWall.rotation : 0,
     }))
-    this.onHud(`${preset.label}: поставлено. Размеры и арендатор — в панели справа`)
+    this.onHud(this.tx("adminBuilder.hud.islandPlaced", { name: this.islandName() }))
     this.onPick({ kind: "island", floorId: f.id, entityId: id })
   }
 
@@ -2781,7 +2793,7 @@ export class BuilderEngine {
       .filter((fl) => fl.elevation > f.elevation)
       .sort((x, y) => x.elevation - y.elevation)[0]
     if (!upper) {
-      this.onHud("Нет этажа выше — добавьте этаж, чтобы лестница соединяла этажи")
+      this.onHud(this.tx("adminBuilder.hud.noFloorAbove"))
     }
     const p = this.projectToPlane()
     if (!p) return
@@ -2798,7 +2810,7 @@ export class BuilderEngine {
     if (rooms.length > 0) {
       const room = rooms.find((r) => pointInPolygon(pos, r.polygon))
       if (!room) {
-        this.onHud("Лестницу нужно ставить внутри помещения, не на стену")
+        this.onHud(this.tx("adminBuilder.hud.stairInside"))
         return
       }
       const c = centroid(room.polygon)
@@ -2823,21 +2835,21 @@ export class BuilderEngine {
     const r = this.resolveWallPoint(p)
     if (this.annotateKind === "text") {
       const id = uid("an")
-      this.onCommand(new AddAnnotationCommand(this.toolFloorId, { id, kind: "text", at: { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }, text: "Надпись" }))
+      this.onCommand(new AddAnnotationCommand(this.toolFloorId, { id, kind: "text", at: { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }, text: this.tx("adminBuilder.plan.noteDefault") }))
       this.onPick({ kind: "annotation", floorId: this.toolFloorId, entityId: id })
-      this.onHud("Надпись поставлена — текст меняется в свойствах справа")
+      this.onHud(this.tx("adminBuilder.hud.notePlaced"))
       return
     }
     if (!this.dimA) {
       this.dimA = { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }
-      this.onHud("Размер: вторая точка")
+      this.onHud(this.tx("adminBuilder.hud.dimSecond"))
       return
     }
     if (!this.dimB) {
       const b = { x: Math.round(r.mm.x), y: Math.round(r.mm.y) }
       if (Math.hypot(b.x - this.dimA.x, b.y - this.dimA.y) < 10) return
       this.dimB = b
-      this.onHud("Размер: отведите размерную линию и кликните")
+      this.onHud(this.tx("adminBuilder.hud.dimOffset"))
       return
     }
     const offset = Math.round(signedOffset(this.dimA, this.dimB, { x: p.x * 1000, y: p.z * 1000 }))
@@ -2881,7 +2893,7 @@ export class BuilderEngine {
     sys.renderingGroupId = 1
     sys.parent = root
     this.dimPreview = root
-    this.onHud(`Размер ${Math.round(Math.hypot(b.x - this.dimA.x, b.y - this.dimA.y))} мм${this.dimB ? " · клик — поставить" : ""}`)
+    this.onHud(`${this.tx("adminBuilder.hud.dimValue", { value: Math.round(Math.hypot(b.x - this.dimA.x, b.y - this.dimA.y)) })}${this.dimB ? this.tx("adminBuilder.hud.dimPlaceHint") : ""}`)
   }
 
   private drawAnnotations(f: Floor, parent: TransformNode): void {
@@ -2944,7 +2956,7 @@ export class BuilderEngine {
     if (!this.sectionStart) {
       this.sectionStart = this.snapEnabled ? { x: snapToGrid(raw.x, 100), y: snapToGrid(raw.y, 100) } : { x: Math.round(raw.x), y: Math.round(raw.y) }
       this.showStartMarker(new Vector3(this.sectionStart.x * S, this.activeFloorPlaneY() + 0.02, this.sectionStart.y * S))
-      this.onHud("Разрез: вторая точка линии")
+      this.onHud(this.tx("adminBuilder.hud.sectionSecond"))
       return
     }
     const a = this.sectionStart
@@ -2955,7 +2967,7 @@ export class BuilderEngine {
     const name = nextSectionName(doc, building.id)
     this.onCommand(new AddSectionCommand(building.id, { id: uid("sec"), name, a, b, look: 1 }))
     this.cancelSection()
-    this.onHud(`Разрез ${name} добавлен — лист разреза: «Чертёж этажа» → вид «Разрез ${name}»`)
+    this.onHud(this.tx("adminBuilder.hud.sectionAdded", { name }))
   }
 
   isDrawingSection(): boolean {
@@ -3104,13 +3116,16 @@ export class BuilderEngine {
     const place = this.mepDevicePlacement()
     if (!f || !info || !place) return
     if (info.wall && !wallMount(place.at, f.wallGraph, info.box.d, 50)) {
-      this.onHud(`${info.name} ставится на стену — кликните ближе к стене`)
+      this.onHud(this.tx("adminBuilder.hud.deviceOnWall", { name: this.tx(`adminBuilder.mep.devices.${deviceNameKey(info.kind)}`) }))
     }
     const same = (f.mepDevices ?? []).filter((d) => d.kind === info.kind).length
     const label = info.riser ? `Ст ${MEP_SYSTEM_INFO[info.system].mark}-${same + 1}` : info.kind === "panel" ? `ЩР-${same + 1}` : ""
     const height = deviceHeight(info, f.height)
     this.onCommand(new AddMepDeviceCommand(f.id, { id: uid("md"), system: info.system, kind: info.kind, at: place.at, height, rotation: place.rotation, label, power: info.power }))
-    this.onHud(`${info.name}${label ? ` ${label}` : ""} · ${info.riser ? "во всю высоту этажа" : `${(height / 1000).toFixed(2)} м от пола`}`)
+    this.onHud(this.tx("adminBuilder.hud.devicePlaced", {
+      name: `${this.tx(`adminBuilder.mep.devices.${deviceNameKey(info.kind)}`)}${label ? ` ${label}` : ""}`,
+      where: info.riser ? this.tx("adminBuilder.hud.deviceRiser") : this.tx("adminBuilder.hud.deviceHeight", { value: (height / 1000).toFixed(2) }),
+    }))
   }
 
   private updateMepPreview(cursor: Vec2, kind: string): void {
@@ -3135,8 +3150,8 @@ export class BuilderEngine {
     this.mepPreview = root
     const total = polylineLengthMm(pts) / 1000
     const seg = this.mepPoints.length ? Math.hypot(cursor.x - this.mepPoints[this.mepPoints.length - 1].x, cursor.y - this.mepPoints[this.mepPoints.length - 1].y) / 1000 : 0
-    const hint = kind === "target" ? " · привязка к прибору" : ""
-    this.onHud(`${info.name} ${info.mark}: участок ${seg.toFixed(2)} м, всего ${total.toFixed(2)} м${hint} · клик в последней точке или Enter — готово, Esc — отмена`)
+    const hint = kind === "target" ? this.tx("adminBuilder.hud.runSnapHint") : ""
+    this.onHud(this.tx("adminBuilder.hud.runProgress", { name: this.tx(`adminBuilder.mep.systems.${info.id}`), mark: info.mark, seg: seg.toFixed(2), total: total.toFixed(2), hint }))
   }
 
   isDrawingMep(): boolean {
@@ -3234,8 +3249,8 @@ export class BuilderEngine {
     this.onCommand(new AddStairCommand(f.id, { id: uid("st"), shape: "porch", fromFloorId: f.id, toFloorId: f.id, position, rotationDeg, width, railing: false, rise }))
     this.onHud(
       f.elevation < 150
-        ? "Крыльцо поставлено. Пол этажа на отметке 0 — ступени ниже земли не видны: поднимите «Отметку пола» до +0,45"
-        : `Крыльцо: подъём ${(rise / 1000).toFixed(2)} м, ${Math.max(1, Math.round(rise / 170))} ступ.`,
+        ? this.tx("adminBuilder.hud.porchLowFloor")
+        : this.tx("adminBuilder.hud.porchInfo", { value: (rise / 1000).toFixed(2), count: Math.max(1, Math.round(rise / 170)) }),
     )
   }
 
@@ -3253,7 +3268,7 @@ export class BuilderEngine {
     if (meta.kind === "wall" && meta.floorId) {
       const cmd = doc ? replanDeleteWall(doc, meta.floorId, meta.entityId, this.replanMode) : null
       if (cmd) this.onCommand(cmd)
-      else if (this.replanMode) this.onHud("Стена уже под демонтаж. Вернуть — в свойствах стены")
+      else if (this.replanMode) this.onHud(this.tx("adminBuilder.hud.wallAlreadyDemolish"))
     } else if (meta.kind === "opening" && meta.floorId) {
       const cmd = doc ? replanDeleteOpening(doc, meta.floorId, meta.entityId, this.replanMode) : null
       if (cmd) this.onCommand(cmd)
@@ -3264,7 +3279,7 @@ export class BuilderEngine {
       // автомебель в документе не лежит: «удаление» — это пометка, что предмет
       // убран. Ctrl+Z возвращает, кнопка «Вернуть мебель» — все сразу.
       this.onCommand(new HideFurnishCommand(meta.floorId, meta.entityId))
-      this.onHud("Предмет убран. Ctrl+Z — вернуть")
+      this.onHud(this.tx("adminBuilder.hud.furnitureRemoved"))
     }
     else if (meta.kind === "section" && meta.target) this.onCommand(new DeleteSectionCommand(meta.target, meta.entityId))
     else if (meta.kind === "annotation" && meta.floorId) this.onCommand(new DeleteAnnotationCommand(meta.floorId, meta.entityId))
@@ -3316,7 +3331,7 @@ export class BuilderEngine {
     box.visibility = 0.4
     box.material = this.reg.status("#38BDF8")
     this.roomPreview = box
-    this.onHud(`${w.toFixed(1)} × ${d.toFixed(1)} м`)
+    this.onHud(this.tx("adminBuilder.hud.sizeWD", { width: w.toFixed(1), depth: d.toFixed(1) }))
   }
 
   // ── Проекция на произвольную высоту ──────────────────────────────────────────
@@ -3498,7 +3513,7 @@ export class BuilderEngine {
     }
     this.waterPoints.push(mm)
     this.updateWaterPreview()
-    this.onHud(`Водоём: точек ${this.waterPoints.length} · клик у старта или Enter — залить, Esc — отмена`)
+    this.onHud(this.tx("adminBuilder.hud.waterProgress", { count: this.waterPoints.length }))
   }
 
   isDrawingWater(): boolean {
@@ -3581,7 +3596,7 @@ export class BuilderEngine {
   // ── Линии по сплайну (дорога/дорожка/забор) ──────────────────────────────────
   // Клик ставит точки; клик у последней точки (≥2) или Enter — завершить, Esc — отмена.
   private handleWaterOrPathLabel(): string {
-    return this.pathKind === "fence" ? "Забор" : this.pathKind === "path" ? "Дорожка" : "Дорога"
+    return this.tx(this.pathKind === "fence" ? "adminBuilder.hud.pathFence" : this.pathKind === "path" ? "adminBuilder.hud.pathWalk" : "adminBuilder.hud.pathRoad")
   }
 
   private handlePathTap(): void {
@@ -3597,7 +3612,7 @@ export class BuilderEngine {
     }
     this.pathPoints.push(mm)
     this.updatePathPreview()
-    this.onHud(`${this.handleWaterOrPathLabel()}: точек ${this.pathPoints.length} · повторный клик в конце или Enter — готово, Esc — отмена`)
+    this.onHud(this.tx("adminBuilder.hud.pathProgress", { name: this.handleWaterOrPathLabel(), count: this.pathPoints.length }))
   }
 
   // Превью рисования протягиванием: дорога/забор — отрезок, площадка — контур
@@ -3682,7 +3697,7 @@ export class BuilderEngine {
     }
     this.pavePoints.push(mm)
     this.updatePavePreview()
-    this.onHud(`Площадка: точек ${this.pavePoints.length} · клик у старта или Enter — залить, Esc — отмена`)
+    this.onHud(this.tx("adminBuilder.hud.paveProgress", { count: this.pavePoints.length }))
   }
 
   isDrawingPave(): boolean {
@@ -3862,7 +3877,7 @@ export class BuilderEngine {
     const half = this.placerGhost ? this.nodeHalfExtents(this.placerGhost) : { hx: 300, hz: 300 }
     const box = { minX: cx - half.hx, maxX: cx + half.hx, minZ: cz - half.hz, maxZ: cz + half.hz }
     if (this.overlapsExisting(targetKey, box)) {
-      this.onHud("Здесь уже есть объект — выберите свободное место")
+      this.onHud(this.tx("adminBuilder.hud.objectHere"))
       return
     }
     this.onCommand(

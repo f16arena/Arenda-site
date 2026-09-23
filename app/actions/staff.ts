@@ -13,37 +13,42 @@ import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
 
 // Владелец в организации один — назначить/создать второго нельзя.
 const ALLOWED_STAFF_ROLES = new Set(["ADMIN", "ACCOUNTANT", "FACILITY_MANAGER", "EMPLOYEE"])
+import { getT } from "@/lib/i18n/server"
 
 function parseBuildingIds(formData: FormData) {
   return formData.getAll("buildingIds").map((value) => String(value)).filter(Boolean)
 }
 
-function requireBuildingIds(buildingIds: string[]) {
-  if (buildingIds.length === 0) throw new Error("Назначьте сотруднику хотя бы одно здание")
+// Переводчик приходит параметром: чистые помощники сами его не добывают.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+function requireBuildingIds(buildingIds: string[], t: Tr) {
+  if (buildingIds.length === 0) throw new Error(t("actions.staff.buildingRequired"))
 }
 
 // staffId и userId приходят с клиента раздельно — проверяем, что это одна запись,
 // иначе можно было править «чужого» пользователя через свою карточку сотрудника.
-async function assertStaffIsUser(staffId: string, userId: string) {
+async function assertStaffIsUser(staffId: string, userId: string, t: Tr) {
   const staff = await db.staff.findUnique({ where: { id: staffId }, select: { userId: true } })
-  if (!staff || staff.userId !== userId) throw new Error("Сотрудник не найден")
+  if (!staff || staff.userId !== userId) throw new Error(t("actions.staff.notFound"))
 }
 
-async function assertNotOwner(userId: string) {
+async function assertNotOwner(userId: string, t: Tr) {
   const u = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
-  if (u?.role === "OWNER") throw new Error("Владельца нельзя отключить или удалить")
+  if (u?.role === "OWNER") throw new Error(t("actions.staff.ownerCannotBeRemoved"))
 }
 
 /** Перехват уникальных ограничений Prisma → человеческое сообщение */
-function friendlyUniqueError(e: unknown): never {
+function friendlyUniqueError(e: unknown, t: Tr): never {
   const code = (e as { code?: string })?.code
   if (code === "P2002") {
-    throw new Error("Пользователь с таким email или телефоном уже существует")
+    throw new Error(t("actions.staff.userAlreadyExists"))
   }
   throw e
 }
 
 export async function createStaff(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("users.invite")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
@@ -57,10 +62,10 @@ export async function createStaff(formData: FormData) {
   const salaryStr = formData.get("salary") as string
   const password = formData.get("password") as string
   const buildingIds = parseBuildingIds(formData)
-  requireBuildingIds(buildingIds)
+  requireBuildingIds(buildingIds, t)
 
   if (!ALLOWED_STAFF_ROLES.has(role)) {
-    throw new Error("Недопустимая роль. Владелец в организации один — создать второго нельзя.")
+    throw new Error(t("actions.staff.badRoleOnCreate"))
   }
 
   // Пароль одноразовый: из формы (сгенерирован клиентом) либо случайный.
@@ -81,7 +86,7 @@ export async function createStaff(formData: FormData) {
       // Пароль выдан администратором — сотрудник обязан сменить при первом входе.
       mustChangePassword: true,
     },
-  }).catch(friendlyUniqueError)
+  }).catch((e) => friendlyUniqueError(e, t))
 
   await db.staff.create({
     data: {
@@ -99,11 +104,12 @@ export async function createStaff(formData: FormData) {
 }
 
 export async function updateStaff(staffId: string, userId: string, formData: FormData) {
+  const { t } = await getT()
   const session = await requireCapabilityAndFeature("users.edit")
   const { orgId } = await requireOrgAccess()
   await assertStaffInOrg(staffId, orgId)
   await assertUserInOrg(userId, orgId)
-  await assertStaffIsUser(staffId, userId)
+  await assertStaffIsUser(staffId, userId, t)
 
   const name = formData.get("name") as string
   const phone = normalizeKzPhone(formData.get("phone"))
@@ -113,23 +119,23 @@ export async function updateStaff(staffId: string, userId: string, formData: For
   const salaryStr = formData.get("salary") as string
   const newPassword = formData.get("newPassword") as string
   const buildingIds = parseBuildingIds(formData)
-  requireBuildingIds(buildingIds)
+  requireBuildingIds(buildingIds, t)
 
   // Роль «Владелец» не назначается и не снимается через эту форму:
   // владелец в организации один, его роль неприкосновенна.
   const currentUser = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
   if (role === "OWNER" && currentUser?.role !== "OWNER") {
-    throw new Error("Назначить роль «Владелец» нельзя — владелец в организации один")
+    throw new Error(t("actions.staff.ownerRoleNotAssignable"))
   }
   if (currentUser?.role === "OWNER" && role !== "OWNER") {
-    throw new Error("Роль владельца изменить нельзя")
+    throw new Error(t("actions.staff.ownerRoleImmutable"))
   }
   if (role !== "OWNER" && !ALLOWED_STAFF_ROLES.has(role)) {
-    throw new Error("Недопустимая роль")
+    throw new Error(t("actions.staff.badRole"))
   }
   // Данные и пароль владельца меняет только он сам.
   if (currentUser?.role === "OWNER" && session.id !== userId) {
-    throw new Error("Данные владельца может менять только сам владелец")
+    throw new Error(t("actions.staff.ownerEditsSelfOnly"))
   }
   if (newPassword) await requireCapabilityAndFeature("users.resetPassword")
 
@@ -143,7 +149,7 @@ export async function updateStaff(staffId: string, userId: string, formData: For
       // Пароль, заданный админом, всегда одноразовый — требует смены при входе.
       ...(newPassword ? { password: await bcrypt.hash(newPassword, 10), mustChangePassword: true } : {}),
     },
-  }).catch(friendlyUniqueError)
+  }).catch((e) => friendlyUniqueError(e, t))
 
   await db.staff.update({
     where: { id: staffId },
@@ -161,10 +167,11 @@ export async function updateStaff(staffId: string, userId: string, formData: For
 }
 
 export async function deactivateStaff(userId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("users.deactivate")
   const { orgId } = await requireOrgAccess()
   await assertUserInOrg(userId, orgId)
-  await assertNotOwner(userId)
+  await assertNotOwner(userId, t)
 
   await db.user.update({
     where: { id: userId },
@@ -192,12 +199,13 @@ export async function reactivateStaff(userId: string) {
 }
 
 export async function deleteStaff(staffId: string, userId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("users.delete")
   const { orgId } = await requireOrgAccess()
   await assertStaffInOrg(staffId, orgId)
   await assertUserInOrg(userId, orgId)
-  await assertStaffIsUser(staffId, userId)
-  await assertNotOwner(userId)
+  await assertStaffIsUser(staffId, userId, t)
+  await assertNotOwner(userId, t)
 
   await db.staff.delete({ where: { id: staffId } })
   await db.user.update({ where: { id: userId }, data: { isActive: false } })

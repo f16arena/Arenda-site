@@ -8,6 +8,7 @@ import { audit } from "@/lib/audit"
 import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { assertTenantInOrg } from "@/lib/scope-guards"
+import { getT } from "@/lib/i18n/server"
 
 export type ParsedRow = {
   date: string
@@ -23,9 +24,10 @@ export type ParsedRow = {
 // Ожидает колонки: Дата, Сумма, Описание (или эквиваленты)
 export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; errors: string[] }> {
   await requireCapabilityAndFeature("finance.importBank")
+  const { t } = await getT()
   const errors: string[] = []
   const lines = csv.replace(/\r/g, "").split("\n").filter((l) => l.trim())
-  if (lines.length < 2) return { rows: [], errors: ["CSV пустой или содержит только заголовок"] }
+  if (lines.length < 2) return { rows: [], errors: [t("actions.bankImport.csvEmpty")] }
 
   // Определим разделитель (запятая или ; или табулятор)
   const sample = lines[0]
@@ -42,7 +44,7 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
     h.includes("назначен") || h.includes("описан") || h.includes("description") || h.includes("комментар"))
 
   if (dateIdx === -1 || amountIdx === -1) {
-    errors.push("Не найдены колонки 'Дата' и 'Сумма'")
+    errors.push(t("actions.bankImport.columnsNotFound"))
     return { rows: [], errors }
   }
 
@@ -69,25 +71,25 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
     let matched: { id: string; companyName: string; type: "BIN" | "IIN" | "IIK" | "NAME" } | null = null
     const ids = desc.match(/\b\d{12}\b/g) ?? []
     for (const id of ids) {
-      const byBin = tenants.find((t) => t.bin === id)
+      const byBin = tenants.find((row) => row.bin === id)
       if (byBin) { matched = { id: byBin.id, companyName: byBin.companyName, type: "BIN" }; break }
-      const byIin = tenants.find((t) => t.iin === id)
+      const byIin = tenants.find((row) => row.iin === id)
       if (byIin) { matched = { id: byIin.id, companyName: byIin.companyName, type: "IIN" }; break }
     }
     if (!matched) {
       // Поиск по ИИК (KZxx + 18 алфанумерических)
       const iikMatches = desc.toUpperCase().match(/\bKZ\d{2}[A-Z0-9]{16}\b/g) ?? []
       for (const iik of iikMatches) {
-        const byIik = tenants.find((t) => t.iik === iik)
+        const byIik = tenants.find((row) => row.iik === iik)
         if (byIik) { matched = { id: byIik.id, companyName: byIik.companyName, type: "IIK" }; break }
       }
     }
     if (!matched) {
       // Поиск по названию (substring case-insensitive)
       const upDesc = desc.toUpperCase()
-      for (const t of tenants) {
-        if (upDesc.includes(t.companyName.toUpperCase())) {
-          matched = { id: t.id, companyName: t.companyName, type: "NAME" }
+      for (const row of tenants) {
+        if (upDesc.includes(row.companyName.toUpperCase())) {
+          matched = { id: row.id, companyName: row.companyName, type: "NAME" }
           break
         }
       }

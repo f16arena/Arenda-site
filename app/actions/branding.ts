@@ -6,6 +6,7 @@ import { auth } from "@/auth"
 import { db } from "@/lib/db"
 import { requireOrgAccess } from "@/lib/org"
 import { ADMIN_SHELL_CACHE_TAG } from "@/lib/admin-shell-cache"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Брендирование: логотип организации в сайдбаре. Принимает data-URL картинки
@@ -16,19 +17,20 @@ export async function updateOrgLogo(
   dataUrl: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await auth()
+  const { t } = await getT()
   if (!session?.user || session.user.role !== "OWNER") {
-    return { ok: false, error: "Логотип может менять только владелец" }
+    return { ok: false, error: t("actions.branding.ownerOnly") }
   }
   const { orgId } = await requireOrgAccess()
-  if (!orgId) return { ok: false, error: "Организация не определена" }
+  if (!orgId) return { ok: false, error: t("actions.common.organizationUndefined") }
 
   if (dataUrl !== null) {
     if (!/^data:image\/(png|jpeg|webp);base64,/.test(dataUrl)) {
-      return { ok: false, error: "Поддерживаются PNG, JPG или WebP" }
+      return { ok: false, error: t("actions.branding.badFormat") }
     }
     // ~300КБ base64 ≈ 220КБ бинаря — больше логотипу не нужно
     if (dataUrl.length > 300_000) {
-      return { ok: false, error: "Логотип слишком большой — попробуйте картинку поменьше" }
+      return { ok: false, error: t("actions.branding.tooBig") }
     }
   }
 

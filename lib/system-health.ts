@@ -4,17 +4,36 @@ import { readFile, readdir, stat } from "fs/promises"
 import path from "path"
 import { db } from "@/lib/db"
 import { getReleaseInfo } from "@/lib/release"
+import type { Messages } from "@/lib/i18n/messages"
+import type { TextKey, Vars } from "@/lib/i18n/translate"
 
 export type SystemCheckStatus = "ok" | "warning" | "error"
 
+/**
+ * Ключ строки в разделе словаря adminChecks.health. Проверки возвращают ключ,
+ * а не готовую подпись: один и тот же результат читают админ на казахском и
+ * суперадмин на русском, а JSON /api/health вообще не зависит от языка.
+ */
+export type HealthTextKey = Extract<TextKey<Messages>, `adminChecks.health.${string}`>
+
 export type SystemCheck = {
   id: string
-  label: string
+  /** Название проверки: adminChecks.health.checks.* */
+  labelKey: HealthTextKey
   status: SystemCheckStatus
-  message: string
+  /** Итог проверки: adminChecks.health.<проверка>.<исход> */
+  messageKey: HealthTextKey
+  /** Подстановки в итог, если в строке есть {version} и подобное. */
+  messageVars?: Vars
+  /**
+   * Диагностика для разработчика: имена env, таблиц, файлов, счётчики байт.
+   * Не переводится — это не интерфейс арендодателя.
+   */
   details?: string[]
   ms?: number
 }
+
+type CheckResult = Omit<SystemCheck, "id" | "labelKey" | "ms">
 
 export type SystemHealthSummary = {
   status: SystemCheckStatus
@@ -270,22 +289,23 @@ const PERFORMANCE_WATCH_FILES = [
 const SILENT_FALLBACK_SCAN_DIRS = ["app", "components", "lib"] as const
 
 export async function runSystemHealthChecks(): Promise<SystemCheck[]> {
+  // id остаётся прежним: он уходит в JSON /api/health и во внешний мониторинг.
   const checks = await Promise.all([
-    withTiming("env", "Переменные окружения", checkEnvironment),
-    withTiming("release", "Версия и release-файлы", checkReleaseVersion),
-    withTiming("database", "База данных", checkDatabase),
-    withTiming("schema", "Prisma-схема и таблицы", checkSchemaTables),
-    withTiming("rls", "Supabase RLS", checkSensitiveRls),
-    withTiming("security", "Критичные guardrails", checkSecurityGuardrails),
-    withTiming("performance", "Performance budget", checkPerformanceBudget),
-    withTiming("web-vitals", "Core Web Vitals", checkWebVitals),
-    withTiming("silent-fallbacks", "Silent data fallbacks", checkSilentFallbacks),
-    withTiming("migrations", "Миграции", checkMigrations),
-    withTiming("cron", "Cron-задачи", checkCron),
-    withTiming("email", "Email-канал", checkEmail),
-    withTiming("storage", "Хранилище документов", checkStorage),
-    withTiming("domain", "Домен, robots и sitemap", checkDomainAndSeo),
-    withTiming("observability", "Логи и ошибки", checkObservability),
+    withTiming("env", "adminChecks.health.checks.env", checkEnvironment),
+    withTiming("release", "adminChecks.health.checks.release", checkReleaseVersion),
+    withTiming("database", "adminChecks.health.checks.database", checkDatabase),
+    withTiming("schema", "adminChecks.health.checks.schema", checkSchemaTables),
+    withTiming("rls", "adminChecks.health.checks.rls", checkSensitiveRls),
+    withTiming("security", "adminChecks.health.checks.security", checkSecurityGuardrails),
+    withTiming("performance", "adminChecks.health.checks.performance", checkPerformanceBudget),
+    withTiming("web-vitals", "adminChecks.health.checks.webVitals", checkWebVitals),
+    withTiming("silent-fallbacks", "adminChecks.health.checks.silentFallbacks", checkSilentFallbacks),
+    withTiming("migrations", "adminChecks.health.checks.migrations", checkMigrations),
+    withTiming("cron", "adminChecks.health.checks.cron", checkCron),
+    withTiming("email", "adminChecks.health.checks.email", checkEmail),
+    withTiming("storage", "adminChecks.health.checks.storage", checkStorage),
+    withTiming("domain", "adminChecks.health.checks.domain", checkDomainAndSeo),
+    withTiming("observability", "adminChecks.health.checks.observability", checkObservability),
   ])
 
   return checks
@@ -309,26 +329,26 @@ export function summarizeSystemChecks(checks: SystemCheck[]): SystemHealthSummar
 
 async function withTiming(
   id: string,
-  label: string,
-  fn: () => Promise<Omit<SystemCheck, "id" | "label" | "ms">>
+  labelKey: HealthTextKey,
+  fn: () => Promise<CheckResult>
 ): Promise<SystemCheck> {
   const started = Date.now()
   try {
     const result = await fn()
-    return { id, label, ...result, ms: Date.now() - started }
+    return { id, labelKey, ...result, ms: Date.now() - started }
   } catch (error) {
     return {
       id,
-      label,
+      labelKey,
       status: "error",
-      message: "Проверка завершилась ошибкой.",
+      messageKey: "adminChecks.health.failed",
       details: [error instanceof Error ? error.message : String(error)],
       ms: Date.now() - started,
     }
   }
 }
 
-async function checkEnvironment(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkEnvironment(): Promise<CheckResult> {
   const missing = REQUIRED_ENV.filter((key) => !process.env[key])
   const authConfigured = !!(process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET)
   const details: string[] = []
@@ -347,7 +367,7 @@ async function checkEnvironment(): Promise<Omit<SystemCheck, "id" | "label" | "m
   if (details.length > 0) {
     return {
       status: "error",
-      message: "Не хватает обязательных переменных для production.",
+      messageKey: "adminChecks.health.env.error",
       details: [...details, ...recommendations],
     }
   }
@@ -355,18 +375,18 @@ async function checkEnvironment(): Promise<Omit<SystemCheck, "id" | "label" | "m
   if (recommendations.length > 0) {
     return {
       status: "warning",
-      message: "Обязательные переменные заданы, но есть production-рекомендации.",
+      messageKey: "adminChecks.health.env.warning",
       details: recommendations,
     }
   }
 
   return {
     status: "ok",
-    message: "Обязательные переменные и внешние каналы настроены.",
+    messageKey: "adminChecks.health.env.ok",
   }
 }
 
-async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkReleaseVersion(): Promise<CheckResult> {
   const release = await getReleaseInfo()
   const version = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), "VERSION"), "utf8")
     .then((value) => value.trim())
@@ -386,9 +406,10 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
   if (isProductionRuntime() && (!packageJson || !packageLock || !changelog)) {
     return {
       status: runtimeVersion ? "ok" : "warning",
-      message: runtimeVersion
-        ? `Runtime-версия определена: ${runtimeVersion}.`
-        : "Release-файлы недоступны в production runtime.",
+      messageKey: runtimeVersion
+        ? "adminChecks.health.release.runtimeOk"
+        : "adminChecks.health.release.runtimeMissing",
+      messageVars: runtimeVersion ? { version: runtimeVersion } : undefined,
       details: [
         runtimeVersion ? `VERSION=${runtimeVersion}.` : "VERSION не найден в runtime bundle.",
         packageJson ? `package.json=${packageJson.version ?? "missing-version"}.` : "package.json недоступен в production bundle.",
@@ -411,19 +432,20 @@ async function checkReleaseVersion(): Promise<Omit<SystemCheck, "id" | "label" |
   if (details.length > 0) {
     return {
       status: "error",
-      message: "Release-файлы расходятся. Перед deploy нужно выровнять версию.",
+      messageKey: "adminChecks.health.release.mismatch",
       details,
     }
   }
 
   return {
     status: "ok",
-    message: `Release-файлы синхронизированы: ${version}.`,
+    messageKey: "adminChecks.health.release.ok",
+    messageVars: { version: version ?? "" },
     details: ["VERSION, package.json, package-lock.json и CHANGELOG.md совпадают.", ...releaseDetails],
   }
 }
 
-async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkSecurityGuardrails(): Promise<CheckResult> {
   const errors: string[] = []
   const details: string[] = []
 
@@ -431,14 +453,14 @@ async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "labe
     if (!process.env.CRON_SECRET) {
       return {
         status: "error",
-        message: "Cron-секрет не настроен.",
+        messageKey: "adminChecks.health.security.cronSecretMissing",
         details: ["CRON_SECRET обязателен: cron endpoints должны требовать Authorization: Bearer <CRON_SECRET>."],
       }
     }
 
     return {
       status: "ok",
-      message: "Runtime guardrails проверены. Source-scan пропущен в production bundle.",
+      messageKey: "adminChecks.health.security.runtimeOk",
       details: [
         "CRON_SECRET задан, cron endpoints работают через Bearer-секрет.",
         "Статический scan route.ts/lib/*.ts выполняется локально и в CI; production runtime проверяет обязательные runtime-секреты.",
@@ -478,16 +500,16 @@ async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "labe
   if (errors.length > 0) {
     return {
       status: "error",
-      message: "Критичные security guardrails отсутствуют или ослаблены.",
+      messageKey: "adminChecks.health.security.broken",
       details: [...errors, ...details],
     }
   }
 
   return {
     status: details.length > 0 ? "warning" : "ok",
-    message: details.length > 0
-      ? "Критичные guardrails на месте, но есть production-рекомендации."
-      : "Cron, password reset и impersonation защищены базовыми guardrails.",
+    messageKey: details.length > 0
+      ? "adminChecks.health.security.warning"
+      : "adminChecks.health.security.ok",
     details: [
       "Cron endpoints требуют Bearer-секрет.",
       "Password reset не отдает previewLink в production.",
@@ -497,7 +519,7 @@ async function checkSecurityGuardrails(): Promise<Omit<SystemCheck, "id" | "labe
   }
 }
 
-async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkPerformanceBudget(): Promise<CheckResult> {
   const enriched = await Promise.all(PERFORMANCE_WATCH_FILES.map(async (file) => {
     const content = await readFile(path.join(/* turbopackIgnore: true */ process.cwd(), file.rel), "utf8").catch(() => "")
     const size = Buffer.byteLength(content)
@@ -525,14 +547,14 @@ async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label
   if (violations.length > 0) {
     return {
       status: "error",
-      message: "Performance budget превышен.",
+      messageKey: "adminChecks.health.performance.exceeded",
       details: [...violations, ...largest.map((line) => `Крупный файл: ${line}.`)],
     }
   }
 
   return {
     status: "ok",
-    message: "Performance budget соблюден.",
+    messageKey: "adminChecks.health.performance.ok",
     details: [
       `Client budget: ${formatBytes(CLIENT_FILE_BUDGET)}.`,
       `Server budget: ${formatBytes(SERVER_FILE_BUDGET)}.`,
@@ -543,7 +565,7 @@ async function checkPerformanceBudget(): Promise<Omit<SystemCheck, "id" | "label
   }
 }
 
-async function checkWebVitals(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkWebVitals(): Promise<CheckResult> {
   const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
 
@@ -570,7 +592,7 @@ async function checkWebVitals(): Promise<Omit<SystemCheck, "id" | "label" | "ms"
   if (last24h == null || last7d == null || bad24h == null) {
     return {
       status: "warning",
-      message: "Не удалось прочитать web_vital_metrics.",
+      messageKey: "adminChecks.health.webVitals.unreadable",
       details: ["Проверьте миграцию web_vital_metrics и доступ приложения к базе."],
     }
   }
@@ -578,7 +600,7 @@ async function checkWebVitals(): Promise<Omit<SystemCheck, "id" | "label" | "ms"
   if (last7d === 0) {
     return {
       status: "warning",
-      message: "Core Web Vitals пока не поступают.",
+      messageKey: "adminChecks.health.webVitals.noData",
       details: [
         "Проверьте, что клиентский сбор метрик подключен на публичном сайте, в админке и кабинете арендатора.",
         "После реальных визитов данные появятся на /superadmin/performance.",
@@ -598,23 +620,23 @@ async function checkWebVitals(): Promise<Omit<SystemCheck, "id" | "label" | "ms"
   if (badShare > 25 || worst) {
     return {
       status: "warning",
-      message: "Есть страницы с плохими Core Web Vitals.",
+      messageKey: "adminChecks.health.webVitals.poor",
       details,
     }
   }
 
   return {
     status: "ok",
-    message: "Core Web Vitals собираются, критичных просадок мало.",
+    messageKey: "adminChecks.health.webVitals.ok",
     details,
   }
 }
 
-async function checkSilentFallbacks(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkSilentFallbacks(): Promise<CheckResult> {
   if (isProductionRuntime()) {
     return {
       status: "ok",
-      message: "Source scan for silent fallbacks is skipped in production runtime.",
+      messageKey: "adminChecks.health.silentFallbacks.skipped",
       details: [
         "CI/local health checks scan app/components/lib for catch(() => []) patterns.",
         "Runtime errors are still collected through /api/errors/report and logged server fallbacks.",
@@ -638,7 +660,7 @@ async function checkSilentFallbacks(): Promise<Omit<SystemCheck, "id" | "label" 
   if (matches.length > 0) {
     return {
       status: "warning",
-      message: "Silent empty fallbacks remain in server pages.",
+      messageKey: "adminChecks.health.silentFallbacks.found",
       details: [
         `Found catch(() => []) patterns: ${matches.length}.`,
         "Replace them gradually with safeServerValue(...) so support can see real query errors.",
@@ -650,15 +672,15 @@ async function checkSilentFallbacks(): Promise<Omit<SystemCheck, "id" | "label" 
 
   return {
     status: "ok",
-    message: "No silent catch(() => []) fallbacks found in app/components/lib.",
+    messageKey: "adminChecks.health.silentFallbacks.ok",
   }
 }
 
-async function checkDatabase(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkDatabase(): Promise<CheckResult> {
   if (!process.env.DATABASE_URL) {
     return {
       status: "error",
-      message: "DATABASE_URL не задан.",
+      messageKey: "adminChecks.health.database.urlMissing",
     }
   }
 
@@ -675,14 +697,14 @@ async function checkDatabase(): Promise<Omit<SystemCheck, "id" | "label" | "ms">
   if (ping[0]?.ok !== 1) {
     return {
       status: "error",
-      message: "База ответила неожиданным результатом.",
+      messageKey: "adminChecks.health.database.unexpected",
     }
   }
 
   const row = stats[0]
   return {
     status: "ok",
-    message: "Подключение к базе работает.",
+    messageKey: "adminChecks.health.database.ok",
     details: row
       ? [
           `Организаций: ${row.organizations}.`,
@@ -693,7 +715,7 @@ async function checkDatabase(): Promise<Omit<SystemCheck, "id" | "label" | "ms">
   }
 }
 
-async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkSchemaTables(): Promise<CheckResult> {
   const [tableRows, columnRows] = await Promise.all([
     db.$queryRaw<Array<{ table_name: string }>>`
       SELECT table_name
@@ -727,7 +749,7 @@ async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "
   if (missing.length > 0 || missingColumns.length > 0) {
     return {
       status: "error",
-      message: "Production-БД отстала от кода приложения.",
+      messageKey: "adminChecks.health.schema.behind",
       details: [
         missing.length > 0 ? `Отсутствуют таблицы: ${missing.join(", ")}.` : null,
         missingColumns.length > 0 ? `Отсутствуют колонки: ${missingColumns.join(", ")}.` : null,
@@ -742,7 +764,7 @@ async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "
   if (missingRecentMigrations.length > 0) {
     return {
       status: "warning",
-      message: "Объекты схемы найдены, но в истории Prisma нет части свежих миграций.",
+      messageKey: "adminChecks.health.schema.historyGap",
       details: [
         `Нет записей миграций: ${missingRecentMigrations.join(", ")}.`,
         "Если БД меняли вручную, лучше выполнить `prisma migrate deploy` или выровнять историю миграций.",
@@ -752,7 +774,7 @@ async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "
 
   return {
     status: "ok",
-    message: "Ключевые таблицы актуальной Prisma-схемы найдены.",
+    messageKey: "adminChecks.health.schema.ok",
     details: [
       `Проверено таблиц: ${REQUIRED_TABLES.length}.`,
       `Проверено колонок: ${checkedColumns}.`,
@@ -760,7 +782,7 @@ async function checkSchemaTables(): Promise<Omit<SystemCheck, "id" | "label" | "
   }
 }
 
-async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkSensitiveRls(): Promise<CheckResult> {
   const rows = await db.$queryRaw<Array<{
     table_name: string
     rls_enabled: boolean
@@ -792,7 +814,7 @@ async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "
   if (rlsDisabled.length > 0 || noPolicies.length > 0 || exposedGrants.length > 0) {
     return {
       status: "error",
-      message: "Public RLS tables are not fully protected from Supabase Data API.",
+      messageKey: "adminChecks.health.rls.unprotected",
       details: [
         rlsDisabled.length > 0 ? `RLS disabled: ${limitTableList(rlsDisabled.map((row) => row.table_name))}.` : null,
         noPolicies.length > 0 ? `RLS enabled without policies: ${limitTableList(noPolicies.map((row) => row.table_name))}.` : null,
@@ -803,7 +825,7 @@ async function checkSensitiveRls(): Promise<Omit<SystemCheck, "id" | "label" | "
 
   return {
     status: "ok",
-    message: "Public RLS tables have explicit policies and no client grants.",
+    messageKey: "adminChecks.health.rls.ok",
     details: [
       `Checked public tables: ${rows.length}.`,
       "Client access remains routed through Next.js server actions and Prisma.",
@@ -828,7 +850,7 @@ async function getMissingRecentMigrations(): Promise<string[]> {
   return RECENT_REQUIRED_MIGRATIONS.filter((migration) => !applied.has(migration))
 }
 
-async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkMigrations(): Promise<CheckResult> {
   const localMigrations = await getLocalMigrations()
   if (localMigrations.length === 0) {
     const dbMigrations = await getDbMigrations()
@@ -839,9 +861,9 @@ async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms
 
       return {
         status: missingRecent.length > 0 ? "warning" : "ok",
-        message: missingRecent.length > 0
-          ? "В production недоступны локальные migration-файлы, но история БД найдена частично."
-          : "История Prisma-миграций в БД найдена.",
+        messageKey: missingRecent.length > 0
+          ? "adminChecks.health.migrations.dbHistoryPartial"
+          : "adminChecks.health.migrations.dbHistoryOk",
         details: [
           "Vercel runtime может не содержать папку prisma/migrations как обычные файлы, поэтому проверяем _prisma_migrations в БД.",
           latestApplied ? `Последняя примененная: ${latestApplied}.` : "Примененные миграции не найдены.",
@@ -853,7 +875,7 @@ async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms
 
     return {
       status: "warning",
-      message: "Локальные Prisma-миграции не найдены.",
+      messageKey: "adminChecks.health.migrations.localMissing",
       details: [
         "Если это production, проверьте наличие таблицы _prisma_migrations и переменной DIRECT_URL.",
       ],
@@ -865,7 +887,7 @@ async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms
   if (!dbMigrations) {
     return {
       status: "warning",
-      message: "Prisma migration history table не найдена.",
+      messageKey: "adminChecks.health.migrations.tableMissing",
       details: [
         "База выглядит как созданная вручную или через db push.",
         "Ключевые таблицы проверяются отдельно, но для надежных deploy/rollback лучше сделать rebaseline Prisma migrations.",
@@ -886,7 +908,7 @@ async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms
   if (pending.length > 0 || rolledBack.length > 0) {
     return {
       status: "error",
-      message: "Есть непримененные или откатанные миграции.",
+      messageKey: "adminChecks.health.migrations.pending",
       details: [
         pending.length > 0 ? `Не применены: ${pending.join(", ")}.` : null,
         rolledBack.length > 0 ? `Откатаны: ${rolledBack.join(", ")}.` : null,
@@ -897,7 +919,7 @@ async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms
 
   return {
     status: "ok",
-    message: "Все локальные Prisma-миграции применены.",
+    messageKey: "adminChecks.health.migrations.ok",
     details: [
       `Последняя миграция: ${latestLocal}.`,
       `Всего миграций: ${localMigrations.length}.`,
@@ -905,7 +927,7 @@ async function checkMigrations(): Promise<Omit<SystemCheck, "id" | "label" | "ms
   }
 }
 
-async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkCron(): Promise<CheckResult> {
   const details: string[] = []
   if (!process.env.CRON_SECRET) {
     details.push("CRON_SECRET не задан: cron endpoints должны требовать Bearer-секрет.")
@@ -917,7 +939,7 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
     if (isProductionRuntime() && process.env.CRON_SECRET) {
       return {
         status: "ok",
-        message: "Cron-секрет настроен. Source-check vercel.json пропущен в production bundle.",
+        messageKey: "adminChecks.health.cron.secretOnly",
         details: [
           "Vercel runtime не всегда содержит vercel.json как файл.",
           "Расписание cron проверяется локально/CI, runtime-защита проверена по CRON_SECRET.",
@@ -927,7 +949,7 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
 
     return {
       status: "warning",
-      message: "vercel.json не найден, расписание cron не проверено.",
+      messageKey: "adminChecks.health.cron.vercelMissing",
       details,
     }
   }
@@ -947,16 +969,16 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   if (blockingDetails.length > 0) {
     return {
       status: process.env.CRON_SECRET ? "warning" : "error",
-      message: process.env.CRON_SECRET
-        ? "Cron настроен частично."
-        : "Cron-секрет не настроен.",
+      messageKey: process.env.CRON_SECRET
+        ? "adminChecks.health.cron.partial"
+        : "adminChecks.health.cron.secretMissing",
       details,
     }
   }
 
   return {
     status: "ok",
-    message: "Cron-секрет и расписания Vercel настроены.",
+    messageKey: "adminChecks.health.cron.ok",
     details: [
       ...EXPECTED_CRONS.map((cronPath) => `Проверен ${cronPath}.`),
       ...details,
@@ -964,7 +986,7 @@ async function checkCron(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   }
 }
 
-async function checkEmail(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkEmail(): Promise<CheckResult> {
   const details: string[] = []
   if (!process.env.RESEND_API_KEY) details.push("RESEND_API_KEY не задан.")
   if (!process.env.EMAIL_FROM) details.push("EMAIL_FROM не задан.")
@@ -972,7 +994,7 @@ async function checkEmail(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   if (details.length > 0) {
     return {
       status: "warning",
-      message: "Email будет работать в ограниченном режиме.",
+      messageKey: "adminChecks.health.email.limited",
       details,
     }
   }
@@ -980,12 +1002,12 @@ async function checkEmail(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
   const emailFrom = process.env.EMAIL_FROM ?? ""
   return {
     status: "ok",
-    message: "Email-канал настроен.",
+    messageKey: "adminChecks.health.email.ok",
     details: [`Отправитель: ${maskEmail(emailFrom)}.`],
   }
 }
 
-async function checkStorage(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkStorage(): Promise<CheckResult> {
   const countRows = await db.$queryRaw<Array<{ count: number; bytes: number | null }>>`
     SELECT COUNT(*)::int AS count, COALESCE(SUM(file_size), 0)::int AS bytes
     FROM generated_documents
@@ -996,7 +1018,7 @@ async function checkStorage(): Promise<Omit<SystemCheck, "id" | "label" | "ms">>
 
   return {
     status: "ok",
-    message: "Документы сохраняются в базе данных.",
+    messageKey: "adminChecks.health.storage.ok",
     details: [
       `Документов: ${count}.`,
       `Размер архива: ${formatBytes(bytes)}.`,
@@ -1004,7 +1026,7 @@ async function checkStorage(): Promise<Omit<SystemCheck, "id" | "label" | "ms">>
   }
 }
 
-async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkDomainAndSeo(): Promise<CheckResult> {
   const details: string[] = []
   const rootHost = process.env.ROOT_HOST
   const nextAuthUrl = process.env.NEXTAUTH_URL
@@ -1029,14 +1051,14 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
   if (blockingDetails.length > 0) {
     return {
       status: "warning",
-      message: "SEO/домен требуют внимания.",
+      messageKey: "adminChecks.health.domain.warning",
       details,
     }
   }
 
   return {
     status: "ok",
-    message: "Доменная база, robots и sitemap присутствуют.",
+    messageKey: "adminChecks.health.domain.ok",
     details: [
       `ROOT_HOST: ${rootHost}.`,
       "Sitemap: /sitemap.xml.",
@@ -1046,7 +1068,7 @@ async function checkDomainAndSeo(): Promise<Omit<SystemCheck, "id" | "label" | "
   }
 }
 
-async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | "ms">> {
+async function checkObservability(): Promise<CheckResult> {
   // В production bundle исходники app/ не читаются как обычные файлы (то же
   // ограничение, что и в других чеках). /api/errors/report всегда бандлится в
   // прод и реально принимает ошибки — поэтому считаем внутренний сбор активным.
@@ -1075,14 +1097,14 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
   if (!errorRoute && !sentryConfigured) {
     return {
       status: "warning",
-      message: "Внешний и внутренний сбор ошибок не найдены.",
+      messageKey: "adminChecks.health.observability.none",
     }
   }
 
   if (!sentrySourceConfigured) {
     return {
       status: "warning",
-      message: "Sentry SDK может быть установлен, но source-config файлы не все на месте.",
+      messageKey: "adminChecks.health.observability.sentryFiles",
       details: [
         "Ожидаются instrumentation.ts, instrumentation-client.ts, sentry.server.config.ts и sentry.edge.config.ts.",
         `Ошибок за 24 часа в audit_logs: ${recentErrorCount}.`,
@@ -1093,7 +1115,7 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
   if (!sentryConfigured) {
     return {
       status: "warning",
-      message: "Работает внутренний журнал ошибок, Sentry SDK подготовлен, но DSN не задан.",
+      messageKey: "adminChecks.health.observability.sentryNoDsn",
       details: [
         "Для внешнего мониторинга задайте SENTRY_DSN и NEXT_PUBLIC_SENTRY_DSN.",
         "Для source maps добавьте SENTRY_ORG, SENTRY_PROJECT и SENTRY_AUTH_TOKEN в CI/Vercel.",
@@ -1105,7 +1127,7 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
   if (recentErrorCount > 0) {
     return {
       status: "warning",
-      message: "Сбор ошибок работает, но за последние 24 часа есть новые ошибки.",
+      messageKey: "adminChecks.health.observability.recentErrors",
       details: [
         `Ошибок за 24 часа в audit_logs: ${recentErrorCount}.`,
         "Откройте журнал операций и ищите action=ERROR или код ошибки из экрана.",
@@ -1115,7 +1137,7 @@ async function checkObservability(): Promise<Omit<SystemCheck, "id" | "label" | 
 
   return {
     status: "ok",
-    message: "Сбор ошибок готов.",
+    messageKey: "adminChecks.health.observability.ok",
     details: [
       errorRoute ? "Внутренний журнал ошибок включен." : "Внутренний endpoint не найден.",
       "Sentry SDK и DSN заданы.",

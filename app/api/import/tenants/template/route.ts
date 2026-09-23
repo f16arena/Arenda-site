@@ -1,35 +1,41 @@
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import ExcelJS from "exceljs"
 
 export const dynamic = "force-dynamic"
 
 // GET /api/import/tenants/template
 // Возвращает .xlsx-шаблон с правильными колонками и примером данных.
+//
+// Шапка переводится, и это работает только потому, что казахские названия
+// колонок перечислены в KK_FIELD_SYNONYMS (lib/excel-import.ts): при загрузке
+// файла колонки сопоставляются по заголовку. Меняете шапку — правьте синонимы.
 export async function GET() {
   const session = await auth()
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
+  const { t } = await getT()
   const wb = new ExcelJS.Workbook()
   wb.creator = "Commrent"
-  const ws = wb.addWorksheet("Арендаторы")
+  const ws = wb.addWorksheet(t("adminDocs.export.template.sheet"))
 
   ws.columns = [
-    { header: "ФИО контактного лица", key: "contactName", width: 28 },
-    { header: "Телефон", key: "phone", width: 16 },
-    { header: "Email", key: "email", width: 24 },
-    { header: "Название компании", key: "companyName", width: 32 },
-    { header: "Тип (ИП/ТОО/АО/ЧСИ/ФЛ)", key: "legalType", width: 18 },
-    { header: "БИН/ИИН (12 цифр)", key: "bin", width: 16 },
-    { header: "Категория", key: "category", width: 22 },
-    { header: "Юр. адрес", key: "legalAddress", width: 30 },
-    { header: "Директор", key: "directorName", width: 24 },
-    { header: "№ помещения", key: "spaceNumber", width: 12 },
-    { header: "Ставка ₸/м²", key: "rate", width: 12 },
-    { header: "Фикс. аренда ₸/мес", key: "fixedMonthlyRent", width: 16 },
-    { header: "Уборка ₸/мес", key: "cleaningFee", width: 12 },
-    { header: "Дата начала", key: "contractStart", width: 14 },
-    { header: "Дата окончания", key: "contractEnd", width: 14 },
+    { header: t("adminDocs.export.template.contactName"), key: "contactName", width: 28 },
+    { header: t("adminDocs.export.template.phone"), key: "phone", width: 16 },
+    { header: t("adminDocs.export.template.email"), key: "email", width: 24 },
+    { header: t("adminDocs.export.template.companyName"), key: "companyName", width: 32 },
+    { header: t("adminDocs.export.template.legalType"), key: "legalType", width: 18 },
+    { header: t("adminDocs.export.template.taxId"), key: "bin", width: 16 },
+    { header: t("adminDocs.export.template.category"), key: "category", width: 22 },
+    { header: t("adminDocs.export.template.legalAddress"), key: "legalAddress", width: 30 },
+    { header: t("adminDocs.export.template.directorName"), key: "directorName", width: 24 },
+    { header: t("adminDocs.export.template.spaceNumber"), key: "spaceNumber", width: 12 },
+    { header: t("adminDocs.export.template.rate"), key: "rate", width: 12 },
+    { header: t("adminDocs.export.template.fixedRent"), key: "fixedMonthlyRent", width: 16 },
+    { header: t("adminDocs.export.template.cleaningFee"), key: "cleaningFee", width: 12 },
+    { header: t("adminDocs.export.template.startDate"), key: "contractStart", width: 14 },
+    { header: t("adminDocs.export.template.endDate"), key: "contractEnd", width: 14 },
   ]
 
   // Стиль заголовков
@@ -100,34 +106,12 @@ export async function GET() {
     ws.getRow(i).font = { italic: true, color: { argb: "FF64748B" } }
   }
 
-  // Лист с инструкциями
-  const help = wb.addWorksheet("Инструкция")
+  // Лист с инструкциями. Словарь хранит строки одним текстом (массивов он не
+  // держит) — здесь разбираем его обратно по переносам.
+  const help = wb.addWorksheet(t("adminDocs.export.template.helpSheet"))
   help.columns = [{ key: "text", width: 100 }]
-  const lines = [
-    "ШАБЛОН ИМПОРТА АРЕНДАТОРОВ — Commrent",
-    "",
-    "Заполните лист «Арендаторы» (первый лист). Удалите строки-примеры или замените их вашими данными.",
-    "",
-    "ОБЯЗАТЕЛЬНЫЕ КОЛОНКИ:",
-    "  • Название компании — без него строка пропускается",
-    "",
-    "РЕКОМЕНДУЕМЫЕ:",
-    "  • ФИО контактного лица — если не указано, используется название компании",
-    "  • Телефон или Email — иначе арендатор не сможет войти в свой кабинет",
-    "  • БИН/ИИН — 12 цифр, нужен для счетов-фактур и проверки на дубли",
-    "",
-    "ОПЦИОНАЛЬНЫЕ:",
-    "  • № помещения — если указано, арендатор автоматически привяжется к помещению (помещение должно быть создано в системе)",
-    "  • Ставка ₸/м² — индивидуальная ставка за площадь; оставьте пустой, если используется ставка этажа или фиксированная аренда",
-    "  • Фикс. аренда ₸/мес — индивидуальная сумма за месяц; нельзя заполнять одновременно со ставкой ₸/м²",
-    "  • Дата начала / окончания — формат ДД.ММ.ГГГГ или ГГГГ-ММ-ДД",
-    "",
-    "ТИПЫ ОРГАНИЗАЦИЙ: ИП, ТОО, АО, ЧСИ, ФЛ (физическое лицо). Если не указано — ТОО по умолчанию.",
-    "",
-    "После заполнения — загрузите файл на странице импорта в системе.",
-    "Перед сохранением вы увидите превью и список ошибок.",
-  ]
-  lines.forEach((l) => help.addRow({ text: l }))
+  const lines = t("adminDocs.export.template.instructions").split("\n")
+  lines.forEach((line) => help.addRow({ text: line }))
   help.getRow(1).font = { bold: true, size: 14 }
 
   const buffer = await wb.xlsx.writeBuffer()

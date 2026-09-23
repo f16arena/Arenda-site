@@ -9,11 +9,13 @@ import { getAccessibleBuildingsForUser, isOwnerLike } from "@/lib/building-acces
 import { revalidatePath } from "next/cache"
 import { assertBuildingInOrg, assertTenantInOrg } from "@/lib/scope-guards"
 import { storeUploadedFile, TENANT_DOCUMENT_ALLOWED_MIME_TYPES, TENANT_DOCUMENT_MAX_BYTES } from "@/lib/storage"
+import { getT } from "@/lib/i18n/server"
 
 export async function deleteStoredFile(fileId: string) {
   await requireCapabilityAndFeature("storage.delete")
   const session = await auth()
-  if (!session?.user) return { error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const file = await db.storedFile.findFirst({
@@ -27,7 +29,7 @@ export async function deleteStoredFile(fileId: string) {
       _count: { select: { paymentReports: true } },
     },
   })
-  if (!file) return { error: "Файл не найден или нет доступа" }
+  if (!file) return { error: t("actions.storage.fileNotFoundOrNoAccess") }
 
   const canAccess = await canManageStoredFile({
     orgId,
@@ -37,11 +39,11 @@ export async function deleteStoredFile(fileId: string) {
     buildingId: file.buildingId,
     tenantId: file.tenantId,
   })
-  if (!canAccess) return { error: "Нет доступа к этому файлу" }
+  if (!canAccess) return { error: t("actions.storage.noFileAccess") }
 
   if (file.tenantDocument || file._count.paymentReports > 0) {
     return {
-      error: "Файл связан с документом или оплатой. Удалите его из карточки арендатора/заявки оплаты, чтобы сохранить историю корректной.",
+      error: t("actions.storage.linkedToDocument"),
     }
   }
 
@@ -111,14 +113,15 @@ async function canManageStoredFile({
 export async function restoreStoredFile(fileId: string) {
   await requireCapabilityAndFeature("storage.delete")
   const session = await auth()
-  if (!session?.user) return { error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
 
   const file = await db.storedFile.findFirst({
     where: { id: fileId, organizationId: orgId, deletedAt: { not: null } },
     select: { id: true, fileName: true, buildingId: true, tenantId: true },
   })
-  if (!file) return { error: "Файл не найден" }
+  if (!file) return { error: t("actions.storage.fileNotFound") }
   const canAccess = await canManageStoredFile({
     orgId,
     userId: session.user.id,
@@ -127,7 +130,7 @@ export async function restoreStoredFile(fileId: string) {
     buildingId: file.buildingId,
     tenantId: file.tenantId,
   })
-  if (!canAccess) return { error: "Нет доступа к этому файлу" }
+  if (!canAccess) return { error: t("actions.storage.noFileAccess") }
 
   await db.storedFile.update({ where: { id: file.id }, data: { deletedAt: null } })
   await audit({ action: "UPDATE", entity: "storage", entityId: file.id, details: { fileName: file.fileName, restored: true } })
@@ -140,11 +143,13 @@ export async function restoreStoredFile(fileId: string) {
  * к арендатору или зданию — тогда он виден в их разделах и в фильтрах.
  */
 export async function uploadToStorage(formData: FormData): Promise<{ ok?: true; error?: string }> {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
     const session = await requireCapabilityAndFeature("storage.upload")
     const { orgId } = await requireOrgAccess()
     const file = formData.get("file")
-    if (!(file instanceof File) || file.size === 0) return { error: "Выберите файл" }
+    if (!(file instanceof File) || file.size === 0) return { error: t("actions.storage.selectFile") }
 
     const tenantId = String(formData.get("tenantId") ?? "").trim() || null
     const buildingIdRaw = String(formData.get("buildingId") ?? "").trim() || null
@@ -160,9 +165,9 @@ export async function uploadToStorage(formData: FormData): Promise<{ ok?: true; 
       buildingId: buildingIdRaw,
       tenantId,
     })
-    if (!canAccess) return { error: "Нет доступа к этому зданию или арендатору" }
+    if (!canAccess) return { error: t("actions.storage.noBuildingOrTenantAccess") }
     if (visibility === "TENANT_VISIBLE" && !tenantId) {
-      return { error: "Чтобы файл увидел арендатор, выберите арендатора" }
+      return { error: t("actions.storage.tenantVisibleNeedsTenant") }
     }
 
     await storeUploadedFile({
@@ -180,6 +185,6 @@ export async function uploadToStorage(formData: FormData): Promise<{ ok?: true; 
     revalidatePath("/admin/storage")
     return { ok: true }
   } catch (e) {
-    return { error: e instanceof Error ? e.message : "Не удалось загрузить файл" }
+    return { error: e instanceof Error ? e.message : t("actions.common.uploadFailed") }
   }
 }

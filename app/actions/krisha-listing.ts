@@ -10,11 +10,13 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { parseSpacePhotos } from "@/lib/space-photos"
 import { getCityMedianPerSqm } from "@/lib/market"
 import { buildListingContent, KRISHA_CREATE_URL } from "@/lib/krisha-listing"
+import { getT } from "@/lib/i18n/server"
 
 async function assertCanEditSpaces(orgId: string, userId: string, role: string, isPlatformOwner: boolean) {
+  const { t } = await getT()
   if (role === "OWNER" || isPlatformOwner) return
   const caps = new Set(await getAllowedCapabilityKeysForUser({ userId, role, isPlatformOwner, orgId }))
-  if (!caps.has("spaces.edit")) throw new Error("Нет прав на размещение объявлений")
+  if (!caps.has("spaces.edit")) throw new Error(t("actions.krisha.noListingRight"))
 }
 
 const LISTING_STATUSES = new Set(["DRAFT", "COPIED", "PUBLISHED", "ARCHIVED"])
@@ -40,13 +42,14 @@ export async function generateListingDraft(
   spaceId: string,
 ): Promise<GeneratedListing | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
-  if (!orgId) return { ok: false, error: "Организация не определена" }
+  if (!orgId) return { ok: false, error: t("actions.common.organizationUndefined") }
   try {
     await assertCanEditSpaces(orgId, session.user.id, session.user.role, session.user.isPlatformOwner ?? false)
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет прав" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.noRights") }
   }
 
   const space = await db.space.findFirst({
@@ -68,7 +71,7 @@ export async function generateListingDraft(
       },
     },
   })
-  if (!space) return { ok: false, error: "Помещение не найдено" }
+  if (!space) return { ok: false, error: t("actions.common.spaceNotFound") }
 
   const building = space.floor.building
   // Рыночная подсказка (если сборщик собрал данные по городу).
@@ -151,18 +154,19 @@ export async function setListingStatus(
   externalUrl?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
-  if (!orgId) return { ok: false, error: "Организация не определена" }
-  if (!LISTING_STATUSES.has(status)) return { ok: false, error: "Неизвестный статус" }
+  if (!orgId) return { ok: false, error: t("actions.common.organizationUndefined") }
+  if (!LISTING_STATUSES.has(status)) return { ok: false, error: t("actions.krisha.unknownStatus") }
   try {
     await assertCanEditSpaces(orgId, session.user.id, session.user.role, session.user.isPlatformOwner ?? false)
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет прав" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.noRights") }
   }
 
   const draft = await db.listingDraft.findFirst({ where: { id: draftId, organizationId: orgId }, select: { id: true } })
-  if (!draft) return { ok: false, error: "Черновик не найден" }
+  if (!draft) return { ok: false, error: t("actions.krisha.draftNotFound") }
 
   const url = externalUrl?.trim()
   await db.listingDraft.update({
@@ -235,9 +239,10 @@ function xmlEscape(s: string): string {
  */
 export async function buildVacancyFeedXml(): Promise<{ ok: true; xml: string; count: number } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user || session.user.role === "TENANT") return { ok: false, error: t("actions.common.noAccess") }
   const { orgId } = await requireOrgAccess()
-  if (!orgId) return { ok: false, error: "Организация не определена" }
+  if (!orgId) return { ok: false, error: t("actions.common.organizationUndefined") }
 
   const spaces = await db.space.findMany({
     where: { AND: [spaceScope(orgId), { status: "VACANT", kind: "RENTABLE", tenant: { is: null } }] },

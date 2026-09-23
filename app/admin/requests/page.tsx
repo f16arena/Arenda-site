@@ -9,7 +9,7 @@ import { DeleteAction } from "@/components/ui/delete-action"
 import { EmptyState } from "@/components/ui/empty-state"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { SERVICE_TABS } from "@/lib/hub-tabs"
+import { serviceTabs } from "@/lib/hub-tabs"
 import { PageHeader, Card } from "@/components/ui/page"
 import { deleteRequest } from "@/app/actions/requests"
 import { auth } from "@/auth"
@@ -168,7 +168,7 @@ export default async function RequestsPage({
 
   return (
     <div className="space-y-5">
-      <RouteTabs items={SERVICE_TABS} className="mb-2" />
+      <RouteTabs items={serviceTabs(t)} className="mb-2" />
       <PageHeader
         icon={ClipboardList}
         title={t("adminService.requests.title")}

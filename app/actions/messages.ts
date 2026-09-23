@@ -7,26 +7,28 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
 import { getTenantAdminContactIdsForUser } from "@/lib/tenant-admin-contact"
+import { getT, getTForUser } from "@/lib/i18n/server"
 
 const BROADCAST_ID = "BROADCAST_ALL"
 
 export async function sendMessage(formData: FormData) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
   const { orgId } = await requireOrgAccess()
 
   const toId = String(formData.get("toId") ?? "").trim()
   const body = String(formData.get("body") ?? "").trim()
   const subject = String(formData.get("subject") ?? "").trim() || null
 
-  if (!toId) throw new Error("Не указан получатель")
-  if (!body) throw new Error("Сообщение не может быть пустым")
+  if (!toId) throw new Error(t("actions.messages.recipientRequired"))
+  if (!body) throw new Error(t("actions.messages.bodyRequired"))
 
-  const senderName = session.user.name ?? "Сотрудник"
+  const senderName = session.user.name ?? t("actions.messages.defaultSenderName")
   const preview = body.length > 80 ? body.slice(0, 77) + "..." : body
 
   if (session.user.role === "TENANT" && toId === BROADCAST_ID) {
-    throw new Error("Арендаторы могут писать только администратору здания")
+    throw new Error(t("actions.messages.tenantToAdminOnly"))
   }
 
   // Общий чат — рассылка только пользователям своей организации
@@ -40,7 +42,7 @@ export async function sendMessage(formData: FormData) {
       select: { id: true, role: true },
     })
 
-    if (recipients.length === 0) throw new Error("Нет получателей")
+    if (recipients.length === 0) throw new Error(t("actions.messages.noRecipients"))
 
     // Анти-дубль при двойном сабмите: если это же объявление уже ушло за
     // последние 10 сек — молча выходим (см. AUDIT_2026-05-29, E1). Дедуп по
@@ -48,6 +50,8 @@ export async function sendMessage(formData: FormData) {
     const recentBroadcast = await db.message.findFirst({
       where: {
         fromId: session.user.id,
+        // «[Объявление]» — ключ дедупликации в БД, а не интерфейс: перевод
+        // ломал бы поиск двойного сабмита. Остаётся как есть.
         subject: subject ?? "[Объявление]",
         body,
         createdAt: { gte: new Date(Date.now() - 10_000) },
@@ -68,10 +72,14 @@ export async function sendMessage(formData: FormData) {
     // Рассылка: in-app + telegram, без email (массовая рассылка
     // на email = spam-флаг от провайдеров).
     for (const r of recipients) {
+      // Уведомление читает получатель — берём язык из его профиля.
+      const { t: tTo } = await getTForUser(r.id)
       await notifyUser({
         userId: r.id,
         type: "MESSAGE_RECEIVED",
-        title: subject ? `Объявление: ${subject}` : "Новое объявление",
+        title: subject
+          ? tTo("actions.messages.broadcastTitle", { subject })
+          : tTo("actions.messages.broadcastTitleEmpty"),
         message: `${senderName}: ${preview}`,
         link: r.role === "TENANT" ? "/cabinet/messages" : "/admin/messages",
         sendEmail: false,
@@ -81,7 +89,7 @@ export async function sendMessage(formData: FormData) {
     if (session.user.role === "TENANT") {
       const allowedAdminIds = await getTenantAdminContactIdsForUser(session.user.id)
       if (!allowedAdminIds.includes(toId)) {
-        throw new Error("Арендаторы могут писать только администратору здания")
+        throw new Error(t("actions.messages.tenantToAdminOnly"))
       }
     }
 
@@ -114,10 +122,14 @@ export async function sendMessage(formData: FormData) {
       where: { id: toId },
       select: { role: true },
     })
+    // Уведомление читает получатель — берём язык из его профиля.
+    const { t: tTo } = await getTForUser(toId)
     await notifyUser({
       userId: toId,
       type: "MESSAGE_RECEIVED",
-      title: subject ? `Сообщение: ${subject}` : `Сообщение от ${senderName}`,
+      title: subject
+        ? tTo("actions.messages.directTitle", { subject })
+        : tTo("actions.messages.directTitleFrom", { name: senderName }),
       message: `${senderName}: ${preview}`,
       link: recipient?.role === "TENANT" ? "/cabinet/messages" : "/admin/messages",
     })
@@ -129,7 +141,8 @@ export async function sendMessage(formData: FormData) {
 
 export async function markConversationRead(otherUserId: string) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
 
   await db.message.updateMany({
     where: {
@@ -146,7 +159,8 @@ export async function markConversationRead(otherUserId: string) {
 
 export async function deleteMessage(messageId: string) {
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  const { t } = await getT()
+  if (!session?.user) throw new Error(t("actions.common.noAccess"))
   const { requireOrgAccess } = await import("@/lib/org")
   const { orgId } = await requireOrgAccess()
 
@@ -162,9 +176,9 @@ export async function deleteMessage(messageId: string) {
     },
     select: { fromId: true },
   })
-  if (!msg) throw new Error("Сообщение не найдено или нет доступа")
+  if (!msg) throw new Error(t("actions.messages.notFoundOrNoAccess"))
   if (msg.fromId !== session.user.id && session.user.role !== "OWNER") {
-    throw new Error("Нет прав на удаление")
+    throw new Error(t("actions.messages.noDeleteRight"))
   }
 
   await db.message.delete({ where: { id: messageId } })

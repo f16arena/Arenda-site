@@ -4,6 +4,12 @@ import type { Floor } from "@/types/builder"
 import { openingName, openingSchedule, roomExplication } from "./schedules"
 import { buildFloorDrawing } from "./floor-drawing"
 
+import { createTranslator } from "@/lib/i18n/translate"
+import { ru } from "@/lib/i18n/messages"
+
+// Тексты на листах собираются переводчиком — в тестах берём русский словарь.
+const { t } = createTranslator("ru", ru)
+
 function floor(id: string, level: number): Floor {
   let g = emptyGraph()
   const pts = [[0, 0], [10000, 0], [10000, 6000], [0, 6000], [0, 0]]
@@ -32,7 +38,7 @@ describe("ведомости АР", () => {
     expect(s.marks.get("f1w2")).toBe("ОК-2") // 1503 округлилось к 1500
     expect(s.marks.has("f1x")).toBe(false) // демонтируемый проём не в ведомости
     expect(s.rows[1].perFloor).toEqual({ f1: 2, f2: 2 })
-    expect(openingName(s.rows[2])).toBe("Дверь внутренняя 900×2100")
+    expect(openingName(t, s.rows[2])).toBe("Дверь внутренняя 900×2100")
   })
 
   it("экспликация: номера по этажу, наименования, площади", () => {

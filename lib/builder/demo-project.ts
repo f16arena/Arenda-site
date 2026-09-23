@@ -32,10 +32,29 @@ export const DEMO_PREMISE_STATUS: Record<string, PremiseStatus> = {
   "demo-104": "debt",
 }
 
-function makeFloor(level: number): Floor {
+/**
+ * Имена, которых нет в геометрии: как назвать проект и этаж. Их видит владелец
+ * в панели уровней, поэтому приходят из словаря; демо-сцена зовёт без них.
+ */
+export interface ProjectNames {
+  project: string
+  floor: (level: number) => string
+  basement: string
+  basementNumbered: (number: number) => string
+  /** Имя здания; нужно ИИ-сборке, когда запрос без названия. */
+  building?: string
+}
+
+export function floorName(level: number, names?: ProjectNames): string {
+  if (level > 0) return names ? names.floor(level) : `${level} этаж`
+  if (level === 0) return names ? names.basement : "Подвал"
+  return names ? names.basementNumbered(1 - level) : `Подвал ${1 - level}`
+}
+
+function makeFloor(level: number, names?: ProjectNames): Floor {
   return {
     id: uid("f"),
-    name: level <= 0 ? (level === 0 ? "Подвал" : `Подвал ${1 - level}`) : `${level} этаж`,
+    name: floorName(level, names),
     level,
     elevation: level * FLOOR_HEIGHT,
     height: FLOOR_HEIGHT,
@@ -92,17 +111,18 @@ function floorObject(
 
 // Пустой проект «с нуля»: одно здание + один пустой этаж (цоколь) без стен/объектов.
 // Для кнопки «Очистить всё» — чистый холст, на котором сразу можно строить.
-export function buildEmptyProject(): BuilderDocument {
-  const building: Building = { id: uid("b"), name: "Новый проект", origin: { x: 0, y: 0 }, floors: [], sections: [] }
+export function buildEmptyProject(names?: ProjectNames): BuilderDocument {
+  const title = names?.project ?? "Новый проект"
+  const building: Building = { id: uid("b"), name: title, origin: { x: 0, y: 0 }, floors: [], sections: [] }
   let doc: BuilderDocument = {
     id: uid("proj"),
     schemaVersion: 1,
-    name: "Новый проект",
+    name: title,
     site: { sizeX: 50000, sizeZ: 40000, groundMaterialId: "grass", objects: [], terrainRes: 64, water: [], paths: [], pavements: [] },
     buildings: [],
   }
   doc = new AddBuildingCommand(building).apply(doc)
-  doc = new AddFloorCommand(building.id, makeFloor(0)).apply(doc)
+  doc = new AddFloorCommand(building.id, makeFloor(0, names)).apply(doc)
   return doc
 }
 

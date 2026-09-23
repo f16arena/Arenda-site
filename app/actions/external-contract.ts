@@ -7,6 +7,7 @@ import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { storeUploadedFile, TENANT_DOCUMENT_MAX_BYTES } from "@/lib/storage"
 import { parseRentSchedule, resolveScheduledRent } from "@/lib/rent"
+import { getT } from "@/lib/i18n/server"
 
 // Внешний договор: контрагент (вышки Beeline/Altel, камеры Сергек) не принимает
 // нашу редакцию — у него свой подписанный договор. Заводим запись Contract типа
@@ -33,27 +34,28 @@ function parseDate(value: FormDataEntryValue | null): Date | null {
 export async function createExternalContract(formData: FormData) {
   const session = await requireCapabilityAndFeature("documents.create")
   const { orgId } = await requireOrgAccess()
+  const { t } = await getT()
 
   const tenantId = String(formData.get("tenantId") ?? "").trim()
-  if (!tenantId) throw new Error("Не указан арендатор")
+  if (!tenantId) throw new Error(t("actions.externalContract.tenantRequired"))
   await assertTenantInOrg(tenantId, orgId)
 
   const number = String(formData.get("number") ?? "").trim()
-  if (!number) throw new Error("Укажите номер договора")
+  if (!number) throw new Error(t("actions.externalContract.numberRequired"))
   const file = formData.get("file")
-  if (!(file instanceof File) || file.size === 0) throw new Error("Прикрепите PDF договора")
+  if (!(file instanceof File) || file.size === 0) throw new Error(t("actions.externalContract.pdfRequired"))
 
   // Условия договора → пишем в карточку арендатора (их читает биллинг).
   const startDate = parseDate(formData.get("startDate"))
   const endDate = parseDate(formData.get("endDate"))
-  if (!startDate) throw new Error("Укажите дату начала договора")
-  if (!endDate) throw new Error("Укажите дату окончания договора")
+  if (!startDate) throw new Error(t("actions.externalContract.startDateRequired"))
+  if (!endDate) throw new Error(t("actions.externalContract.endDateRequired"))
   if (endDate < startDate) {
-    throw new Error("Дата окончания раньше даты начала")
+    throw new Error(t("actions.common.endBeforeStart"))
   }
   const rentMode = String(formData.get("rentMode") ?? "FIXED").trim()
   const rentAmount = parseMoney(formData.get("rentAmount"))
-  if (rentAmount === null) throw new Error("Укажите сумму аренды в месяц")
+  if (rentAmount === null) throw new Error(t("actions.externalContract.rentRequired"))
   const depositAmount = parseMoney(formData.get("depositAmount"))
   const indexationPct = parseMoney(formData.get("indexationPct"))
   const nextIndexationAt = parseDate(formData.get("nextIndexationAt"))
@@ -71,7 +73,7 @@ export async function createExternalContract(formData: FormData) {
   const dueRaw = String(formData.get("paymentDueDay") ?? "").trim()
   if (dueRaw) {
     const d = Number(dueRaw)
-    if (!Number.isInteger(d) || d < 1 || d > 31) throw new Error("День оплаты — число от 1 до 31")
+    if (!Number.isInteger(d) || d < 1 || d > 31) throw new Error(t("actions.externalContract.badPaymentDueDay"))
     paymentDueDay = d
   }
 
@@ -80,7 +82,7 @@ export async function createExternalContract(formData: FormData) {
   const penaltyRaw = String(formData.get("penaltyPercent") ?? "").trim()
   if (penaltyRaw) {
     const n = Number(penaltyRaw.replace(",", "."))
-    if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error("Пеня — число от 0 до 100 (%/день)")
+    if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error(t("actions.externalContract.badPenalty"))
     penaltyPercent = Math.round(n * 1000) / 1000
   }
 
@@ -89,7 +91,7 @@ export async function createExternalContract(formData: FormData) {
   const rfRaw = String(formData.get("rentFreeMonths") ?? "").trim()
   if (rfRaw) {
     const n = parseInt(rfRaw, 10)
-    if (!Number.isInteger(n) || n < 0 || n > 24) throw new Error("Каникулы — целое число месяцев от 0 до 24")
+    if (!Number.isInteger(n) || n < 0 || n > 24) throw new Error(t("actions.externalContract.badRentFreeMonths"))
     rentFreeMonths = n
   }
 
@@ -192,6 +194,7 @@ export async function createExternalContract(formData: FormData) {
           period,
           type: "OTHER",
           amount: openingDebt,
+          // description начисления попадает в счёт и акт сверки — остаётся русским.
           description: `Задолженность по договору № ${number} на дату перехода в Commrent`,
           dueDate: openingDebtDue,
         },

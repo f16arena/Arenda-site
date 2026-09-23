@@ -8,6 +8,13 @@ import {
   PLAN_CAPABILITY_GROUPS,
   PLAN_USAGE_LIMITS,
   parsePlanFeatures,
+  planFeatureDescription,
+  planFeatureLabel,
+  planGroupDescription,
+  planGroupLabel,
+  planLimitDescription,
+  planLimitLabel,
+  planLimitUnit,
 } from "@/lib/plan-capabilities"
 import {
   AlertTriangle,
@@ -26,8 +33,8 @@ import {
 import { PeriodPrices } from "./period-prices"
 import { AddonsSection } from "./addons-section"
 import { ServicesSection } from "./services-section"
-import { addonsForPlan } from "@/lib/addons-catalog"
-import { servicesForPlan } from "@/lib/services-catalog"
+import { localizedAddonsForPlan } from "@/lib/addons-catalog"
+import { localizedServicesForPlan } from "@/lib/services-catalog"
 import { PageHeader } from "@/components/ui/page"
 import { getT, getLocale } from "@/lib/i18n/server"
 import { formatDateShortL, formatMoneyL, formatNumberL } from "@/lib/i18n/format"
@@ -100,8 +107,9 @@ export default async function SubscriptionPage() {
     select: { id: true, addonCode: true, quantity: true, priceMonthly: true, isActive: true, startedAt: true, notes: true },
   })
   const currentPeriodCode = org.subscriptions[0]?.billingPeriodCode ?? "monthly"
-  const addonsCatalog = addonsForPlan(org.plan?.code ?? null)
-  const servicesCatalog = servicesForPlan(org.plan?.code ?? null)
+  // Аддоны и услуги рисует клиентский компонент — подписи подставляем здесь.
+  const addonsCatalog = localizedAddonsForPlan(t, org.plan?.code ?? null)
+  const servicesCatalog = localizedServicesForPlan(t, org.plan?.code ?? null)
   const orgServices = await db.organizationService.findMany({
     where: { organizationId: orgId },
     orderBy: { createdAt: "desc" },
@@ -228,8 +236,8 @@ export default async function SubscriptionPage() {
               <div className="border-b border-slate-200 dark:border-slate-800 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{group.label}</h2>
-                    <p className="mt-1 text-xs text-slate-500">{group.description}</p>
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{planGroupLabel(t, group)}</h2>
+                    <p className="mt-1 text-xs text-slate-500">{planGroupDescription(t, group)}</p>
                   </div>
                   <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs text-slate-400">
                     {groupEnabled}/{group.capabilities.length}
@@ -257,14 +265,14 @@ export default async function SubscriptionPage() {
                           "text-sm font-medium",
                           enabled ? "text-slate-900 dark:text-slate-100" : "text-slate-400 dark:text-slate-500",
                         )}>
-                          {capability.label}
+                          {planFeatureLabel(t, capability.key)}
                           {planned && !enabled && (
                             <span className="ml-2 inline-flex items-center rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
                               {t("adminSettings.subscription.planned", { quarter: planned })}
                             </span>
                           )}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">{capability.description}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{planFeatureDescription(t, capability)}</p>
                       </div>
                     </div>
                   )
@@ -313,13 +321,13 @@ export default async function SubscriptionPage() {
         <div className="mt-3 grid gap-2 md:grid-cols-2">
           {PLAN_USAGE_LIMITS.map((limit) => (
             <div key={limit.key} className="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 p-3">
-              <p className="text-sm text-slate-800 dark:text-slate-200">{limit.label}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{limit.description}</p>
+              <p className="text-sm text-slate-800 dark:text-slate-200">{planLimitLabel(t, limit)}</p>
+              <p className="mt-0.5 text-xs text-slate-500">{planLimitDescription(t, limit)}</p>
               <p className="mt-2 text-xs font-medium text-slate-400">
                 {t("adminSettings.subscription.limit", {
                   value: planFeatures.limits[limit.key] === null
                     ? t("adminSettings.subscription.unlimited")
-                    : `${formatNumberL(locale, planFeatures.limits[limit.key] as number)} ${limit.unit}`,
+                    : `${formatNumberL(locale, planFeatures.limits[limit.key] as number)} ${planLimitUnit(t, limit)}`,
                 })}
               </p>
             </div>

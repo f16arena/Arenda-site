@@ -1,3 +1,15 @@
+/**
+ * Возможности и лимиты тарифов.
+ *
+ * Ключ (`key`) — флаг в JSON тарифа (Plan.features) и в проверках доступа,
+ * переводить его нельзя. Подписи для клиентской части живут в словаре
+ * (adminRefs.planFeatures / planGroups / planLimits), русский текст остаётся
+ * здесь: им пользуется суперадмин при настройке тарифов и он же запасной.
+ */
+
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
 export type PlanCapabilityRisk = "normal" | "business" | "sensitive"
 
 export type PlanCapability = {
@@ -347,6 +359,32 @@ export const PLAN_CAPABILITIES: readonly PlanCapability[] = PLAN_CAPABILITY_GROU
 export type PlanCapabilityKey = string
 export const PLAN_CAPABILITY_KEYS = PLAN_CAPABILITIES.map((capability) => capability.key)
 
+type RefsTranslator = Translator<Messages>["t"]
+
+const PLAN_CAPABILITY_BY_KEY = new Map(PLAN_CAPABILITIES.map((capability) => [capability.key, capability]))
+
+function refText(t: RefsTranslator, key: string, fallback: string): string {
+  const value = t(key as Parameters<RefsTranslator>[0])
+  return value === key ? fallback : value
+}
+
+/** Название возможности тарифа по её коду — для карточек тарифа и замков. */
+export function planFeatureLabel(t: RefsTranslator, featureKey: string): string {
+  return refText(t, `adminRefs.planFeatures.${featureKey}.label`, PLAN_CAPABILITY_BY_KEY.get(featureKey)?.label ?? featureKey)
+}
+
+export function planFeatureDescription(t: RefsTranslator, capability: { key: string; description: string }): string {
+  return refText(t, `adminRefs.planFeatures.${capability.key}.description`, capability.description)
+}
+
+export function planGroupLabel(t: RefsTranslator, group: { key: string; label: string }): string {
+  return refText(t, `adminRefs.planGroups.${group.key}.label`, group.label)
+}
+
+export function planGroupDescription(t: RefsTranslator, group: { key: string; description: string }): string {
+  return refText(t, `adminRefs.planGroups.${group.key}.description`, group.description)
+}
+
 export type PlanUsageLimit = {
   key: string
   label: string
@@ -382,6 +420,19 @@ export const PLAN_USAGE_LIMITS: readonly PlanUsageLimit[] = [
 ] as const
 
 export type PlanUsageLimitKey = string
+
+/** Подпись лимита, единица измерения и пояснение — три строки словаря. */
+export function planLimitLabel(t: RefsTranslator, limit: PlanUsageLimit): string {
+  return refText(t, `adminRefs.planLimits.${limit.key}.label`, limit.label)
+}
+
+export function planLimitUnit(t: RefsTranslator, limit: PlanUsageLimit): string {
+  return refText(t, `adminRefs.planLimits.${limit.key}.unit`, limit.unit)
+}
+
+export function planLimitDescription(t: RefsTranslator, limit: PlanUsageLimit): string {
+  return refText(t, `adminRefs.planLimits.${limit.key}.description`, limit.description)
+}
 
 export type ParsedPlanFeatures = {
   flags: Record<string, boolean>

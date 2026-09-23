@@ -149,6 +149,7 @@ export const adminChecks: typeof ru = {
       contractLabel: "№ {number} шарт",
       contractMeta: "{tenant} · {kind} · {reason}",
       contractKindFallback: "өзгеріс",
+      signatureMeta: "{document} · {reason}",
       meterMeta: "{type} {number} · {reason}",
       placementNone: "Орналасуы көрсетілмеген",
       placementSpace: "каб. {number}",

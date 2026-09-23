@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { sendTelegram } from "@/lib/telegram"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 export const dynamic = "force-dynamic"
 
 // Webhook от Telegram. URL: https://commrent.kz/api/telegram/webhook
 // Регистрируется через /api/telegram/setup
+//
+// Язык ответа — язык того, кто пишет боту: чат привязан к пользователю, берём
+// locale из его профиля. Пока чат не привязан (первое /start), языка ещё нет —
+// отвечаем на языке по умолчанию, cookie у webhook-запроса не бывает.
 
 interface TelegramMessage {
   message_id: number
@@ -18,6 +24,20 @@ interface TelegramMessage {
 interface TelegramUpdate {
   update_id: number
   message?: TelegramMessage
+}
+
+/**
+ * Название роли: сначала общий справочник domain.roles, затем те роли, которых
+ * в нём нет (adminDocs.api.roles). Если и там нет — отдаём код как есть, чтобы
+ * человек хотя бы увидел, что это за роль.
+ */
+function roleLabel(t: Awaited<ReturnType<typeof getT>>["t"], role: string): string {
+  const domainKey = `domain.roles.${role}` as Parameters<typeof t>[0]
+  const fromDomain = t(domainKey)
+  if (fromDomain !== domainKey) return fromDomain
+  const extraKey = `adminDocs.api.roles.${role}` as Parameters<typeof t>[0]
+  const fromExtra = t(extraKey)
+  return fromExtra === extraKey ? role : fromExtra
 }
 
 export async function POST(req: Request) {
@@ -42,7 +62,16 @@ export async function POST(req: Request) {
 
   const chatId = String(msg.chat.id)
   const text = (msg.text ?? "").trim()
-  const userName = msg.from?.first_name ?? msg.chat.first_name ?? "Пользователь"
+
+  // Чат уже привязан? Тогда язык берём из профиля этого пользователя.
+  const linked = await db.user.findFirst({
+    where: { telegramChatId: chatId },
+    select: { id: true, name: true, role: true },
+  }).catch(() => null)
+  const { t, locale } = linked ? await getTForUser(linked.id) : await getT()
+
+  const userName = msg.from?.first_name ?? msg.chat.first_name ?? t("emails.telegram.unknownUser")
+  const errorText = (e: unknown) => (e instanceof Error ? e.message : t("emails.telegram.unknownError"))
 
   // /start <token> — авто-привязка через одноразовый токен из профиля
   // /start без токена — приветствие
@@ -58,22 +87,24 @@ export async function POST(req: Request) {
         })
 
         if (!tok || tok.type !== "TELEGRAM_CONNECT") {
-          await sendTelegram(chatId, `❌ Ссылка недействительна. Сгенерируйте новую в /admin/profile → Уведомления.`)
+          await sendTelegram(chatId, t("emails.telegram.linkInvalid"))
           return NextResponse.json({ ok: true })
         }
         if (tok.usedAt) {
-          await sendTelegram(chatId, `❌ Эта ссылка уже использована.`)
+          await sendTelegram(chatId, t("emails.telegram.linkUsed"))
           return NextResponse.json({ ok: true })
         }
         if (tok.expiresAt < new Date()) {
-          await sendTelegram(chatId, `❌ Срок действия ссылки истёк. Сгенерируйте новую в кабинете.`)
+          await sendTelegram(chatId, t("emails.telegram.linkExpired"))
           return NextResponse.json({ ok: true })
         }
         if (!tok.userId) {
-          await sendTelegram(chatId, `❌ Ошибка: токен без пользователя.`)
+          await sendTelegram(chatId, t("emails.telegram.linkNoUser"))
           return NextResponse.json({ ok: true })
         }
 
+        // Привязываем — и дальше говорим уже на языке владельца аккаунта.
+        const { t: tOwner } = await getTForUser(tok.userId)
         const user = await db.user.findUnique({
           where: { id: tok.userId },
           select: { name: true, role: true },
@@ -90,66 +121,32 @@ export async function POST(req: Request) {
           }),
         ])
 
-        await sendTelegram(chatId,
-          `✅ Telegram подключён к аккаунту <b>${user?.name ?? "—"}</b>!\n\n` +
-          `Теперь вы будете получать уведомления:\n` +
-          `• ⏰ Истечение договора\n` +
-          `• 💳 Платежи и просрочки\n` +
-          `• 📩 Сообщения и заявки\n\n` +
-          `Команды: /help · /status · /myid`
-        )
+        await sendTelegram(chatId, tOwner("emails.telegram.connected", { name: user?.name ?? "—" }))
       } catch (e) {
-        await sendTelegram(chatId, `⚠️ Ошибка привязки: ${e instanceof Error ? e.message : "неизвестная"}`)
+        await sendTelegram(chatId, t("emails.telegram.linkError", { error: errorText(e) }))
       }
       return NextResponse.json({ ok: true })
     }
 
-    await sendTelegram(chatId,
-      `👋 Привет, <b>${userName}</b>!\n\n` +
-      `Это бот <b>Commrent</b> — платформа управления коммерческой арендой.\n\n` +
-      `🆔 Ваш Chat ID: <code>${chatId}</code>\n\n` +
-      `<b>Подключиться автоматически:</b>\n` +
-      `1. Откройте https://commrent.kz/admin/profile (таб Уведомления)\n` +
-      `2. Нажмите «Подключить Telegram» — получите ссылку\n` +
-      `3. Откройте её — Telegram свяжется автоматически\n\n` +
-      `<b>Или вручную:</b>\n` +
-      `Скопируйте Chat ID выше, вставьте в профиле.\n\n` +
-      `После подключения вы будете получать уведомления:\n` +
-      `• ⏰ Истечение договора · 💳 Платежи · 🚨 Просрочки · 📩 Объявления\n\n` +
-      `Команды: /help · /status · /myid`
-    )
+    await sendTelegram(chatId, t("emails.telegram.welcome", { name: userName, chatId }))
     return NextResponse.json({ ok: true })
   }
 
   // /help
   if (text.startsWith("/help")) {
-    await sendTelegram(chatId,
-      `<b>📋 Команды:</b>\n\n` +
-      `/start — приветствие и Chat ID\n` +
-      `/myid — показать ваш Chat ID\n` +
-      `/status — статус подключения и непрочитанные уведомления\n` +
-      `/balance — текущая задолженность арендатора\n` +
-      `/submit_meter &lt;тип&gt; &lt;показание&gt; — подать показание счётчика\n` +
-      `   тип: electricity / water / heat\n` +
-      `/help — эта справка\n\n` +
-      `🌐 Сайт: https://commrent.kz`
-    )
+    await sendTelegram(chatId, t("emails.telegram.help"))
     return NextResponse.json({ ok: true })
   }
 
   // /balance — текущая задолженность для арендатора, привязанного к этому Telegram
   if (text.startsWith("/balance")) {
     try {
-      const user = await db.user.findFirst({
-        where: { telegramChatId: chatId },
-        select: { id: true, role: true, name: true },
-      })
-      if (!user) {
-        await sendTelegram(chatId, `❌ Telegram не привязан к аккаунту. Откройте /admin/profile или /cabinet/profile, чтобы подключить.`)
+      if (!linked) {
+        await sendTelegram(chatId, t("emails.telegram.notLinked"))
         return NextResponse.json({ ok: true })
       }
       const tenant = await db.tenant.findUnique({
-        where: { userId: user.id },
+        where: { userId: linked.id },
         select: {
           id: true,
           companyName: true,
@@ -162,26 +159,34 @@ export async function POST(req: Request) {
         },
       })
       if (!tenant) {
-        await sendTelegram(chatId, `ℹ️ Этот аккаунт не привязан как арендатор. Команда /balance работает только для арендаторов.`)
+        await sendTelegram(chatId, t("emails.telegram.notTenant"))
         return NextResponse.json({ ok: true })
       }
       if (tenant.charges.length === 0) {
-        await sendTelegram(chatId, `✅ Долг отсутствует — все начисления оплачены.\n\nКомпания: <b>${tenant.companyName}</b>`)
+        await sendTelegram(chatId, t("emails.telegram.noDebt", { company: tenant.companyName }))
         return NextResponse.json({ ok: true })
       }
-      const total = tenant.charges.reduce((s, c) => s + c.amount, 0)
-      const lines = tenant.charges.slice(0, 5).map((c) =>
-        `• ${c.period} · ${c.type} — ${Math.round(c.amount).toLocaleString("ru-RU")} ₸`
-      ).join("\n")
-      const more = tenant.charges.length > 5 ? `\n…и ещё ${tenant.charges.length - 5}` : ""
-      await sendTelegram(chatId,
-        `💳 <b>Задолженность:</b> ${Math.round(total).toLocaleString("ru-RU")} ₸\n` +
-        `Компания: <b>${tenant.companyName}</b>\n\n` +
-        `Открытые начисления:\n${lines}${more}\n\n` +
-        `🌐 Подробнее: https://commrent.kz/cabinet/finances`
-      )
+      const total = tenant.charges.reduce((sum, charge) => sum + charge.amount, 0)
+      const lines = tenant.charges.slice(0, 5).map((charge) => {
+        const typeKey = `domain.chargeTypes.${charge.type}` as Parameters<typeof t>[0]
+        const typeLabel = t(typeKey)
+        return t("emails.telegram.balanceLine", {
+          period: charge.period,
+          type: typeLabel === typeKey ? charge.type : typeLabel,
+          amount: formatMoneyL(locale, Math.round(charge.amount)),
+        })
+      }).join("\n")
+      const more = tenant.charges.length > 5
+        ? t("emails.telegram.balanceMore", { count: tenant.charges.length - 5 })
+        : ""
+      await sendTelegram(chatId, t("emails.telegram.balance", {
+        total: formatMoneyL(locale, Math.round(total)),
+        company: tenant.companyName,
+        lines,
+        more,
+      }))
     } catch (e) {
-      await sendTelegram(chatId, `⚠️ Ошибка получения баланса: ${e instanceof Error ? e.message : "неизвестная"}`)
+      await sendTelegram(chatId, t("emails.telegram.balanceError", { error: errorText(e) }))
     }
     return NextResponse.json({ ok: true })
   }
@@ -190,37 +195,31 @@ export async function POST(req: Request) {
   if (text.startsWith("/submit_meter")) {
     try {
       const args = text.slice("/submit_meter".length).trim().split(/\s+/).filter(Boolean)
+      // Ключи команды латиницей и по-русски оставлены как есть: их набирает
+      // человек в чате, и старые подсказки должны продолжать работать.
       const TYPE_MAP: Record<string, string> = {
-        electricity: "ELECTRICITY", свет: "ELECTRICITY", elec: "ELECTRICITY",
-        water: "WATER", вода: "WATER",
-        heat: "HEAT", тепло: "HEAT",
+        electricity: "ELECTRICITY", свет: "ELECTRICITY", elec: "ELECTRICITY", жарық: "ELECTRICITY",
+        water: "WATER", вода: "WATER", су: "WATER",
+        heat: "HEAT", тепло: "HEAT", жылу: "HEAT",
       }
       if (args.length < 2) {
-        await sendTelegram(chatId,
-          `ℹ️ Использование: <code>/submit_meter &lt;тип&gt; &lt;показание&gt;</code>\n` +
-          `Типы: electricity, water, heat\n` +
-          `Пример: <code>/submit_meter water 1234.5</code>`
-        )
+        await sendTelegram(chatId, t("emails.telegram.meterUsage"))
         return NextResponse.json({ ok: true })
       }
       const typeKey = args[0].toLowerCase()
       const meterType = TYPE_MAP[typeKey]
       if (!meterType) {
-        await sendTelegram(chatId, `❌ Неизвестный тип «${args[0]}». Используйте: electricity, water, heat.`)
+        await sendTelegram(chatId, t("emails.telegram.meterUnknownType", { type: args[0] }))
         return NextResponse.json({ ok: true })
       }
       const value = parseFloat(args[1].replace(",", "."))
       if (!Number.isFinite(value) || value < 0) {
-        await sendTelegram(chatId, `❌ Показание должно быть неотрицательным числом, получено «${args[1]}».`)
+        await sendTelegram(chatId, t("emails.telegram.meterBadValue", { value: args[1] }))
         return NextResponse.json({ ok: true })
       }
 
-      const user = await db.user.findFirst({
-        where: { telegramChatId: chatId },
-        select: { id: true },
-      })
-      if (!user) {
-        await sendTelegram(chatId, `❌ Telegram не привязан к аккаунту. Откройте /admin/profile или /cabinet/profile, чтобы подключить.`)
+      if (!linked) {
+        await sendTelegram(chatId, t("emails.telegram.notLinked"))
         return NextResponse.json({ ok: true })
       }
 
@@ -230,8 +229,8 @@ export async function POST(req: Request) {
           type: meterType,
           space: {
             OR: [
-              { tenant: { userId: user.id } },
-              { tenantSpaces: { some: { tenant: { userId: user.id } } } },
+              { tenant: { userId: linked.id } },
+              { tenantSpaces: { some: { tenant: { userId: linked.id } } } },
             ],
           },
         },
@@ -242,15 +241,13 @@ export async function POST(req: Request) {
       })
 
       if (!meter) {
-        await sendTelegram(chatId, `❌ Счётчик типа «${typeKey}» не найден в ваших помещениях.`)
+        await sendTelegram(chatId, t("emails.telegram.meterNotFound", { type: typeKey }))
         return NextResponse.json({ ok: true })
       }
 
       const previous = meter.readings[0]?.value ?? 0
       if (value < previous) {
-        await sendTelegram(chatId,
-          `❌ Текущее показание (${value}) меньше предыдущего (${previous}). Перепроверьте значение.`
-        )
+        await sendTelegram(chatId, t("emails.telegram.meterLessThanPrevious", { value, previous }))
         return NextResponse.json({ ok: true })
       }
 
@@ -261,7 +258,7 @@ export async function POST(req: Request) {
         orderBy: { createdAt: "desc" },
       })
       if (existing && existing.value === value) {
-        await sendTelegram(chatId, `ℹ️ Показание ${value} уже сохранено за ${period}. Изменения не внесены.`)
+        await sendTelegram(chatId, t("emails.telegram.meterDuplicate", { value, period }))
         return NextResponse.json({ ok: true })
       }
 
@@ -270,67 +267,49 @@ export async function POST(req: Request) {
       })
 
       const consumption = Math.max(0, value - previous)
-      await sendTelegram(chatId,
-        `✅ Показание сохранено\n` +
-        `Тип: <b>${typeKey}</b> · Помещение: ${meter.space.number}\n` +
-        `Текущее: ${value} · Предыдущее: ${previous}\n` +
-        `Расход за период ${period}: <b>${consumption}</b>`
-      )
+      await sendTelegram(chatId, t("emails.telegram.meterSaved", {
+        type: typeKey,
+        space: meter.space.number,
+        value,
+        previous,
+        period,
+        consumption,
+      }))
     } catch (e) {
-      await sendTelegram(chatId, `⚠️ Ошибка сохранения показания: ${e instanceof Error ? e.message : "неизвестная"}`)
+      await sendTelegram(chatId, t("emails.telegram.meterError", { error: errorText(e) }))
     }
     return NextResponse.json({ ok: true })
   }
 
   // /myid
   if (text.startsWith("/myid")) {
-    await sendTelegram(chatId, `🆔 Ваш Chat ID: <code>${chatId}</code>`)
+    await sendTelegram(chatId, t("emails.telegram.myId", { chatId }))
     return NextResponse.json({ ok: true })
   }
 
   // /status — проверка подключения
   if (text.startsWith("/status")) {
     try {
-      const user = await db.user.findFirst({
-        where: { telegramChatId: chatId },
-        select: { id: true, name: true, role: true },
-      })
-      if (!user) {
-        await sendTelegram(chatId,
-          `❌ Этот Telegram не подключён к аккаунту Commrent.\n\n` +
-          `Для подключения:\n` +
-          `1. Скопируйте ваш Chat ID: <code>${chatId}</code>\n` +
-          `2. Откройте https://commrent.kz/login\n` +
-          `3. Войдите → Мой профиль → вставьте Chat ID`
-        )
+      if (!linked) {
+        await sendTelegram(chatId, t("emails.telegram.statusNotLinked", { chatId }))
       } else {
         const unread = await db.notification.count({
-          where: { userId: user.id, isRead: false },
+          where: { userId: linked.id, isRead: false },
         })
-        const roleLabels: Record<string, string> = {
-          OWNER: "Владелец", ADMIN: "Админ", ACCOUNTANT: "Бухгалтер",
-          FACILITY_MANAGER: "Завхоз", TENANT: "Арендатор",
-        }
-        await sendTelegram(chatId,
-          `✅ Подключён как <b>${user.name}</b>\n` +
-          `Роль: ${roleLabels[user.role] ?? user.role}\n` +
-          `Непрочитанных уведомлений: <b>${unread}</b>\n\n` +
-          `🌐 https://commrent.kz`
-        )
+        await sendTelegram(chatId, t("emails.telegram.statusLinked", {
+          name: linked.name,
+          role: roleLabel(t, linked.role),
+          unread,
+        }))
       }
     } catch (e) {
-      await sendTelegram(chatId, `⚠️ Ошибка: ${e instanceof Error ? e.message : "неизвестная"}`)
+      await sendTelegram(chatId, t("emails.telegram.linkError", { error: errorText(e) }))
     }
     return NextResponse.json({ ok: true })
   }
 
   // Любое другое сообщение — подсказка
-  await sendTelegram(chatId,
-    `🤖 Я бот Commrent и пока умею только отправлять уведомления.\n\n` +
-    `Для управления арендой используйте сайт:\n` +
-    `https://commrent.kz\n\n` +
-    `Команды: /help`
-  )
+  await sendTelegram(chatId, t("emails.telegram.fallback"))
 
   return NextResponse.json({ ok: true })
 }

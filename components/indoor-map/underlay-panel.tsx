@@ -10,6 +10,7 @@ import { useRef, useState } from "react"
 import { Image as ImageIcon, Loader2, Ruler, Trash2 } from "lucide-react"
 import { countPdfPages, compressDataUrl, loadImageWithDimensions, renderPdfPage } from "@/lib/pdf-render"
 import type { FloorLayoutV2 } from "@/lib/floor-layout"
+import { useT } from "@/lib/i18n/client"
 import type { FloorEditor } from "./use-floor-editor"
 
 type Props = {
@@ -18,6 +19,7 @@ type Props = {
 }
 
 export function UnderlayPanel({ editor, layout }: Props) {
+  const { t } = useT()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pages, setPages] = useState<number | null>(null)
@@ -47,7 +49,7 @@ export function UnderlayPanel({ editor, layout }: Props) {
         opacity: 0.55,
       })
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось загрузить план")
+      setError(cause instanceof Error ? cause.message : t("adminObjects.map.underlay.uploadFailed"))
     } finally {
       setBusy(false)
     }
@@ -87,7 +89,9 @@ export function UnderlayPanel({ editor, layout }: Props) {
         className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-60 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
       >
         {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
-        {underlay ? "Заменить подложку" : "Загрузить план (PDF или фото)"}
+        {underlay
+          ? t("adminObjects.map.underlay.replace")
+          : t("adminObjects.map.underlay.upload")}
       </button>
 
       {pages && pages > 1 && pendingFile ? (
@@ -141,7 +145,9 @@ export function UnderlayPanel({ editor, layout }: Props) {
             }`}
           >
             <Ruler className="h-3.5 w-3.5" />
-            {editor.tool === "ruler" ? "Обведите известный размер" : "Калибровать масштаб"}
+            {editor.tool === "ruler"
+              ? t("adminObjects.map.underlay.measureHint")
+              : t("adminObjects.map.underlay.calibrate")}
           </button>
 
           {editor.measured ? (
@@ -173,7 +179,7 @@ export function UnderlayPanel({ editor, layout }: Props) {
 
           <button
             type="button"
-            title="Убрать подложку"
+            title={t("adminObjects.map.underlay.drop")}
             onClick={() => editor.actions.setUnderlay(null)}
             className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
           >

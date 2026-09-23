@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers"
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { requirePlatformOwner } from "@/lib/org"
 
 // Все статические страницы приложения (без динамических [id] и групп (...)).
@@ -154,6 +155,7 @@ export async function probePages(): Promise<ProbeReport> {
 }
 
 async function probeOne(base: string, path: string, cookie: string): Promise<ProbeResult> {
+  const { t } = await getT()
   const start = performance.now()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PER_REQUEST_TIMEOUT_MS)
@@ -171,11 +173,14 @@ async function probeOne(base: string, path: string, cookie: string): Promise<Pro
     const ms = Math.round(performance.now() - start)
     const isRedirect = res.status >= 300 && res.status < 400
     const ok = (res.status >= 200 && res.status < 300) || isRedirect
-    return { path, status: res.status, ttfb, ms, ok, note: isRedirect ? "редирект" : undefined }
+    return { path, status: res.status, ttfb, ms, ok, note: isRedirect ? t("actions.perfProbe.redirect") : undefined }
   } catch (e) {
     const ms = Math.round(performance.now() - start)
     const timeout = e instanceof Error && e.name === "AbortError"
-    return { path, status: 0, ttfb: ms, ms, ok: false, note: timeout ? "таймаут" : "ошибка соединения" }
+    return {
+      path, status: 0, ttfb: ms, ms, ok: false,
+      note: timeout ? t("actions.perfProbe.timeout") : t("actions.perfProbe.connectionError"),
+    }
   } finally {
     clearTimeout(timer)
   }

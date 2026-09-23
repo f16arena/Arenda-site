@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import type { AddressSuggestion } from "@/lib/address-suggestions"
+import { useT } from "@/lib/i18n/client"
 
 type AddressFields = {
   countryCode?: string | null
@@ -46,10 +47,11 @@ export function AddressAutocompleteInput({
   defaultValue,
   defaultFields,
   required,
-  placeholder = "г. Усть-Каменогорск, ул. ...",
+  placeholder,
   className,
   includeStructuredFields = true,
 }: Props) {
+  const { t } = useT()
   const initialValue = defaultValue ?? ""
   const [value, setValue] = useState(initialValue)
   const [fields, setFields] = useState<AddressFields>({ ...EMPTY_FIELDS, ...defaultFields })
@@ -139,7 +141,7 @@ export function AddressAutocompleteInput({
         value={value}
         required={required}
         autoComplete="street-address"
-        placeholder={placeholder}
+        placeholder={placeholder ?? t("common.forms.addressPlaceholder")}
         className={className}
         onChange={(event) => handleManualChange(event.target.value)}
         onFocus={() => {
@@ -154,7 +156,7 @@ export function AddressAutocompleteInput({
       {open && (loading || suggestions.length > 0) && (
         <div className="absolute z-[60] mt-1 max-h-72 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950">
           {loading && (
-            <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">Ищем адрес...</div>
+            <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">{t("common.forms.addressSearching")}</div>
           )}
           {suggestions.map((suggestion) => (
             <button
@@ -166,7 +168,7 @@ export function AddressAutocompleteInput({
             >
               <span className="block text-sm text-slate-900 dark:text-slate-100">{suggestion.displayName}</span>
               <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
-                {[suggestion.city, suggestion.settlement, suggestion.street, suggestion.houseNumber].filter(Boolean).join(" · ") || "Казахстан"}
+                {[suggestion.city, suggestion.settlement, suggestion.street, suggestion.houseNumber].filter(Boolean).join(" · ") || t("common.forms.addressFallbackCountry")}
               </span>
             </button>
           ))}

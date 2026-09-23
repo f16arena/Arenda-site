@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
+import { getT } from "@/lib/i18n/server"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { audit } from "@/lib/audit"
@@ -43,7 +44,9 @@ export interface SaveSignatureResult {
  */
 export async function saveSignature(input: SaveSignatureInput): Promise<SaveSignatureResult> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
 
   try {
     await requireCapabilityAndFeature("documents.sign")
@@ -61,7 +64,7 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
         select: { status: true },
       })
       if (existing && (existing.status === "SIGNED" || existing.status === "REJECTED")) {
-        return { ok: false, error: "Договор уже завершён (подписан или отклонён)" }
+        return { ok: false, error: t("actions.contractWorkflow.alreadyFinishedLong") }
       }
     }
 
@@ -73,7 +76,7 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
         where: { id: input.documentId, organizationId: orgId },
         select: { id: true },
       })
-      if (!doc) return { ok: false, error: "Документ не найден" }
+      if (!doc) return { ok: false, error: t("actions.common.documentNotFound") }
     }
 
     // Разбираем CMS: достаём сертификат подписанта (ФИО, ИИН, БИН, срок, издатель).
@@ -158,7 +161,7 @@ export async function saveSignature(input: SaveSignatureInput): Promise<SaveSign
 
     return { ok: true, id: sig.id }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.saveFailed") }
   }
 }
 

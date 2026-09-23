@@ -6,6 +6,10 @@ import type { Floor, Opening } from "@/types/builder"
 import type { Vec2 } from "@/core/geometry/math"
 import type { FloorRoom } from "./rooms"
 import { roomUse } from "./room-use"
+import type { Messages } from "@/lib/i18n/messages"
+
+/** Ключи типовых наименований помещений. */
+export type SuggestedNameKey = keyof Messages["adminBuilder"]["roomNames"]
 
 function bbox(poly: Vec2[]): { w: number; h: number } {
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
@@ -39,10 +43,12 @@ function openingCenter(floor: Pick<Floor, "wallGraph">, o: Opening): Vec2 | null
 
 /**
  * Наименование по геометрии помещения: площадь, вытянутость, окна и двери.
- * Возвращает null, если подсказывать нечего (имя уже есть или назначение
- * определяется автоматически — лестничная клетка, лифтовой холл).
+ * Возвращает КЛЮЧ словаря (adminBuilder.roomNames), а не готовую строку:
+ * подсказка ложится в экспликацию, и язык выбирает тот, кто её подставляет.
+ * null — подсказывать нечего (имя уже есть или назначение определяется
+ * автоматически: лестничная клетка, лифтовой холл).
  */
-export function suggestRoomName(floor: Floor, room: FloorRoom): string | null {
+export function suggestRoomName(floor: Floor, room: FloorRoom): SuggestedNameKey | null {
   if (floor.roomNames?.[room.id]) return null
   const areaM2 = room.areaMm2 / 1e6
   if (areaM2 < 1) return null
@@ -60,21 +66,21 @@ export function suggestRoomName(floor: Floor, room: FloorRoom): string | null {
   const ratio = long / short
   const use = roomUse(floor, room)
 
-  if (use === "tech") return areaM2 < 8 ? "Электрощитовая" : "Техническое помещение"
+  if (use === "tech") return areaM2 < 8 ? "electrical" : "tech"
   // длинное узкое помещение с несколькими дверями — коридор
-  if (ratio >= 3 && doors >= 2) return "Коридор"
-  if (ratio >= 4 && areaM2 > 6) return "Коридор"
-  if (areaM2 <= 6 && windows === 0 && doors <= 1) return areaM2 <= 3.5 ? "Санузел" : "Подсобное помещение"
-  if (areaM2 <= 12 && windows === 0) return "Кладовая"
-  if (use === "common") return areaM2 > 30 ? "Холл" : "Вестибюль"
-  if (windows > 0 && areaM2 > 60) return "Офис открытой планировки"
-  if (windows > 0) return "Офис"
-  return "Помещение"
+  if (ratio >= 3 && doors >= 2) return "corridor"
+  if (ratio >= 4 && areaM2 > 6) return "corridor"
+  if (areaM2 <= 6 && windows === 0 && doors <= 1) return areaM2 <= 3.5 ? "wc" : "utility"
+  if (areaM2 <= 12 && windows === 0) return "storage"
+  if (use === "common") return areaM2 > 30 ? "hall" : "lobby"
+  if (windows > 0 && areaM2 > 60) return "openOffice"
+  if (windows > 0) return "office"
+  return "premise"
 }
 
-/** Наименования для всех безымянных помещений этажа: roomId → наименование. */
-export function suggestFloorNames(floor: Floor, rooms: FloorRoom[]): Record<string, string> {
-  const out: Record<string, string> = {}
+/** Наименования для всех безымянных помещений этажа: roomId → ключ наименования. */
+export function suggestFloorNames(floor: Floor, rooms: FloorRoom[]): Record<string, SuggestedNameKey> {
+  const out: Record<string, SuggestedNameKey> = {}
   for (const r of rooms) {
     const name = suggestRoomName(floor, r)
     if (name) out[r.id] = name

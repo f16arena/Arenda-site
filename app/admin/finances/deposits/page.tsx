@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { FINANCE_TABS } from "@/lib/hub-tabs"
+import { financeTabs } from "@/lib/hub-tabs"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
@@ -131,7 +131,7 @@ export default async function DepositsPage() {
 
   return (
     <div className="space-y-6">
-      <RouteTabs items={FINANCE_TABS} className="mb-2" />
+      <RouteTabs items={financeTabs(t)} className="mb-2" />
       <div className="flex items-center gap-3">
         <Link
           href="/admin/finances"

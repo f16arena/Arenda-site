@@ -2,6 +2,7 @@
 // ГОСТ 2.306, выносками-полками, размерами и составом слоёв под каждым узлом.
 
 import type { Detail, DetailPattern } from "@/lib/builder/drawing/details"
+import { useT } from "@/lib/i18n/client"
 
 /** Стандартные масштабы узлов: подбираем ближайший, чтобы в штампе не было «1:13». */
 const SCALES = [5, 10, 20, 25, 50]
@@ -61,6 +62,7 @@ function Defs() {
 }
 
 function DetailCell({ d, x, y, w, h }: { d: Detail; x: number; y: number; w: number; h: number }) {
+  const { t } = useT()
   // поле чертежа внутри ячейки: сверху заголовок, снизу состав слоёв
   const headH = 7
   const layersH = Math.min(22, 3.6 * d.layers.length + 2)
@@ -84,7 +86,7 @@ function DetailCell({ d, x, y, w, h }: { d: Detail; x: number; y: number; w: num
   return (
     <g>
       <text x={cx} y={y + 4.4} fontSize={4} textAnchor="middle" fontWeight={600}>
-        {d.mark}. {d.title} (М 1:{scale})
+        {t("adminBuilderSheet.sheet.detailScale", { mark: d.mark, title: d.title, scale })}
       </text>
       {d.shapes.map((s, i) => (
         <polygon
@@ -144,6 +146,7 @@ function DetailCell({ d, x, y, w, h }: { d: Detail; x: number; y: number; w: num
 }
 
 export function DetailsBody({ details, w, h }: { details: Detail[]; w: number; h: number }) {
+  const { t } = useT()
   const x0 = 26
   const y0 = 18
   const areaW = w - 60
@@ -156,7 +159,7 @@ export function DetailsBody({ details, w, h }: { details: Detail[]; w: number; h
   return (
     <g>
       <Defs />
-      <text x={x0} y={y0 - 6} fontSize={5} fontWeight={600}>Узлы и фрагменты</text>
+      <text x={x0} y={y0 - 6} fontSize={5} fontWeight={600}>{t("adminBuilderSheet.sheet.detailsTitle")}</text>
       {details.map((d, i) => (
         <DetailCell
           key={d.id}

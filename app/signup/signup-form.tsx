@@ -9,8 +9,10 @@ import { Loader2, Check, AlertCircle } from "lucide-react"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 export function SignupForm() {
+  const { t } = useT()
   const [state, action, isPending] = useActionState(signup, undefined)
 
   const [companyName, setCompanyName] = useState("")
@@ -27,7 +29,7 @@ export function SignupForm() {
   }
 
   useEffect(() => {
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       if (!slug) {
         setSlugCheck({ status: "idle" })
         return
@@ -45,7 +47,7 @@ export function SignupForm() {
         setSlugCheck({ status: "idle" })
       }
     }, slug ? 400 : 0)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [slug])
 
   const checkResult = slugCheck.status === "result" ? slugCheck.result : undefined
@@ -64,9 +66,9 @@ export function SignupForm() {
             <Check className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-semibold">Заявка отправлена на подтверждение</p>
+            <p className="font-semibold">{t("auth.signup.pendingTitle")}</p>
             <p className="mt-1 leading-6">
-              {state.message ?? "Суперадмин проверит заявку. После подтверждения можно будет войти в кабинет."}
+              {state.message ?? t("auth.signup.pendingText")}
             </p>
             {state.orgSlug && (
               <p className="mt-2 rounded-lg bg-white/70 px-3 py-2 font-mono text-xs text-emerald-800">
@@ -79,7 +81,7 @@ export function SignupForm() {
           href="/login"
           className="inline-flex w-full items-center justify-center rounded-lg border border-emerald-300 bg-white px-4 py-2.5 font-semibold text-emerald-800 transition hover:bg-emerald-100"
         >
-          Перейти ко входу
+          {t("auth.signup.toLogin")}
         </Link>
       </div>
     )
@@ -87,20 +89,20 @@ export function SignupForm() {
 
   return (
     <form action={action} className="space-y-5">
-      <Section title="О вашей компании">
+      <Section title={t("auth.signup.companySection")}>
         <Field
-          label="Название организации *"
+          label={t("auth.signup.companyName")}
           name="companyName"
           value={companyName}
           onChange={autoSlug}
           required
-          placeholder='ТОО "БЦ Алматы"'
-          hint="Так клиенты увидят вас"
+          placeholder={t("auth.signup.companyNamePlaceholder")}
+          hint={t("auth.signup.companyNameHint")}
         />
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1.5">
-            Адрес вашей рабочей зоны *
+            {t("auth.signup.slug")}
           </label>
           <div className="relative">
             <Input
@@ -120,16 +122,16 @@ export function SignupForm() {
               .commrent.kz
             </span>
           </div>
-          {!slug && <p className="text-[11px] text-slate-400 mt-1">5–20 символов: латиница, цифры, дефис</p>}
+          {!slug && <p className="text-[11px] text-slate-400 mt-1">{t("auth.signup.slugHint")}</p>}
           {slugCheck.status === "checking" && (
             <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Проверяем...
+              <Loader2 className="h-3 w-3 animate-spin" /> {t("auth.signup.slugChecking")}
             </p>
           )}
           {isSlugOk && checkResult && checkResult.ok && (
             <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700">
               <Check className="h-3 w-3" />
-              Свободно. Будет: {checkResult.url}
+              {t("auth.signup.slugFree", { url: checkResult.url })}
             </p>
           )}
           {isSlugBad && checkResult && !checkResult.ok && (
@@ -137,7 +139,7 @@ export function SignupForm() {
               <p className="text-[11px] text-red-600">{checkResult.reason}</p>
               {checkResult.suggestions && (
                 <p className="text-[11px] text-slate-500 mt-0.5">
-                  Свободные:{" "}
+                  {t("auth.signup.slugSuggestions")}{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
                       <button type="button" onClick={() => { setSlugTouched(true); setSlug(s) }} className="font-mono text-blue-600 hover:underline">{s}</button>
@@ -151,19 +153,34 @@ export function SignupForm() {
         </div>
       </Section>
 
-      <Section title="Владелец аккаунта">
-        <Field label="ФИО *" name="ownerName" required placeholder="Иванов Иван Иванович" />
+      <Section title={t("auth.signup.ownerSection")}>
+        <Field
+          label={t("auth.signup.ownerName")}
+          name="ownerName"
+          required
+          placeholder={t("auth.signup.ownerNamePlaceholder")}
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Email" name="ownerEmail" type="email" placeholder="ivan@example.kz" />
-          <Field label="Телефон" name="ownerPhone" type="tel" placeholder="+7 700 000 00 00" />
+          <Field
+            label={t("auth.signup.email")}
+            name="ownerEmail"
+            type="email"
+            placeholder="ivan@example.kz"
+          />
+          <Field
+            label={t("auth.signup.phone")}
+            name="ownerPhone"
+            type="tel"
+            placeholder="+7 700 000 00 00"
+          />
         </div>
         <Field
-          label="Пароль *"
+          label={t("auth.signup.password")}
           name="password"
           type="password"
           required
-          placeholder="минимум 8 символов"
-          hint="Запомните или сохраните в менеджер паролей"
+          placeholder={t("auth.signup.passwordPlaceholder")}
+          hint={t("auth.signup.passwordHint")}
         />
       </Section>
 
@@ -185,11 +202,19 @@ export function SignupForm() {
           className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
         />
         <span>
-          Я принимаю{" "}
-          <Link href="/offer" target="_blank" className="text-blue-600 hover:underline">Публичную оферту</Link>,{" "}
-          <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline">Политику конфиденциальности</Link>,{" "}
-          <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Условия использования</Link>{" "}
-          и даю согласие на обработку моих персональных данных и данных моей организации.
+          {t("auth.signup.acceptPrefix")}{" "}
+          <Link href="/offer" target="_blank" className="text-blue-600 hover:underline">
+            {t("auth.signup.acceptOffer")}
+          </Link>
+          ,{" "}
+          <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline">
+            {t("auth.signup.acceptPrivacy")}
+          </Link>
+          ,{" "}
+          <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">
+            {t("auth.signup.acceptTerms")}
+          </Link>{}
+          {t("auth.signup.acceptSuffix")}
         </span>
       </label>
 
@@ -200,11 +225,11 @@ export function SignupForm() {
         disabled={isPending || isSlugBad || !acceptedTerms}
         className="w-full font-semibold"
       >
-        {isPending ? "Создаём..." : "Начать 14-дневный триал бесплатно"}
+        {isPending ? t("auth.signup.creating") : t("auth.signup.submit")}
       </Button>
 
       <p className="text-center text-xs text-slate-500">
-        Без оплаты, без карты. После триала — выберете тариф или продолжите смотреть в режиме чтения.
+        {t("auth.signup.noCard")}
       </p>
     </form>
   )

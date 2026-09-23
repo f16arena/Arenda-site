@@ -3,6 +3,9 @@ import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import { ChangePasswordForm } from "./change-password-form"
+import { I18nProvider } from "@/lib/i18n/client"
+import { getLocale } from "@/lib/i18n/server"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 
 export const dynamic = "force-dynamic"
 
@@ -20,15 +23,21 @@ export default async function ChangePasswordPage() {
   // он может сменить пароль ещё раз. Если же он только что сменил и нажал Назад,
   // редирект работает через обычную навигацию.
   const targetAfter = user.role === "TENANT" ? "/cabinet" : "/admin"
+  const locale = await getLocale()
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <ForceLight />
-      <ChangePasswordForm
-        forced={user.mustChangePassword}
-        userLogin={user.email ?? user.phone ?? user.name}
-        targetAfter={targetAfter}
-      />
+      <I18nProvider
+        locale={locale}
+        messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}
+      >
+        <ChangePasswordForm
+          forced={user.mustChangePassword}
+          userLogin={user.email ?? user.phone ?? user.name}
+          targetAfter={targetAfter}
+        />
+      </I18nProvider>
     </div>
   )
 }

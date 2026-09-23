@@ -4,8 +4,12 @@ export const dynamic = "force-dynamic"
 import { db } from "@/lib/db"
 import { notFound } from "next/navigation"
 import { Building2, MapPin, Phone, Mail, Calendar } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+
 import { BookingForm } from "./booking-form"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
+import { I18nProvider } from "@/lib/i18n/client"
+import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 import { getBuildingTenantAdminContacts } from "@/lib/tenant-admin-contact"
 import { parseSpacePhotos } from "@/lib/space-photos"
 import { ImageOff } from "lucide-react"
@@ -14,6 +18,8 @@ import { Card } from "@/components/ui/card"
 
 export default async function PublicBookingPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
 
   const org = await db.organization.findUnique({
     where: { slug: orgSlug, isActive: true, isSuspended: false },
@@ -88,7 +94,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
             </div>
             <div>
               <h1 className="text-lg font-bold text-slate-900">{org.name}</h1>
-              <p className="text-xs text-slate-500">Свободные площади в аренду</p>
+              <p className="text-xs text-slate-500">{t("auth.booking.vacantSubtitle")}</p>
             </div>
           </div>
           <a
@@ -106,15 +112,20 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
         {allVacantSpaces.length === 0 ? (
           <Card className="block p-12 text-center">
             <Building2 className="h-12 w-12 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Свободных помещений нет</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-1">{t("auth.booking.noVacantTitle")}</h2>
             <p className="text-sm text-slate-500 mb-4">
-              Сейчас все помещения заняты. Оставьте заявку — мы свяжемся когда что-то освободится.
+              {t("auth.booking.noVacantText")}
             </p>
             {org.buildings[0] && (
-              <BookingForm
-                orgSlug={orgSlug}
-                buildings={org.buildings.map((b) => ({ id: b.id, name: b.name }))}
-              />
+              <I18nProvider
+                locale={locale}
+                messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}
+              >
+                <BookingForm
+                  orgSlug={orgSlug}
+                  buildings={org.buildings.map((b) => ({ id: b.id, name: b.name }))}
+                />
+              </I18nProvider>
             )}
           </Card>
         ) : (
@@ -123,10 +134,10 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
             <div className="lg:col-span-2 space-y-6">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900 mb-1">
-                  {allVacantSpaces.length} свободн{allVacantSpaces.length === 1 ? "ое помещение" : allVacantSpaces.length < 5 ? "ых помещения" : "ых помещений"}
+                  {tp("auth.booking.vacantCount", allVacantSpaces.length)}
                 </h2>
                 <p className="text-sm text-slate-500">
-                  Выберите подходящее и оставьте заявку — мы свяжемся в течение часа.
+                  {t("auth.booking.pickHint")}
                 </p>
               </div>
 
@@ -160,31 +171,33 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                             <div className="relative aspect-[4/3] w-full bg-slate-100">
                               {cover ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={cover} alt={`Помещение ${s.number}`} className="h-full w-full object-cover" />
+                                <img src={cover} alt={t("auth.booking.premiseAlt", { number: s.number })} className="h-full w-full object-cover" />
                               ) : (
                                 <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-300">
                                   <ImageOff className="h-8 w-8" />
-                                  <span className="text-[11px]">фото нет</span>
+                                  <span className="text-[11px]">{t("auth.booking.noPhoto")}</span>
                                 </div>
                               )}
                               {photos.length > 1 && (
                                 <Badge className="absolute bottom-2 right-2 bg-black/60 text-[10px] font-medium text-white">
-                                  +{photos.length - 1} фото
+                                  {t("auth.booking.morePhotos", { count: photos.length - 1 })}
                                 </Badge>
                               )}
                               <Badge className="absolute left-2 top-2 bg-emerald-500 text-[10px] font-semibold text-white">
-                                свободно
+                                {t("auth.booking.vacant")}
                               </Badge>
                             </div>
                             <div className="p-4">
                               <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">Кабинет {s.number}</p>
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    {t("auth.booking.officeNumber", { number: s.number })}
+                                  </p>
                                   <p className="text-xs text-slate-500">{s.floorName}</p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-sm font-bold text-slate-900">{formatMoney(s.area * s.ratePerSqm)}</p>
-                                  <p className="text-[10px] text-slate-400">в месяц</p>
+                                  <p className="text-sm font-bold text-slate-900">{formatMoneyL(locale, s.area * s.ratePerSqm)}</p>
+                                  <p className="text-[10px] text-slate-400">{t("auth.booking.perMonth")}</p>
                                 </div>
                               </div>
                               <p className="mt-2 text-xs text-slate-600">
@@ -194,7 +207,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
                                 href="#booking-form"
                                 className="mt-3 block w-full rounded-lg bg-slate-900 py-2 text-center text-xs font-medium text-white hover:bg-slate-800"
                               >
-                                Записаться на просмотр →
+                                {t("auth.booking.bookViewingLink")}
                               </a>
                             </div>
                           </Card>
@@ -211,18 +224,23 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
               <Card id="booking-form" className="block p-5 sticky top-24">
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar className="h-4 w-4 text-blue-600" />
-                  <h3 className="text-sm font-semibold text-slate-900">Записаться на просмотр</h3>
+                  <h3 className="text-sm font-semibold text-slate-900">{t("auth.booking.bookViewing")}</h3>
                 </div>
-                <BookingForm
-                  orgSlug={orgSlug}
-                  buildings={org.buildings.map((b) => ({ id: b.id, name: b.name }))}
-                />
+                <I18nProvider
+                  locale={locale}
+                  messages={pickNamespaces(dictionaries[locale], ["common", "auth"])}
+                >
+                  <BookingForm
+                    orgSlug={orgSlug}
+                    buildings={org.buildings.map((b) => ({ id: b.id, name: b.name }))}
+                  />
+                </I18nProvider>
               </Card>
 
               {/* Контакты */}
               {(publicContact?.phone || publicContact?.email) && (
                 <Card className="block p-5">
-                  <h3 className="text-sm font-semibold text-slate-900 mb-2">Связаться с администратором</h3>
+                  <h3 className="text-sm font-semibold text-slate-900 mb-2">{t("auth.booking.contactAdmin")}</h3>
                   <p className="text-xs text-slate-500 mb-3">{publicContact.name}</p>
                   <div className="space-y-2 text-sm">
                     {publicContact?.phone && (
@@ -247,7 +265,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
 
       <footer className="border-t border-slate-200 mt-12 py-6">
         <div className="max-w-6xl mx-auto px-4 text-center text-xs text-slate-400">
-          Платформа управления коммерческой арендой · <a href="https://commrent.kz" className="hover:underline" target="_blank">commrent.kz</a>
+          {t("auth.booking.poweredBy")} <a href="https://commrent.kz" className="hover:underline" target="_blank">commrent.kz</a>
         </div>
       </footer>
     </div>

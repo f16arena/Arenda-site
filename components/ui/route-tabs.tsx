@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { useT } from "@/lib/i18n/client"
 
 /**
  * Вкладки-ссылки для «хабов» (редизайн, этап 1): несколько связанных страниц
@@ -14,9 +15,10 @@ export function RouteTabs({ items, className }: {
   items: { href: string; label: string }[]
   className?: string
 }) {
+  const { t } = useT()
   const pathname = usePathname()
   return (
-    <nav className={cn("flex flex-wrap items-center gap-1 border-b border-border", className)} aria-label="Разделы">
+    <nav className={cn("flex flex-wrap items-center gap-1 border-b border-border", className)} aria-label={t("common.dialog.sections")}>
       {items.map((item) => {
         const active = pathname === item.href
         return (

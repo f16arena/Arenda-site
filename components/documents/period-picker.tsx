@@ -2,11 +2,15 @@
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import { ChevronLeft, ChevronRight } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
-const MONTHS = [
-  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
-  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
-]
+// Названия месяцев — из словаря: у казахского они свои, не транслит.
+const MONTH_KEYS = [
+  "common.docs.months.m1", "common.docs.months.m2", "common.docs.months.m3",
+  "common.docs.months.m4", "common.docs.months.m5", "common.docs.months.m6",
+  "common.docs.months.m7", "common.docs.months.m8", "common.docs.months.m9",
+  "common.docs.months.m10", "common.docs.months.m11", "common.docs.months.m12",
+] as const
 
 interface Props {
   value?: string  // YYYY-MM
@@ -17,6 +21,7 @@ interface Props {
  * Меняет ?period=YYYY-MM в URL.
  */
 export function PeriodPicker({ value }: Props) {
+  const { t } = useT()
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -45,7 +50,7 @@ export function PeriodPicker({ value }: Props) {
       <button
         onClick={() => shift(-1)}
         className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-l-lg"
-        title="Предыдущий месяц"
+        title={t("common.docs.prevMonth")}
       >
         <ChevronLeft className="h-4 w-4 text-slate-500 dark:text-slate-400" />
       </button>
@@ -54,8 +59,8 @@ export function PeriodPicker({ value }: Props) {
         onChange={(e) => setPeriod(year, parseInt(e.target.value))}
         className="bg-transparent text-sm font-medium text-slate-700 dark:text-slate-300 px-1 py-1.5 focus:outline-none cursor-pointer"
       >
-        {MONTHS.map((name, i) => (
-          <option key={i + 1} value={i + 1}>{name}</option>
+        {MONTH_KEYS.map((key, i) => (
+          <option key={i + 1} value={i + 1}>{t(key)}</option>
         ))}
       </select>
       <select
@@ -70,7 +75,7 @@ export function PeriodPicker({ value }: Props) {
       <button
         onClick={() => shift(1)}
         className="px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-r-lg"
-        title="Следующий месяц"
+        title={t("common.docs.nextMonth")}
       >
         <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400" />
       </button>

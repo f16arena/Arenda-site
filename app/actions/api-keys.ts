@@ -6,6 +6,7 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { generateApiKeyToken } from "@/lib/api-keys"
 import bcrypt from "bcryptjs"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Список ключей текущей организации (без plain-токена — только prefix).
@@ -38,14 +39,15 @@ export async function createApiKey(opts: {
   expiresInDays?: number | null
 }): Promise<{ ok: true; token: string; id: string } | { ok: false; error: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
   if (session.user.role !== "OWNER") {
-    return { ok: false, error: "Только владелец может создавать API-ключи" }
+    return { ok: false, error: t("actions.apiKeys.ownerOnlyCreate") }
   }
   const { orgId } = await requireOrgAccess()
 
   const name = opts.name.trim().slice(0, 100)
-  if (name.length < 3) return { ok: false, error: "Введите название (минимум 3 символа)" }
+  if (name.length < 3) return { ok: false, error: t("actions.apiKeys.nameTooShort") }
 
   const { token, prefix } = generateApiKeyToken()
   const keyHash = await bcrypt.hash(token, 10)
@@ -75,15 +77,16 @@ export async function createApiKey(opts: {
  */
 export async function revokeApiKey(id: string): Promise<{ ok: boolean; error?: string }> {
   const session = await auth()
-  if (!session?.user) return { ok: false, error: "Не авторизован" }
-  if (session.user.role !== "OWNER") return { ok: false, error: "Только владелец" }
+  const { t } = await getT()
+  if (!session?.user) return { ok: false, error: t("actions.common.noAccess") }
+  if (session.user.role !== "OWNER") return { ok: false, error: t("actions.apiKeys.ownerOnly") }
   const { orgId } = await requireOrgAccess()
 
   const key = await db.apiKey.findFirst({
     where: { id, organizationId: orgId },
     select: { id: true },
   })
-  if (!key) return { ok: false, error: "Ключ не найден" }
+  if (!key) return { ok: false, error: t("actions.apiKeys.keyNotFound") }
 
   await db.apiKey.update({
     where: { id },

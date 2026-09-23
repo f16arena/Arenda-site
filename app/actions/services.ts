@@ -84,24 +84,27 @@ export async function markServicePaid(input: {
   serviceId: string
   paymentMethod?: string
 }): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
   const svc = await db.organizationService.findUnique({
     where: { id: input.serviceId },
     include: { organization: { select: { id: true, name: true, ownerUserId: true } } },
   })
-  if (!svc) return { ok: false, error: "Услуга не найдена" }
-  if (svc.status !== "PENDING") return { ok: false, error: `Услуга уже в статусе ${svc.status}` }
+  if (!svc) return { ok: false, error: t("actions.services.notFound") }
+  if (svc.status !== "PENDING") return { ok: false, error: t("actions.services.alreadyInStatus", { status: svc.status }) }
 
   await db.organizationService.update({
     where: { id: input.serviceId },
     data: { status: "PAID", paidAt: new Date(), paymentMethod: input.paymentMethod ?? null },
   })
   if (svc.organization.ownerUserId) {
+    // Уведомление читает владелец организации — берём язык получателя.
+    const { t: tOwner } = await getTForUser(svc.organization.ownerUserId)
     await notifyUser({
       userId: svc.organization.ownerUserId,
       type: "SERVICE_PAID",
-      title: `Оплата получена: ${svc.serviceName}`,
-      message: `Спасибо за оплату «${svc.serviceName}». Команда уже взяла задачу в работу.`,
+      title: tOwner("actions.services.paidTitle", { service: svc.serviceName }),
+      message: tOwner("actions.services.paidMessage", { service: svc.serviceName }),
       link: "/admin/subscription",
       sendEmail: false,
     }).catch(() => null)
@@ -116,23 +119,26 @@ export async function markServicePaid(input: {
 export async function markServiceDelivered(input: {
   serviceId: string
 }): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
   const svc = await db.organizationService.findUnique({
     where: { id: input.serviceId },
     include: { organization: { select: { id: true, name: true, ownerUserId: true } } },
   })
-  if (!svc) return { ok: false, error: "Услуга не найдена" }
+  if (!svc) return { ok: false, error: t("actions.services.notFound") }
 
   await db.organizationService.update({
     where: { id: input.serviceId },
     data: { status: "DELIVERED", deliveredAt: new Date() },
   })
   if (svc.organization.ownerUserId) {
+    // Уведомление читает владелец организации — берём язык получателя.
+    const { t: tOwner } = await getTForUser(svc.organization.ownerUserId)
     await notifyUser({
       userId: svc.organization.ownerUserId,
       type: "SERVICE_DELIVERED",
-      title: `Услуга выполнена: ${svc.serviceName}`,
-      message: `«${svc.serviceName}» — готово. Если что-то нужно поправить — пишите.`,
+      title: tOwner("actions.services.deliveredTitle", { service: svc.serviceName }),
+      message: tOwner("actions.services.deliveredMessage", { service: svc.serviceName }),
       link: "/admin/subscription",
       sendEmail: false,
     }).catch(() => null)
@@ -148,28 +154,32 @@ export async function cancelService(input: {
   serviceId: string
   reason?: string
 }): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   await requirePlatformOwner()
   const svc = await db.organizationService.findUnique({
     where: { id: input.serviceId },
     include: { organization: { select: { id: true, name: true, ownerUserId: true } } },
   })
-  if (!svc) return { ok: false, error: "Услуга не найдена" }
+  if (!svc) return { ok: false, error: t("actions.services.notFound") }
 
   await db.organizationService.update({
     where: { id: input.serviceId },
     data: {
       status: "CANCELLED",
+      // notes — внутренняя запись платформы, не интерфейс.
       notes: svc.notes
         ? `${svc.notes}\n[отменена: ${input.reason ?? "—"}]`
         : `[отменена: ${input.reason ?? "—"}]`,
     },
   })
   if (svc.organization.ownerUserId) {
+    // Уведомление читает владелец организации — берём язык получателя.
+    const { t: tOwner } = await getTForUser(svc.organization.ownerUserId)
     await notifyUser({
       userId: svc.organization.ownerUserId,
       type: "SERVICE_CANCELLED",
-      title: `Услуга отменена: ${svc.serviceName}`,
-      message: input.reason ?? "Заявка отменена.",
+      title: tOwner("actions.services.cancelledTitle", { service: svc.serviceName }),
+      message: input.reason ?? tOwner("actions.services.cancelledMessage"),
       link: "/admin/subscription",
       sendEmail: false,
     }).catch(() => null)

@@ -15,18 +15,21 @@ import { isStaffScopedRole } from "@/lib/building-access"
 import { ADMIN_SHELL_CACHE_TAG, buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { BuildingUpdateSchema, FloorUpdateSchema, firstZodError } from "@/lib/schemas"
+import { getT } from "@/lib/i18n/server"
 
 // Возвращаем ошибку вместо throw: в проде Next затирает текст брошенных из
 // server action ошибок, а возвращённые значения отдаёт как есть. ServerForm
 // показывает result.error в тосте — пользователь видит реальную причину.
-function fail(error: unknown) {
+function fail(error: unknown, saveFailed: string) {
   return {
     success: false as const,
-    error: error instanceof Error ? error.message : "Не удалось сохранить",
+    error: error instanceof Error ? error.message : saveFailed,
   }
 }
 
 export async function updateBuilding(buildingId: string, formData: FormData) {
+  // Переводчик нужен и в catch — объявляем до try.
+  const { t } = await getT()
   try {
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
@@ -53,7 +56,9 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   const addressFields = readAddressFields(formData)
   const description = String(formData.get("description") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = await normalizeEmailWithDns(formData.get("email"), { fieldName: "Email здания" })
+  const email = await normalizeEmailWithDns(formData.get("email"), {
+    fieldName: t("actions.buildings.emailField"),
+  })
   const responsible = String(formData.get("responsible") ?? "").trim()
   // Адрес для документов — необязательный override обычного адреса. Используется
   // в договорах/актах когда геокодер вернул адрес на казахском («Шығыс Қазақстан
@@ -68,7 +73,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
     utilitiesInServiceFee = (await import("@/lib/service-charges")).serializeUtilitiesInServiceFee(values)
   }
 
-  if (!address) throw new Error("Адрес здания обязателен")
+  if (!address) throw new Error(t("actions.buildings.buildingAddressRequired"))
 
   // totalArea не редактируется вручную — пересчитывается из этажей
   await db.building.update({
@@ -92,7 +97,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   revalidateTag(buildingsForOrgTag(orgId), { expire: 0 })
   return { success: true }
   } catch (e) {
-    return fail(e)
+    return fail(e, t("actions.common.saveFailed"))
   }
 }
 
@@ -125,6 +130,7 @@ function readOptionalNumber(formData: FormData, name: string) {
 }
 
 export async function updateFloor(floorId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
@@ -143,7 +149,7 @@ export async function updateFloor(floorId: string, formData: FormData) {
     where: { id: floorId },
     select: { buildingId: true },
   })
-  if (!floor) throw new Error("Этаж не найден")
+  if (!floor) throw new Error(t("actions.common.floorNotFound"))
 
   // Floor.totalArea не может быть меньше Σ Space.area
   await assertFloorFitsSpaces({ floorId, newTotalArea: newTotalArea ?? null })
@@ -173,6 +179,7 @@ export async function updateFloor(floorId: string, formData: FormData) {
  * из той же организации.
  */
 export async function setBuildingAdministrator(buildingId: string, adminUserId: string | null) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -182,18 +189,15 @@ export async function setBuildingAdministrator(buildingId: string, adminUserId: 
       where: { id: adminUserId },
       select: { id: true, organizationId: true, role: true, isActive: true },
     })
-    if (!user) throw new Error("Пользователь не найден")
+    if (!user) throw new Error(t("actions.common.userNotFound"))
     if (user.organizationId !== orgId) {
-      throw new Error("Пользователь не из вашей организации")
+      throw new Error(t("actions.buildings.userFromOtherOrg"))
     }
     if (!user.isActive) {
-      throw new Error("Пользователь деактивирован — не может быть администратором")
+      throw new Error(t("actions.buildings.userDeactivated"))
     }
     if (user.role !== "ADMIN" && user.role !== "OWNER") {
-      throw new Error(
-        `Администратором здания может быть только пользователь с ролью «Админ» или «Владелец». ` +
-          `У выбранного пользователя роль: ${user.role}.`,
-      )
+      throw new Error(t("actions.buildings.adminRoleRequired", { role: user.role }))
     }
   }
 
@@ -222,18 +226,22 @@ export async function setBuildingAdministrator(buildingId: string, adminUserId: 
   return { success: true }
 }
 
-async function assertEmergencyContactInOrg(id: string, orgId: string) {
+// Переводчик приходит параметром: чистый помощник сам его не добывает.
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+async function assertEmergencyContactInOrg(id: string, orgId: string, t: Tr) {
   const found = await db.emergencyContact.findFirst({
     where: { id, ...emergencyContactScope(orgId) },
     select: { id: true },
   })
-  if (!found) throw new Error("Контакт не найден или нет доступа")
+  if (!found) throw new Error(t("actions.buildings.contactNotFound"))
 }
 
 export async function updateEmergencyContact(id: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
-  await assertEmergencyContactInOrg(id, orgId)
+  await assertEmergencyContactInOrg(id, orgId, t)
 
   const name = formData.get("name") as string
   const phone = normalizeKzPhone(formData.get("phone"), { required: true, allowShort: true })
@@ -267,9 +275,10 @@ export async function addEmergencyContact(buildingId: string, formData: FormData
 }
 
 export async function deleteEmergencyContact(id: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("buildings.edit")
   const { orgId } = await requireOrgAccess()
-  await assertEmergencyContactInOrg(id, orgId)
+  await assertEmergencyContactInOrg(id, orgId, t)
 
   await db.emergencyContact.delete({ where: { id } })
   revalidatePath("/admin/settings")

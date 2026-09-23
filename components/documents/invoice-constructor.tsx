@@ -14,6 +14,7 @@ import {
 } from "@/lib/invoice-engine"
 import { prefillInvoiceFromTenant, generateInvoicePdf, createInvoiceFromBuilder, getNextInvoiceNumber } from "@/app/actions/invoice-builder"
 import { listConstructorTenants, type ConstructorTenant } from "@/app/actions/contract-builder"
+import { useT } from "@/lib/i18n/client"
 
 const inputCls = FIELD_CLS
 const labelCls = LABEL_CLS
@@ -22,33 +23,36 @@ const secTitleCls = "mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide
 type Mutator = (s: InvoiceState) => void
 
 function ItemsEditor({ state, set }: { state: InvoiceState; set: (m: Mutator) => void }) {
-  const add = () => set((s) => { s.items.push({ name: "", unit: "услуга", qty: 1, price: 0 }) })
+  const { t } = useT()
+  // Единица измерения по умолчанию уходит в документ, поэтому она из словаря.
+  const add = () => set((s) => { s.items.push({ name: "", unit: t("common.docs.unitDefault"), qty: 1, price: 0 }) })
   const remove = (i: number) => set((s) => { s.items.splice(i, 1) })
   return (
     <div className="space-y-2">
       {state.items.map((it, i) => (
         <div key={i} className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-800">
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">Позиция {i + 1}</span>
-            <button type="button" onClick={() => remove(i)} className="text-slate-400 hover:text-red-500" aria-label="Удалить"><Trash2 className="h-3.5 w-3.5" /></button>
+            <span className="text-[11px] font-semibold text-slate-400">{t("common.docs.position", { n: i + 1 })}</span>
+            <button type="button" onClick={() => remove(i)} className="text-slate-400 hover:text-red-500" aria-label={t("common.docs.deletePosition")}><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="mb-1.5"><input className={inputCls} placeholder="Наименование услуги" value={it.name} onChange={(e) => set((s) => { s.items[i].name = e.target.value })} /></div>
+          <div className="mb-1.5"><input className={inputCls} placeholder={t("common.docs.positionName")} value={it.name} onChange={(e) => set((s) => { s.items[i].name = e.target.value })} /></div>
           <div className="grid grid-cols-4 gap-1.5">
-            <div><label className={labelCls}>Ед.</label><input className={inputCls} value={it.unit} onChange={(e) => set((s) => { s.items[i].unit = e.target.value })} /></div>
-            <div><label className={labelCls}>Кол-во</label><input type="number" className={inputCls} value={it.qty || ""} onChange={(e) => set((s) => { s.items[i].qty = Number(e.target.value) })} /></div>
-            <div><label className={labelCls}>Цена ₸</label><input type="number" className={inputCls} value={it.price || ""} onChange={(e) => set((s) => { s.items[i].price = Number(e.target.value) })} /></div>
-            <div><label className={labelCls}>Сумма ₸</label><input className={`${inputCls} opacity-70`} value={money(itemSum(it))} disabled /></div>
+            <div><label className={labelCls}>{t("common.docs.unit")}</label><input className={inputCls} value={it.unit} onChange={(e) => set((s) => { s.items[i].unit = e.target.value })} /></div>
+            <div><label className={labelCls}>{t("common.docs.qty")}</label><input type="number" className={inputCls} value={it.qty || ""} onChange={(e) => set((s) => { s.items[i].qty = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("common.docs.price")}</label><input type="number" className={inputCls} value={it.price || ""} onChange={(e) => set((s) => { s.items[i].price = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("common.docs.sum")}</label><input className={`${inputCls} opacity-70`} value={money(itemSum(it))} disabled /></div>
           </div>
         </div>
       ))}
       <button type="button" onClick={add} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 py-2 text-sm text-slate-500 transition hover:border-slate-400 dark:border-slate-700 dark:text-slate-400">
-        <Plus className="h-4 w-4" /> Добавить позицию
+        <Plus className="h-4 w-4" /> {t("common.docs.addPosition")}
       </button>
     </div>
   )
 }
 
 export function InvoiceConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
+  const { t } = useT()
   const [state, setState] = useState<InvoiceState>(defaultInvoiceState)
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
@@ -81,15 +85,15 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
         if (autoNumber) applyAutoNumber()
         // Честный источник: начисления уже есть или позиции собраны по договору
         toast.success(r.source === "contract"
-          ? "Начислений за период ещё нет — позиции собраны по договору"
-          : "Данные подставлены из начислений за период")
-      } else toast.error(r.error ?? "Не удалось подставить данные")
+          ? t("common.docs.prefilledNoCharges")
+          : t("common.docs.prefilledFromCharges"))
+      } else toast.error(r.error ?? t("common.docs.prefillFailed"))
     })
   }
   const appliedInitialTenant = useRef(false)
   useEffect(() => {
     if (appliedInitialTenant.current || !initialTenantId || !period) return
-    if (!tenants.some((t) => t.id === initialTenantId)) return
+    if (!tenants.some((row) => row.id === initialTenantId)) return
     appliedInitialTenant.current = true
     onPickTenant(initialTenantId)
   }, [tenants, initialTenantId, period]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -100,19 +104,19 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
   function doDownload() {
     startTransition(async () => {
       const r = await generateInvoicePdf(state)
-      if (!r.ok || !r.base64) { toast.error(r.error ?? "Ошибка генерации"); return }
+      if (!r.ok || !r.base64) { toast.error(r.error ?? t("common.docs.generateFailed")); return }
       const bytes = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))
       const blob = new Blob([bytes], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
-      const a = document.createElement("a"); a.href = url; a.download = r.fileName ?? "Счёт.pdf"; a.click(); URL.revokeObjectURL(url)
+      const a = document.createElement("a"); a.href = url; a.download = r.fileName ?? t("common.docs.invoiceFileName"); a.click(); URL.revokeObjectURL(url)
     })
   }
   function doCreate() {
-    if (!selTenant) { toast.error("Сначала выберите арендатора"); return }
+    if (!selTenant) { toast.error(t("common.docs.pickTenantFirst")); return }
     startTransition(async () => {
       const r = await createInvoiceFromBuilder(selTenant, state, { autoNumber })
-      if (!r.ok) { toast.error(r.error ?? "Не удалось создать счёт"); return }
-      toast.success(`Счёт № ${r.number} создан и сохранён в Документы`)
+      if (!r.ok) { toast.error(r.error ?? t("common.docs.invoiceCreateFailed")); return }
+      toast.success(t("common.docs.invoiceCreated", { number: r.number ?? "" }))
     })
   }
 
@@ -121,73 +125,76 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
   const total = useMemo(() => invTotal(state), [state])
   const tenantGroups = useMemo(() => {
     const m = new Map<string, ConstructorTenant[]>()
-    for (const t of tenants) { const k = t.building ?? "Без здания"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(t) }
+    for (const row of tenants) { const k = row.building ?? t("common.docs.noBuilding"); if (!m.has(k)) m.set(k, []); m.get(k)!.push(row) }
     return [...m.entries()]
-  }, [tenants])
+  }, [tenants, t])
 
   return (
     <div className="space-y-6">
       {!embedded && (
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Конструктор счёта</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Счёт на оплату по действующему договору. Позиции — из начислений за месяц, а если их ещё нет — из договора (аренда, эксплуатационные расходы, уборка и доп. услуги).</p>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t("common.docs.invoiceTitle")}</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t("common.docs.invoiceSubtitle")}</p>
         </div>
       )}
 
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="min-w-[220px] flex-1">
-          <label className={labelCls}>Арендатор</label>
+          <label className={labelCls}>{t("common.docs.tenant")}</label>
           <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
-            <option value="">— выберите арендатора —</option>
+            <option value="">{t("common.docs.pickTenant")}</option>
             {tenantGroups.map(([building, list]) => (
-              <optgroup key={building} label={building}>{list.map((t) => <option key={t.id} value={t.id} disabled={!t.activeContract}>{t.name}{t.activeContract ? "" : " — нет действующего договора"}</option>)}</optgroup>
+              <optgroup key={building} label={building}>{list.map((row) => <option key={row.id} value={row.id} disabled={!row.activeContract}>{row.name}{row.activeContract ? "" : t("common.docs.noActiveContract")}</option>)}</optgroup>
             ))}
           </select>
         </div>
-        <div className="w-[160px]"><label className={labelCls}>Месяц</label><input type="month" className={inputCls} value={period} onChange={(e) => onChangePeriod(e.target.value)} /></div>
+        <div className="w-[160px]"><label className={labelCls}>{t("common.docs.month")}</label><input type="month" className={inputCls} value={period} onChange={(e) => onChangePeriod(e.target.value)} /></div>
         <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>PDF</Button>
-        <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>Создать счёт</Button>
+        <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>{t("common.docs.invoiceCreate")}</Button>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="space-y-4">
-          <CollapsibleCard title="Стороны" icon={Users} defaultOpen>
+          <CollapsibleCard title={t("common.docs.parties")} icon={Users} defaultOpen>
             <div className="p-5">
-              <div className={secTitleCls}>Поставщик (арендодатель)</div>
+              <div className={secTitleCls}>{t("common.docs.supplier")}</div>
               <SellerFields p={state.seller} onChange={(mut) => set((s) => mut(s.seller))} />
-              <div className={secTitleCls}>Получатель (арендатор)</div>
+              <div className={secTitleCls}>{t("common.docs.recipient")}</div>
               <BuyerFields p={state.buyer} onChange={(mut) => set((s) => mut(s.buyer))} />
             </div>
           </CollapsibleCard>
 
-          <CollapsibleCard title="Счёт, договор, период" icon={ReceiptText} defaultOpen>
+          <CollapsibleCard title={t("common.docs.invoiceCard")} icon={ReceiptText} defaultOpen>
             <div className="space-y-1 p-5">
               <div className="mb-2 grid grid-cols-2 gap-2">
                 <div>
-                  <label className={labelCls}>Номер {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">авто</span>}</label>
+                  <label className={labelCls}>{t("common.docs.number")} {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("common.docs.auto")}</span>}</label>
                   <div className="flex gap-1.5">
-                    <input className={`${inputCls} disabled:opacity-60`} placeholder="например, 001" value={state.meta.number} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.number = e.target.value })} />
-                    <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">{autoNumber ? "Другой" : "Авто"}</button>
+                    <input className={`${inputCls} disabled:opacity-60`} placeholder={t("common.docs.numberPlaceholder")} value={state.meta.number} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.number = e.target.value })} />
+                    <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">{autoNumber ? t("common.docs.autoOff") : t("common.docs.autoOn")}</button>
                   </div>
                 </div>
-                <div><label className={labelCls}>Дата счёта</label><input type="date" className={inputCls} value={state.meta.date} onChange={(e) => set((s) => { s.meta.date = e.target.value })} /></div>
+                <div><label className={labelCls}>{t("common.docs.invoiceDate")}</label><input type="date" className={inputCls} value={state.meta.date} onChange={(e) => set((s) => { s.meta.date = e.target.value })} /></div>
               </div>
               <div className="mb-2 grid grid-cols-2 gap-2">
-                <div><label className={labelCls}>Договор № <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из договора</span></label><input className={`${inputCls} disabled:opacity-60`} value={state.contractRef.number} disabled readOnly title="Подставляется автоматически из действующего договора выбранного арендатора" /></div>
-                <div><label className={labelCls}>Оплатить до</label><input type="date" className={inputCls} value={state.dueDate} onChange={(e) => set((s) => { s.dueDate = e.target.value })} /></div>
+                <div><label className={labelCls}>{t("common.docs.contractNo")} <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("common.docs.fromContract")}</span></label><input className={`${inputCls} disabled:opacity-60`} value={state.contractRef.number} disabled readOnly title={t("common.docs.contractNoTitle")} /></div>
+                <div><label className={labelCls}>{t("common.docs.dueDate")}</label><input type="date" className={inputCls} value={state.dueDate} onChange={(e) => set((s) => { s.dueDate = e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={state.vat.enabled} onChange={(e) => set((s) => { s.vat.enabled = e.target.checked })} /> НДС</label>
-                <div><label className={labelCls}>Ставка НДС, %</label><input type="number" className={inputCls} value={state.vat.rate} disabled={!state.vat.enabled} onChange={(e) => set((s) => { s.vat.rate = Number(e.target.value) })} /></div>
+                <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={state.vat.enabled} onChange={(e) => set((s) => { s.vat.enabled = e.target.checked })} /> {t("common.docs.vat")}</label>
+                <div><label className={labelCls}>{t("common.docs.vatRate")}</label><input type="number" className={inputCls} value={state.vat.rate} disabled={!state.vat.enabled} onChange={(e) => set((s) => { s.vat.rate = Number(e.target.value) })} /></div>
               </div>
             </div>
           </CollapsibleCard>
 
-          <CollapsibleCard title="Позиции" icon={ListChecks} defaultOpen>
+          <CollapsibleCard title={t("common.docs.positions")} icon={ListChecks} defaultOpen>
             <div className="p-5"><ItemsEditor state={state} set={set} /></div>
           </CollapsibleCard>
         </div>
 
+        {/* Предпросмотр — факсимиле готового PDF. Подписи здесь НЕ из словаря
+            намеренно: PDF рисует lib/invoice-engine на русском, и расхождение
+            «на экране по-казахски, в файле по-русски» хуже одного языка. */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           <div className="rounded-xl border border-slate-200 bg-white p-6 text-[13px] leading-relaxed text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
             <div className="text-center text-sm font-bold">Счёт на оплату № {state.meta.number || "____"} от {state.meta.date ? dateLong(state.meta.date) : "____"}</div>
@@ -244,40 +251,42 @@ export function InvoiceConstructor({ embedded = false, initialTenantId }: { embe
 }
 
 function SellerFields({ p, onChange }: { p: InvoiceSeller; onChange: (mut: (x: InvoiceSeller) => void) => void }) {
+  const { t } = useT()
   return (
     <>
-      <div className="mb-2"><label className={labelCls}>Наименование</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("common.docs.name")}</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>ИИН/БИН</label><input className={inputCls} value={p.binIin} onChange={(e) => onChange((x) => { x.binIin = e.target.value })} /></div>
-        <div><label className={labelCls}>Должность подписанта</label><input className={inputCls} value={p.signatoryPosition} onChange={(e) => onChange((x) => { x.signatoryPosition = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.binIin")}</label><input className={inputCls} value={p.binIin} onChange={(e) => onChange((x) => { x.binIin = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.signatoryPosition")}</label><input className={inputCls} value={p.signatoryPosition} onChange={(e) => onChange((x) => { x.signatoryPosition = e.target.value })} /></div>
       </div>
-      <div className="mb-2"><label className={labelCls}>Адрес</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("common.docs.address")}</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-3 gap-2">
-        <div><label className={labelCls}>Банк</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
-        <div><label className={labelCls}>ИИК</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
-        <div><label className={labelCls}>БИК</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.bank")}</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.iik")}</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.bik")}</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <div><label className={labelCls}>Кбе</label><input className={inputCls} value={p.kbe} onChange={(e) => onChange((x) => { x.kbe = e.target.value })} /></div>
-        <div><label className={labelCls}>КНП</label><input className={inputCls} value={p.knp} onChange={(e) => onChange((x) => { x.knp = e.target.value })} /></div>
-        <div><label className={labelCls}>Подписант (ФИО)</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.kbe")}</label><input className={inputCls} value={p.kbe} onChange={(e) => onChange((x) => { x.kbe = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.knp")}</label><input className={inputCls} value={p.knp} onChange={(e) => onChange((x) => { x.knp = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.signatory")}</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
       </div>
     </>
   )
 }
 
 function BuyerFields({ p, onChange }: { p: InvoiceBuyer; onChange: (mut: (x: InvoiceBuyer) => void) => void }) {
+  const { t } = useT()
   return (
     <>
-      <div className="mb-2"><label className={labelCls}>Наименование</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("common.docs.name")}</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>ИИН/БИН</label><input className={inputCls} value={p.binIin} onChange={(e) => onChange((x) => { x.binIin = e.target.value })} /></div>
-        <div><label className={labelCls}>Адрес</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.binIin")}</label><input className={inputCls} value={p.binIin} onChange={(e) => onChange((x) => { x.binIin = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.address")}</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <div><label className={labelCls}>Банк</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
-        <div><label className={labelCls}>ИИК</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
-        <div><label className={labelCls}>БИК</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.bank")}</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.iik")}</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("common.docs.bik")}</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
       </div>
     </>
   )

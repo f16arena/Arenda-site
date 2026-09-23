@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { issuesSummary, validateDocument, validateFloor } from "./validate"
+import { issuesCount, validateDocument, validateFloor } from "./validate"
 import type { BuilderDocument, Floor } from "@/types/builder"
 
 /** Прямоугольная комната 8×6 м из четырёх стен. */
@@ -55,7 +55,7 @@ const island = (over: Record<string, unknown> = {}) => ({
 describe("арендные места в общих зонах", () => {
   it("место вне здания — ошибка", () => {
     const issues = validateFloor(boxFloor({ openings: [door()], islands: [island({ position: { x: 20000, y: 20000 } })] } as unknown as Partial<Floor>), solo)
-    expect(issues.some((i) => i.level === "error" && i.text.includes("вне здания"))).toBe(true)
+    expect(issues.some((i) => i.level === "error" && i.key === "islandOutside")).toBe(true)
   })
 
   it("место у стены комнаты 8×6 проход не перекрывает", () => {
@@ -77,38 +77,38 @@ describe("арендные места в общих зонах", () => {
 describe("validateFloor", () => {
   it("помещение без двери — ошибка", () => {
     const issues = validateFloor(boxFloor(), solo)
-    expect(issues.some((i) => i.level === "error" && i.text.includes("нет входа"))).toBe(true)
+    expect(issues.some((i) => i.level === "error" && i.key.startsWith("roomNoDoor"))).toBe(true)
   })
 
   it("с дверью ошибки о входе нет", () => {
     const issues = validateFloor(boxFloor({ openings: [door()] } as unknown as Partial<Floor>), solo)
-    expect(issues.some((i) => i.text.includes("нет входа"))).toBe(false)
+    expect(issues.some((i) => i.key.startsWith("roomNoDoor"))).toBe(false)
   })
 
   it("арендное помещение без окон — предупреждение", () => {
     const issues = validateFloor(boxFloor({ openings: [door()] } as unknown as Partial<Floor>), solo)
-    expect(issues.some((i) => i.level === "warn" && i.text.includes("без окон"))).toBe(true)
+    expect(issues.some((i) => i.level === "warn" && i.key.startsWith("roomNoWindow"))).toBe(true)
   })
 
   it("окно, вылезающее за стену, — ошибка", () => {
     const issues = validateFloor(boxFloor({ openings: [door(), window_({ id: "o2", wallId: "w2", offset: 5900, width: 1500 })] } as unknown as Partial<Floor>), solo)
-    expect(issues.some((i) => i.level === "error" && i.text.includes("выходит за её край"))).toBe(true)
+    expect(issues.some((i) => i.level === "error" && i.key === "openingOversize")).toBe(true)
   })
 
   it("узкая эвакуационная дверь — предупреждение", () => {
     const issues = validateFloor(boxFloor({ openings: [door({ width: 700, exit: "emergency" })] } as unknown as Partial<Floor>), solo)
-    expect(issues.some((i) => i.text.includes("Эвакуационная дверь уже"))).toBe(true)
+    expect(issues.some((i) => i.key === "exitDoorNarrow")).toBe(true)
   })
 
   it("окно во внутренней стене — предупреждение", () => {
     const f = boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>)
     f.wallGraph.edges.w2.kind = "interior" as never
-    expect(validateFloor(f, solo).some((i) => i.text.includes("во внутренней стене"))).toBe(true)
+    expect(validateFloor(f, solo).some((i) => i.key === "windowInner")).toBe(true)
   })
 
   it("крупное арендное помещение без привязки к базе — предупреждение", () => {
     const f = boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>)
-    expect(validateFloor(f, solo).some((i) => i.text.includes("не связано с помещением из базы"))).toBe(true)
+    expect(validateFloor(f, solo).some((i) => i.key.startsWith("roomNoLink"))).toBe(true)
     const linked = boxFloor({ openings: [door(), window_()], premiseLinks: { } } as unknown as Partial<Floor>)
     const rooms = validateFloor(linked, solo).filter((i) => i.id.startsWith("room-nolink-"))
     expect(rooms.length).toBe(1)
@@ -136,7 +136,7 @@ describe("validateFloor", () => {
     // дверь наружу только в левой комнате, между комнатами двери нет
     const f = splitFloor([door({ id: "d1", wallId: "w1a", offset: 2000 })])
     const issues = validateFloor(f, solo)
-    expect(issues.some((i) => i.level === "error" && i.text.includes("нет пути наружу"))).toBe(true)
+    expect(issues.some((i) => i.level === "error" && i.key.startsWith("roomNoExit"))).toBe(true)
   })
 
   it("с дверью между комнатами путь наружу есть", () => {
@@ -144,24 +144,24 @@ describe("validateFloor", () => {
       door({ id: "d1", wallId: "w1a", offset: 2000 }),
       door({ id: "d2", wallId: "w5", offset: 3000 }),
     ])
-    expect(validateFloor(f, solo).some((i) => i.text.includes("нет пути наружу"))).toBe(false)
+    expect(validateFloor(f, solo).some((i) => i.key.startsWith("roomNoExit"))).toBe(false)
   })
 
   it("этаж без лестницы в многоэтажном здании — ошибка", () => {
     const issues = validateFloor(boxFloor({ openings: [door(), window_()] } as unknown as Partial<Floor>), { lowest: true, multiFloor: true })
-    expect(issues.some((i) => i.level === "error" && i.text.includes("нет лестницы"))).toBe(true)
+    expect(issues.some((i) => i.level === "error" && i.key === "floorNoStair")).toBe(true)
   })
 
   it("верхний этаж не требует своей лестницы, если марш приходит снизу", () => {
     const top = boxFloor({ id: "f2", name: "2 этаж", openings: [door(), window_()] } as unknown as Partial<Floor>)
     const issues = validateFloor(top, { lowest: false, multiFloor: true, reachedFromBelow: true })
-    expect(issues.some((i) => i.text.includes("нет лестницы"))).toBe(false)
+    expect(issues.some((i) => i.key === "floorNoStair")).toBe(false)
   })
 
   it("вход выше земли без пандуса — предупреждение про МГН", () => {
     const f = boxFloor({ elevation: 600, openings: [door({ exit: "main" }), window_()] } as unknown as Partial<Floor>)
     const issues = validateFloor(f, solo)
-    expect(issues.some((i) => i.text.includes("МГН"))).toBe(true)
+    expect(issues.some((i) => i.key === "noRamp")).toBe(true)
   })
 
   it("с пандусом замечания про МГН нет", () => {
@@ -170,7 +170,7 @@ describe("validateFloor", () => {
       openings: [door({ exit: "main" }), window_()],
       stairs: [{ id: "r1", shape: "ramp", fromFloorId: "f1", toFloorId: "f1", position: { x: 4000, y: -1200 }, rotationDeg: 0, width: 1200, railing: true, rise: 600 }],
     } as unknown as Partial<Floor>)
-    expect(validateFloor(f, solo).some((i) => i.text.includes("МГН"))).toBe(false)
+    expect(validateFloor(f, solo).some((i) => i.key === "noRamp")).toBe(false)
   })
 
   it("лестница вне здания — ошибка", () => {
@@ -178,25 +178,25 @@ describe("validateFloor", () => {
       openings: [door(), window_()],
       stairs: [{ id: "s1", shape: "straight", fromFloorId: "f1", toFloorId: "f1", position: { x: 20000, y: 3000 }, rotationDeg: 0, width: 1100, railing: true }],
     } as unknown as Partial<Floor>)
-    expect(validateFloor(f, solo).some((i) => i.level === "error" && i.text.includes("вне здания"))).toBe(true)
+    expect(validateFloor(f, solo).some((i) => i.level === "error" && i.key === "outside")).toBe(true)
   })
 
   it("ни одна дверь не отмечена выходом — предупреждение", () => {
     const f = boxFloor({ openings: [door()] } as unknown as Partial<Floor>)
-    expect(validateFloor(f, solo).some((i) => i.text.includes("план эвакуации"))).toBe(true)
+    expect(validateFloor(f, solo).some((i) => i.key === "noExitMarked")).toBe(true)
     const marked = boxFloor({ openings: [door({ exit: "main" })] } as unknown as Partial<Floor>)
-    expect(validateFloor(marked, solo).some((i) => i.text.includes("план эвакуации"))).toBe(false)
+    expect(validateFloor(marked, solo).some((i) => i.key === "noExitMarked")).toBe(false)
   })
 
   it("низкий потолок — предупреждение", () => {
-    expect(validateFloor(boxFloor({ height: 2300 }), solo).some((i) => i.text.includes("Высота этажа"))).toBe(true)
+    expect(validateFloor(boxFloor({ height: 2300 }), solo).some((i) => i.key === "lowCeiling")).toBe(true)
   })
 
   it("стена нулевой длины — ошибка", () => {
     const f = boxFloor()
     f.wallGraph.nodes.n5 = { id: "n5", x: 10, y: 0 } as never
     f.wallGraph.edges.w5 = { id: "w5", a: "n1", b: "n5", thickness: 100, height: 3000, kind: "interior" } as never
-    expect(validateFloor(f, solo).some((i) => i.text.includes("случайный клик"))).toBe(true)
+    expect(validateFloor(f, solo).some((i) => i.key === "wallShort")).toBe(true)
   })
 
   it("у замечания есть ссылка на элемент и точка на плане", () => {
@@ -221,7 +221,7 @@ describe("validateDocument", () => {
     const f1 = boxFloor({ openings: [door(), window_()], stairs: [stair] } as unknown as Partial<Floor>)
     const f2 = boxFloor({ id: "f2", name: "2 этаж", elevation: 3000, openings: [door(), window_()] } as unknown as Partial<Floor>)
     const issues = validateDocument(doc([f1, f2]))
-    expect(issues.filter((i) => i.text.includes("нет лестницы"))).toHaveLength(0)
+    expect(issues.filter((i) => i.key === "floorNoStair")).toHaveLength(0)
   })
 
   it("ошибки идут раньше предупреждений", () => {
@@ -232,15 +232,14 @@ describe("validateDocument", () => {
   })
 })
 
-describe("issuesSummary", () => {
+describe("issuesCount", () => {
   it("без замечаний", () => {
-    expect(issuesSummary([])).toBe("Замечаний нет")
+    expect(issuesCount([])).toEqual({ errors: 0, warns: 0 })
   })
 
-  it("склонения", () => {
-    const mk = (n: number, level: "error" | "warn") => Array.from({ length: n }, (_, i) => ({ id: String(i), level, text: "" }))
-    expect(issuesSummary(mk(1, "error"))).toBe("1 ошибка")
-    expect(issuesSummary(mk(3, "warn"))).toBe("3 замечания")
-    expect(issuesSummary([...mk(2, "error"), ...mk(5, "warn")])).toBe("2 ошибки, 5 замечаний")
+  it("делит ошибки и замечания", () => {
+    const mk = (n: number, level: "error" | "warn") =>
+      Array.from({ length: n }, (_, i) => ({ id: String(i), level, key: "roomNoName" as const }))
+    expect(issuesCount([...mk(2, "error"), ...mk(5, "warn")])).toEqual({ errors: 2, warns: 5 })
   })
 })

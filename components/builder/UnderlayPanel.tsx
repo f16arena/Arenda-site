@@ -15,12 +15,14 @@ import { findFloor, SetUnderlayCommand } from "@/core/document/commands"
 import { TOKENS } from "@/lib/builder/materials"
 import { normalizeDeg, rotateUnderlay, scaleUnderlayAbout } from "@/lib/builder/underlay-math"
 import { compressDataUrl, countPdfPages, loadImageWithDimensions, renderPdfPage } from "@/lib/pdf-render"
-import { parseDxf } from "@/lib/builder/dxf-import"
-import { rasterizeDxf } from "@/lib/builder/dxf-raster"
+import { DXF_NO_LINES, parseDxf } from "@/lib/builder/dxf-import"
+import { NO_CANVAS, rasterizeDxf } from "@/lib/builder/dxf-raster"
+import { useT } from "@/lib/i18n/client"
 
 export type PendingMeasure = { lengthMm: number; from: { x: number; y: number } } | null
 
 export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure; onConsumed: () => void }) {
+  const { t } = useT()
   const doc = useDocumentStore((s) => s.doc)
   const execute = useDocumentStore((s) => s.execute)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -64,7 +66,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       setPages(null)
       setPendingFile(null)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось загрузить план")
+      setError(cause instanceof Error ? cause.message : t("adminBuilder.underlay.loadFailed"))
     } finally {
       setBusy(false)
     }
@@ -79,9 +81,14 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       const r = rasterizeDxf(parsed)
       // DXF в миллиметрах: подложка сразу в масштабе 1:1 и на своих координатах
       execute(new SetUnderlayCommand(floor.id, { url: r.url, widthMm: r.widthMm, aspect: r.aspect, x: r.x, y: r.y, rotationDeg: 0, opacity: 0.8 }))
-      setInfo(`DXF: ${parsed.segments.length} линий, слоёв ${parsed.layers.length}, ${((parsed.bounds.maxX - parsed.bounds.minX) / 1000).toFixed(1)} × ${((parsed.bounds.maxY - parsed.bounds.minY) / 1000).toFixed(1)} м — масштаб из файла, калибровка не нужна`)
+      setInfo(t("adminBuilder.underlay.dxfInfo", {
+        lines: parsed.segments.length,
+        layers: parsed.layers.length,
+        width: ((parsed.bounds.maxX - parsed.bounds.minX) / 1000).toFixed(1),
+        height: ((parsed.bounds.maxY - parsed.bounds.minY) / 1000).toFixed(1),
+      }))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось прочитать DXF")
+      setError(dxfError(cause))
     } finally {
       setBusy(false)
     }
@@ -101,7 +108,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       try {
         count = await countPdfPages(file)
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : "Не удалось прочитать PDF")
+        setError(cause instanceof Error ? cause.message : t("adminBuilder.underlay.pdfFailed"))
         setPendingFile(null)
         return
       }
@@ -109,6 +116,14 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       if (count > 1) return
     }
     await place(file, 1)
+  }
+
+  // разбор DXF отдаёт код, а не текст: подпись живёт в словаре
+  const dxfError = (cause: unknown) => {
+    const code = cause instanceof Error ? cause.message : ""
+    if (code === DXF_NO_LINES) return t("adminBuilder.underlay.dxfNoLines")
+    if (code === NO_CANVAS) return t("adminBuilder.underlay.noCanvas")
+    return code || t("adminBuilder.underlay.dxfFailed")
   }
 
   function startMeasure(next: "calibrate" | "move") {
@@ -161,7 +176,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
   return (
     <div className="mt-3 flex flex-col gap-1.5">
       <p className="text-[10px] uppercase tracking-wide" style={{ color: TOKENS.muted }}>
-        Подложка · {floor.name}
+        {t("adminBuilder.underlay.title", { name: floor.name })}
       </p>
       <input
         id="builder-underlay-file"
@@ -180,13 +195,13 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
           className="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium"
           style={{ background: underlay ? "rgba(148,163,184,0.12)" : TOKENS.accent, color: underlay ? TOKENS.text : "#0b1220", opacity: busy ? 0.5 : 1 }}
         >
-          {busy ? "Загружаю…" : underlay ? "Заменить подложку" : "Скан, PDF или DXF"}
+          {busy ? t("adminBuilder.underlay.loading") : t(underlay ? "adminBuilder.underlay.replace" : "adminBuilder.underlay.pick")}
         </label>
-        {underlay && !confirmRemove && btn("Удалить скан", () => setConfirmRemove(true), { title: "Убрать загруженный скан с этого этажа. Стены остаются" })}
+        {underlay && !confirmRemove && btn(t("adminBuilder.underlay.remove"), () => setConfirmRemove(true), { title: t("adminBuilder.underlay.removeHint") })}
       </div>
       {underlay && confirmRemove && (
         <div className="flex flex-wrap items-center gap-1 rounded-md p-1.5 text-[11px]" style={{ background: "rgba(239,68,68,0.12)", color: TOKENS.text }}>
-          <span className="mr-auto">Удалить скан с этажа?</span>
+          <span className="mr-auto">{t("adminBuilder.underlay.removeAsk")}</span>
           <button
             type="button"
             onClick={() => {
@@ -196,15 +211,15 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
             className="rounded-md px-2 py-1 font-semibold"
             style={{ background: "#ef4444", color: "#fff" }}
           >
-            Да, удалить
+            {t("adminBuilder.underlay.removeYes")}
           </button>
-          {btn("Нет", () => setConfirmRemove(false))}
+          {btn(t("adminBuilder.underlay.removeNo"), () => setConfirmRemove(false))}
         </div>
       )}
 
       {pages && pages > 1 && pendingFile && (
         <div className="flex items-center gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
-          Страница:
+          {t("adminBuilder.underlay.page")}
           {Array.from({ length: pages }, (_, index) => index + 1).map((page) => (
             <button
               key={page}
@@ -222,7 +237,7 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
       {underlay && (
         <>
           <label className="flex items-center justify-between gap-2 text-[11px]" style={{ color: TOKENS.muted }}>
-            Прозрачность
+            {t("adminBuilder.underlay.opacity")}
             <input
               id="builder-underlay-opacity"
               type="range"
@@ -238,9 +253,9 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
           </label>
 
           <div className="flex items-center gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
-            <span className="mr-auto">Поворот</span>
-            {btn("⟲ 90°", () => rotate(-90), { title: "Повернуть против часовой" })}
-            {btn("⟳ 90°", () => rotate(90), { title: "Повернуть по часовой" })}
+            <span className="mr-auto">{t("adminBuilder.underlay.rotation")}</span>
+            {btn("⟲ 90°", () => rotate(-90), { title: t("adminBuilder.underlay.rotateCcw") })}
+            {btn("⟳ 90°", () => rotate(90), { title: t("adminBuilder.underlay.rotateCw") })}
             <input
               id="builder-underlay-angle"
               type="number"
@@ -251,36 +266,34 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
               onKeyDown={(event) => {
                 if (event.key === "Enter") commitAngle()
               }}
-              title="Точный угол, градусы"
+              title={t("adminBuilder.underlay.angleHint")}
               className="w-12 rounded-md bg-white/5 px-1 py-0.5 text-right text-[11px] tabular-nums"
               style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
             />
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]" style={{ color: TOKENS.muted }}>
-            <span className="whitespace-nowrap tabular-nums">Ширина {(underlay.widthMm / 1000).toFixed(2)} м</span>
+            <span className="whitespace-nowrap tabular-nums">{t("adminBuilder.underlay.width", { value: (underlay.widthMm / 1000).toFixed(2) })}</span>
             <div className="flex gap-1">
-              {btn("Калибровать", () => startMeasure("calibrate"), {
-                title: "Отметьте рулеткой на скане размер со штампа и введите настоящую длину",
+              {btn(t("adminBuilder.underlay.calibrate"), () => startMeasure("calibrate"), {
+                title: t("adminBuilder.underlay.calibrateHint"),
               })}
-              {btn("Совместить", () => startMeasure("move"), {
-                title: "Кликните точку на скане, затем точку модели, куда она должна встать",
+              {btn(t("adminBuilder.underlay.align"), () => startMeasure("move"), {
+                title: t("adminBuilder.underlay.alignHint"),
               })}
             </div>
           </div>
 
           {intent && !pending && (
             <div className="rounded-md p-2 text-[11px]" style={{ background: "rgba(56,189,248,0.12)", color: TOKENS.text }}>
-              {intent === "calibrate"
-                ? "Кликните два конца известного размера на скане."
-                : "Кликните точку на скане, затем точку модели, куда её поставить."}
-              <div className="mt-1">{btn("Отмена", cancelMeasure)}</div>
+              {t(intent === "calibrate" ? "adminBuilder.underlay.calibrateStep" : "adminBuilder.underlay.alignStep")}
+              <div className="mt-1">{btn(t("adminBuilder.underlay.cancel"), cancelMeasure)}</div>
             </div>
           )}
 
           {pending && (
             <div className="rounded-md p-2 text-[11px]" style={{ background: "rgba(251,191,36,0.12)", color: TOKENS.text }}>
-              Отрезок {(pending.lengthMm / 1000).toFixed(2)} м. Сколько на самом деле?
+              {t("adminBuilder.underlay.segment", { value: (pending.lengthMm / 1000).toFixed(2) })}
               <div className="mt-1 flex items-center gap-1">
                 <input
                   id="builder-underlay-real"
@@ -296,9 +309,9 @@ export function UnderlayPanel({ pending, onConsumed }: { pending: PendingMeasure
                   className="w-20 rounded-md bg-white/5 px-1.5 py-1 text-xs tabular-nums"
                   style={{ color: TOKENS.text, border: `1px solid ${TOKENS.panelBorder}` }}
                 />
-                <span style={{ color: TOKENS.muted }}>м</span>
-                {btn("Применить", applyCalibration, { accent: true })}
-                {btn("Отмена", () => onConsumed())}
+                <span style={{ color: TOKENS.muted }}>{t("adminBuilder.underlay.meters")}</span>
+                {btn(t("adminBuilder.underlay.apply"), applyCalibration, { accent: true })}
+                {btn(t("adminBuilder.underlay.cancel"), () => onConsumed())}
               </div>
             </div>
           )}

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic"
 
 import Link from "next/link"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { HEALTH_TABS } from "@/lib/hub-tabs"
+import { healthTabs } from "@/lib/hub-tabs"
 import { redirect } from "next/navigation"
 import {
   ArrowRight,
@@ -48,6 +48,19 @@ type CategoryLabels = {
   optional: string
 }
 
+/** Шаг с уже переведёнными подписями: сам модуль отдаёт только ключи. */
+type StepView = {
+  key: string
+  href: string
+  done: boolean
+  required: boolean
+  title: string
+  description: string
+  outcome: string
+  action: string
+  count: string
+}
+
 export default async function OnboardingPage() {
   const session = await auth()
   if (!session) redirect("/login")
@@ -72,9 +85,22 @@ export default async function OnboardingPage() {
     ? Math.max(0, Math.ceil((org.planExpiresAt.getTime() - now.getTime()) / 86_400_000))
     : null
 
+  const stepView = (step: OnboardingStep): StepView => ({
+    key: step.key,
+    href: step.href,
+    done: step.done,
+    required: step.required,
+    title: t(`adminChecks.onboardingSteps.steps.${step.key}.title`),
+    description: t(`adminChecks.onboardingSteps.steps.${step.key}.description`),
+    outcome: t(`adminChecks.onboardingSteps.steps.${step.key}.outcome`),
+    action: t(`adminChecks.onboardingSteps.steps.${step.key}.action`),
+    count: t(step.countKey, step.countVars),
+  })
+
   const orgName = org?.name ?? t("adminSettings.onboarding.orgFallback")
+  const nextRequired = onboarding.nextRequiredStep ? stepView(onboarding.nextRequiredStep) : null
   const grouped = categoryOrder.map((category) => {
-    const steps = onboarding.steps.filter((step) => step.category === category)
+    const steps = onboarding.steps.filter((step) => step.category === category).map(stepView)
     const doneRequired = steps.filter((step) => step.required && step.done).length
     const required = steps.filter((step) => step.required).length
     const labels: CategoryLabels = {
@@ -91,7 +117,7 @@ export default async function OnboardingPage() {
 
   return (
     <div className="max-w-6xl space-y-5">
-      <RouteTabs items={HEALTH_TABS} className="mb-2" />
+      <RouteTabs items={healthTabs(t)} className="mb-2" />
 
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("adminSettings.onboarding.title")}</h1>
@@ -114,20 +140,20 @@ export default async function OnboardingPage() {
           <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${onboarding.percent}%` }} />
         </div>
 
-        {onboarding.nextRequiredStep ? (
+        {nextRequired ? (
           <div className="mt-5 border-t border-slate-100 pt-5 dark:border-slate-800">
             <p className="text-xs uppercase tracking-wide text-slate-400">{t("adminSettings.onboarding.nextStep")}</p>
             <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
-              {onboarding.nextRequiredStep.title}
+              {nextRequired.title}
             </p>
             <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
-              {onboarding.nextRequiredStep.outcome}
+              {nextRequired.outcome}
             </p>
             <Link
-              href={onboarding.nextRequiredStep.href}
+              href={nextRequired.href}
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition active:scale-[0.97] hover:bg-blue-700"
             >
-              {onboarding.nextRequiredStep.actionLabel}
+              {nextRequired.action}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -166,7 +192,7 @@ function CategoryBlock({
   labels,
 }: {
   category: OnboardingStepCategory
-  steps: OnboardingStep[]
+  steps: StepView[]
   labels: CategoryLabels
 }) {
   const meta = categoryMeta[category]
@@ -208,24 +234,22 @@ function CategoryBlock({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{step.title}</p>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
                   step.required
                     ? "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
                     : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
                 }`}>
                   {step.required ? labels.required : labels.optional}
                 </span>
-                {step.countLabel && (
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                    {step.countLabel}
-                  </span>
-                )}
+                <span className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {step.count}
+                </span>
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{step.description}</p>
               <p className="mt-1 text-[11px] leading-5 text-slate-400 dark:text-slate-500">{step.outcome}</p>
             </div>
             <div className="mt-1 flex shrink-0 items-center gap-1 text-xs font-medium text-blue-600 opacity-0 transition group-hover:opacity-100 dark:text-blue-300">
-              {step.actionLabel}
+              {step.action}
               <ArrowRight className="h-3.5 w-3.5" />
             </div>
           </Link>

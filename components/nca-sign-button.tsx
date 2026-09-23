@@ -6,19 +6,22 @@ import { ShieldCheck, Loader2, AlertCircle, CheckCircle2 } from "lucide-react"
 import { signWithNCALayer, fetchAsBase64, sha256Base64, type KeyStoragePref } from "@/lib/ncalayer"
 import { saveSignature } from "@/app/actions/signatures"
 import { NcaKeyTypeSelect } from "@/components/nca-key-type-select"
+import { useT } from "@/lib/i18n/client"
 
 interface Props {
   documentUrl: string         // URL для скачивания DOCX/PDF (например, /api/contracts/generate?...)
   documentType: "CONTRACT" | "INVOICE" | "ACT" | "RECONCILIATION" | "HANDOVER"
   documentId?: string         // ID связанной сущности (Contract.id и т.п.)
   documentRef?: string        // Альтернативно — строковый референс
-  label?: string              // Текст кнопки (по умолчанию "Подписать ЭЦП")
+  label?: string              // Текст кнопки (по умолчанию — «Подписать ЭЦП» из словаря)
   onSigned?: () => void       // Callback после успешной подписи
 }
 
 type Phase = "idle" | "downloading" | "hashing" | "signing" | "saving" | "done" | "error"
 
-export function NcaSignButton({ documentUrl, documentType, documentId, documentRef, label = "Подписать ЭЦП", onSigned }: Props) {
+export function NcaSignButton({ documentUrl, documentType, documentId, documentRef, label, onSigned }: Props) {
+  const { t } = useT()
+  const signLabel = label ?? t("common.sign.signEcp")
   const [phase, setPhase] = useState<Phase>("idle")
   const [error, setError] = useState<string | null>(null)
   const [showHelp, setShowHelp] = useState(false)
@@ -55,14 +58,14 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
         certPemB64: result.signerCert,
       })
       if (!saved.ok) {
-        setError(saved.error ?? "Не удалось сохранить")
+        setError(saved.error ?? t("common.sign.saveFailed"))
         setPhase("error")
-        toast.error(saved.error ?? "Не удалось сохранить подпись")
+        toast.error(saved.error ?? t("common.sign.saveSignatureFailed"))
         return
       }
 
       setPhase("done")
-      toast.success("Документ подписан ЭЦП")
+      toast.success(t("common.sign.signedDoc"))
       onSigned?.()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -88,12 +91,12 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
         {isWorking ? <Loader2 className="h-4 w-4 animate-spin" /> :
          phase === "done" ? <CheckCircle2 className="h-4 w-4" /> :
          <ShieldCheck className="h-4 w-4" />}
-        {phase === "downloading" && "Скачиваем документ…"}
-        {phase === "hashing" && "Хешируем…"}
-        {phase === "signing" && "Введите PIN в NCALayer…"}
-        {phase === "saving" && "Сохраняем…"}
-        {phase === "done" && "Подписано"}
-        {(phase === "idle" || phase === "error") && label}
+        {phase === "downloading" && t("common.sign.downloading")}
+        {phase === "hashing" && t("common.sign.hashing")}
+        {phase === "signing" && t("common.sign.enterPin")}
+        {phase === "saving" && t("common.sign.saving")}
+        {phase === "done" && t("common.sign.signed")}
+        {(phase === "idle" || phase === "error") && signLabel}
       </button>
 
       {phase === "error" && error && (
@@ -104,9 +107,9 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
           </div>
           {showHelp && (
             <p className="mt-2 text-[10px] text-red-600 dark:text-red-400">
-              Установите NCALayer с{" "}
+              {t("common.sign.ncaInstall1")}{" "}
               <a href="https://pki.gov.kz/ncalayer/" target="_blank" rel="noopener" className="underline">pki.gov.kz/ncalayer</a>
-              , запустите его (значок в трее) и нажмите Подписать снова.
+              {t("common.sign.ncaInstall2")}
             </p>
           )}
         </div>
@@ -114,9 +117,9 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
 
       {phase === "idle" && (
         <p className="text-[10px] text-slate-400 dark:text-slate-500 max-w-xs print:hidden">
-          Требуется NCALayer.{" "}
+          {t("common.sign.needNcaShort")}{" "}
           <button type="button" onClick={() => setShowHelp((v) => !v)} className="text-blue-600 dark:text-blue-400 hover:underline">
-            {showHelp ? "Скрыть" : "Что это?"}
+            {showHelp ? t("common.sign.hide") : t("common.sign.whatIsThis")}
           </button>
         </p>
       )}
@@ -124,9 +127,9 @@ export function NcaSignButton({ documentUrl, documentType, documentId, documentR
       {showHelp && phase === "idle" && (
         <div className="rounded-md bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 px-3 py-2 text-xs text-blue-900 dark:text-blue-200 max-w-sm print:hidden">
           <p className="font-medium mb-1">NCALayer</p>
-          <p>Государственная программа для работы с ЭЦП НУЦ РК. Скачайте на{" "}
+          <p>{t("common.sign.ncaAbout")}{" "}
             <a href="https://pki.gov.kz/ncalayer/" target="_blank" rel="noopener" className="underline">pki.gov.kz/ncalayer</a>{" "}
-            и запустите. После этого нажмите «Подписать ЭЦП» — выберите свой сертификат и введите PIN.
+            {t("common.sign.ncaAbout2")}
           </p>
         </div>
       )}

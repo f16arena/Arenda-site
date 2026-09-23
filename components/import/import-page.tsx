@@ -1,6 +1,7 @@
 import { Download } from "lucide-react"
 import { RouteTabs } from "@/components/ui/route-tabs"
-import { IMPORT_TABS } from "@/lib/hub-tabs"
+import { importTabs } from "@/lib/hub-tabs"
+import { getT } from "@/lib/i18n/server"
 
 /**
  * Общая рамка страниц импорта.
@@ -10,7 +11,8 @@ import { IMPORT_TABS } from "@/lib/hub-tabs"
  * странице. Осталось одно: вкладки. На самой странице — три шага и одно
  * действие, а описание формата убрано под «Что должно быть в файле».
  */
-export function ImportPage({
+// Серверный компонент: подписи вкладок берутся из словаря, а не из lib/hub-tabs.
+export async function ImportPage({
   title,
   subtitle,
   templateHref,
@@ -30,9 +32,10 @@ export function ImportPage({
   columns?: React.ReactNode
   children: React.ReactNode
 }) {
+  const { t } = await getT()
   return (
     <div className="max-w-6xl space-y-5">
-      <RouteTabs items={IMPORT_TABS} className="mb-2" />
+      <RouteTabs items={importTabs(t)} className="mb-2" />
 
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{title}</h1>

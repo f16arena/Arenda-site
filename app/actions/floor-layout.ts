@@ -10,6 +10,7 @@ import { assertFloorFitsSpaces } from "@/lib/area-validation"
 import { recomputeBuildingArea } from "@/lib/recompute-building-area"
 import { buildingsForOrgTag, floorsForBuildingTag } from "@/lib/admin-shell-cache"
 import { parseDocument } from "@/types/builder"
+import { getT } from "@/lib/i18n/server"
 
 export type SaveFloorLayoutResult = {
   success: true
@@ -25,6 +26,7 @@ export async function saveFloorLayout(
   layoutJson: string,
   totalArea?: number | null,
 ): Promise<SaveFloorLayoutResult> {
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   await requireOrgFeature(orgId, "floorEditor")
   await assertFloorInOrg(floorId, orgId)
@@ -33,7 +35,7 @@ export async function saveFloorLayout(
     where: { id: floorId },
     select: { buildingId: true },
   })
-  if (!floor) throw new Error("Этаж не найден")
+  if (!floor) throw new Error(t("actions.common.floorNotFound"))
   // Орг-скоупа мало: план этажа правит только тот, кому открыто здание
   await assertBuildingAccess(floor.buildingId, orgId)
 
@@ -82,6 +84,7 @@ export async function saveFloorLayout(
  * вкладка конструктора получит «Конфликт версий» и не затрёт удаление молча.
  */
 export async function deleteFloorPlan(floorId: string, what: "plan" | "scan") {
+  const { t } = await getT()
   await requireCapabilityAndFeature("floors.edit")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
@@ -89,7 +92,7 @@ export async function deleteFloorPlan(floorId: string, what: "plan" | "scan") {
     where: { id: floorId },
     select: { buildingId: true, number: true, layoutJson: true },
   })
-  if (!floor) throw new Error("Этаж не найден")
+  if (!floor) throw new Error(t("actions.common.floorNotFound"))
   await assertBuildingAccess(floor.buildingId, orgId)
 
   let layoutJson: string | null = null
@@ -140,6 +143,7 @@ export async function deleteFloorPlan(floorId: string, what: "plan" | "scan") {
  * Используется в UI как «применить площадь по этажам к зданию».
  */
 export async function setBuildingAreaFromFloors(buildingId: string) {
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
 
@@ -149,7 +153,7 @@ export async function setBuildingAreaFromFloors(buildingId: string) {
   })
   const sum = floors.reduce((s, f) => s + (f.totalArea ?? 0), 0)
   if (sum <= 0) {
-    throw new Error("Ни у одного этажа не задана площадь")
+    throw new Error(t("actions.floorLayout.noFloorArea"))
   }
 
   await db.building.update({

@@ -9,12 +9,14 @@ import { useEffect, useRef } from "react"
 import { useDocumentStore, useEditorStore } from "@/store/builder-store"
 import { detectRooms } from "@/core/geometry/room-detection"
 import { TOKENS } from "@/lib/builder/materials"
+import { useT } from "@/lib/i18n/client"
 import type { Floor } from "@/types/builder"
 
 const PADDING = 12 // отступ внутри холста, px
 const DPR_CAP = 2 // ограничиваем devicePixelRatio для производительности
 
 export function MiniMap() {
+  const { t } = useT()
   const doc = useDocumentStore((s) => s.doc)
   const rev = useDocumentStore((s) => s.rev)
   const activeLevelId = useEditorStore((s) => s.activeLevelId)
@@ -34,7 +36,11 @@ export function MiniMap() {
   const isSite = !floor
   const fallback = building?.floors[0]
   const drawFloor: Floor | undefined = floor ?? fallback
-  const title = floor ? floor.name : isSite && activeLevelId === "site" ? "Участок" : (drawFloor?.name ?? "—")
+  const title = floor ? floor.name : isSite && activeLevelId === "site" ? t("adminBuilder.miniMap.site") : (drawFloor?.name ?? "—")
+
+  // подписи берём до эффекта: внутри canvas-рисования переводчику не место
+  const siteText = t("adminBuilder.miniMap.site")
+  const blankText = t("adminBuilder.miniMap.blank")
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -60,7 +66,7 @@ export function MiniMap() {
       ctx.font = "11px system-ui, sans-serif"
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
-      ctx.fillText(isSite ? "Участок" : "Пусто", cssW / 2, cssH / 2)
+      ctx.fillText(isSite ? siteText : blankText, cssW / 2, cssH / 2)
       return
     }
 
@@ -115,7 +121,7 @@ export function MiniMap() {
       ctx.lineTo(sx(b.x), sy(b.y))
     }
     ctx.stroke()
-  }, [rev, activeLevelId, drawFloor, isSite])
+  }, [rev, activeLevelId, drawFloor, isSite, siteText, blankText])
 
   return (
     <div

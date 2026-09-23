@@ -11,6 +11,8 @@ import { layoutBox, polygonPath } from "@/lib/indoor-map/geometry"
 import { fontSizeFor, layoutLabels } from "@/lib/indoor-map/labels"
 import type { FloorView, RoomView } from "@/lib/indoor-map/model"
 import { PAPER, STATUS_STYLE, STROKE, ZOOM_MAX, ZOOM_MIN, detailFor } from "@/lib/indoor-map/tokens"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 import { CategoryGlyph, ServiceGlyph, type ServiceKind } from "./glyphs"
 
 export type MapFilter = "all" | "vacant" | "expiring" | "debt"
@@ -54,6 +56,7 @@ function matchesFilter(room: RoomView, filter: MapFilter): boolean {
 }
 
 export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit, ref }: Props) {
+  const { t, locale } = useT()
   const hostRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const [size, setSize] = useState({ w: 900, h: 600 })
@@ -152,7 +155,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
       const image = new Image()
       await new Promise<void>((resolve, reject) => {
         image.onload = () => resolve()
-        image.onerror = () => reject(new Error("Не удалось отрисовать план"))
+        image.onerror = () => reject(new Error(t("adminObjects.map.renderFailed")))
         image.src = url
       })
       const canvas = document.createElement("canvas")
@@ -200,7 +203,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
     } finally {
       URL.revokeObjectURL(url)
     }
-  }, [size.w, size.h, labels, roomById, fontSize])
+  }, [size.w, size.h, labels, roomById, fontSize, t])
 
   useImperativeHandle(
     ref,
@@ -541,7 +544,9 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
               return (
                 <span
                   key={`debt-${room.id}`}
-                  title={`Долг ${Math.round(room.debt).toLocaleString("ru-RU")} ₸`}
+                  title={t("adminObjects.map.debtTitle", {
+                    amount: formatMoneyL(locale, Math.round(room.debt)),
+                  })}
                   className="pointer-events-none absolute h-[7px] w-[7px] rounded-full bg-red-500 ring-2 ring-white"
                   // угол правый верхний, поэтому уводим внутрь помещения: влево и вниз
                   style={{ left: p.x - 12, top: p.y + 8 }}
@@ -603,20 +608,24 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
               style={{ background: STATUS_STYLE[hovered.status].edge }}
             />
             <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-              {STATUS_STYLE[hovered.status].label}
+              {t(`adminObjects.map.status.${hovered.status}` as "adminObjects.map.status.VACANT")}
             </span>
           </div>
           <div className="mt-0.5 text-sm font-semibold text-slate-900">{hovered.title}</div>
           <div className="text-xs text-slate-500">
-            {hovered.number ? `Помещение ${hovered.number} · ` : ""}
+            {hovered.number
+              ? `${t("adminObjects.map.premiseNumber", { number: hovered.number })} · `
+              : ""}
             {hovered.area.toFixed(1)} м²
             {hovered.daysLeft !== null && hovered.daysLeft >= 0
-              ? ` · договор ещё ${hovered.daysLeft} дн.`
+              ? ` · ${t("adminObjects.map.contractDaysLeft", { days: hovered.daysLeft })}`
               : ""}
           </div>
           {hovered.debt > 0 ? (
             <div className="mt-0.5 text-xs font-semibold text-red-600">
-              Долг {Math.round(hovered.debt).toLocaleString("ru-RU")} ₸
+              {t("adminObjects.map.debtTitle", {
+                amount: formatMoneyL(locale, Math.round(hovered.debt)),
+              })}
             </div>
           ) : null}
         </div>

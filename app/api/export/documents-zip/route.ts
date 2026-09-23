@@ -6,15 +6,13 @@ import { requireOrgAccess } from "@/lib/org"
 import { documentBuildingFilter } from "@/lib/building-access"
 import { isTenantRole } from "@/lib/role-capabilities"
 import { canPerformCapability } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
-const TYPE_LABEL: Record<string, string> = {
-  INVOICE: "Счета",
-  ACT: "АВР",
-  RECONCILIATION: "Акты сверки",
-  HANDOVER: "Акты приёма-передачи",
-}
+// Виды документов, которые попадают в архив. Названия папок берутся из словаря
+// (adminDocs.export.zip.folders) — папку открывает человек, а не программа.
+const ZIP_TYPES = ["INVOICE", "ACT", "RECONCILIATION", "HANDOVER"] as const
 
 // GET /api/export/documents-zip?period=YYYY-MM[&types=INVOICE,ACT]
 // Все сгенерированные документы организации за месяц одним ZIP-архивом
@@ -25,20 +23,22 @@ export async function GET(req: Request) {
   if (!session?.user || isTenantRole(session.user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   const byBuilding = await documentBuildingFilter(orgId)
   if (!(await canPerformCapability(session.user.role, "finance.exportZip", !!session.user.isPlatformOwner, session.user.id))) {
-    return NextResponse.json({ error: "Нет права на скачивание архива документов" }, { status: 403 })
+    return NextResponse.json({ error: t("adminDocs.api.export.noZipRight") }, { status: 403 })
   }
 
   const url = new URL(req.url)
   const period = url.searchParams.get("period") ?? new Date().toISOString().slice(0, 7)
   if (!/^\d{4}-\d{2}$/.test(period)) {
-    return NextResponse.json({ error: "period должен быть в формате YYYY-MM" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.export.badPeriodFormat") }, { status: 400 })
   }
   const typesRaw = url.searchParams.get("types") ?? "INVOICE,ACT"
-  const types = typesRaw.split(",").map((t) => t.trim().toUpperCase()).filter((t) => TYPE_LABEL[t])
-  if (types.length === 0) return NextResponse.json({ error: "Неизвестные типы документов" }, { status: 400 })
+  const allowed = new Set<string>(ZIP_TYPES)
+  const types = typesRaw.split(",").map((code) => code.trim().toUpperCase()).filter((code) => allowed.has(code))
+  if (types.length === 0) return NextResponse.json({ error: t("adminDocs.api.export.unknownDocumentTypes") }, { status: 400 })
 
   // Cursor-пагинация: выгружаем ВСЕ документы периода, не обрезая на лимите
   type ZipDoc = { id: string; documentType: string; number: string | null; tenantName: string; fileName: string; fileBytes: Buffer | Uint8Array }
@@ -58,27 +58,30 @@ export async function GET(req: Request) {
   }
   docs.sort((a, b) => a.documentType.localeCompare(b.documentType) || String(a.number ?? "").localeCompare(String(b.number ?? ""), "ru"))
   if (docs.length === 0) {
-    return NextResponse.json({ error: `За ${period} документов не найдено` }, { status: 404 })
+    return NextResponse.json({ error: t("adminDocs.api.export.nothingForPeriod", { period }) }, { status: 404 })
   }
 
   // Папки по типу, имя файла: «Номер — Арендатор — исходное_имя».
   const safe = (s: string) => s.replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim()
+  const noNumber = t("adminDocs.export.zip.noNumber")
   const entries: Record<string, Uint8Array> = {}
   for (const d of docs) {
-    const folder = TYPE_LABEL[d.documentType] ?? d.documentType
+    const folderKey = `adminDocs.export.zip.folders.${d.documentType}` as Parameters<typeof t>[0]
+    const folderLabel = t(folderKey)
+    const folder = folderLabel === folderKey ? d.documentType : folderLabel
     const ext = d.fileName.includes(".") ? d.fileName.slice(d.fileName.lastIndexOf(".")) : ""
-    let name = `${folder}/${safe(`${d.number ?? "Б-Н"} — ${d.tenantName}`)}${ext}`
+    let name = `${folder}/${safe(`${d.number ?? noNumber} — ${d.tenantName}`)}${ext}`
     // Коллизии имён (один номер у разных файлов) — добавляем суффикс.
     let i = 2
     while (entries[name]) {
-      name = `${folder}/${safe(`${d.number ?? "Б-Н"} — ${d.tenantName}`)} (${i})${ext}`
+      name = `${folder}/${safe(`${d.number ?? noNumber} — ${d.tenantName}`)} (${i})${ext}`
       i++
     }
     entries[name] = new Uint8Array(d.fileBytes as unknown as Uint8Array)
   }
 
   const zipped = zipSync(entries, { level: 6 })
-  const zipName = `Документы_${period}.zip`
+  const zipName = `${t("adminDocs.export.zip.fileName", { period })}.zip`
   return new NextResponse(Buffer.from(zipped) as unknown as BodyInit, {
     headers: {
       "Content-Type": "application/zip",

@@ -6,8 +6,10 @@ import { requestPasswordReset } from "@/app/actions/password-reset"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
 
 export function ForgotPasswordForm() {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [done, setDone] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -21,7 +23,7 @@ export function ForgotPasswordForm() {
           <div className="flex items-start gap-3">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="text-sm font-medium text-emerald-900">Письмо отправлено</p>
+              <p className="text-sm font-medium text-emerald-900">{t("auth.forgotPassword.sentTitle")}</p>
               <p className="text-xs text-emerald-800 mt-1">{message}</p>
             </div>
           </div>
@@ -29,7 +31,7 @@ export function ForgotPasswordForm() {
 
         {previewLink && (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-2">
-            <p className="text-xs text-blue-900 font-medium">Тестовая ссылка (Resend не настроен):</p>
+            <p className="text-xs text-blue-900 font-medium">{t("auth.forgotPassword.testLink")}</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 truncate rounded bg-white px-2 py-1 text-[11px] font-mono text-slate-700 border border-slate-200">
                 {previewLink}
@@ -40,7 +42,7 @@ export function ForgotPasswordForm() {
                 size="icon-sm"
                 onClick={() => {
                   navigator.clipboard.writeText(previewLink)
-                  toast.success("Скопировано")
+                  toast.success(t("common.actions.copied"))
                 }}
               >
                 <Copy className="h-3 w-3" />
@@ -50,7 +52,7 @@ export function ForgotPasswordForm() {
         )}
 
         <p className="text-xs text-slate-500">
-          Если письмо не пришло за 5 минут — проверь папку «Спам» или попробуй ещё раз.
+          {t("auth.forgotPassword.checkSpam")}
         </p>
 
         <Button
@@ -64,7 +66,7 @@ export function ForgotPasswordForm() {
           }}
           className="w-full font-medium"
         >
-          Отправить ещё раз
+          {t("auth.forgotPassword.sendAgain")}
         </Button>
       </div>
     )
@@ -78,7 +80,7 @@ export function ForgotPasswordForm() {
           const r = await requestPasswordReset(fd)
           if (r.ok) {
             setDone(true)
-            setMessage(r.message ?? "Письмо отправлено")
+            setMessage(r.message ?? t("auth.forgotPassword.sentTitle"))
             setPreviewLink(r.previewLink ?? null)
           } else {
             setError(r.error)
@@ -114,7 +116,7 @@ export function ForgotPasswordForm() {
         loading={pending}
         className="w-full font-semibold"
       >
-        {pending ? "Отправка..." : "Отправить ссылку"}
+        {pending ? t("common.actions.sending") : t("auth.forgotPassword.submit")}
       </Button>
     </form>
   )

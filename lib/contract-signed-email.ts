@@ -4,6 +4,13 @@ import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
 import { buildSignedAddendumDocxBuffer } from "@/lib/contract-engine/signed-addendum-docx"
 import { convertDocxToPdf } from "@/lib/pdf-convert"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
+import type { getT } from "@/lib/i18n/server"
+
+/** Переводчик передаётся параметром: помощник сессию сам не читает. */
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 /**
  * Рассылает подписанный договор (PDF со штампами ЭЦП) обеим сторонам после того,
@@ -33,7 +40,7 @@ export async function sendSignedContractEmails(contractId: string): Promise<void
             companyName: true,
             bin: true,
             iin: true,
-            user: { select: { name: true, email: true, organizationId: true } },
+            user: { select: { id: true, name: true, email: true, organizationId: true } },
           },
         },
       },
@@ -41,9 +48,11 @@ export async function sendSignedContractEmails(contractId: string): Promise<void
     if (!contract || contract.status !== "SIGNED") return
 
     // Получатели: арендатор + арендодатель (без дублей, без пустых).
-    const recipients = new Set<string>()
+    // Рядом с адресом храним userId — по нему берётся язык письма: арендатор и
+    // арендодатель могут читать на разных языках, письмо у каждого своё.
+    const recipients = new Map<string, string | null>()
     const tenantEmail = contract.tenant.user.email?.trim()
-    if (tenantEmail) recipients.add(tenantEmail.toLowerCase())
+    if (tenantEmail) recipients.set(tenantEmail.toLowerCase(), contract.tenant.user.id)
 
     const orgId = contract.tenant.user.organizationId
     let orgName = ""
@@ -55,13 +64,15 @@ export async function sendSignedContractEmails(contractId: string): Promise<void
       orgName = org?.legalName?.trim() || org?.name?.trim() || ""
       const orgEmail = org?.email?.trim()
       if (orgEmail) {
-        recipients.add(orgEmail.toLowerCase())
+        // Ящик организации может быть общим, владельца за ним нет — язык по
+        // профилю владельца, если он известен.
+        recipients.set(orgEmail.toLowerCase(), org?.ownerUserId ?? null)
       } else if (org?.ownerUserId) {
         const owner = await db.user.findUnique({
           where: { id: org.ownerUserId },
           select: { email: true },
         })
-        if (owner?.email?.trim()) recipients.add(owner.email.trim().toLowerCase())
+        if (owner?.email?.trim()) recipients.set(owner.email.trim().toLowerCase(), org.ownerUserId)
       }
     }
     if (recipients.size === 0) {
@@ -78,38 +89,56 @@ export async function sendSignedContractEmails(contractId: string): Promise<void
       return
     }
 
-    const baseName = signedContractBaseName(contract)
-    let attachment: { filename: string; content: Buffer }
+    // PDF/DOCX один для всех — различается только имя файла, оно на языке
+    // получателя, поэтому конвертируем один раз, а имя подставляем в цикле.
+    let content = docx
+    let ext = "docx"
     try {
-      const pdf = await convertDocxToPdf(docx, `${baseName.replace(/[^\w.-]+/g, "_")}.docx`)
-      attachment = { filename: `${baseName}.pdf`, content: pdf }
+      content = await convertDocxToPdf(docx, "signed-contract.docx")
+      ext = "pdf"
     } catch (e) {
       console.warn("[signed-contract email] PDF-конвертация не удалась, вкладываю DOCX:", e instanceof Error ? e.message : e)
-      attachment = { filename: `${baseName}.docx`, content: docx }
     }
 
-    const documentTitle = contract.type === "ADDENDUM" ? "Дополнительное соглашение" : "Договор аренды"
-    const numberLabel = contract.number ? ` № ${contract.number}` : ""
-    const signedDate = (contract.signedAt ?? new Date()).toLocaleDateString("ru-RU")
     const verifyUrl = `https://commrent.kz/verify/${contract.id}`
-    const partiesLine = [orgName, contract.tenant.companyName].filter(Boolean).map(htmlEscape).join(" и ")
 
     // Каждой стороне — отдельное письмо (получатели не видят адреса друг друга).
-    for (const recipient of recipients) {
+    for (const [recipient, recipientUserId] of recipients) {
+      const { t, locale } = await getTForUser(recipientUserId)
+      const doc = contract.type === "ADDENDUM"
+        ? t("emails.signedContract.docAddendum")
+        : t("emails.signedContract.docContract")
+      const numberLabel = contract.number
+        ? t("emails.signedContract.numberPart", { number: contract.number })
+        : ""
+      const signedDate = formatDateShortL(locale, contract.signedAt ?? new Date())
+      const parties = [orgName, contract.tenant.companyName]
+        .filter(Boolean)
+        .map(htmlEscape)
+        .join(t("emails.signedContract.partiesJoin"))
+      const bodyVars = {
+        doc: htmlEscape(doc),
+        number: htmlEscape(numberLabel.trim() || "—"),
+        parties,
+        date: htmlEscape(signedDate),
+      }
+      const baseName = signedContractBaseName(contract, t, locale)
+
       const result = await sendEmail({
         to: recipient,
-        subject: `${documentTitle}${numberLabel} подписан обеими сторонами`,
+        subject: t("emails.signedContract.subject", { doc, number: numberLabel }),
         html: basicEmailTemplate({
-          title: `${documentTitle}${numberLabel} подписан`,
-          body: `<p>Здравствуйте!</p>
-<p>${htmlEscape(documentTitle)} <b>${htmlEscape(numberLabel.trim() || "—")}</b>${partiesLine ? ` между ${partiesLine}` : ""} подписан обеими сторонами ${htmlEscape(signedDate)}.</p>
-<p>Подписанный документ со штампами ЭЦП — во вложении. Подлинность подписей можно проверить по ссылке ниже.</p>`,
-          buttonText: "Проверить подлинность",
+          lang: locale,
+          title: t("emails.signedContract.title", { doc, number: numberLabel }),
+          body: `<p>${htmlEscape(t("emails.common.greeting"))}</p>
+<p>${parties ? t("emails.signedContract.bodyParties", bodyVars) : t("emails.signedContract.bodyNoParties", bodyVars)}</p>
+<p>${htmlEscape(t("emails.signedContract.attachmentNote"))}</p>`,
+          buttonText: t("emails.signedContract.verifyButton"),
           buttonUrl: verifyUrl,
-          footer: "Это автоматическое письмо. Документ юридически значим — сохраните его.",
+          footer: t("emails.signedContract.footer"),
         }),
-        text: `${documentTitle}${numberLabel} подписан обеими сторонами ${signedDate}. Подписанный документ во вложении. Проверка подлинности: ${verifyUrl}`,
-        attachments: [attachment],
+        text: t("emails.signedContract.text", { doc, number: numberLabel, date: signedDate, url: verifyUrl }),
+        attachments: [{ filename: `${baseName}.${ext}`, content }],
       })
       if (!result.ok) {
         console.warn(`[signed-contract email] не отправлено на ${recipient} (договор ${contract.number ?? contract.id}):`, result.error)
@@ -120,26 +149,37 @@ export async function sendSignedContractEmails(contractId: string): Promise<void
   }
 }
 
-/** Имя файла без расширения: «Договор аренды № 001 — ИП … от 01.06.2026». */
-function signedContractBaseName(contract: {
-  number: string | null
-  type: string
-  builderState: unknown
-  tenant: { companyName: string }
-}): string {
+/**
+ * Имя файла без расширения: «Договор аренды № 001 — ИП … от 01.06.2026».
+ * Переводчик и язык приходят параметрами — имя видит получатель письма.
+ */
+function signedContractBaseName(
+  contract: {
+    number: string | null
+    type: string
+    builderState: unknown
+    tenant: { companyName: string }
+  },
+  t: Tr,
+  locale: Locale,
+): string {
   const st = contract.builderState as { tenant?: { name?: string }; meta?: { contractDate?: string } } | null
   const tenantName = String(st?.tenant?.name ?? contract.tenant.companyName ?? "").replace(/[«»"]/g, "").trim()
-  let dateStr = ""
+  let datePart = ""
   const raw = st?.meta?.contractDate
   if (raw) {
-    const d = new Date(raw)
-    if (!Number.isNaN(d.getTime())) dateStr = d.toLocaleDateString("ru-RU")
+    const parsed = new Date(raw)
+    if (!Number.isNaN(parsed.getTime())) {
+      datePart = t("emails.signedContract.fileDatePart", { date: formatDateShortL(locale, parsed) })
+    }
   }
-  const kind = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор аренды"
+  const kind = contract.type === "ADDENDUM"
+    ? t("emails.signedContract.fileAddendum")
+    : t("emails.signedContract.fileContract")
   const parts = [
     `${kind}${contract.number ? ` № ${contract.number}` : ""}`,
     tenantName,
-    dateStr ? `от ${dateStr}` : "",
+    datePart,
   ].filter(Boolean)
   return parts.join(" — ").replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim()
 }

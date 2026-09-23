@@ -9,6 +9,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { assertTenantInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
+import { getT, getTForUser } from "@/lib/i18n/server"
 
 export type DocumentType = "INVOICE" | "ACT" | "CONTRACT" | "HANDOVER" | "RECONCILIATION"
 
@@ -22,53 +23,61 @@ interface SendDocumentParams {
   to?: string
 }
 
-const SUBJECTS: Record<DocumentType, (n: string) => string> = {
-  INVOICE: (n) => `Счёт на оплату № ${n}`,
-  ACT: (n) => `Акт оказанных услуг № ${n}`,
-  CONTRACT: (n) => `Договор аренды № ${n}`,
-  HANDOVER: () => `Акт приёма-передачи помещения`,
-  RECONCILIATION: (n) => `Акт сверки № ${n}`,
+// Переводчик приходит параметром: помощники ниже сами его не добывают.
+// Это тема и сопроводительный текст ПИСЬМА, а не текст документа во вложении —
+// поэтому переводим их на язык арендатора (docs/i18n-documents-plan.md).
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+function documentSubject(t: Tr, type: DocumentType, number: string): string {
+  switch (type) {
+    case "INVOICE": return t("actions.sendDocument.subjectInvoice", { number })
+    case "ACT": return t("actions.sendDocument.subjectAct", { number })
+    case "CONTRACT": return t("actions.sendDocument.subjectContract", { number })
+    case "HANDOVER": return t("actions.sendDocument.subjectHandover")
+    case "RECONCILIATION": return t("actions.sendDocument.subjectReconciliation", { number })
+  }
 }
 
-const BODIES: Record<DocumentType, (companyName: string) => { intro: string; details: string }> = {
-  INVOICE: (n) => ({
-    intro: `Уважаемые партнёры из «${n}»,`,
-    details: "Направляем вам счёт на оплату за услуги аренды. Срок оплаты — 10 числа текущего месяца. По вопросам оплаты свяжитесь с бухгалтерией.",
-  }),
-  ACT: (n) => ({
-    intro: `Уважаемые партнёры из «${n}»,`,
-    details: "Направляем вам акт оказанных услуг для подписания. Просьба подписать в двух экземплярах, один экземпляр вернуть нам.",
-  }),
-  CONTRACT: (n) => ({
-    intro: `Здравствуйте, ${n},`,
-    details: "Высылаем договор аренды нежилого помещения. Просьба ознакомиться, при согласии подписать в двух экземплярах и вернуть один нам.",
-  }),
-  HANDOVER: (n) => ({
-    intro: `Уважаемые партнёры из «${n}»,`,
-    details: "Направляем акт приёма-передачи помещения для подписания.",
-  }),
-  RECONCILIATION: (n) => ({
-    intro: `Уважаемые партнёры из «${n}»,`,
-    details: "Направляем вам акт сверки взаиморасчётов. Просьба проверить данные и при согласии подписать.",
-  }),
+function documentBody(t: Tr, type: DocumentType, company: string): { intro: string; details: string } {
+  const intro = type === "CONTRACT"
+    ? t("actions.sendDocument.introPerson", { name: company })
+    : t("actions.sendDocument.introCompany", { company })
+  switch (type) {
+    case "INVOICE": return { intro, details: t("actions.sendDocument.detailsInvoice") }
+    case "ACT": return { intro, details: t("actions.sendDocument.detailsAct") }
+    case "CONTRACT": return { intro, details: t("actions.sendDocument.detailsContract") }
+    case "HANDOVER": return { intro, details: t("actions.sendDocument.detailsHandover") }
+    case "RECONCILIATION": return { intro, details: t("actions.sendDocument.detailsReconciliation") }
+  }
+}
+
+function documentNotificationTitle(t: Tr, type: DocumentType): string {
+  switch (type) {
+    case "INVOICE": return t("actions.sendDocument.notifyInvoice")
+    case "ACT": return t("actions.sendDocument.notifyAct")
+    case "RECONCILIATION": return t("actions.sendDocument.notifyReconciliation")
+    case "CONTRACT": return t("actions.sendDocument.notifyContract")
+    case "HANDOVER": return t("actions.sendDocument.notifyHandover")
+  }
 }
 
 export async function sendDocumentToTenant(params: SendDocumentParams): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Нет доступа" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.common.accessDenied") }
   }
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
-    return { ok: false, error: "Не авторизован" }
+    return { ok: false, error: t("actions.common.noAccess") }
   }
 
   const { orgId } = await requireOrgAccess()
   try {
     await assertTenantInOrg(params.tenantId, orgId)
   } catch {
-    return { ok: false, error: "Нет доступа к этому арендатору" }
+    return { ok: false, error: t("actions.sendDocument.noTenantAccess") }
   }
 
   const tenant = await db.tenant.findUnique({
@@ -80,7 +89,7 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
     },
   })
 
-  if (!tenant) return { ok: false, error: "Арендатор не найден" }
+  if (!tenant) return { ok: false, error: t("actions.common.tenantNotFound") }
   const recipient = tenant.user.email // может быть null — тогда только in-app
 
   // Получаем DOCX из соответствующего эндпоинта
@@ -110,11 +119,13 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
     headers: { cookie: h.get("cookie") ?? "" }, // прокинуть auth cookie
   })
   if (!docxRes.ok) {
-    return { ok: false, error: `Не удалось сгенерировать документ (${docxRes.status})` }
+    return { ok: false, error: t("actions.sendDocument.generateFailed", { status: docxRes.status }) }
   }
   const buffer = Buffer.from(await docxRes.arrayBuffer())
-  const subject = SUBJECTS[params.type](number)
-  const body = BODIES[params.type](tenant.companyName)
+  // Письмо и уведомление читает арендатор — язык берём из его профиля.
+  const { t: tTenant } = await getTForUser(tenant.user.id)
+  const subject = documentSubject(tTenant, params.type, number)
+  const body = documentBody(tTenant, params.type, tenant.companyName)
 
   // Email — только если у арендатора есть почта.
   let emailSent = false
@@ -130,9 +141,11 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
 
     const html = basicEmailTemplate({
       title: subject,
-      body: `<p>${body.intro}</p><p>${body.details}</p><p>Документ во вложении.</p>`,
-      footer: "По вопросам обращайтесь в администрацию",
+      body: `<p>${body.intro}</p><p>${body.details}</p><p>${tTenant("actions.sendDocument.attachmentNote")}</p>`,
+      footer: tTenant("actions.sendDocument.mailFooter"),
     })
+    // Имя файла вложения — часть самого документа, остаётся русским
+    // (docs/i18n-documents-plan.md).
     const ext = params.type === "INVOICE" ? "Счет"
       : params.type === "ACT" ? "Акт"
       : params.type === "CONTRACT" ? "Договор"
@@ -155,16 +168,14 @@ export async function sendDocumentToTenant(params: SendDocumentParams): Promise<
   }
 
   // In-app уведомление арендатору — всегда (даже без email).
-  const docTitle = params.type === "INVOICE" ? "Новый счёт на оплату"
-    : params.type === "ACT" ? "Акт оказанных услуг"
-    : params.type === "RECONCILIATION" ? "Акт сверки"
-    : params.type === "CONTRACT" ? "Новый договор ожидает подписания"
-    : "Акт приёма-передачи"
+  const docTitle = documentNotificationTitle(tTenant, params.type)
   await notifyUser({
     userId: tenant.user.id,
     type: `DOCUMENT_${params.type}`,
     title: docTitle,
-    message: `${subject}. ${emailSent ? "Отправлен на ваш email и доступен" : "Доступен"} в кабинете → Документы.`,
+    message: emailSent
+      ? tTenant("actions.sendDocument.notifyMessageEmailed", { subject })
+      : tTenant("actions.sendDocument.notifyMessage", { subject }),
     link: "/cabinet/documents",
     sendEmail: false,
   })

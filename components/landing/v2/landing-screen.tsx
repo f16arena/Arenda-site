@@ -29,8 +29,11 @@ async function resolveDashboardUrl(): Promise<string | null> {
 }
 
 import type { Locale } from "@/lib/i18n/config"
+import { getT } from "@/lib/i18n/server"
 
 export async function LandingScreen({ locale }: { locale: Locale }) {
+  // Язык задаёт адрес страницы, а не cookie: /ru — русская, / — казахская.
+  const { t } = await getT(locale)
   const [pricing, founding, editor, dashboardUrl] = await Promise.all([
     getPricingData().catch(() => null),
     getFoundersRemainingSlots().catch(() => null),
@@ -60,8 +63,7 @@ export async function LandingScreen({ locale }: { locale: Locale }) {
         name: "Commrent",
         url: "https://commrent.kz",
         logo: "https://commrent.kz/commrent-logo-hero.png",
-        description:
-          "SaaS-платформа для управления коммерческой арендой в Казахстане: договоры, ЭЦП, счета, ЭСФ в КГД и оплата в одном окне.",
+        description: t("landing.seo.orgDescription"),
         areaServed: { "@type": "Country", name: "Kazakhstan" },
       },
       {
@@ -71,8 +73,7 @@ export async function LandingScreen({ locale }: { locale: Locale }) {
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web",
         inLanguage: locale,
-        description:
-          "Операционная система для коммерческой аренды: договор → подпись ЭЦП → счёт/АВР → ЭСФ в КГД → оплата.",
+        description: t("landing.seo.appDescription"),
         publisher: { "@id": "https://commrent.kz/#organization" },
         ...(startingPrice
           ? {
