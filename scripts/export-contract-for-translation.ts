@@ -1,43 +1,32 @@
 /**
- * Выгружает текст документов для юриста-переводчика.
+ * Готовит документы для юриста-переводчика — в том виде, в каком их привычно
+ * читать: обычный договор с шапкой, разделами и пунктами подряд, с прочерками
+ * вместо подставляемых значений, как в бумажном бланке.
  *
- * Зачем скрипт, а не «отправить готовый договор». Договор собирается из пунктов
- * с устойчивыми идентификаторами, и часть пунктов включается по условиям («как
- * есть», входящий долг, ступени аренды, услуги). В одном отрендеренном образце
- * видна только сработавшая ветка — переведи его, и реальный договор выйдет
- * наполовину русским. Поэтому здесь собираются ВСЕ пункты: состояние
- * выкручивается «на максимум» по каждому типу договора, результаты
- * объединяются по идентификатору.
+ * Почему так, а не таблицей «пункт → перевод»: переводчику нужен документ,
+ * иначе связный юридический текст не получится. Разложить перевод обратно по
+ * пунктам — задача программы, а не человека; для этого рядом пишется
+ * служебный файл соответствия (clause-map.json), который переводчику не идёт.
  *
- * Подставляемые значения (даты, суммы, имена) заменяются на пометки вида
- * {{АРЕНДНАЯ_ПЛАТА}}: переводчик обязан сохранить их в своём тексте, программа
- * подставит туда настоящие данные. Порядок пометок внутри фразы менять можно —
- * в казахском другой порядок слов.
+ * Договор собирается из пунктов, часть включается по условиям. Поэтому каждый
+ * тип рендерится в «максимальной» конфигурации: включено всё, что можно, —
+ * иначе непопавшие пункты однажды выйдут по-русски посреди казахского текста.
+ * Взаимоисключающие формулировки вынесены в приложение «Варианты пунктов».
  *
  * Запуск: npx tsx scripts/export-contract-for-translation.ts
  * Результат: docs/translation/*.docx
  */
-import { mkdir, writeFile } from "node:fs/promises"
+import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
-import {
-  AlignmentType,
-  Document,
-  HeadingLevel,
-  Packer,
-  Paragraph,
-  Table,
-  TableCell,
-  TableRow,
-  TextRun,
-  WidthType,
-} from "docx"
+import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx"
 import { assemble } from "@/lib/contract-engine/assemble"
+import { renderContractText } from "@/lib/contract-engine/render"
 import { defaultPlacementTerms, defaultState, type ContractState } from "@/lib/contract-engine/schema"
 import { dateLong, money, moneyWithWords } from "@/lib/contract-engine/numerals"
 
 const OUT_DIR = path.join(process.cwd(), "docs", "translation")
 
-/** Образцовые значения подобраны неповторяющимися — их безопасно менять на пометки. */
+/** Образцовые значения намеренно неповторяющиеся — их безопасно менять на прочерки. */
 const SAMPLE = {
   contractNumber: "ДГ-777001",
   contractDate: "2026-03-17",
@@ -56,38 +45,42 @@ const SAMPLE = {
   debtTotal: 3456789,
 }
 
-/** Пометки для переводчика: что программа подставит вместо этого текста. */
-function replacements(): Array<[string, string]> {
+const LINE = "_________________"
+const MONEY_BLANK = "__________ ₸ (______________________________)"
+const DATE_BLANK = "«___» ____________ 20__ г."
+
+/** Прочерки вместо подставляемых значений — как в бумажном бланке договора. */
+function blanks(): Array<[string, string]> {
   const pairs: Array<[string, string]> = [
-    [SAMPLE.contractNumber, "{{НОМЕР_ДОГОВОРА}}"],
-    [dateLong(SAMPLE.contractDate), "{{ДАТА_ДОГОВОРА}}"],
-    [dateLong(SAMPLE.startDate), "{{ДАТА_НАЧАЛА}}"],
-    [dateLong(SAMPLE.endDate), "{{ДАТА_ОКОНЧАНИЯ}}"],
-    [moneyWithWords(SAMPLE.rent), "{{АРЕНДНАЯ_ПЛАТА_ПРОПИСЬЮ}}"],
-    [moneyWithWords(SAMPLE.deposit), "{{ДЕПОЗИТ_ПРОПИСЬЮ}}"],
-    [moneyWithWords(SAMPLE.debtTotal), "{{ДОЛГ_ПРОПИСЬЮ}}"],
-    [money(SAMPLE.rent), "{{АРЕНДНАЯ_ПЛАТА}}"],
-    [money(SAMPLE.deposit), "{{ДЕПОЗИТ}}"],
-    [money(SAMPLE.debtTotal), "{{ДОЛГ}}"],
-    [SAMPLE.landlordName, "{{АРЕНДОДАТЕЛЬ}}"],
-    [SAMPLE.tenantName, "{{АРЕНДАТОР}}"],
-    [SAMPLE.landlordSignatory, "{{ПОДПИСАНТ_АРЕНДОДАТЕЛЯ}}"],
-    [SAMPLE.tenantSignatory, "{{ПОДПИСАНТ_АРЕНДАТОРА}}"],
-    [SAMPLE.address, "{{АДРЕС_ЗДАНИЯ}}"],
-    [SAMPLE.placement, "{{РАЗМЕЩЕНИЕ}}"],
-    [SAMPLE.city, "{{ГОРОД}}"],
-    [String(SAMPLE.area), "{{ПЛОЩАДЬ}}"],
+    [SAMPLE.contractNumber, "________"],
+    [dateLong(SAMPLE.contractDate), DATE_BLANK],
+    [dateLong(SAMPLE.startDate), DATE_BLANK],
+    [dateLong(SAMPLE.endDate), DATE_BLANK],
+    [moneyWithWords(SAMPLE.rent), MONEY_BLANK],
+    [moneyWithWords(SAMPLE.deposit), MONEY_BLANK],
+    [moneyWithWords(SAMPLE.debtTotal), MONEY_BLANK],
+    [money(SAMPLE.rent), "__________ ₸"],
+    [money(SAMPLE.deposit), "__________ ₸"],
+    [money(SAMPLE.debtTotal), "__________ ₸"],
+    [SAMPLE.landlordName, LINE],
+    [SAMPLE.tenantName, LINE],
+    [SAMPLE.landlordSignatory, "____________________"],
+    [SAMPLE.tenantSignatory, "____________________"],
+    [SAMPLE.address, LINE],
+    [SAMPLE.city, "г. ____________"],
+    [SAMPLE.placement, "____________"],
+    [String(SAMPLE.area), "______"],
   ]
-  // Сначала длинные: «прописью» содержит в себе числа, иначе затрём частями.
+  // Сначала длинные: сумма прописью содержит в себе число, иначе затрём частями.
   return pairs.sort((a, b) => b[0].length - a[0].length)
 }
 
-function withMarkers(text: string): string {
+function withBlanks(text: string): string {
   let out = text
-  for (const [sample, marker] of replacements()) {
-    if (sample) out = out.split(sample).join(marker)
+  for (const [sample, blank] of blanks()) {
+    if (sample) out = out.split(sample).join(blank)
   }
-  return out.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()
+  return out.replace(/<[^>]+>/g, "")
 }
 
 /** Состояние «включено всё, что можно» — чтобы сработали и необязательные пункты. */
@@ -121,13 +114,13 @@ function maximalState(placementType: string, family: "premises" | "territory" | 
     discountPercent: 10,
     payWithinMonths: 2,
   }
-  // Две ступени: одна не считается ступенчатой арендой и пункт не сработает.
+  // Две ступени: одна ступенчатой арендой не считается и пункт не сработает.
   f.rentSteps = [
     { from: "2026-04", amount: SAMPLE.rent },
     { from: "2026-10", amount: SAMPLE.rent + 100000 },
   ]
   // Каждый ресурс даёт свой пункт («стоимость электроэнергии», «холодной воды»…),
-  // поэтому включаем все по счётчику — иначе переводчик увидит только один.
+  // поэтому включаем все по счётчику — иначе в документ попадёт только один.
   for (const key of Object.keys(f.premisesUtilities) as Array<keyof typeof f.premisesUtilities>) {
     f.premisesUtilities[key] = "metered_separate"
   }
@@ -147,267 +140,71 @@ function maximalState(placementType: string, family: "premises" | "territory" | 
   return s
 }
 
-type Clause = { section: string; num: string; id: string; text: string }
+/** Тот же договор, но коммунальные включены в плату: другая редакция пунктов. */
+function utilitiesIncluded(s: ContractState): ContractState {
+  const copy: ContractState = JSON.parse(JSON.stringify(s))
+  for (const key of Object.keys(copy.financials.premisesUtilities) as Array<
+    keyof typeof copy.financials.premisesUtilities
+  >) {
+    copy.financials.premisesUtilities[key] = "included"
+  }
+  return copy
+}
 
-function collect(s: ContractState): Clause[] {
+type Clause = { id: string; num: string; text: string }
+
+function clauses(s: ContractState): Clause[] {
   const out: Clause[] = []
   for (const section of assemble(s).sections) {
     for (const item of section.items) {
-      out.push({ section: `${section.num}. ${section.title}`, num: item.num, id: item.id, text: withMarkers(item.html) })
-      for (const child of item.children) {
-        out.push({ section: `${section.num}. ${section.title}`, num: child.num, id: child.id, text: withMarkers(child.html) })
-      }
+      out.push({ id: item.id, num: item.num, text: withBlanks(item.html) })
+      for (const child of item.children) out.push({ id: child.id, num: child.num, text: withBlanks(child.html) })
     }
   }
   return out
 }
 
-const HEAD = { bold: true, size: 20 }
-
-function cell(text: string, widthPercent: number, opts: { bold?: boolean } = {}): TableCell {
-  return new TableCell({
-    width: { size: widthPercent, type: WidthType.PERCENTAGE },
-    children: [new Paragraph({ children: [new TextRun({ text, bold: opts.bold, size: 20 })] })],
-  })
-}
-
-function clauseTable(clauses: Clause[]): Table {
-  const rows: TableRow[] = [
-    new TableRow({
-      tableHeader: true,
-      children: [
-        new TableCell({ width: { size: 14, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "Идентификатор", ...HEAD })] })] }),
-        new TableCell({ width: { size: 43, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "Русский текст", ...HEAD })] })] }),
-        new TableCell({ width: { size: 43, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "Қазақша (заполняет переводчик)", ...HEAD })] })] }),
-      ],
-    }),
-  ]
-  let currentSection = ""
-  for (const c of clauses) {
-    if (c.section !== currentSection) {
-      currentSection = c.section
-      rows.push(
-        new TableRow({
-          children: [
-            new TableCell({
-              columnSpan: 3,
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              children: [new Paragraph({ children: [new TextRun({ text: currentSection, bold: true, size: 22 })] })],
-            }),
-          ],
-        }),
-      )
-    }
-    rows.push(new TableRow({ children: [cell(c.id, 14), cell(`${c.num} ${c.text}`, 43), cell("", 43)] }))
-  }
-  return new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows })
-}
-
-function instructions(): Paragraph[] {
-  const lines = [
-    "Документ для официального перевода на казахский язык. Каждая строка таблицы — отдельный пункт договора; программа собирает из них готовый документ, поэтому переводить нужно построчно, сохраняя разбивку.",
-    "",
-    "1. Пометки вида {{АРЕНДНАЯ_ПЛАТА}} — это места, куда программа подставляет данные конкретного договора: сумму, дату, название организации. Их нужно перенести в казахский текст без изменений, ровно в таком же написании. Переставлять их внутри фразы можно и нужно — в казахском другой порядок слов. Удалять или переводить — нельзя.",
-    "",
-    "2. Номера пунктов (1.1, 2.3 и т.д.) проставляются программой автоматически. В переводе их писать не нужно — только текст пункта.",
-    "",
-    "3. Столбец «Идентификатор» не переводится и не меняется: по нему перевод возвращается на своё место в договоре.",
-    "",
-    "4. Термины просим привести к единому виду — они должны совпадать с интерфейсом программы:",
-    "    арендодатель — жалға беруші; арендатор — жалға алушы; помещение — үй-жай; договор — шарт;",
-    "    дополнительное соглашение — қосымша келісім; задолженность — берешек; пеня — өсімпұл;",
-    "    гарантийный депозит — кепілдік жарна; реквизиты — деректемелер; счёт-фактура — шот-фактура.",
-    "    Аббревиатуры: ИИН — ЖСН, БИН — БСН, БИК — БСК, ИИК — ЖСК, НДС — ҚҚС, ЭСФ — ЭШФ, ЭЦП — ЭЦҚ, КГД — МКК.",
-    "",
-    "5. Числа внутри текста (2 месяца, 5 число, 0,5 % в день, 10 %) — это образцы: программа подставляет туда настоящие значения договора. Постройте казахскую фразу так, чтобы она была верна при любом числе.",
-    "",
-    "6. Отдельная просьба: дайте, пожалуйста, формулировку пункта о преимущественной редакции — какая языковая версия применяется при расхождении. Договор будет выпускаться в две колонки (казахская и русская) одним документом, по статье 15 Закона РК «О языках».",
-    "",
-    "7. Если какая-то русская формулировка вызывает вопросы по существу (а не по переводу) — отметьте её, мы поправим оригинал.",
-  ]
-  return lines.map((text) => new Paragraph({ children: [new TextRun({ text, size: 20 })], spacing: { after: 60 } }))
-}
-
-// ── Второй файл: допсоглашение, счёт, АВР, акт сверки, акт приёма-передачи ──
-//
-// Здесь не сборка из пунктов, а короткие подписи и формулировки прямо в коде.
-// Поэтому отдаём их таблицей «русская строка → перевод», а сверху кладём
-// отрендеренный образец документа: без него «Итого:» переводить наугад.
-
-const OTHER_DOCS: Array<{ title: string; files: string[]; sample?: () => string }> = [
-  { title: "Дополнительное соглашение к договору", files: ["app/actions/contract-addendums.ts"] },
-  {
-    title: "Счёт на оплату",
-    files: ["lib/invoice-engine/render.ts", "lib/invoice-engine/docx.ts", "lib/invoice-engine/schema.ts", "lib/invoice-engine/prefill.ts"],
-  },
-  {
-    title: "АВР (акт выполненных работ), форма Р-1",
-    files: ["lib/avr-engine/render.ts", "lib/avr-engine/docx.ts", "lib/avr-engine/schema.ts", "lib/avr-engine/prefill.ts"],
-  },
-  {
-    title: "Акт сверки взаимных расчётов",
-    files: ["lib/reconciliation-engine/render.ts", "lib/reconciliation-engine/docx.ts", "lib/reconciliation-engine/schema.ts"],
-  },
-  { title: "Акт приёма-передачи", files: ["app/api/handover/generate/route.ts"] },
+const TYPES: Array<{ file: string; title: string; type: string; family: "premises" | "territory" | "equipment" }> = [
+  { file: "1. Договор аренды помещения", title: "Договор аренды нежилого помещения", type: "PREMISES", family: "premises" },
+  { file: "2. Договор аренды места на территории", title: "Договор аренды места на прилегающей территории", type: "TERRITORY", family: "territory" },
+  { file: "3. Договор о размещении оборудования", title: "Договор о размещении оборудования", type: "EQUIPMENT", family: "equipment" },
 ]
 
-const SKIP_LITERAL = /^[\s\d.,:;№/()«»—–-]*$/
+const NOTE = [
+  "Документ для перевода на казахский язык.",
+  "",
+  "Прочерки (________) — это места, куда программа подставляет данные конкретного договора: номер, дату, название организации, сумму, площадь. В казахском тексте их нужно сохранить, поставив на то место, которого требует казахский порядок слов.",
+  "",
+  "Числа внутри текста (5 число месяца, 30 календарных дней, 0,5 % в день, 10 %) — образцы: программа подставляет туда настоящие значения. Постройте фразу так, чтобы она была верна при любом числе.",
+  "",
+  "Номера пунктов (1.1, 2.3 …) программа проставляет сама, в переводе они не нужны — важен порядок пунктов, он должен остаться тем же.",
+  "",
+  "Термины просим привести к единому виду, они должны совпадать с интерфейсом программы: арендодатель — жалға беруші, арендатор — жалға алушы, помещение — үй-жай, договор — шарт, дополнительное соглашение — қосымша келісім, задолженность — берешек, пеня — өсімпұл, гарантийный депозит — кепілдік жарна, реквизиты — деректемелер. Аббревиатуры: ИИН — ЖСН, БИН — БСН, БИК — БСК, ИИК — ЖСК, НДС — ҚҚС, ЭСФ — ЭШФ, ЭЦП — ЭЦҚ.",
+  "",
+  "Отдельная просьба: дайте, пожалуйста, формулировку пункта о преимущественной редакции — какая языковая версия применяется при расхождении. Договор выпускается в две колонки (казахская и русская) одним документом, по статье 15 Закона РК «О языках».",
+  "",
+  "Если какая-то формулировка вызывает вопросы по существу, а не по переводу, — отметьте её, поправим русский оригинал.",
+]
 
-/** По выражению внутри ${…} подбираем понятную переводчику пометку. */
-function markerFor(expression: string): string {
-  const e = expression.toLowerCase()
-  if (e.includes("companyname") || e.includes("tenantname")) return "АРЕНДАТОР"
-  if (e.includes("number")) return "НОМЕР"
-  if (e.includes("today") || e.includes("date") || e.includes("fmt(")) return "ДАТА"
-  if (e.includes("money(") || e.includes("amount") || e.includes("sum")) return "СУММА"
-  if (e.includes("reason")) return "ОСНОВАНИЕ"
-  if (e.includes("period") || e.includes("month")) return "ПЕРИОД"
-  if (e.includes("percent") || e.includes("rate")) return "СТАВКА"
-  return "ЗНАЧЕНИЕ"
-}
-
-/**
- * Шаблонная строка → читаемый текст с пометками. Скобки считаем вручную:
- * внутри ${…} встречаются вложенные тернарники со своими кавычками, и
- * регулярным выражением их не разобрать.
- */
-function templateToMarkers(raw: string): string {
-  let out = ""
-  let i = 0
-  const used = new Map<string, number>()
-  while (i < raw.length) {
-    const start = raw.indexOf("${", i)
-    if (start === -1) {
-      out += raw.slice(i)
-      break
-    }
-    out += raw.slice(i, start)
-    let depth = 1
-    let j = start + 2
-    while (j < raw.length && depth > 0) {
-      if (raw[j] === "{") depth++
-      else if (raw[j] === "}") depth--
-      j++
-    }
-    const expression = raw.slice(start + 2, j - 1)
-    const base = markerFor(expression)
-    const n = (used.get(base) ?? 0) + 1
-    used.set(base, n)
-    out += n === 1 ? `{{${base}}}` : `{{${base}_${n}}}`
-    i = j
-  }
-  return out.replace(/\s+/g, " ").trim()
-}
-
-async function russianLiterals(files: string[]): Promise<string[]> {
-  const { readFile } = await import("node:fs/promises")
-  const found = new Set<string>()
-  for (const file of files) {
-    let src: string
-    try {
-      src = await readFile(path.join(process.cwd(), file), "utf8")
-    } catch {
-      continue
-    }
-    src = src.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "")
-    // Обычные строки в кавычках.
-    for (const m of src.matchAll(/"([^"\\\n]*[А-Яа-яЁё][^"\\\n]*)"/g)) {
-      const text = (m[1] ?? "").trim()
-      if (text.length < 3 || SKIP_LITERAL.test(text) || text.startsWith("@/")) continue
-      found.add(text)
-    }
-    // Шаблонные строки: в них лежит тело допсоглашения, и без них файл пустой.
-    for (const m of src.matchAll(/`((?:[^`\\]|\\.)*[А-Яа-яЁё](?:[^`\\]|\\.)*)`/g)) {
-      const text = templateToMarkers(m[1] ?? "")
-      if (text.length < 3 || SKIP_LITERAL.test(text)) continue
-      found.add(text)
-    }
-  }
-  return [...found].sort((a, b) => a.localeCompare(b, "ru"))
-}
-
-function stringsTable(rows: string[]): Table {
-  const head = new TableRow({
-    tableHeader: true,
-    children: [
-      new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "Русский текст", ...HEAD })] })] }),
-      new TableCell({ width: { size: 50, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: "Қазақша (заполняет переводчик)", ...HEAD })] })] }),
-    ],
-  })
-  return new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [head, ...rows.map((text) => new TableRow({ children: [cell(text, 50), cell("", 50)] }))],
-  })
-}
-
-async function buildOtherDocs(): Promise<number> {
-  const { defaultAvrState, renderAvrText } = await import("@/lib/avr-engine")
-  const { defaultInvoiceState, renderInvoiceText } = await import("@/lib/invoice-engine")
-  const { defaultReconState, renderReconText } = await import("@/lib/reconciliation-engine")
-  const samples: Record<string, string> = {
-    "Счёт на оплату": renderInvoiceText(defaultInvoiceState()),
-    "АВР (акт выполненных работ), форма Р-1": renderAvrText(defaultAvrState()),
-    "Акт сверки взаимных расчётов": renderReconText(defaultReconState()),
-  }
-
-  const children: Array<Paragraph | Table> = [
-    new Paragraph({ text: "Остальные документы Commrent — текст для перевода", heading: HeadingLevel.HEADING_1 }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text:
-            "Здесь короткие подписи и формулировки: заголовки документов, названия столбцов, строки подписей. "
-            + "Перед каждой таблицей — образец готового документа, чтобы было видно, где эта строка стоит. "
-            + "Прочерки «—» и нули в образце означают незаполненные данные конкретного документа.",
-          size: 20,
-        }),
-      ],
-      spacing: { after: 160 },
-    }),
+function docFrom(title: string, body: string, extra: Paragraph[] = []): Document {
+  const head = [
+    new Paragraph({ text: title, heading: HeadingLevel.HEADING_1 }),
+    ...NOTE.map((t) => new Paragraph({ children: [new TextRun({ text: t, size: 18, italics: true })] })),
+    new Paragraph({ text: "" }),
+    new Paragraph({ border: { bottom: { style: "single", size: 6, color: "999999" } }, children: [] }),
+    new Paragraph({ text: "" }),
   ]
-
-  let total = 0
-  for (const doc of OTHER_DOCS) {
-    const rows = await russianLiterals(doc.files)
-    if (rows.length === 0) continue
-    total += rows.length
-    children.push(new Paragraph({ text: doc.title, heading: HeadingLevel.HEADING_2, spacing: { before: 300 } }))
-    const sample = samples[doc.title]
-    if (sample) {
-      children.push(new Paragraph({ children: [new TextRun({ text: "Образец документа:", italics: true, size: 18 })] }))
-      for (const line of sample.split("\n")) {
-        children.push(new Paragraph({ children: [new TextRun({ text: line || " ", size: 16, font: "Consolas" })] }))
-      }
-      children.push(new Paragraph({ text: "" }))
-    }
-    children.push(stringsTable(rows))
-    console.log(`${doc.title}: строк ${rows.length}`)
-  }
-
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.RIGHT,
-      children: [new TextRun({ text: `Всего строк к переводу: ${total}`, bold: true, size: 20 })],
-      spacing: { before: 200 },
-    }),
-  )
-
-  const doc = new Document({ sections: [{ children }] })
-  const file = path.join(OUT_DIR, "Остальные документы — текст для перевода.docx")
-  await writeFile(file, await Packer.toBuffer(doc))
-  console.log(`Готово: ${file}`)
-  return total
+  const lines = body.split("\n").map((line) => {
+    const isHeading = /^\d+\.\s+\S/.test(line) && line.length < 80
+    return new Paragraph({
+      children: [new TextRun({ text: line || " ", size: 22, bold: isHeading })],
+      spacing: { after: line ? 80 : 0 },
+    })
+  })
+  return new Document({ sections: [{ children: [...head, ...lines, ...extra] }] })
 }
 
-/**
- * Пункты, объявленные в коде, но не попавшие ни в один образец.
- *
- * Это главная проверка файла: если пункт не сработал ни при каком состоянии,
- * переводчик его не увидит, а в реальном договоре он однажды появится —
- * по-русски посреди казахского текста.
- */
 async function declaredClauseIds(): Promise<string[]> {
-  const { readFile } = await import("node:fs/promises")
   const ids = new Set<string>()
   for (const file of ["lib/contract-engine/registry.ts", "lib/contract-engine/placement.ts"]) {
     const src = await readFile(path.join(process.cwd(), file), "utf8")
@@ -422,102 +219,128 @@ async function declaredClauseIds(): Promise<string[]> {
 
 async function main() {
   await mkdir(OUT_DIR, { recursive: true })
+  const covered = new Set<string>()
+  const map: Record<string, Clause[]> = {}
 
-  type Variant = {
-    title: string
-    type: string
-    family: "premises" | "territory" | "equipment"
-    tweak?: (s: ContractState) => void
-  }
-  const variants: Variant[] = [
-    { title: "Договор аренды помещения", type: "PREMISES", family: "premises" },
-    {
-      // Пункт «что входит в арендную плату» и пункт «оплачивается отдельно»
-      // исключают друг друга: при всех счётчиках первый не срабатывает.
-      // Поэтому второй проход с коммунальными, включёнными в плату.
-      title: "Договор аренды помещения — коммунальные включены в плату",
-      type: "PREMISES",
-      family: "premises",
-      tweak: (s) => {
-        for (const key of Object.keys(s.financials.premisesUtilities) as Array<
-          keyof typeof s.financials.premisesUtilities
-        >) {
-          s.financials.premisesUtilities[key] = "included"
-        }
-      },
-    },
-    { title: "Договор аренды места на территории", type: "TERRITORY", family: "territory" },
-    { title: "Договор о размещении оборудования", type: "EQUIPMENT", family: "equipment" },
-  ]
+  for (const t of TYPES) {
+    const state = maximalState(t.type, t.family)
+    const list = clauses(state)
+    for (const c of list) covered.add(c.id)
+    map[t.type] = list
 
-  const seen = new Set<string>()
-  const collectedIds = new Set<string>()
-  const children: Array<Paragraph | Table> = [
-    new Paragraph({ text: "Договоры Commrent — текст для перевода на казахский язык", heading: HeadingLevel.HEADING_1 }),
-    ...instructions(),
-  ]
-  let total = 0
+    // Пункты, которые в основной редакции не сработали: коммунальные, включённые
+    // в арендную плату, исключают пункт «оплачивается отдельно», и наоборот.
+    const alternative = clauses(utilitiesIncluded(state)).filter((c) => !list.some((x) => x.id === c.id))
+    for (const c of alternative) covered.add(c.id)
 
-  for (const v of variants) {
-    const state = maximalState(v.type, v.family)
-    v.tweak?.(state)
-    const clauses = collect(state)
-    // Повторы между типами не отдаём переводчику дважды: платить за них не надо.
-    for (const c of clauses) collectedIds.add(c.id)
-    const fresh = clauses.filter((c) => {
-      const key = `${c.id}::${c.text}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    total += fresh.length
-    children.push(
-      new Paragraph({ text: v.title, heading: HeadingLevel.HEADING_2, spacing: { before: 300 } }),
-      new Paragraph({
-        children: [new TextRun({ text: `Новых пунктов в этом типе: ${fresh.length} (совпадающие с предыдущими типами не повторяются).`, italics: true, size: 18 })],
-        spacing: { after: 120 },
-      }),
-      clauseTable(fresh),
-    )
-    console.log(`${v.title}: собрано ${clauses.length}, из них новых ${fresh.length}`)
-  }
-
-  children.push(
-    new Paragraph({ text: "Приложение: чего в этом файле нет", heading: HeadingLevel.HEADING_2, spacing: { before: 300 } }),
-    new Paragraph({
-      children: [
-        new TextRun({
-          text:
-            "1) Договор аренды места на крыше/фасаде — русского текста пока не существует, его нужно составить отдельно. "
-            + "2) Суммы прописью и склонение фамилий в казахском строятся по своим правилам — это делает программа, "
-            + "от переводчика нужны только образцы: как пишется сумма прописью и как склоняется «в лице директора».",
-          size: 20,
+    const extra: Paragraph[] = []
+    if (alternative.length > 0) {
+      extra.push(
+        new Paragraph({ text: "Приложение. Варианты пунктов", heading: HeadingLevel.HEADING_2, spacing: { before: 400 } }),
+        new Paragraph({
+          children: [
+            new TextRun({
+              text:
+                "Эти пункты встают в договор вместо соседних, когда коммунальные услуги включены в арендную плату, "
+                + "а не оплачиваются по счётчику отдельно. Их тоже нужно перевести.",
+              italics: true,
+              size: 18,
+            }),
+          ],
+          spacing: { after: 120 },
         }),
-      ],
-    }),
-    new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: `Всего пунктов к переводу: ${total}`, bold: true, size: 20 })], spacing: { before: 200 } }),
-  )
+        ...alternative.map((c) => new Paragraph({ children: [new TextRun({ text: c.text, size: 22 })], spacing: { after: 80 } })),
+      )
+      map[`${t.type}_ALT`] = alternative
+    }
 
-  const doc = new Document({ sections: [{ children }] })
-  const file = path.join(OUT_DIR, "Договор — текст для перевода.docx")
-  await writeFile(file, await Packer.toBuffer(doc))
-  console.log(`Готово: ${file}`)
-  console.log(`Пунктов договора к переводу: ${total}\n`)
+    const body = withBlanks(renderContractText(state))
+    await writeFile(path.join(OUT_DIR, `${t.file}.docx`), await Packer.toBuffer(docFrom(t.title, body, extra)))
+    console.log(`${t.file}.docx — пунктов ${list.length}${alternative.length ? `, вариантов ${alternative.length}` : ""}`)
+  }
+
+  await buildOtherDocs(map)
 
   const declared = await declaredClauseIds()
-  const missed = declared.filter((id) => !collectedIds.has(id))
+  const missed = declared.filter((id) => !covered.has(id))
   if (missed.length > 0) {
-    console.log(`
-ВНИМАНИЕ: не сработали и не попали в файл ${missed.length} пунктов из ${declared.length}:`)
+    console.log(`\nВНИМАНИЕ: не попали в документы ${missed.length} пунктов из ${declared.length}:`)
     console.log("  " + missed.join(", "))
-    console.log("  Их надо включить в состояние-образец, иначе в договоре они однажды выйдут по-русски.")
+    console.log("  Переводчику отдавать нельзя: эти пункты однажды выйдут по-русски.")
   } else {
-    console.log(`
-Покрытие: все ${declared.length} объявленных пунктов попали в файл.`)
+    console.log(`\nПокрытие: все ${declared.length} объявленных пунктов попали в документы.`)
   }
 
-  const others = await buildOtherDocs()
-  console.log(`\nИтого к переводу: ${total} пунктов договора и ${others} строк остальных документов.`)
+  // Служебный файл: по нему перевод раскладывается обратно по пунктам.
+  // Переводчику он не нужен.
+  await writeFile(path.join(OUT_DIR, "clause-map.json"), JSON.stringify(map, null, 1), "utf8")
+  console.log("Служебное соответствие пунктов: docs/translation/clause-map.json")
+}
+
+// ── Остальные документы: допсоглашение, счёт, АВР, акт сверки, приём-передача ──
+
+async function buildOtherDocs(map: Record<string, Clause[]>) {
+  const { defaultAvrState, renderAvrText } = await import("@/lib/avr-engine")
+  const { defaultInvoiceState, renderInvoiceText } = await import("@/lib/invoice-engine")
+  const { defaultReconState, renderReconText } = await import("@/lib/reconciliation-engine")
+
+  const docs: Array<{ file: string; title: string; body: string }> = [
+    { file: "4. Счёт на оплату", title: "Счёт на оплату", body: renderInvoiceText(defaultInvoiceState()) },
+    { file: "5. АВР (акт выполненных работ)", title: "Акт выполненных работ (оказанных услуг), форма Р-1", body: renderAvrText(defaultAvrState()) },
+    { file: "6. Акт сверки", title: "Акт сверки взаимных расчётов", body: renderReconText(defaultReconState()) },
+  ]
+
+  for (const d of docs) {
+    await writeFile(path.join(OUT_DIR, `${d.file}.docx`), await Packer.toBuffer(docFrom(d.title, d.body)))
+    console.log(`${d.file}.docx`)
+  }
+
+  // Допсоглашения собираются не движком, а серверным действием, поэтому текст
+  // берём из исходника: там четыре вида ДС, каждый своим блоком.
+  const src = (await readFile(path.join(process.cwd(), "app/actions/contract-addendums.ts"), "utf8"))
+    .replace(/\/\/[^\n]*/g, "")
+  const blocks = new Set<string>()
+  for (const m of src.matchAll(/`((?:[^`\\]|\\.)*[А-Яа-яЁё](?:[^`\\]|\\.)*)`/g)) {
+    const text = templateToBlanks(m[1] ?? "")
+    if (text.length > 2) blocks.add(text)
+  }
+  const lines = [...blocks]
+  await writeFile(
+    path.join(OUT_DIR, "7. Дополнительные соглашения.docx"),
+    await Packer.toBuffer(
+      docFrom(
+        "Дополнительные соглашения к договору аренды",
+        "Формулировки дополнительных соглашений: продление срока, расторжение, изменение условий аренды, подключение услуг.\n\n"
+          + lines.join("\n"),
+      ),
+    ),
+  )
+  map.ADDENDUM = lines.map((text, i) => ({ id: `ads_${i}`, num: "", text }))
+  console.log(`7. Дополнительные соглашения.docx — формулировок ${lines.length}`)
+}
+
+/** Шаблонная строка → текст с прочерками вместо подставляемых значений. */
+function templateToBlanks(raw: string): string {
+  let out = ""
+  let i = 0
+  while (i < raw.length) {
+    const start = raw.indexOf("${", i)
+    if (start === -1) {
+      out += raw.slice(i)
+      break
+    }
+    out += raw.slice(i, start)
+    let depth = 1
+    let j = start + 2
+    while (j < raw.length && depth > 0) {
+      if (raw[j] === "{") depth++
+      else if (raw[j] === "}") depth--
+      j++
+    }
+    out += "________"
+    i = j
+  }
+  return out.replace(/\s+/g, " ").trim()
 }
 
 main().catch((error) => {
