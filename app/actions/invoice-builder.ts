@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
@@ -16,12 +17,13 @@ import { getActiveContractForTenant, NO_ACTIVE_CONTRACT_ERROR } from "@/lib/acti
 const computeNextInvoiceNumber = (orgId: string) => nextDocumentNumber(orgId, "INVOICE")
 
 export async function getNextInvoiceNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await computeNextInvoiceNumber(orgId) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить номер" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.numberFailed") }
   }
 }
 
@@ -29,6 +31,7 @@ export async function prefillInvoiceFromTenant(
   tenantId: string,
   period: string,
 ): Promise<{ ok: boolean; error?: string; state?: InvoiceState; source?: "charges" | "contract" }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
@@ -36,34 +39,36 @@ export async function prefillInvoiceFromTenant(
     // в lib/invoice-engine/prefill, общая с автогенерацией при подписании.
     return await buildInvoiceStateForTenant(orgId, tenantId, period)
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить данные" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.loadFailed") }
   }
 }
 
 export async function generateInvoiceDocx(state: InvoiceState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     const buf = await renderInvoiceDocx(state)
     const num = (state.meta.number || "").trim() || "счёт"
-    return { ok: true, base64: buf.toString("base64"), fileName: `Счёт_${num}_${state.period || ""}.docx` }
+    return { ok: true, base64: buf.toString("base64"), fileName: t("actions.invoiceBuilder.fileNamePeriod", { number: num, period: state.period ?? "" }) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.generateFailed") }
   }
 }
 
 /** Счёт строго в PDF (DOCX → конвертер на VPS). */
 export async function generateInvoicePdf(state: InvoiceState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
-    if (!pdfConvertConfigured()) return { ok: false, error: "PDF-конвертер не настроен (PDF_CONVERT_URL/SECRET)." }
+    if (!pdfConvertConfigured()) return { ok: false, error: t("actions.docBuilders.pdfConverterMissing") }
     const buf = await renderInvoiceDocx(state)
     const num = (state.meta.number || "").trim() || "счёт"
     const pdf = await convertDocxToPdf(buf, `Счёт_${num}.docx`)
-    return { ok: true, base64: pdf.toString("base64"), fileName: `Счёт_${num}_${state.period || ""}.pdf` }
+    return { ok: true, base64: pdf.toString("base64"), fileName: t("actions.invoiceBuilder.fileNamePdf", { number: num, period: state.period ?? "" }) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации PDF" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.pdfGenerateFailed") }
   }
 }
 
@@ -72,15 +77,16 @@ export async function createInvoiceFromBuilder(
   state: InvoiceState,
   opts?: { autoNumber?: boolean },
 ): Promise<{ ok: boolean; error?: string; documentId?: string; number?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const session = await auth()
-    if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }
+    if (!tenantId) return { ok: false, error: t("actions.docBuilders.pickTenantFirst") }
 
     const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true } })
-    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
-    if (state.items.length === 0) return { ok: false, error: "Добавьте хотя бы одну позицию" }
+    if (!tenant) return { ok: false, error: t("actions.docBuilders.tenantNotFoundOrNoAccess") }
+    if (state.items.length === 0) return { ok: false, error: t("actions.invoiceBuilder.needItems") }
 
     // Правило: счёт создаётся только контрагенту с действующим договором.
     const activeContract = await getActiveContractForTenant(tenant.id)
@@ -92,14 +98,17 @@ export async function createInvoiceFromBuilder(
         where: { organizationId: orgId, documentType: "INVOICE", tenantId: tenant.id, period: state.period },
         select: { number: true },
       })
-      if (dup) return { ok: false, error: `За период ${state.period} счёт № ${dup.number} уже создан. Чтобы пересоздать — удалите старый в разделе «Документы».` }
+      if (dup) return { ok: false, error: t("actions.invoiceBuilder.duplicate", { period: state.period ?? "", number: dup.number ?? "" }) }
     }
 
-    const number = opts?.autoNumber ? await computeNextInvoiceNumber(orgId) : (state.meta.number || "").trim() || "Б/Н"
+    const number = opts?.autoNumber ? await computeNextInvoiceNumber(orgId) : (state.meta.number || "").trim() || t("actions.docBuilders.noNumber")
     const finalState: InvoiceState = { ...state, meta: { ...state.meta, number } }
     const buf = await renderInvoiceDocx(finalState)
     const total = invTotal(finalState)
-    const fileName = `Счёт_${number}_${state.period || ""}.docx`
+    const fileName = t("actions.invoiceBuilder.fileNamePeriod", {
+      number,
+      period: state.period ?? "",
+    })
 
     const doc = await db.generatedDocument.create({
       data: {
@@ -125,6 +134,6 @@ export async function createInvoiceFromBuilder(
     revalidatePath(`/admin/tenants/${tenant.id}`)
     return { ok: true, documentId: doc.id, number }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать счёт" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.invoiceBuilder.createFailed") }
   }
 }

@@ -31,7 +31,7 @@ function num(v: unknown): number | null {
 export async function POST(req: Request) {
   const secret = process.env.MARKET_INGEST_SECRET
   if (!secret) {
-    return NextResponse.json({ error: "MARKET_INGEST_SECRET не настроен" }, { status: 503 })
+    return NextResponse.json({ error: "MARKET_INGEST_SECRET is not configured" }, { status: 503 })
   }
   if (!safeEqual(req.headers.get("x-market-secret") ?? "", secret)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -41,13 +41,13 @@ export async function POST(req: Request) {
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: "Невалидный JSON" }, { status: 400 })
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
   const defaultSource = String(body.source ?? "").trim()
   const rawStats = Array.isArray(body.stats) ? (body.stats as StatInput[]) : []
   if (rawStats.length === 0) {
-    return NextResponse.json({ error: "Пустой массив stats" }, { status: 400 })
+    return NextResponse.json({ error: "Empty stats array" }, { status: 400 })
   }
 
   const rows: Array<{
@@ -88,7 +88,7 @@ export async function POST(req: Request) {
   }
 
   if (rows.length === 0) {
-    return NextResponse.json({ error: "Нет валидных записей после проверки" }, { status: 400 })
+    return NextResponse.json({ error: "No valid rows after validation" }, { status: 400 })
   }
 
   await db.marketRentStat.createMany({ data: rows })

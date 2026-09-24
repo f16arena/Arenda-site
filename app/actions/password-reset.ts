@@ -21,7 +21,7 @@ export async function requestPasswordReset(formData: FormData): Promise<Result &
   const { t } = await getT()
   let email: string
   try {
-    email = normalizeEmail(formData.get("email"), { required: true })!
+    email = normalizeEmail(formData.get("email"), { required: true, t })!
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : t("actions.myAccount.invalidEmail") }
   }

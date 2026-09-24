@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { getMobileStaffRequest, tenantInBuildingsWhere } from "@/lib/mobile-admin"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement, getTenantAreaTotal } from "@/lib/tenant-placement"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -12,6 +13,8 @@ export async function GET(req: Request) {
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
+  // Подписи читает админ в приложении — язык из его профиля (cookie нет).
+  const { t } = await getTForUser(result.ctx.user.id)
   const buildings = await Promise.all(result.buildings.map(async (building) => {
     const tenantWhere = tenantInBuildingsWhere([building.id])
     const now = new Date()
@@ -164,7 +167,7 @@ export async function GET(req: Request) {
       recentTenants: recentTenants.map((tenant) => ({
         id: tenant.id,
         companyName: tenant.companyName,
-        placement: formatTenantPlacement(tenant, { emptyLabel: "Площадь не назначена" }),
+        placement: formatTenantPlacement(tenant, { emptyLabel: t("adminDocs.api.common.noPlacement") }),
         area: roundArea(getTenantAreaTotal(tenant)),
         monthlyRent: calculateTenantMonthlyRent(tenant),
         paymentDueDay: tenant.paymentDueDay,

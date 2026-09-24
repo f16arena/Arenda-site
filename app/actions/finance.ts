@@ -76,7 +76,7 @@ export async function recordPayment(formData: FormData) {
     note: typeof rawNote === "string" && rawNote.trim() !== "" ? rawNote : undefined,
   })
   if (!parsed.success) {
-    throw new Error(firstZodError(parsed.error))
+    throw new Error(firstZodError(parsed.error, t))
   }
 
   const { tenantId, amount, method, paymentDate, note } = parsed.data
@@ -462,6 +462,7 @@ export async function listChargeableTenants(period: string) {
  * Stub оставлен (как calculatePenalties), чтобы любой случайный вызов был явно
  * виден. Для прочих ручных начислений используйте addCharge.
  */
+// Заглушка для старого кода: текст читает разработчик в логе, не пользователь.
 export async function addPenalty(): Promise<never> {
   throw new Error(
     "Ручное добавление пени удалено. Пени начисляет cron /api/cron/check-deadlines " +

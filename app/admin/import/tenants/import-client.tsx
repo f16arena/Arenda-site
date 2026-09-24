@@ -19,6 +19,10 @@ type Stage = "select" | "preview" | "applying" | "done"
 const LEGAL_TYPE_KEYS = ["IP", "TOO", "AO", "CHSI", "PERSON"] as const
 type LegalTypeKey = (typeof LEGAL_TYPE_KEYS)[number]
 
+// Ненайденные обязательные колонки приходят именами полей схемы — показываем
+// подпись из словаря, иначе казахоязычный админ видит «companyName».
+const FIELD_LABEL_KEYS = { companyName: "companyName" } as const
+
 export function ImportTenantsClient() {
   const router = useRouter()
   const { t } = useT()
@@ -32,6 +36,11 @@ export function ImportTenantsClient() {
     LEGAL_TYPE_KEYS.includes(value as LegalTypeKey)
       ? t(`adminSettings.import.file.legalTypes.${value as LegalTypeKey}`)
       : value
+
+  const fieldLabel = (field: string) => {
+    const key = FIELD_LABEL_KEYS[field as keyof typeof FIELD_LABEL_KEYS]
+    return key ? t(`imports.fields.${key}`) : field
+  }
 
   function handleFile(file: File | null | undefined) {
     if (!file) return
@@ -119,7 +128,7 @@ export function ImportTenantsClient() {
             <div className="flex-1">
               <p className="text-sm font-semibold text-red-900 dark:text-red-200 mb-1">{t("adminSettings.import.file.missingTitle")}</p>
               <p className="text-sm text-red-800 dark:text-red-200 mb-3">
-                {t("adminSettings.import.file.missingTenants", { fields: preview.unmappedFields.join(", ") })}
+                {t("adminSettings.import.file.missingTenants", { fields: preview.unmappedFields.map(fieldLabel).join(", ") })}
               </p>
               <button onClick={reset} className="text-xs text-red-700 dark:text-red-300 hover:underline font-medium">{t("adminSettings.import.file.loadAnother")}</button>
             </div>

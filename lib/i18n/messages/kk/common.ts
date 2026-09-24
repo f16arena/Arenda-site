@@ -41,7 +41,9 @@ export const common: typeof ru = {
     checking: "Тексерілуде…",
   },
   deleteDialog: {
-    entity: "элемент",
+    // Запасное слово для «Удалить {что}?»: «жазба» (запись) читается
+    // естественнее, чем калька «элемент».
+    entity: "жазба",
     title: "{entity} жойылсын ба?",
     ariaLabel: "{entity} жою",
     description: "Бұл әрекетті кері қайтару мүмкін емес.",
@@ -190,7 +192,7 @@ export const common: typeof ru = {
     groupGo: "Өту",
     groupCreate: "Құру",
     groupAccount: "Аккаунт",
-    hintNav: "↑↓ навигация",
+    hintNav: "↑↓ шарлау",
     hintOpen: "Enter — ашу",
     hintClose: "Esc — жабу",
     types: {
@@ -210,7 +212,6 @@ export const common: typeof ru = {
       finances: "Қаржы",
       documents: "Құжаттар",
       createDocument: "Құжат құру",
-      templates: "Құжат үлгілері",
       dataQuality: "Деректер сапасы",
       systemHealth: "Жүйені тексеру",
       faq: "FAQ және нұсқаулықтар",
@@ -431,7 +432,7 @@ export const common: typeof ru = {
       legalName: "Жалға берушінің толық атауы *",
       legalNamePlaceholder: "«Атауы» ЖШС немесе ЖК АЖТ",
       directorName: "Басшының АЖТ *",
-      directorNamePlaceholder: "Иванов Иван Иванович",
+      directorNamePlaceholder: "Сәрсенов Аян Мұратұлы",
       directorPosition: "Басшының лауазымы",
       directorPositionPlaceholder: "Директор",
       basis: "Не негізінде әрекет етеді *",
@@ -922,7 +923,8 @@ export const common: typeof ru = {
     perMonth: "Айына",
     serviceFeeNote: "Жыл бойы бір мөлшерлеме, қысқысы жоқ. Жалдау ақысымен бірге шоттың бөлек жолымен есептеледі.",
     equipmentSection: "Жабдық",
-    objectSection: "Объект",
+    // «Нысан» — так это слово уже переведено в 3D-конструкторе.
+    objectSection: "Нысан",
     equipmentNamePlaceholder: "Сауда автоматы",
     objectNamePlaceholder: "Сауда дүңгіршегі",
     equipmentQty: "Саны",

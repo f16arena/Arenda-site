@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { revalidatePath } from "next/cache"
 import { requireOrgAccess } from "@/lib/org"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
@@ -10,6 +11,7 @@ import { assertSpaceFitsFloor } from "@/lib/area-validation"
 const SPACE_STATUSES = new Set(["VACANT", "OCCUPIED", "MAINTENANCE"])
 
 export async function createSpace(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   const floorId = formData.get("floorId") as string
@@ -27,7 +29,7 @@ export async function createSpace(formData: FormData) {
 
   if (kind !== "OBJECT") {
     if (!Number.isFinite(area) || area <= 0) {
-      throw new Error("Введите корректную площадь (м²)")
+      throw new Error(t("actions.spacesActions.badArea"))
     }
     // Σ Space.area не может превысить Floor.totalArea
     await assertSpaceFitsFloor({ floorId, newArea: area })
@@ -55,10 +57,11 @@ export async function createSpace(formData: FormData) {
  * результат перетаскивания в 3D. Объект встанет туда при следующем рендере.
  */
 export async function setObjectPosition(spaceId: string, x: number, z: number) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   await assertSpaceInOrg(spaceId, orgId)
-  if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error("Некорректная позиция")
+  if (!Number.isFinite(x) || !Number.isFinite(z)) throw new Error(t("actions.spacesActions.badPosition"))
   await db.space.update({ where: { id: spaceId }, data: { posX: x, posZ: z } })
   revalidatePath("/admin/spaces")
   return { success: true }
@@ -81,13 +84,14 @@ export async function setObjectRotation(spaceId: string, deg: number) {
  * (создать объект → назначить → задать аренду).
  */
 export async function createZoneObject(formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   const floorId = formData.get("floorId") as string
   await assertFloorInOrg(floorId, orgId)
 
   const name = String(formData.get("number") ?? "").trim()
-  if (!name) throw new Error("Введите название объекта")
+  if (!name) throw new Error(t("actions.spacesActions.objectNameRequired"))
   const description = String(formData.get("description") ?? "").trim()
   const tenantId = String(formData.get("tenantId") ?? "").trim()
   const fixedRentRaw = String(formData.get("fixedMonthlyRent") ?? "").trim().replace(",", ".")
@@ -122,6 +126,7 @@ export async function createZoneObject(formData: FormData) {
 }
 
 export async function updateSpace(id: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   await assertSpaceInOrg(id, orgId)
@@ -156,7 +161,7 @@ export async function updateSpace(id: string, formData: FormData) {
       },
     },
   })
-  if (!existing) throw new Error("Помещение не найдено")
+  if (!existing) throw new Error(t("actions.spacesActions.notFound"))
 
   // Σ Space.area не может превысить Floor.totalArea (исключаем текущий)
   await assertSpaceFitsFloor({ floorId: existing.floorId, newArea: area, excludeSpaceId: id })
@@ -166,9 +171,10 @@ export async function updateSpace(id: string, formData: FormData) {
   if (existing.floor.fullFloorTenantId) {
     if (status !== "OCCUPIED") {
       throw new Error(
-        `Этаж сдан целиком арендатору «${existing.floor.fullFloorTenant?.companyName ?? "—"}». ` +
-          `Статус помещения нельзя сменить на «${status}» — пока действует договор все помещения этажа OCCUPIED. ` +
-          `Сначала снимите арендатора с этажа.`,
+        t("actions.spacesActions.fullFloorStatus", {
+          company: existing.floor.fullFloorTenant?.companyName ?? "—",
+          status,
+        }),
       )
     }
     finalStatus = "OCCUPIED"
@@ -180,22 +186,21 @@ export async function updateSpace(id: string, formData: FormData) {
   if (kindIn && kindIn !== existing.kind) {
     if (kindIn === "COMMON" && occupiedTenant) {
       throw new Error(
-        `Нельзя сделать помещение общей зоной — оно занято арендатором «${occupiedTenant.companyName}». Сначала выселите.`,
+        t("actions.spacesActions.commonZoneOccupied", { company: occupiedTenant.companyName }),
       )
     }
     finalKind = kindIn
   }
   if (finalKind === "COMMON") {
     if (status === "OCCUPIED") {
-      throw new Error("Общую зону нельзя отметить как занятую арендатором. Сначала сделайте помещение арендопригодным.")
+      throw new Error(t("actions.spacesActions.commonZoneNotOccupiable"))
     }
     finalStatus = "VACANT"
   }
 
   if (occupiedTenant && finalStatus !== "OCCUPIED") {
     throw new Error(
-      `Нельзя просто поставить статус «Свободно» — помещение занято арендатором «${occupiedTenant.companyName}». ` +
-        "Сначала откройте карточку арендатора и снимите это помещение или завершите договор.",
+      t("actions.spacesActions.cannotFreeOccupied", { company: occupiedTenant.companyName }),
     )
   }
 
@@ -211,13 +216,12 @@ export async function updateSpace(id: string, formData: FormData) {
       if (tenantId && tenantId !== occupiedTenant.id) {
         await requireCapabilityAndFeature("spaces.assignTenant")
         throw new Error(
-          `Помещение уже занято арендатором «${occupiedTenant.companyName}». ` +
-            "Чтобы передать его другому арендатору, сначала снимите текущую привязку в карточке арендатора.",
+          t("actions.spacesActions.alreadyOccupied", { company: occupiedTenant.companyName }),
         )
       }
     } else {
       if (!tenantId) {
-        throw new Error("Выберите арендатора, который занимает помещение")
+        throw new Error(t("actions.spacesActions.pickOccupyingTenant"))
       }
       await requireCapabilityAndFeature("spaces.assignTenant")
       tenantToAssign = await db.tenant.findFirst({
@@ -241,12 +245,13 @@ export async function updateSpace(id: string, formData: FormData) {
         for (const floor of tenant.fullFloors) buildingIds.add(floor.buildingId)
 
         if (tenant.fullFloors.length > 0) {
-          throw new Error(`Арендатор «${tenant.companyName}» уже занимает этаж целиком. Индивидуальное помещение ему не назначается.`)
+          throw new Error(
+            t("actions.spacesActions.tenantHasWholeFloor", { company: tenant.companyName }),
+          )
         }
         if (buildingIds.size > 0 && !buildingIds.has(existing.floor.buildingId)) {
           throw new Error(
-            `Арендатор «${tenant.companyName}» привязан к другому зданию. ` +
-              "Выберите арендатора этого здания или сначала перенесите арендатора.",
+            t("actions.spacesActions.tenantOtherBuilding", { company: tenant.companyName }),
           )
         }
         return {
@@ -256,7 +261,7 @@ export async function updateSpace(id: string, formData: FormData) {
           tenantSpaces: tenant.tenantSpaces,
         }
       })
-      if (!tenantToAssign) throw new Error("Арендатор не найден")
+      if (!tenantToAssign) throw new Error(t("actions.spacesActions.tenantNotFound"))
     }
   }
 
@@ -286,6 +291,7 @@ export async function updateSpace(id: string, formData: FormData) {
 }
 
 export async function deleteSpace(id: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.delete")
   const { orgId } = await requireOrgAccess()
   await assertSpaceInOrg(id, orgId)
@@ -299,7 +305,7 @@ export async function deleteSpace(id: string) {
     },
   })
   const occupiedTenant = space?.tenant ?? space?.tenantSpaces[0]?.tenant ?? space?.floor.fullFloorTenant ?? null
-  if (occupiedTenant) return { error: "Нельзя удалить — есть арендатор" }
+  if (occupiedTenant) return { error: t("actions.spacesActions.hasTenant") }
 
   await db.space.delete({ where: { id } })
   revalidatePath("/admin/spaces")
@@ -312,6 +318,7 @@ export async function deleteSpace(id: string) {
  * либо если хоть один этаж сдан целиком.
  */
 export async function deleteAllSpacesInBuilding(buildingId: string, confirmation: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.delete")
   const { orgId } = await requireOrgAccess()
   await assertBuildingInOrg(buildingId, orgId)
@@ -320,7 +327,7 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
   // показывается «жою», и требовать от него русское «удалить» — тупик.
   const CONFIRM_WORDS = ["удалить", "жою"]
   if (!CONFIRM_WORDS.includes(confirmation.trim().toLowerCase())) {
-    throw new Error("Для очистки помещений нужно ввести слово «удалить» / «жою»")
+    throw new Error(t("actions.spacesActions.confirmWord"))
   }
 
   const floors = await db.floor.findMany({
@@ -330,7 +337,10 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
   const fullFloor = floors.find((f) => f.fullFloorTenantId)
   if (fullFloor) {
     throw new Error(
-      `Нельзя удалить помещения — этаж «${fullFloor.name}» сдан целиком арендатору «${fullFloor.fullFloorTenant?.companyName ?? "—"}». Сначала снимите его с этажа.`,
+      t("actions.spacesActions.wipeFullFloor", {
+        floor: fullFloor.name,
+        company: fullFloor.fullFloorTenant?.companyName ?? "—",
+      }),
     )
   }
   const floorIds = floors.map((f) => f.id)
@@ -354,7 +364,11 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
   if (occupied) {
     const tenantName = occupied.tenant?.companyName ?? occupied.tenantSpaces[0]?.tenant.companyName ?? "—"
     throw new Error(
-      `Нельзя удалить — кабинет ${occupied.number} (${occupied.floor.name}) занят арендатором «${tenantName}». Сначала выселите.`,
+      t("actions.spacesActions.deleteOccupied", {
+        number: occupied.number,
+        floor: occupied.floor.name,
+        company: tenantName,
+      }),
     )
   }
 
@@ -372,6 +386,7 @@ export async function deleteAllSpacesInBuilding(buildingId: string, confirmation
  * Применяется как «начать с нуля» вместе с очисткой плана.
  */
 export async function deleteAllSpacesOnFloor(floorId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("spaces.delete")
   const { orgId } = await requireOrgAccess()
   await assertFloorInOrg(floorId, orgId)
@@ -393,7 +408,10 @@ export async function deleteAllSpacesOnFloor(floorId: string) {
   if (occupied) {
     const tenantName = occupied.tenant?.companyName ?? occupied.tenantSpaces[0]?.tenant.companyName ?? "—"
     throw new Error(
-      `Нельзя удалить все помещения — кабинет ${occupied.number} занят арендатором «${tenantName}». Сначала выселите арендатора.`,
+      t("actions.spacesActions.wipeOccupied", {
+        number: occupied.number,
+        company: tenantName,
+      }),
     )
   }
 

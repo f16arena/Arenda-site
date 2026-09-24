@@ -11,16 +11,21 @@ import {
 import { ROOT_HOST } from "@/lib/host"
 import { safeServerValue } from "@/lib/server-fallback"
 import { Card as UICard } from "@/components/ui/card"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL, formatNumberL } from "@/lib/i18n/format"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 
 export default async function SuperadminHomePage() {
   const { userId } = await requirePlatformOwner()
   const now = new Date()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Обзор платформы</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Метрики SaaS на {now.toLocaleDateString("ru-RU")}</p>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.home.title")}</h1>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{t("superadmin.home.subtitle", { date: formatDateShortL(locale, now) })}</p>
       </div>
 
       <Suspense fallback={<CardsSkeleton count={4} />}>
@@ -50,9 +55,9 @@ export default async function SuperadminHomePage() {
 
       <UICard className="block p-0">
         <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия (всех организаций)</h2>
+          <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.home.recentActions")}</h2>
         </div>
-        <Suspense fallback={<div className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Загрузка…</div>}>
+        <Suspense fallback={<div className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t("common.state.loading")}</div>}>
           <RecentAuditTable userId={userId} />
         </Suspense>
       </UICard>
@@ -64,6 +69,8 @@ async function PlatformOverviewCards({ userId }: { userId: string }) {
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/superadmin", userId })
   const now = new Date()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const [totalOrgs, activeOrgs, suspendedOrgs, expiringOrgs, revenueAgg] = await Promise.all([
     safe("superadmin.home.totalOrgs", db.organization.count(), 0),
     safe("superadmin.home.activeOrgs", db.organization.count({ where: { isActive: true, isSuspended: false } }), 0),
@@ -91,15 +98,17 @@ async function PlatformOverviewCards({ userId }: { userId: string }) {
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <Card label="Всего организаций" value={totalOrgs} icon={Building2} color="purple" />
-      <Card label="Активных" value={activeOrgs} icon={Users} color="emerald" sub={`${suspendedOrgs} приостановлено`} />
-      <Card label="Истекают за 7 дней" value={expiringOrgs} icon={AlertTriangle} color="amber" />
-      <Card label="MRR этого месяца" value={`${(revenueAgg._sum.paidAmount ?? 0).toLocaleString("ru-RU")} ₸`} icon={TrendingUp} color="blue" />
+      <Card label={t("superadmin.home.totalOrgs")} value={totalOrgs} icon={Building2} color="purple" />
+      <Card label={t("superadmin.home.activeOrgs")} value={activeOrgs} icon={Users} color="emerald" sub={t("superadmin.home.suspendedSub", { count: suspendedOrgs })} />
+      <Card label={t("superadmin.home.expiring7")} value={expiringOrgs} icon={AlertTriangle} color="amber" />
+      <Card label={t("superadmin.home.mrrMonth")} value={formatMoneyL(locale, revenueAgg._sum.paidAmount ?? 0)} icon={TrendingUp} color="blue" />
     </div>
   )
 }
 
 async function PlansDistribution({ userId }: { userId: string }) {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const plansData = await safeServerValue(
     db.plan.findMany({
       orderBy: { sortOrder: "asc" },
@@ -117,7 +126,7 @@ async function PlansDistribution({ userId }: { userId: string }) {
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Package className="h-4 w-4 text-slate-400 dark:text-slate-500" />
-          Распределение по тарифам
+          {t("superadmin.home.plansDistribution")}
         </h2>
       </div>
       <div className="p-5 space-y-3">
@@ -129,7 +138,7 @@ async function PlansDistribution({ userId }: { userId: string }) {
             <div key={p.id}>
               <div className="flex items-center justify-between mb-1 text-sm">
                 <span className="font-medium text-slate-700 dark:text-slate-300">{p.name}</span>
-                <span className="text-slate-500 dark:text-slate-400">{p._count.organizations} ({percent}%) · {mrr.toLocaleString("ru-RU")} ₸</span>
+                <span className="text-slate-500 dark:text-slate-400">{p._count.organizations} ({percent}%) · {formatMoneyL(locale, mrr)}</span>
               </div>
               <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-purple-500 transition-all" style={{ width: `${percent}%` }} />
@@ -157,6 +166,8 @@ function PanelSkeleton() {
 }
 
 async function TopOrgsByMrr({ userId }: { userId: string }) {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const orgs = await safeServerValue(
     db.organization.findMany({
       where: { isActive: true },
@@ -180,19 +191,19 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
   return (
     <UICard className="block p-0">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Топ организаций по MRR</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.home.topOrgs")}</h2>
         <Link href="/superadmin/orgs" className="text-xs text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1">
-          Все организации <ArrowRight className="h-3 w-3" />
+          {t("superadmin.home.allOrgs")} <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Организация</th>
-            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Тариф</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">MRR</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Зданий</th>
-            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Юзеров</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.org")}</th>
+            <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.plan")}</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.mrr")}</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.buildings")}</th>
+            <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.users")}</th>
             <th className="px-5 py-2" />
           </tr>
         </thead>
@@ -216,13 +227,13 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
               </td>
               <td className="px-5 py-2.5 text-xs text-slate-600 dark:text-slate-400">{o.plan?.name ?? "—"}</td>
               <td className="px-5 py-2.5 text-right font-medium text-emerald-600 dark:text-emerald-400">
-                {o.mrr.toLocaleString("ru-RU")} ₸
+                {formatMoneyL(locale, o.mrr)}
               </td>
               <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400">{o._count.buildings}</td>
               <td className="px-5 py-2.5 text-right text-slate-600 dark:text-slate-400">{o._count.users}</td>
               <td className="px-5 py-2.5 text-right">
                 {o.isSuspended && (
-                  <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">приостановлен</span>
+                  <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">{t("superadmin.home.suspendedShort")}</span>
                 )}
               </td>
             </tr>
@@ -234,6 +245,8 @@ async function TopOrgsByMrr({ userId }: { userId: string }) {
 }
 
 async function SubscriptionDynamics({ userId }: { userId: string }) {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const now = new Date()
   const windowStart = new Date(now.getFullYear(), now.getMonth() - 5, 1)
 
@@ -274,20 +287,20 @@ async function SubscriptionDynamics({ userId }: { userId: string }) {
   return (
     <UICard className="block p-0">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Динамика выручки (6 мес)</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.home.revenueDynamics")}</h2>
       </div>
       <div className="p-5">
         <div className="flex items-end gap-2 h-32">
           {months.map((m) => {
             const h = (m.revenue / maxRevenue) * 100
-            const monthName = new Date(m.period + "-01").toLocaleDateString("ru-RU", { month: "short" })
+            const monthName = new Date(m.period + "-01").toLocaleDateString(INTL_LOCALE[locale], { month: "short" })
             return (
               <div key={m.period} className="flex-1 flex flex-col items-center gap-1">
                 <div className="flex-1 w-full flex items-end">
                   <div
                     className="w-full bg-emerald-500 rounded-t hover:bg-emerald-600 transition"
                     style={{ height: `${h}%` }}
-                    title={`${m.revenue.toLocaleString("ru-RU")} ₸ · ${m.created} новых`}
+                    title={t("superadmin.home.revenueBarTitle", { amount: formatMoneyL(locale, m.revenue), count: m.created })}
                   />
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400">{monthName}</p>
@@ -302,6 +315,8 @@ async function SubscriptionDynamics({ userId }: { userId: string }) {
 }
 
 async function RecentAuditTable({ userId }: { userId: string }) {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const logs = await safeServerValue(
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
@@ -316,24 +331,24 @@ async function RecentAuditTable({ userId }: { userId: string }) {
   )
 
   if (logs.length === 0) {
-    return <p className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Нет записей</p>
+    return <p className="px-5 py-8 text-center text-sm text-slate-400 dark:text-slate-500">{t("superadmin.audit.emptyRecords")}</p>
   }
 
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Время</th>
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Пользователь</th>
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Действие</th>
-          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Объект</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.time")}</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.user")}</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.action")}</th>
+          <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.entity")}</th>
         </tr>
       </thead>
       <tbody>
         {logs.map((l) => (
           <tr key={l.id} className="border-b border-slate-50">
             <td className="px-5 py-2 text-xs text-slate-500 dark:text-slate-400">
-              {new Date(l.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              {new Date(l.createdAt).toLocaleString(INTL_LOCALE[locale], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
             </td>
             <td className="px-5 py-2 text-slate-700 dark:text-slate-300">{l.userName ?? "—"} <span className="text-[10px] text-slate-400 dark:text-slate-500">{l.userRole}</span></td>
             <td className="px-5 py-2"><span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">{l.action}</span></td>
@@ -346,6 +361,8 @@ async function RecentAuditTable({ userId }: { userId: string }) {
 }
 
 async function KpiBlock({ userId }: { userId: string }) {
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const now = new Date()
   const monthAgo = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
   const twoMonthsAgo = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
@@ -452,36 +469,37 @@ async function KpiBlock({ userId }: { userId: string }) {
       <Kpi
         icon={Target}
         color="emerald"
-        label="Конверсия trial→paid"
+        label={t("superadmin.home.kpi.conversion")}
         value={conversionRate !== null ? `${conversionRate}%` : "—"}
-        sub={`${convertedTo30} из ${trialOrgsCreated30To60} за 30-60 дн.`}
+        sub={t("superadmin.home.kpi.conversionSub", { converted: convertedTo30, total: trialOrgsCreated30To60 })}
       />
       <Kpi
         icon={TrendingDown}
         color={churnRate !== null && churnRate > 5 ? "red" : "slate"}
-        label="Churn (30 дней)"
+        label={t("superadmin.home.kpi.churn")}
         value={churnRate !== null ? `${churnRate}%` : "—"}
-        sub={`${deactivated30} ушло из ${activeOrgs30Ago}`}
+        sub={t("superadmin.home.kpi.churnSub", { left: deactivated30, base: activeOrgs30Ago })}
       />
       <Kpi
         icon={UserCheck}
         color="blue"
-        label="Активных юзеров"
-        value={totalUsers}
-        sub={`${paidSubsLast30} новых платных подписок`}
+        label={t("superadmin.home.kpi.users")}
+        value={formatNumberL(locale, totalUsers)}
+        sub={t("superadmin.home.kpi.usersSub", { count: paidSubsLast30 })}
       />
       <Kpi
         icon={Briefcase}
         color="purple"
-        label="Арендаторов"
-        value={totalTenants}
-        sub={`Сред. MRR: ${avgPlanRevenue.toLocaleString("ru-RU")} ₸`}
+        label={t("superadmin.home.kpi.tenants")}
+        value={formatNumberL(locale, totalTenants)}
+        sub={t("superadmin.home.kpi.tenantsSub", { amount: formatMoneyL(locale, avgPlanRevenue) })}
       />
     </div>
   )
 }
 
 async function ActionableCards({ userId }: { userId: string }) {
+  const { t } = await getT()
   const [pendingAddons, pendingServices, foundersTaken, foundersTotal, foundersActive] = await Promise.all([
     safeServerValue(
       db.organizationAddon.count({ where: { isActive: false, expiresAt: null } }),
@@ -520,10 +538,10 @@ async function ActionableCards({ userId }: { userId: string }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Clock className="h-4 w-4 text-amber-500" />
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Заявки на аддоны</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.home.addonRequests")}</span>
             </div>
             <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {pendingAddons} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">в обработке</span>
+              {pendingAddons} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">{t("superadmin.home.addonRequestsSub")}</span>
             </p>
           </div>
           <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-amber-500 transition" />
@@ -538,10 +556,10 @@ async function ActionableCards({ userId }: { userId: string }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Briefcase className="h-4 w-4 text-purple-500" />
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Заявки на услуги</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.home.serviceRequests")}</span>
             </div>
             <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {pendingServices} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">ожидают оплаты</span>
+              {pendingServices} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">{t("superadmin.home.serviceRequestsSub")}</span>
             </p>
           </div>
           <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-purple-500 transition" />
@@ -556,11 +574,11 @@ async function ActionableCards({ userId }: { userId: string }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Sparkles className="h-4 w-4 text-amber-500" />
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Founding Pricing</span>
-              {!foundersActive && <span className="text-[10px] text-red-500 font-medium">выкл.</span>}
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.nav.founders")}</span>
+              {!foundersActive && <span className="text-[10px] text-red-500 font-medium">{t("superadmin.home.foundersOff")}</span>}
             </div>
             <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {foundersTaken} / {foundersTotal} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">слотов</span>
+              {foundersTaken} / {foundersTotal} <span className="text-sm font-normal text-slate-400 dark:text-slate-500">{t("superadmin.home.foundersSlots")}</span>
             </p>
           </div>
           <ArrowRight className="h-5 w-5 text-slate-400 group-hover:text-amber-500 transition" />

@@ -3,7 +3,8 @@ import { randomBytes } from "crypto"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { sendEmail, basicEmailTemplate } from "@/lib/email"
+import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -12,13 +13,15 @@ export async function POST(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  // Письмо и ошибки читает владелец аккаунта — язык из его профиля.
+  const { t, locale } = await getTForUser(result.ctx.user.id)
   const rl = checkRateLimit(`mobile-verify-email:${result.ctx.user.id}`, {
     max: 3,
     window: 10 * 60_000,
   })
   if (!rl.ok) {
     return mobileError(
-      `Можно запрашивать раз в несколько минут. Повторите через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      t("adminDocs.api.auth.verifyTooOften", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
       429,
     )
   }
@@ -27,9 +30,9 @@ export async function POST(req: Request) {
     where: { id: result.ctx.user.id },
     select: { id: true, email: true, name: true, emailVerifiedAt: true },
   })
-  if (!user) return mobileError("Пользователь не найден", 404)
-  if (!user.email) return mobileError("На аккаунте не указана почта", 400)
-  if (user.emailVerifiedAt) return mobileError("Почта уже подтверждена", 409)
+  if (!user) return mobileError(t("adminDocs.api.common.userNotFound"), 404)
+  if (!user.email) return mobileError(t("adminDocs.api.auth.noEmailOnAccount"), 400)
+  if (user.emailVerifiedAt) return mobileError(t("adminDocs.api.auth.emailAlreadyVerified"), 409)
 
   const token = randomBytes(24).toString("hex")
   const expiresAt = new Date(Date.now() + 24 * 60 * 60_000)
@@ -47,17 +50,20 @@ export async function POST(req: Request) {
   const verifyUrl = `${origin}/verify-email?token=${encodeURIComponent(token)}`
 
   const html = basicEmailTemplate({
-    title: "Подтвердите почту",
-    body: `<p>Здравствуйте, ${user.name}!</p><p>Подтвердите адрес <b>${user.email}</b> — нажмите кнопку ниже. Ссылка действует 24 часа.</p>`,
-    buttonText: "Подтвердить",
+    lang: locale,
+    title: t("emails.verifyEmail.title"),
+    // Имя и адрес эскейпим: body уходит в письмо как готовый HTML.
+    body: `<p>${htmlEscape(t("emails.common.greetingNamed", { name: user.name }))}</p><p>${t("emails.verifyEmail.body", { email: htmlEscape(user.email) })}</p>`,
+    buttonText: t("emails.verifyEmail.button"),
     buttonUrl: verifyUrl,
+    footer: t("emails.common.autoFooter"),
   })
 
   const sendResult = await sendEmail({
     to: user.email,
-    subject: "Подтверждение почты — Commrent",
+    subject: t("emails.verifyEmail.subject"),
     html,
-    text: `Подтвердите почту: ${verifyUrl}`,
+    text: t("emails.verifyEmail.text", { link: verifyUrl }),
   })
 
   return NextResponse.json({
@@ -72,22 +78,23 @@ export async function PATCH(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const body = (await req.json().catch(() => null)) as { token?: string } | null
   const token = String(body?.token ?? "").trim()
-  if (!token) return mobileError("Не указан токен")
+  if (!token) return mobileError(t("adminDocs.api.auth.tokenMissing"))
 
   const record = await db.verificationToken.findUnique({ where: { token } })
-  if (!record) return mobileError("Токен не найден", 404)
-  if (record.usedAt) return mobileError("Токен уже использован", 409)
-  if (record.expiresAt < new Date()) return mobileError("Токен просрочен", 410)
-  if (record.type !== "EMAIL_VERIFY") return mobileError("Неверный тип токена", 400)
-  if (record.userId !== result.ctx.user.id) return mobileError("Чужой токен", 403)
+  if (!record) return mobileError(t("adminDocs.api.auth.tokenNotFound"), 404)
+  if (record.usedAt) return mobileError(t("adminDocs.api.auth.tokenUsed"), 409)
+  if (record.expiresAt < new Date()) return mobileError(t("adminDocs.api.auth.tokenExpired"), 410)
+  if (record.type !== "EMAIL_VERIFY") return mobileError(t("adminDocs.api.auth.tokenWrongType"), 400)
+  if (record.userId !== result.ctx.user.id) return mobileError(t("adminDocs.api.auth.tokenForeign"), 403)
 
   const user = await db.user.findUnique({
     where: { id: result.ctx.user.id },
     select: { email: true },
   })
-  if (!user || user.email !== record.target) return mobileError("Почта изменилась", 409)
+  if (!user || user.email !== record.target) return mobileError(t("adminDocs.api.auth.emailChanged"), 409)
 
   await db.$transaction([
     db.user.update({

@@ -26,6 +26,7 @@ export async function createBuilding(formData: FormData) {
   const phone = normalizeKzPhone(formData.get("phone"))
   const email = await normalizeEmailWithDns(formData.get("email"), {
     fieldName: t("actions.buildings.emailField"),
+    t,
   })
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()
@@ -70,6 +71,7 @@ export async function updateBuildingDetails(buildingId: string, formData: FormDa
   const phone = normalizeKzPhone(formData.get("phone"))
   const email = await normalizeEmailWithDns(formData.get("email"), {
     fieldName: t("actions.buildings.emailField"),
+    t,
   })
   const responsible = String(formData.get("responsible") ?? "").trim()
   const contractPrefix = String(formData.get("contractPrefix") ?? "").trim().toUpperCase()

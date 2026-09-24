@@ -113,7 +113,7 @@ export function UnderlayPanel({ editor, layout }: Props) {
       {underlay ? (
         <>
           <label className="flex items-center gap-1.5 text-xs text-slate-500">
-            Прозрачность
+            {t("adminObjects.map.underlayOpacity")}
             <input
               id="underlay-opacity"
               type="range"
@@ -129,7 +129,7 @@ export function UnderlayPanel({ editor, layout }: Props) {
           </label>
 
           <span className="text-xs text-slate-500">
-            Ширина <b className="tabular-nums text-slate-900 dark:text-slate-100">{underlay.widthMeters.toFixed(1)} м</b>
+            {t("adminObjects.map.underlayWidth")} <b className="tabular-nums text-slate-900 dark:text-slate-100">{underlay.widthMeters.toFixed(1)} м</b>
           </span>
 
           <button
@@ -173,7 +173,7 @@ export function UnderlayPanel({ editor, layout }: Props) {
                 placeholder="36.55"
                 className="h-6 w-20 rounded-md border border-orange-300 px-1.5 text-xs tabular-nums dark:bg-slate-800"
               />
-              <span className="text-slate-500">м, Enter</span>
+              <span className="text-slate-500">{t("adminObjects.map.metersEnter")}</span>
             </span>
           ) : null}
 

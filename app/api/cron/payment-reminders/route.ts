@@ -14,22 +14,6 @@ export const dynamic = "force-dynamic"
 // Soft-delete: extension в lib/db автоматически фильтрует Charge.deletedAt = null,
 // так что удалённые начисления не получат напоминание.
 
-const CHARGE_TYPE_LABELS: Record<string, string> = {
-  RENT: "Аренда",
-  CLEANING: "Уборка",
-  PENALTY: "Пеня",
-  ELECTRICITY: "Электричество",
-  WATER: "Вода",
-  HEATING: "Отопление",
-  GAS: "Газ",
-  INTERNET: "Интернет",
-  PARKING: "Парковка",
-  OTHER: "Другое",
-}
-
-function formatChargeType(type: string): string {
-  return CHARGE_TYPE_LABELS[type] ?? type
-}
 
 export async function GET(req: Request) {
   if (!authorizeCronRequest(req)) {
@@ -80,7 +64,8 @@ export async function GET(req: Request) {
 
       const chargeTypeKey = `domain.chargeTypes.${charge.type}` as Parameters<typeof t>[0]
       const chargeTypeLabel = t(chargeTypeKey)
-      const safeType = htmlEscape(chargeTypeLabel === chargeTypeKey ? formatChargeType(charge.type) : chargeTypeLabel)
+      // Неизвестный код показываем как есть: в письме это виднее ключа словаря.
+      const safeType = htmlEscape(chargeTypeLabel === chargeTypeKey ? charge.type : chargeTypeLabel)
       const safePeriod = htmlEscape(charge.period)
       const safeAmount = htmlEscape(amount)
       const safeDue = htmlEscape(charge.dueDate ? formatDateShortL(locale, charge.dueDate) : "—")

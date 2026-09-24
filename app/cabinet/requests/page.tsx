@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
-import { STATUS_COLORS, STATUS_LABELS, PRIORITY_COLORS, PRIORITY_LABELS, REQUEST_TYPE_LABELS } from "@/lib/utils"
+import { STATUS_COLORS, PRIORITY_COLORS } from "@/lib/utils"
 import { cn } from "@/lib/utils"
 import { ClipboardList, Paperclip } from "lucide-react"
 import { RequestDialog } from "./request-dialog"
@@ -74,10 +74,10 @@ export default async function CabinetRequests() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{r.title}</h3>
                   <Badge variant="secondary" className={cn(STATUS_COLORS[r.status])}>
-                    {STATUS_LABELS[r.status] ?? r.status}
+                    {t(`domain.statuses.${r.status}` as "domain.statuses.NEW")}
                   </Badge>
                   <Badge variant="secondary" className={cn(PRIORITY_COLORS[r.priority])}>
-                    {PRIORITY_LABELS[r.priority] ?? r.priority}
+                    {t(`cabinetSupport.requests.priorities.${r.priority}` as "cabinetSupport.requests.priorities.LOW")}
                   </Badge>
                 </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{r.description}</p>
@@ -98,7 +98,7 @@ export default async function CabinetRequests() {
                   </div>
                 )}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400 dark:text-slate-500">
-                  <span>{REQUEST_TYPE_LABELS[r.type] ?? r.type}</span>
+                  <span>{t(`cabinetSupport.requests.types.${r.type}` as "cabinetSupport.requests.types.OTHER")}</span>
                   <span>{new Date(r.createdAt).toLocaleDateString("ru-RU")}</span>
                   {r._count.comments > 0 && (
                     <span>{tp("cabinetSupport.requests.comments", r._count.comments)}</span>

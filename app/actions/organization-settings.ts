@@ -185,6 +185,7 @@ export async function updateOrganizationRequisites(orgId: string, formData: Form
   })
   const email = await normalizeEmailWithDns(formData.get("email"), {
     fieldName: t("actions.organizationSettings.fields.email"),
+    t,
   })
   // Дефолт пени по договорам. Принимаем "0.5", "0,5", "1" — нормализуем через
   // запятую → точку. Clamp [0, 10] — больше 10% бессмысленно (зеркальный потолок).

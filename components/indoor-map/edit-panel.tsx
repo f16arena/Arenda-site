@@ -28,7 +28,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
   if (!room) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400">
-        Выберите помещение на плане или нарисуйте новое инструментом «Помещение».
+        {t("adminObjects.map.pickPremiseHint")}
       </div>
     )
   }
@@ -54,7 +54,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
     <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
       {isRect ? (
         <div className="flex items-center gap-1.5 text-xs">
-          <span className="text-slate-500">Размер, м</span>
+          <span className="text-slate-500">{t("adminObjects.map.sizeMeters")}</span>
           <input
             id="room-width"
             type="number"
@@ -88,18 +88,18 @@ export function EditPanel({ editor, layout, spaces }: Props) {
       )}
 
       <span className="text-xs text-slate-500">
-        На плане <b className="tabular-nums text-slate-900 dark:text-slate-100">{drawn.toFixed(1)} м²</b>
+        {t("adminObjects.map.drawnArea")} <b className="tabular-nums text-slate-900 dark:text-slate-100">{drawn.toFixed(1)} м²</b>
       </span>
 
       <label className="flex items-center gap-1.5 text-xs">
-        <span className="text-slate-500">Карточка</span>
+        <span className="text-slate-500">{t("adminObjects.map.cardArea")}</span>
         <select
           id="room-space"
           value={room.spaceId ?? ""}
           onChange={(event) => editor.actions.link(room.id, event.target.value || null)}
           className="h-7 rounded-md border border-slate-200 px-2 text-xs dark:border-slate-700 dark:bg-slate-800"
         >
-          <option value="">не привязано</option>
+          <option value="">{t("adminObjects.map.notLinked")}</option>
           {spaces.map((space) => (
             <option key={space.id} value={space.id}>
               {space.number} · {space.area} м²
@@ -128,7 +128,7 @@ export function EditPanel({ editor, layout, spaces }: Props) {
             editor.actions.setKind(room.id, event.target.checked ? "common" : "rentable")
           }
         />
-        Общая зона
+        {t("adminObjects.map.commonZone")}
       </label>
 
       <div className="ml-auto flex items-center gap-1">

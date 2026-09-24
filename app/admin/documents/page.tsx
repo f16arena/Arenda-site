@@ -392,7 +392,9 @@ export default async function DocumentsPage({
   // Создание документа — отдельный экран: свой заголовок и «назад», без вкладок
   // списка (раньше было три этажа вкладок: хаб → «Документы | Создать» → вид).
   // Словарь для клиентских частей страницы (таблица, фильтры, кнопки).
-  const messages = pickNamespaces(dictionaries[locale], ["common", "domain", "adminDocs"])
+  // contractEngine — замечания проверки и советы конструктора договора: их
+  // возвращает чистый движок (ключами), подписывает клиентский компонент.
+  const messages = pickNamespaces(dictionaries[locale], ["common", "domain", "adminDocs", "contractEngine"])
 
   if (wantsCreate && canCreateDocuments) {
     return (

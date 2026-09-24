@@ -7,6 +7,7 @@ import {
   getMobileTenantScope,
   getMobileTenantSummary,
 } from "@/lib/mobile-tenant"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +16,8 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  // Названия документов читает арендатор — язык из его профиля.
+  const { t } = await getTForUser(ctx.user.id)
   const scope = await getMobileTenantScope(tenant)
   const now = new Date()
   const period = currentPeriod()
@@ -191,7 +194,12 @@ export async function GET(req: Request) {
         id: contract.id,
         documentType: "CONTRACT",
         documentRef: contract.number,
-        title: `${contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"} № ${contract.number}`,
+        title: t("emails.messaging.docTitle", {
+          doc: contract.type === "ADDENDUM"
+            ? t("emails.messaging.docAddendum")
+            : t("emails.messaging.docContract"),
+          number: contract.number,
+        }),
         status: contract.status,
         webUrl: `${origin}/sign/${contract.signToken}`,
         createdAt: contract.sentAt,

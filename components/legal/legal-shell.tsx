@@ -3,6 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { ArrowLeft } from "lucide-react"
 import { LEGAL_ENTITY, PLACEHOLDER_CLASS, isPlaceholder } from "@/lib/legal-entity"
+import { getT } from "@/lib/i18n/server"
 
 // Юр. страницы — публичные, в одной цветовой гамме с лендингом (только светлая тема).
 // Если когда-то у проекта будет полноценный dark mode для админки — этого shell
@@ -60,7 +61,7 @@ export function ClauseList({ items }: { items: React.ReactNode[] }) {
   )
 }
 
-export function LegalShell({
+export async function LegalShell({
   title,
   subtitle,
   effectiveDate,
@@ -78,6 +79,9 @@ export function LegalShell({
   showBankDetails?: boolean
   children: React.ReactNode
 }) {
+  // Рамка документа — интерфейс, её переводим. Сам текст оферты, политики и
+  // условий приходит в children и остаётся русским до вычитки юриста.
+  const { t } = await getT()
   return (
     <div className="min-h-screen bg-[#f6f8fb] text-slate-900">
       <ForceLight />
@@ -100,7 +104,7 @@ export function LegalShell({
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            На главную
+            {t("landing.legal.toHome")}
           </Link>
         </div>
       </header>
@@ -117,17 +121,17 @@ export function LegalShell({
             <div className="mt-4 space-y-1 text-sm text-slate-500">
               {version && (
                 <p>
-                  Версия документа: <span className="font-mono">v{version}</span>
+                  {t("landing.legal.version")} <span className="font-mono">v{version}</span>
                 </p>
               )}
               {effectiveDate && (
                 <p>
-                  Дата вступления в силу: <Field value={effectiveDate} />
+                  {t("landing.legal.effectiveDate")} <Field value={effectiveDate} />
                 </p>
               )}
               {lastUpdated && (
                 <p>
-                  Дата последнего обновления: <Field value={lastUpdated} />
+                  {t("landing.legal.lastUpdated")} <Field value={lastUpdated} />
                 </p>
               )}
             </div>
@@ -138,35 +142,35 @@ export function LegalShell({
 
         {/* Reqs footer — общие реквизиты (без банковских) */}
         <section className="mt-12 pt-6 border-t border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-900 mb-3">Реквизиты</h2>
+          <h2 className="text-lg font-semibold text-slate-900 mb-3">{t("landing.legal.requisites")}</h2>
           <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[15px] text-slate-700">
-            <dt className="text-slate-500">Полное наименование</dt>
+            <dt className="text-slate-500">{t("landing.legal.fullName")}</dt>
             <dd>{LEGAL_ENTITY.fullName}</dd>
-            <dt className="text-slate-500">БИН</dt>
+            <dt className="text-slate-500">{t("landing.legal.bin")}</dt>
             <dd>{LEGAL_ENTITY.bin}</dd>
-            <dt className="text-slate-500">Юридический адрес</dt>
+            <dt className="text-slate-500">{t("landing.legal.legalAddress")}</dt>
             <dd>{LEGAL_ENTITY.legalAddress}</dd>
-            <dt className="text-slate-500">Директор</dt>
+            <dt className="text-slate-500">{t("landing.legal.director")}</dt>
             <dd>{LEGAL_ENTITY.directorName}</dd>
-            <dt className="text-slate-500">Телефон</dt>
+            <dt className="text-slate-500">{t("landing.legal.phone")}</dt>
             <dd>
               <a href={`tel:${LEGAL_ENTITY.phone.replace(/\s/g, "")}`} className="hover:underline">
                 {LEGAL_ENTITY.phone}
               </a>
             </dd>
-            <dt className="text-slate-500">Общие вопросы</dt>
+            <dt className="text-slate-500">{t("landing.legal.generalQuestions")}</dt>
             <dd>
               <a href={`mailto:${LEGAL_ENTITY.email.info}`} className="text-blue-600 hover:underline">
                 {LEGAL_ENTITY.email.info}
               </a>
             </dd>
-            <dt className="text-slate-500">Поддержка</dt>
+            <dt className="text-slate-500">{t("landing.legal.support")}</dt>
             <dd>
               <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="text-blue-600 hover:underline">
                 {LEGAL_ENTITY.email.support}
               </a>
             </dd>
-            <dt className="text-slate-500">Сайт</dt>
+            <dt className="text-slate-500">{t("landing.legal.site")}</dt>
             <dd>
               <a href={LEGAL_ENTITY.site} className="text-blue-600 hover:underline">
                 {LEGAL_ENTITY.site}
@@ -178,34 +182,34 @@ export function LegalShell({
         {/* Банковские реквизиты — только в /offer (для оплаты подписки) */}
         {showBankDetails && (
           <section className="mt-8 pt-6 border-t border-slate-100">
-            <h2 className="text-lg font-semibold text-slate-900 mb-3">Банковские реквизиты для оплаты</h2>
+            <h2 className="text-lg font-semibold text-slate-900 mb-3">{t("landing.legal.bankDetails")}</h2>
             <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-6 gap-y-2 text-[15px] text-slate-700">
-              <dt className="text-slate-500">Получатель</dt>
+              <dt className="text-slate-500">{t("landing.legal.recipient")}</dt>
               <dd>{LEGAL_ENTITY.fullName}</dd>
-              <dt className="text-slate-500">БИН</dt>
+              <dt className="text-slate-500">{t("landing.legal.bin")}</dt>
               <dd className="font-mono">{LEGAL_ENTITY.bin}</dd>
-              <dt className="text-slate-500">Банк</dt>
+              <dt className="text-slate-500">{t("landing.legal.bank")}</dt>
               <dd>{LEGAL_ENTITY.bankName}</dd>
-              <dt className="text-slate-500">ИИК</dt>
+              <dt className="text-slate-500">{t("landing.legal.iik")}</dt>
               <dd className="font-mono">{LEGAL_ENTITY.iik}</dd>
-              <dt className="text-slate-500">БИК</dt>
+              <dt className="text-slate-500">{t("landing.legal.bik")}</dt>
               <dd className="font-mono">{LEGAL_ENTITY.bik}</dd>
-              <dt className="text-slate-500">Кбе</dt>
+              <dt className="text-slate-500">{t("landing.legal.kbe")}</dt>
               <dd className="font-mono">{LEGAL_ENTITY.kbe}</dd>
             </dl>
             <p className="mt-3 text-xs text-slate-500">
-              В назначении платежа укажите: <code className="px-1 py-0.5 bg-slate-100 rounded">Оплата подписки CommRent, организация &lt;ваше название&gt;, БИН &lt;ваш БИН&gt;</code>.
+              {t("landing.legal.paymentPurpose")} <code className="px-1 py-0.5 bg-slate-100 rounded">{t("landing.legal.paymentPurposeText")}</code>.
             </p>
           </section>
         )}
 
         {/* Cross-links */}
         <nav className="mt-12 pt-6 border-t border-slate-100">
-          <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">Другие документы</p>
+          <p className="text-xs uppercase tracking-widest text-slate-400 mb-3">{t("landing.legal.otherDocs")}</p>
           <ul className="grid grid-cols-2 gap-2 text-sm">
-            <li><Link href="/offer" className="text-slate-700 hover:text-blue-600 hover:underline">Публичная оферта</Link></li>
-            <li><Link href="/privacy" className="text-slate-700 hover:text-blue-600 hover:underline">Политика конфиденциальности</Link></li>
-            <li><Link href="/terms" className="text-slate-700 hover:text-blue-600 hover:underline">Пользовательское соглашение</Link></li>
+            <li><Link href="/offer" className="text-slate-700 hover:text-blue-600 hover:underline">{t("landing.legal.offer")}</Link></li>
+            <li><Link href="/privacy" className="text-slate-700 hover:text-blue-600 hover:underline">{t("landing.legal.privacy")}</Link></li>
+            <li><Link href="/terms" className="text-slate-700 hover:text-blue-600 hover:underline">{t("landing.legal.terms")}</Link></li>
             <li><Link href="/sla" className="text-slate-700 hover:text-blue-600 hover:underline">SLA</Link></li>
           </ul>
         </nav>
@@ -216,12 +220,18 @@ export function LegalShell({
           continuity и легко вернулся к продуктовым ссылкам. */}
       <footer className="border-t border-slate-200 bg-white mt-12">
         <div className="mx-auto max-w-7xl px-5 py-8 sm:px-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between text-sm text-slate-600">
-          <p>© {new Date().getFullYear()} {LEGAL_ENTITY.fullName} · работает под брендом {LEGAL_ENTITY.brand}.kz</p>
+          <p>
+            {t("landing.legal.footerLine", {
+              year: new Date().getFullYear(),
+              name: LEGAL_ENTITY.fullName,
+              brand: LEGAL_ENTITY.brand,
+            })}
+          </p>
           <div className="flex flex-wrap gap-4">
-            <Link href="/" className="hover:text-slate-950">Главная</Link>
-            <Link href="/offer" className="hover:text-slate-950">Оферта</Link>
-            <Link href="/privacy" className="hover:text-slate-950">Конфиденциальность</Link>
-            <Link href="/terms" className="hover:text-slate-950">Условия</Link>
+            <Link href="/" className="hover:text-slate-950">{t("landing.legal.navHome")}</Link>
+            <Link href="/offer" className="hover:text-slate-950">{t("landing.legal.navOffer")}</Link>
+            <Link href="/privacy" className="hover:text-slate-950">{t("landing.legal.navPrivacy")}</Link>
+            <Link href="/terms" className="hover:text-slate-950">{t("landing.legal.navTerms")}</Link>
             <a href={`mailto:${LEGAL_ENTITY.email.support}`} className="hover:text-slate-950">{LEGAL_ENTITY.email.support}</a>
           </div>
         </div>

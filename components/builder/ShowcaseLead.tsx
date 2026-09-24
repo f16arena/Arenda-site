@@ -9,6 +9,7 @@ import { useState, type FormEvent } from "react"
 import { TOKENS } from "@/lib/builder/materials"
 import { submitBuilderLead } from "@/app/actions/builder-premise"
 import { useT } from "@/lib/i18n/client"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
 
 export type ShowcaseLeadProps = {
   token?: string
@@ -18,12 +19,12 @@ export type ShowcaseLeadProps = {
   onClose?: () => void
 }
 
-function formatMoney(v: number): string {
-  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(v)
+function formatMoney(locale: Locale, v: number): string {
+  return new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 0 }).format(v)
 }
 
 export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: ShowcaseLeadProps) {
-  const { t } = useT()
+  const { t, locale } = useT()
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
   const [message, setMessage] = useState("")
@@ -80,13 +81,13 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
               {areaM2 != null && (
                 <span>
                   Площадь:{" "}
-                  <span style={{ color: TOKENS.text }}>{formatMoney(areaM2)} м²</span>
+                  <span style={{ color: TOKENS.text }}>{formatMoney(locale, areaM2)} м²</span>
                 </span>
               )}
               {rate != null && (
                 <span>
                   Ставка:{" "}
-                  <span style={{ color: TOKENS.accent }}>{formatMoney(rate)} ₸/мес</span>
+                  <span style={{ color: TOKENS.accent }}>{t("adminBuilder.lead.rateValue", { amount: formatMoney(locale, rate) })}</span>
                 </span>
               )}
             </div>
@@ -111,10 +112,10 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
             ✓
           </div>
           <p className="text-sm font-medium" style={{ color: TOKENS.text }}>
-            Заявка отправлена
+            {t("adminBuilder.lead.sent")}
           </p>
           <p className="mt-1 text-xs" style={{ color: TOKENS.muted }}>
-            Мы свяжемся с вами в ближайшее время.
+            {t("adminBuilder.lead.sentNote")}
           </p>
           {onClose && (
             <button
@@ -123,7 +124,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
               className="mt-4 rounded-lg px-4 py-2 text-sm font-medium"
               style={{ background: TOKENS.accent, color: TOKENS.background }}
             >
-              Готово
+              {t("adminBuilder.lead.done")}
             </button>
           )}
         </div>
@@ -172,7 +173,7 @@ export function ShowcaseLead({ token, premiseNumber, areaM2, rate, onClose }: Sh
 
           {state === "error" && (
             <p className="text-xs" style={{ color: TOKENS.danger }}>
-              Укажите имя и телефон, затем попробуйте ещё раз.
+              {t("adminBuilder.lead.error")}
             </p>
           )}
 

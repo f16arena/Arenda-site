@@ -636,7 +636,7 @@ export function FloorMap({ layout, view, filter, selectedRoomId, onSelect, edit,
         onClick={fit}
         className="absolute bottom-3 right-3 rounded-lg border border-slate-200 bg-white/95 px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:text-slate-900"
       >
-        Вписать
+        {t("adminObjects.map.fitToScreen")}
       </button>
     </div>
   )

@@ -31,7 +31,7 @@ export async function createBookingLead(
   let email: string | null
   try {
     phone = normalizeKzPhone(formData.get("phone"), { required: true })
-    email = normalizeEmail(formData.get("email"))
+    email = normalizeEmail(formData.get("email"), { t })
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : t("actions.common.invalidContactData") }
   }

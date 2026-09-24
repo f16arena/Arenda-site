@@ -11,12 +11,19 @@ import { Input } from "@/components/ui/input"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { db } from "@/lib/db"
 import { decodeErrorReport, humanizeErrorReport, parseErrorDetails, type ErrorReportDetails } from "@/lib/error-report"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import { getLocale, getT } from "@/lib/i18n/server"
+import type { Translator } from "@/lib/i18n/translate"
 import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { safeServerValue } from "@/lib/server-fallback"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 30
+
+/** Переводчик страницы: синхронные помощники получают его параметром. */
+type PageTranslator = Translator<Messages>["t"]
 
 type SupportFilter = "open" | "new" | "in_progress" | "resolved" | "all"
 
@@ -26,6 +33,8 @@ export default async function SuperadminErrorsPage({
   searchParams?: Promise<{ page?: string | string[]; q?: string | string[]; kind?: string | string[]; status?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t, tp } = await getT(locale)
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
   const query = normalizeQuery(resolved?.q)
@@ -107,9 +116,9 @@ export default async function SuperadminErrorsPage({
             <Bug className="h-5 w-5 text-red-600 dark:text-red-400" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Ошибки сайта</h1>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.errors.title")}</h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Рабочий журнал поддержки: новые ошибки, ошибки в работе и уже решенные события не смешиваются.
+              {t("superadmin.errors.subtitle")}
             </p>
           </div>
         </div>
@@ -121,7 +130,7 @@ export default async function SuperadminErrorsPage({
             <Input
               name="q"
               defaultValue={query}
-              placeholder="Код, страница, пользователь, IP..."
+              placeholder={t("superadmin.errors.searchPlaceholder")}
               className="pl-9"
             />
           </div>
@@ -130,41 +139,41 @@ export default async function SuperadminErrorsPage({
             defaultValue={kind}
             className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-purple-400 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
           >
-            <option value="">Все зоны</option>
-            <option value="admin">Админка</option>
-            <option value="cabinet">Кабинет арендатора</option>
-            <option value="superadmin">Суперпользователь</option>
-            <option value="public">Публичный сайт</option>
-            <option value="server-action">Действия на сервере</option>
-            <option value="server">Сервер</option>
+            <option value="">{t("superadmin.errors.zoneAll")}</option>
+            <option value="admin">{t("superadmin.errors.zoneOptions.admin")}</option>
+            <option value="cabinet">{t("superadmin.errors.zoneOptions.cabinet")}</option>
+            <option value="superadmin">{t("superadmin.errors.zoneOptions.superadmin")}</option>
+            <option value="public">{t("superadmin.errors.zoneOptions.public")}</option>
+            <option value="server-action">{t("superadmin.errors.zoneOptions.serverAction")}</option>
+            <option value="server">{t("superadmin.errors.zoneOptions.server")}</option>
           </select>
           <button className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
-            Найти
+            {t("common.actions.search")}
           </button>
           <a
             href="/superadmin/errors/export"
-            title="Скачать все ошибки одним JSON-файлом"
+            title={t("superadmin.errors.downloadJson")}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">JSON ({totalAll})</span>
+            <span className="hidden sm:inline">{t("superadmin.errors.jsonCount", { count: totalAll })}</span>
           </a>
         </form>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <StatCard icon={ShieldAlert} label="Открытых" value={openCount} tone="red" />
-        <StatCard icon={AlertTriangle} label="За 24 часа" value={last24Count} tone="amber" />
-        <StatCard icon={ServerCrash} label="Server Component" value={serverComponentCount} tone="purple" />
-        <StatCard icon={CheckCircle2} label="Решено" value={resolvedCount} tone="emerald" />
+        <StatCard icon={ShieldAlert} label={t("superadmin.errors.statOpen")} value={openCount} tone="red" />
+        <StatCard icon={AlertTriangle} label={t("superadmin.errors.stat24h")} value={last24Count} tone="amber" />
+        <StatCard icon={ServerCrash} label={t("superadmin.errors.statServerComponent")} value={serverComponentCount} tone="purple" />
+        <StatCard icon={CheckCircle2} label={t("superadmin.errors.statResolved")} value={resolvedCount} tone="emerald" />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <StatusLink label="Открытые" value="open" active={supportFilter === "open"} count={openCount} q={query} kind={kind} />
-        <StatusLink label="Новые" value="new" active={supportFilter === "new"} count={Math.max(openCount - inProgressCount, 0)} q={query} kind={kind} />
-        <StatusLink label="В работе" value="in_progress" active={supportFilter === "in_progress"} count={inProgressCount} q={query} kind={kind} />
-        <StatusLink label="Решенные" value="resolved" active={supportFilter === "resolved"} count={resolvedCount} q={query} kind={kind} />
-        <StatusLink label="Все" value="all" active={supportFilter === "all"} count={totalAll} q={query} kind={kind} />
+        <StatusLink label={t("superadmin.errors.filterOpen")} value="open" active={supportFilter === "open"} count={openCount} q={query} kind={kind} />
+        <StatusLink label={t("superadmin.errors.filterNew")} value="new" active={supportFilter === "new"} count={Math.max(openCount - inProgressCount, 0)} q={query} kind={kind} />
+        <StatusLink label={t("superadmin.errors.filterInProgress")} value="in_progress" active={supportFilter === "in_progress"} count={inProgressCount} q={query} kind={kind} />
+        <StatusLink label={t("superadmin.errors.filterResolved")} value="resolved" active={supportFilter === "resolved"} count={resolvedCount} q={query} kind={kind} />
+        <StatusLink label={t("superadmin.errors.filterAll")} value="all" active={supportFilter === "all"} count={totalAll} q={query} kind={kind} />
         <div className="ml-auto">
           <BulkResolveButton openCount={openCount} />
         </div>
@@ -174,14 +183,14 @@ export default async function SuperadminErrorsPage({
         {parsed.length === 0 ? (
           <div className="px-5 py-12 text-center">
             <Bug className="mx-auto mb-3 h-10 w-10 text-slate-300 dark:text-slate-700" />
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Ошибок не найдено</p>
-            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Попробуйте изменить поиск, зону или статус.</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("superadmin.errors.emptyTitle")}</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{t("superadmin.errors.emptyHint")}</p>
           </div>
         ) : (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {parsed.map(({ log, details }) => {
               const decoded = decodeErrorReport(details)
-              const human = humanizeErrorReport(details)
+              const human = humanizeErrorReport(t, details)
               const org = details.organizationId ? orgMap.get(details.organizationId) : null
               const errorCode = details.errorId ?? log.entityId ?? log.id
               const supportStatus = getSupportStatus(details)
@@ -192,7 +201,7 @@ export default async function SuperadminErrorsPage({
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <SupportStatusBadge status={supportStatus} />
+                        <SupportStatusBadge status={supportStatus} t={t} />
                         <Badge
                           variant="secondary"
                           className={cn(
@@ -204,23 +213,23 @@ export default async function SuperadminErrorsPage({
                                 : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
                           )}
                         >
-                          {severityLabel(decoded.severity)}
+                          {severityLabel(t, decoded.severity)}
                         </Badge>
                         <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{human.title}</h2>
                         <span className="font-mono text-xs text-slate-500 dark:text-slate-400">#{errorCode}</span>
                         {repeatCount > 1 && (
                           <Badge variant="secondary" className="bg-slate-100 text-[11px] text-slate-500 dark:bg-slate-800 dark:text-slate-400">
-                            {repeatCount} похожих на странице
+                            {tp("superadmin.errors.repeats", repeatCount)}
                           </Badge>
                         )}
                       </div>
                       <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                        {formatDateTime(log.createdAt)} · {routeKindLabel(details.routeKind)} ·{" "}
-                        {org ? `${org.name} (${org.slug})` : "платформа / публичная зона"}
+                        {formatDateTime(locale, log.createdAt)} · {routeKindLabel(t, details.routeKind)} ·{" "}
+                        {org ? `${org.name} (${org.slug})` : t("superadmin.errors.platformZone")}
                       </p>
                       {details.supportNote && (
                         <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
-                          Заметка поддержки: {details.supportNote}
+                          {t("superadmin.errors.supportNote", { note: details.supportNote })}
                         </p>
                       )}
                     </div>
@@ -233,31 +242,42 @@ export default async function SuperadminErrorsPage({
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
                         >
-                          Открыть страницу <ExternalLink className="h-3 w-3" />
+                          {t("superadmin.errors.openPage")} <ExternalLink className="h-3 w-3" />
                         </a>
                       )}
                       <Link
                         href={`/superadmin/audit?q=${encodeURIComponent(errorCode)}`}
                         className="rounded-lg border border-slate-200 px-2 py-1 text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
                       >
-                        В audit
+                        {t("superadmin.errors.toAudit")}
                       </Link>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 xl:grid-cols-2">
-                    <InfoBox title="Что произошло" text={human.problem} />
-                    <InfoBox title="Вероятная причина" text={human.cause} />
-                    <InfoBox title="Что сделать" text={human.action} />
-                    <InfoBox title="Влияние" text={human.impact} />
+                    <InfoBox title={t("superadmin.errors.boxProblem")} text={human.problem} />
+                    <InfoBox title={t("superadmin.errors.boxCause")} text={human.cause} />
+                    <InfoBox title={t("superadmin.errors.boxAction")} text={human.action} />
+                    <InfoBox title={t("superadmin.errors.boxImpact")} text={human.impact} />
                   </div>
 
                   <dl className="mt-4 grid gap-3 text-xs md:grid-cols-2 xl:grid-cols-5">
-                    <Field label="Страница" value={details.path ?? "—"} mono />
-                    <Field label="Тип ошибки" value={human.technicalKind} />
-                    <Field label="Код Next/Sentry" value={details.sentryEventId ?? details.digest ?? "—"} mono />
-                    <Field label="Пользователь" value={`${log.userName ?? "Система"}${log.userRole ? ` (${log.userRole})` : ""}`} />
-                    <Field label="IP / Host" value={`${log.ip ?? "—"} · ${details.host ?? "—"}`} mono />
+                    <Field label={t("superadmin.errors.fieldPage")} value={details.path ?? t("superadmin.errors.emptyValue")} mono />
+                    <Field label={t("superadmin.errors.fieldKind")} value={human.technicalKind} />
+                    <Field
+                      label={t("superadmin.errors.fieldDigest")}
+                      value={details.sentryEventId ?? details.digest ?? t("superadmin.errors.emptyValue")}
+                      mono
+                    />
+                    <Field
+                      label={t("superadmin.errors.fieldUser")}
+                      value={`${log.userName ?? t("superadmin.errors.systemUser")}${log.userRole ? ` (${log.userRole})` : ""}`}
+                    />
+                    <Field
+                      label={t("superadmin.errors.fieldIpHost")}
+                      value={`${log.ip ?? t("superadmin.errors.emptyValue")} · ${details.host ?? t("superadmin.errors.emptyValue")}`}
+                      mono
+                    />
                   </dl>
 
                   {mergedHints(details.hints, decoded.hints).length > 0 && (
@@ -266,8 +286,8 @@ export default async function SuperadminErrorsPage({
                     </ul>
                   )}
 
-                  <SupportActions logId={log.id} status={supportStatus} note={details.supportNote ?? ""} />
-                  <DeveloperDetails details={details} />
+                  <SupportActions logId={log.id} status={supportStatus} note={details.supportNote ?? ""} t={t} />
+                  <DeveloperDetails details={details} t={t} />
                 </article>
               )
             })}
@@ -326,30 +346,28 @@ function getRepeatMap(keys: string[]): Map<string, number> {
   return map
 }
 
-function severityLabel(severity: "critical" | "warning" | "info"): string {
-  if (severity === "critical") return "Критично"
-  if (severity === "warning") return "Внимание"
-  return "Инфо"
+function severityLabel(t: PageTranslator, severity: "critical" | "warning" | "info"): string {
+  if (severity === "critical") return t("superadmin.errors.severityCritical")
+  if (severity === "warning") return t("superadmin.errors.severityWarning")
+  return t("superadmin.errors.severityInfo")
 }
 
-function routeKindLabel(kind: string | null | undefined): string {
-  const labels: Record<string, string> = {
-    admin: "админка",
-    cabinet: "кабинет арендатора",
-    superadmin: "суперпользователь",
-    public: "публичный сайт",
-    "server-action": "действие на сервере",
-    server: "сервер",
-  }
-  return kind ? labels[kind] ?? kind : "неизвестная зона"
+function routeKindLabel(t: PageTranslator, kind: string | null | undefined): string {
+  if (!kind) return t("superadmin.errors.zoneUnknown")
+  // Ключи словаря в camelCase, а routeKind приходит через дефис: server-action.
+  const name = kind.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
+  const key = `superadmin.errors.zones.${name}` as Parameters<typeof t>[0]
+  const label = t(key)
+  // Незнакомую зону показываем её кодом, а не ключом словаря.
+  return label === key ? kind : label
 }
 
 function mergedHints(...groups: Array<string[] | undefined>): string[] {
   return Array.from(new Set(groups.flatMap((group) => group ?? []).filter(Boolean)))
 }
 
-function formatDateTime(value: Date): string {
-  return new Intl.DateTimeFormat("ru-RU", {
+function formatDateTime(locale: Locale, value: Date): string {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     dateStyle: "short",
     timeStyle: "short",
     timeZone: "Asia/Qyzylorda",
@@ -421,7 +439,7 @@ function StatCard({
   )
 }
 
-function SupportStatusBadge({ status }: { status: ErrorSupportStatus }) {
+function SupportStatusBadge({ status, t }: { status: ErrorSupportStatus; t: PageTranslator }) {
   const config = {
     NEW: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
     IN_PROGRESS: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",
@@ -429,12 +447,26 @@ function SupportStatusBadge({ status }: { status: ErrorSupportStatus }) {
   }
   return (
     <Badge variant="secondary" className={cn("text-[11px] font-semibold", config[status])}>
-      {status === "NEW" ? "Новая" : status === "IN_PROGRESS" ? "В работе" : "Решена"}
+      {status === "NEW"
+        ? t("superadmin.errors.statusNew")
+        : status === "IN_PROGRESS"
+          ? t("superadmin.errors.statusInProgress")
+          : t("superadmin.errors.statusResolved")}
     </Badge>
   )
 }
 
-function SupportActions({ logId, status, note }: { logId: string; status: ErrorSupportStatus; note: string }) {
+function SupportActions({
+  logId,
+  status,
+  note,
+  t,
+}: {
+  logId: string
+  status: ErrorSupportStatus
+  note: string
+  t: PageTranslator
+}) {
   return (
     <form action={updateErrorSupportStatus} className="mt-4 rounded-lg border border-slate-100 p-3 dark:border-slate-800">
       <input type="hidden" name="logId" value={logId} />
@@ -442,7 +474,7 @@ function SupportActions({ logId, status, note }: { logId: string; status: ErrorS
         <Input
           name="note"
           defaultValue={note}
-          placeholder="Заметка поддержки, например: исправлено в 1.3.104"
+          placeholder={t("superadmin.errors.notePlaceholder")}
           className="min-w-0 flex-1 text-xs"
         />
         <div className="flex flex-wrap gap-2">
@@ -452,7 +484,7 @@ function SupportActions({ logId, status, note }: { logId: string; status: ErrorS
               value="IN_PROGRESS"
               className="rounded-lg border border-amber-200 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-500/30 dark:text-amber-300 dark:hover:bg-amber-500/10"
             >
-              В работу
+              {t("superadmin.errors.toWork")}
             </button>
           )}
           {status !== "RESOLVED" && (
@@ -461,7 +493,7 @@ function SupportActions({ logId, status, note }: { logId: string; status: ErrorS
               value="RESOLVED"
               className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-700"
             >
-              Пометить решенной
+              {t("superadmin.errors.markResolved")}
             </button>
           )}
           {status !== "NEW" && (
@@ -470,7 +502,7 @@ function SupportActions({ logId, status, note }: { logId: string; status: ErrorS
               value="NEW"
               className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800/50"
             >
-              Открыть заново
+              {t("superadmin.errors.reopen")}
             </button>
           )}
         </div>
@@ -497,24 +529,24 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   )
 }
 
-function DeveloperDetails({ details }: { details: ErrorReportDetails }) {
+function DeveloperDetails({ details, t }: { details: ErrorReportDetails; t: PageTranslator }) {
   if (!details.context && !details.message && !details.stack) return null
-  const technicalBrief = getTechnicalBrief(details)
+  const technicalBrief = getTechnicalBrief(t, details)
 
   return (
     <details className="mt-4 rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
       <summary className="cursor-pointer font-medium text-slate-600 dark:text-slate-300">
-        Показать технические детали для разработчика
+        {t("superadmin.errors.devDetails")}
       </summary>
       <div className="mt-3 space-y-3">
         <TechnicalBriefView brief={technicalBrief} />
-        {details.context && <ContextPreview context={details.context} />}
-        {details.message && <RawBlock title="Сырой текст ошибки" value={details.message} />}
-        {details.stack && <RawBlock title="Сырой stack trace" value={details.stack} />}
+        {details.context && <ContextPreview context={details.context} t={t} />}
+        {details.message && <RawBlock title={t("superadmin.errors.rawMessage")} value={details.message} />}
+        {details.stack && <RawBlock title={t("superadmin.errors.rawStack")} value={details.stack} />}
         {details.context && (
           <details className="rounded-lg border border-slate-100 p-3 dark:border-slate-800">
             <summary className="cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400">
-              Показать полный JSON-контекст
+              {t("superadmin.errors.fullJson")}
             </summary>
             <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-950 p-3 text-[11px] text-slate-100">
               {JSON.stringify(details.context, null, 2)}
@@ -532,73 +564,32 @@ type TechnicalBrief = {
   checklist: string[]
 }
 
-function getTechnicalBrief(details: ErrorReportDetails): TechnicalBrief {
+function getTechnicalBrief(t: PageTranslator, details: ErrorReportDetails): TechnicalBrief {
   const source = details.source ?? ""
-  const path = details.path ?? "неизвестная страница"
+  const path = details.path ?? ""
   const message = details.message ?? ""
   const stack = details.stack ?? ""
   const text = `${source}\n${path}\n${message}\n${stack}\n${details.digest ?? ""}`.toLowerCase()
 
-  if (text.includes("minified react error #418") || text.includes("react.dev/errors/418")) {
-    return {
-      title: "React #418: браузер и сервер собрали разный HTML",
-      summary:
-        "Это не ошибка данных в базе, а ошибка отрисовки интерфейса. Обычно она появляется, когда компонент на сервере и в браузере получает разные значения или браузер меняет HTML до гидрации.",
-      checklist: [
-        "Проверьте компоненты этой страницы на Date.now(), Math.random(), Intl без фиксированного timeZone и чтение window/localStorage до mount.",
-        "Проверьте невалидную HTML-разметку: table/tr/td, вложенные ссылки, вложенные формы, интерактивные элементы внутри интерактивных.",
-        "Если ошибка видна только у одного пользователя, проверьте расширения браузера и повторите страницу в приватном режиме.",
-      ],
-    }
-  }
-
-  if (text.includes("server components render") || (details.digest && source.includes("/error"))) {
-    return {
-      title: "Server Component: production скрыл реальную ошибку",
-      summary:
-        "Next.js не показывает пользователю внутренний текст ошибки. Ищите тот же error id или digest в серверных логах за указанное время.",
-      checklist: [
-        "Начните со страницы, указанной в карточке, и последних Prisma-запросов этой страницы.",
-        "Проверьте, совпадает ли production-база с текущей Prisma-схемой и применены ли миграции.",
-        "Проверьте обязательные env-переменные и scope организации/здания/арендатора.",
-      ],
-    }
-  }
-
-  if (text.includes("prisma") || text.includes("unique constraint") || text.includes("foreign key constraint")) {
-    return {
-      title: "Prisma / Database: запрос не прошел",
-      summary:
-        "Сервер дошел до базы данных, но запрос отклонен или не совпал с текущей схемой. Сначала смотрите модель, where/select и миграции.",
-      checklist: [
-        "Если есть Unknown field/Unknown argument, обновите schema.prisma, миграцию и prisma generate.",
-        "Если есть unique constraint, проверьте дубликат номера, email, счета, slug или другого уникального поля.",
-        "Если есть foreign key constraint, проверьте принадлежность записи текущей организации и здания.",
-      ],
-    }
-  }
-
-  if (text.includes("server-action") || (source.includes(".") && !source.includes("/"))) {
-    return {
-      title: "Server action: действие формы не завершилось",
-      summary:
-        "Пользователь нажал кнопку или отправил форму, но серверное действие вернуло ошибку. Нужно проверить входные данные, права и запись в базе.",
-      checklist: [
-        "Откройте context: там должны быть форма, entity id, организация и пользователь.",
-        "Если это ошибка валидации, исправьте текст прямо в форме, чтобы пользователь понял, что поменять.",
-        "Если это ошибка доступа, проверьте server-side permission и building scope.",
-      ],
-    }
-  }
+  // Слова ниже — распознавание типа ошибки, а не интерфейс: их не переводим.
+  const kind: "hydration" | "serverComponent" | "database" | "serverAction" | "unknown" =
+    text.includes("minified react error #418") || text.includes("react.dev/errors/418")
+      ? "hydration"
+      : text.includes("server components render") || (details.digest && source.includes("/error"))
+        ? "serverComponent"
+        : text.includes("prisma") || text.includes("unique constraint") || text.includes("foreign key constraint")
+          ? "database"
+          : text.includes("server-action") || (source.includes(".") && !source.includes("/"))
+            ? "serverAction"
+            : "unknown"
 
   return {
-    title: "Техническая сводка",
-    summary:
-      "Автоматическая классификация не нашла узкий тип ошибки. Начните со страницы, пользователя, времени события и stack trace.",
+    title: t(`superadmin.brief.${kind}.title`),
+    summary: t(`superadmin.brief.${kind}.summary`),
     checklist: [
-      "Повторите действие пользователя на той же странице.",
-      "Сравните время события с последними релизами и серверными логами.",
-      "Если ошибка повторяется, добавьте более точный лог контекста рядом с проблемным действием.",
+      t(`superadmin.brief.${kind}.c1`),
+      t(`superadmin.brief.${kind}.c2`),
+      t(`superadmin.brief.${kind}.c3`),
     ],
   }
 }
@@ -615,16 +606,16 @@ function TechnicalBriefView({ brief }: { brief: TechnicalBrief }) {
   )
 }
 
-function ContextPreview({ context }: { context: Record<string, unknown> }) {
+function ContextPreview({ context, t }: { context: Record<string, unknown>; t: PageTranslator }) {
   const entries = Object.entries(context).slice(0, 8)
-  if (entries.length === 0) return <p className="text-slate-500 dark:text-slate-400">Контекст пустой.</p>
+  if (entries.length === 0) return <p className="text-slate-500 dark:text-slate-400">{t("superadmin.errors.emptyContext")}</p>
 
   return (
     <dl className="grid gap-2 sm:grid-cols-2">
       {entries.map(([key, value]) => (
         <div key={key} className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/50">
-          <dt className="text-[11px] text-slate-400 dark:text-slate-500">{contextKeyLabel(key)}</dt>
-          <dd className="mt-1 break-words text-slate-700 dark:text-slate-300">{formatContextValue(value)}</dd>
+          <dt className="text-[11px] text-slate-400 dark:text-slate-500">{contextKeyLabel(t, key)}</dt>
+          <dd className="mt-1 break-words text-slate-700 dark:text-slate-300">{formatContextValue(t, value)}</dd>
         </div>
       ))}
     </dl>
@@ -642,33 +633,23 @@ function RawBlock({ title, value }: { title: string; value: string }) {
   )
 }
 
-function contextKeyLabel(key: string): string {
-  const labels: Record<string, string> = {
-    source: "Источник",
-    route: "Страница",
-    path: "Страница",
-    orgId: "Организация",
-    organizationId: "Организация",
-    buildingId: "Здание",
-    tenantId: "Арендатор",
-    userId: "Пользователь",
-    action: "Действие",
-    entity: "Сущность",
-    entityId: "ID записи",
-    form: "Форма",
-    method: "Метод",
-    language: "Язык браузера",
-    timezone: "Часовой пояс",
-    viewport: "Размер экрана",
-    online: "Браузер онлайн",
-  }
-  return labels[key] ?? key
+function contextKeyLabel(t: PageTranslator, key: string): string {
+  const dictKey = `superadmin.errors.contextKeys.${key}` as Parameters<typeof t>[0]
+  const label = t(dictKey)
+  // Незнакомое поле контекста показываем его техническим именем.
+  return label === dictKey ? key : label
 }
 
-function formatContextValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—"
+function formatContextValue(t: PageTranslator, value: unknown): string {
+  if (value === null || value === undefined || value === "") return t("superadmin.errors.emptyValue")
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return String(value)
-  if (Array.isArray(value)) return value.length === 0 ? "пустой список" : `список: ${value.length}`
-  if (typeof value === "object") return `объект с ${Object.keys(value as Record<string, unknown>).length} полями`
+  if (Array.isArray(value)) {
+    return value.length === 0
+      ? t("superadmin.errors.emptyList")
+      : t("superadmin.errors.listOf", { count: value.length })
+  }
+  if (typeof value === "object") {
+    return t("superadmin.errors.objectOf", { count: Object.keys(value as Record<string, unknown>).length })
+  }
   return String(value)
 }

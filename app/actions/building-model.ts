@@ -10,12 +10,14 @@
 
 import { auth } from "@/auth"
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingAccess } from "@/lib/building-access"
 import { parseDocument, type Floor } from "@/types/builder"
 import { buildProjectFromBuilding, type SourceBuilding } from "@/lib/builder/from-building"
 
 async function loadSourceBuilding(buildingId: string, orgId: string): Promise<SourceBuilding & { name: string }> {
+  const { t } = await getT()
   const building = await db.building.findFirst({
     where: { id: buildingId, organizationId: orgId },
     select: {
@@ -38,7 +40,7 @@ async function loadSourceBuilding(buildingId: string, orgId: string): Promise<So
       },
     },
   })
-  if (!building) throw new Error("Здание не найдено")
+  if (!building) throw new Error(t("actions.builder.buildingNotFound"))
   return building
 }
 
@@ -48,8 +50,9 @@ async function loadSourceBuilding(buildingId: string, orgId: string): Promise<So
  * кладёт клиент командой ReplaceFloorCommand, так что сброс откатывается Ctrl+Z.
  */
 export async function rebuildModelFloor(buildingId: string, level: number): Promise<Floor | null> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
+  if (!session?.user || session.user.role === "TENANT") throw new Error(t("actions.builder.forbidden"))
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
   const building = await loadSourceBuilding(buildingId, orgId)
@@ -88,8 +91,9 @@ export type BuildingModel = {
  * Если снимков-проектов несколько (наследие), берём последний сохранённый.
  */
 export async function openBuildingModel(buildingId: string): Promise<BuildingModel> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
+  if (!session?.user || session.user.role === "TENANT") throw new Error(t("actions.builder.forbidden"))
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
 

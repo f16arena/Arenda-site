@@ -7,11 +7,29 @@ import { Package, Clock, CheckCircle2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { ADDON_CATALOG } from "@/lib/addons-catalog"
 import { ActivateButton, DeactivateButton, RejectButton } from "./client-actions"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatNumberL } from "@/lib/i18n/format"
+import { INTL_LOCALE } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
 
 type SearchParams = Promise<{ status?: string }>
 
+/**
+ * Подпись аддона по его коду. Код (`addonCode`) лежит в базе и не переводится,
+ * а название берём из словаря справочников; русский текст каталога остаётся
+ * запасным для аддона, который добавили раньше перевода.
+ */
+function addonText(t: Translator<Messages>["t"], code: string, field: "label" | "description", fallback: string) {
+  const key = `adminRefs.addons.${code}.${field}` as Parameters<typeof t>[0]
+  const value = t(key)
+  return value === key ? fallback : value
+}
+
 export default async function SuperadminAddonsPage({ searchParams }: { searchParams: SearchParams }) {
   await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const { status } = await searchParams
   const filter = status === "active" || status === "all" ? status : "pending"
 
@@ -45,36 +63,40 @@ export default async function SuperadminAddonsPage({ searchParams }: { searchPar
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Package className="h-5 w-5 text-purple-500" />
-          Аддоны организаций
+          {t("superadmin.addons.title")}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Подтверждение оплаченных аддонов и управление активными. Платежи вручную.
+          {t("superadmin.addons.subtitle")}
         </p>
       </div>
 
       {/* Фильтр */}
       <div className="flex gap-2">
-        <FilterTab href="/superadmin/addons?status=pending" active={filter === "pending"} label={`Заявки (${pendingCount})`} icon={Clock} color="amber" />
-        <FilterTab href="/superadmin/addons?status=active" active={filter === "active"} label={`Активные (${activeCount})`} icon={CheckCircle2} color="emerald" />
-        <FilterTab href="/superadmin/addons?status=all" active={filter === "all"} label="Все" icon={Package} color="slate" />
+        <FilterTab href="/superadmin/addons?status=pending" active={filter === "pending"} label={t("superadmin.addons.tabPending", { count: pendingCount })} icon={Clock} color="amber" />
+        <FilterTab href="/superadmin/addons?status=active" active={filter === "active"} label={t("superadmin.addons.tabActive", { count: activeCount })} icon={CheckCircle2} color="emerald" />
+        <FilterTab href="/superadmin/addons?status=all" active={filter === "all"} label={t("superadmin.addons.tabAll")} icon={Package} color="slate" />
       </div>
 
       <Card className="block p-0">
         {addons.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-slate-400 dark:text-slate-500">
-            {filter === "pending" ? "Нет заявок на активацию" : filter === "active" ? "Нет активных аддонов" : "Нет аддонов"}
+            {filter === "pending"
+              ? t("superadmin.addons.emptyPending")
+              : filter === "active"
+                ? t("superadmin.addons.emptyActive")
+                : t("superadmin.addons.emptyAll")}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Организация</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Аддон</th>
-                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Кол-во</th>
-                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">₸/мес</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Запрошен</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
-                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Действия</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.org")}</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.addons.colAddon")}</th>
+                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.addons.colQuantity")}</th>
+                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.addons.colPricePerMonth")}</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.addons.colRequested")}</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.status")}</th>
+                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -90,33 +112,37 @@ export default async function SuperadminAddonsPage({ searchParams }: { searchPar
                       <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono mt-0.5">{a.organization.plan?.name ?? "—"}</p>
                     </td>
                     <td className="px-5 py-3">
-                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{item?.label ?? a.addonCode}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                        {item ? addonText(t, item.code, "label", item.label) : a.addonCode}
+                      </p>
                       {item?.description && (
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-xs">{item.description}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-xs">
+                          {addonText(t, item.code, "description", item.description)}
+                        </p>
                       )}
                     </td>
                     <td className="px-5 py-3 text-right text-slate-700 dark:text-slate-300">{a.quantity}</td>
                     <td className="px-5 py-3 text-right">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{total.toLocaleString("ru-RU")}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{a.priceMonthly.toLocaleString("ru-RU")} × {a.quantity}</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatNumberL(locale, total)}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">{formatNumberL(locale, a.priceMonthly)} × {a.quantity}</p>
                     </td>
                     <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
-                      {new Date(a.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(a.createdAt).toLocaleString(INTL_LOCALE[locale], { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       {a.notes && <p className="mt-1 text-[10px] text-slate-400 max-w-xs whitespace-pre-line">{a.notes}</p>}
                     </td>
                     <td className="px-5 py-3">
                       {a.isActive ? (
                         <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                          <CheckCircle2 className="h-3 w-3" />активен
+                          <CheckCircle2 className="h-3 w-3" />{t("superadmin.addons.stateActive")}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 font-medium">
-                          <Clock className="h-3 w-3" />ожидает
+                          <Clock className="h-3 w-3" />{t("superadmin.addons.statePending")}
                         </span>
                       )}
                       {a.expiresAt && (
                         <p className="text-[10px] text-slate-500 mt-0.5">
-                          до {new Date(a.expiresAt).toLocaleDateString("ru-RU")}
+                          {t("superadmin.addons.until", { date: formatDateShortL(locale, a.expiresAt) })}
                         </p>
                       )}
                     </td>

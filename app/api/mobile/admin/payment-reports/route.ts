@@ -4,7 +4,8 @@ import { mobileError } from "@/lib/mobile-context"
 import { getMobilePaymentStaffRequest, paymentReportInBuildingsWhere, tenantInBuildingsWhere } from "@/lib/mobile-admin"
 import { notifyUser } from "@/lib/notify"
 import { applyConfirmedPaymentReport } from "@/lib/payment-report-workflow"
-import { formatMoney } from "@/lib/utils"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 export const dynamic = "force-dynamic"
 
@@ -115,12 +116,14 @@ export async function PATCH(req: Request) {
     method?: string
   } | null
 
+  // Ошибки читает админ, уведомления — арендатор: переводчиков нужно два.
+  const { t } = await getTForUser(result.ctx.user.id)
   const reportId = String(body?.reportId ?? "").trim()
   const action = String(body?.action ?? "").trim().toLowerCase()
   const reason = String(body?.reason ?? "").trim().slice(0, 500)
 
   if (!reportId) return mobileError("reportId is required")
-  if (!["confirm", "dispute", "reject"].includes(action)) return mobileError("Некорректное действие")
+  if (!["confirm", "dispute", "reject"].includes(action)) return mobileError(t("adminDocs.api.payments.badAction"))
 
   const report = await db.paymentReport.findFirst({
     where: {
@@ -140,7 +143,7 @@ export async function PATCH(req: Request) {
       tenant: { select: { companyName: true } },
     },
   })
-  if (!report) return mobileError("Заявка об оплате не найдена или уже обработана", 404)
+  if (!report) return mobileError(t("adminDocs.api.payments.reportNotFound"), 404)
 
   if (action === "confirm") {
     const method = String(body?.method ?? report.method).trim().toUpperCase()
@@ -150,11 +153,14 @@ export async function PATCH(req: Request) {
       reviewerId: result.ctx.user.id,
     }))
 
+    const { t: tTenant, locale: tenantLocale } = await getTForUser(report.userId)
     await notifyUser({
       userId: report.userId,
       type: "PAYMENT_CONFIRMED",
-      title: "Оплата подтверждена",
-      message: `Администратор провел платеж ${formatMoney(report.amount)}.`,
+      title: tTenant("emails.paymentReport.confirmedTitle"),
+      message: tTenant("emails.paymentReport.confirmedMessage", {
+        amount: formatMoneyL(tenantLocale, report.amount),
+      }),
       link: "/cabinet/finances",
       sendEmail: false,
       sendPush: true,
@@ -171,16 +177,29 @@ export async function PATCH(req: Request) {
       status: nextStatus,
       reviewedById: result.ctx.user.id,
       reviewedAt: new Date(),
-      note: reason ? [report.note, `${nextStatus === "DISPUTED" ? "Спорная оплата" : "Отклонено"}: ${reason}`].filter(Boolean).join("\n\n") : report.note,
+      // Приписку к заметке читает администрация — берём язык проверяющего.
+      note: reason
+        ? [
+            report.note,
+            nextStatus === "DISPUTED"
+              ? t("emails.paymentReport.disputedNote", { reason })
+              : t("emails.paymentReport.rejectedNote", { reason }),
+          ].filter(Boolean).join("\n\n")
+        : report.note,
     },
     select: { id: true, status: true, amount: true },
   })
 
+  const { t: tTenant, locale: tenantLocale } = await getTForUser(report.userId)
   await notifyUser({
     userId: report.userId,
     type: nextStatus === "DISPUTED" ? "PAYMENT_DISPUTED" : "PAYMENT_REJECTED",
-    title: nextStatus === "DISPUTED" ? "Оплата требует уточнения" : "Оплата отклонена",
-    message: reason || `Администратор не смог подтвердить платеж ${formatMoney(report.amount)}.`,
+    title: nextStatus === "DISPUTED"
+      ? tTenant("emails.paymentReport.disputedTitle")
+      : tTenant("emails.paymentReport.rejectedTitle"),
+    message: reason || tTenant("emails.paymentReport.rejectedMessage", {
+      amount: formatMoneyL(tenantLocale, report.amount),
+    }),
     link: "/cabinet/finances",
     sendEmail: false,
     sendPush: true,

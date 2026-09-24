@@ -10,6 +10,12 @@
 // земельного участка под ВРЕМЕННОЕ (некапитальное) сооружение. Условия написаны
 // в интересах Арендодателя (пользователь платформы — собственник объекта).
 // Текст — основа; перед массовым использованием его стоит показать юристу.
+//
+// ЯЗЫК: формулировки пунктов и приложений остаются русскими — это текст
+// документа, а не интерфейс. Казахская редакция выходит только после вычитки
+// юриста, подписанные договоры не перевыпускаются (docs/i18n-documents-plan.md).
+// Исключение — validatePlacement внизу файла: его замечания видит администратор
+// в конструкторе, поэтому они переведены через ключи словаря.
 
 import {
   type ContractState,
@@ -21,6 +27,7 @@ import {
 import { type DerivedContext } from "./derive"
 import { type ClauseSection, debtSettlementSection } from "./registry"
 import { money, moneyWithWords, monthYearGenitive, monthYearNominative, dateLong } from "./numerals"
+import type { ValidationIssue, ValidationResult } from "./validate"
 
 /** Семейство договора на размещение или null (договор аренды помещения / старый договор). */
 export function placementFamily(s: ContractState): PlacementFamily | null {
@@ -595,17 +602,23 @@ export function placementAnnexesText(s: ContractState): string[] {
   return out
 }
 
-/** Замечания конструктора для договора на размещение. */
-export function validatePlacement(s: ContractState): { hard: string[]; soft: string[] } {
+/**
+ * Замечания конструктора для договора на размещение.
+ *
+ * Единственное место файла, которое НЕ попадает в документ: это подсказки
+ * администратору в конструкторе. Поэтому здесь ключи словаря
+ * (contractEngine.validation.*), а не готовый текст — как в validate.ts.
+ */
+export function validatePlacement(s: ContractState): ValidationResult {
   const fam = placementFamily(s)
   if (!fam) return { hard: [], soft: [] }
   const t = terms(s, fam)
-  const hard: string[] = []
-  const soft: string[] = []
-  if (!t.placeAreaSqm) soft.push("Не указана площадь Места — в договоре останется прочерк.")
-  if (!t.placeDescription.trim() && !s.premises.placement.trim()) soft.push("Не описано, где именно находится Место (например, «холл 1 этажа, справа от входа»).")
-  if (t.equipment.length === 0) soft.push(fam === "equipment" ? "Перечень оборудования пуст — без него неясно, что именно разрешено разместить." : "Не описан объект (киоск, контейнер) — укажите его в перечне.")
-  if (t.electricity === "fixed" && !t.electricityFixed) hard.push("Электроэнергия фиксированной платой: укажите сумму в месяц.")
-  if (fam === "territory" && !t.landDocument.trim()) soft.push("Не указан документ на земельный участок (акт на право собственности или договор аренды земли).")
+  const hard: ValidationIssue[] = []
+  const soft: ValidationIssue[] = []
+  if (!t.placeAreaSqm) soft.push({ key: "placeAreaMissing" })
+  if (!t.placeDescription.trim() && !s.premises.placement.trim()) soft.push({ key: "placeDescriptionMissing" })
+  if (t.equipment.length === 0) soft.push({ key: fam === "equipment" ? "equipmentListEmpty" : "objectListEmpty" })
+  if (t.electricity === "fixed" && !t.electricityFixed) hard.push({ key: "electricityFixedMissing" })
+  if (fam === "territory" && !t.landDocument.trim()) soft.push({ key: "landDocumentMissing" })
   return { hard, soft }
 }

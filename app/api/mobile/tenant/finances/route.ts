@@ -5,7 +5,8 @@ import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
 import { notifyUser } from "@/lib/notify"
 import { mobileError } from "@/lib/mobile-context"
-import { PAYMENT_METHOD_LABELS, formatMoney } from "@/lib/utils"
+import { getTForUser } from "@/lib/i18n/server"
+import { formatMoneyL, formatDateShortL, taxIdLabelL } from "@/lib/i18n/format"
 import {
   PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
   PAYMENT_RECEIPT_MAX_BYTES,
@@ -22,6 +23,8 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  // Реквизиты и QR читает арендатор — язык из его профиля (cookie тут нет).
+  const { t, locale } = await getTForUser(ctx.user.id)
   const period = currentPeriod()
   const paymentPurpose = getMobilePaymentPurpose(tenant, period)
   const origin = new URL(req.url).origin
@@ -103,14 +106,15 @@ export async function GET(req: Request) {
     ? totalDebt._sum.amount
     : getMobileTenantSummary(tenant).monthlyRent
   const primaryAccount = accounts[0]
+  // Подпись БИН/ИИН в казахском своя (БСН/ЖСН) — берём её через taxIdLabelL.
   const qrText = [
-    `Получатель: ${landlord.fullName}`,
-    `${landlord.taxIdLabel}: ${landlord.taxId}`,
-    primaryAccount ? `Банк: ${primaryAccount.bank}` : null,
-    primaryAccount ? `БИК: ${primaryAccount.bik}` : null,
-    primaryAccount ? `ИИК: ${primaryAccount.account}` : null,
-    `Назначение: ${paymentPurpose}`,
-    `Сумма к оплате: ${formatMoney(payableAmount)}`,
+    t("emails.requisites.recipient", { value: landlord.fullName }),
+    `${taxIdLabelL(locale, landlord.taxIdLabel)}: ${landlord.taxId}`,
+    primaryAccount ? t("emails.requisites.bank", { value: primaryAccount.bank }) : null,
+    primaryAccount ? t("emails.requisites.bik", { value: primaryAccount.bik }) : null,
+    primaryAccount ? t("emails.requisites.iik", { value: primaryAccount.account }) : null,
+    t("emails.requisites.purpose", { value: paymentPurpose }),
+    t("emails.requisites.payable", { value: formatMoneyL(locale, payableAmount) }),
   ].filter(Boolean).join("\n")
 
   return NextResponse.json({
@@ -123,7 +127,7 @@ export async function GET(req: Request) {
     },
     requisites: {
       recipient: landlord.fullName,
-      taxIdLabel: landlord.taxIdLabel,
+      taxIdLabel: taxIdLabelL(locale, landlord.taxIdLabel),
       taxId: landlord.taxId,
       accounts,
       qrText,
@@ -145,25 +149,26 @@ export async function POST(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  const { t } = await getTForUser(ctx.user.id)
   const parsed = await parsePaymentBody(req)
   const body = parsed.body
 
-  if (!body) return mobileError("Некорректный запрос")
+  if (!body) return mobileError(t("adminDocs.api.common.badRequest"))
 
   const amount = parsePositiveAmount(body.amount)
-  if (!amount) return mobileError("Введите корректную сумму оплаты")
+  if (!amount) return mobileError(t("adminDocs.api.payments.badAmount"))
 
   const paymentDate = parseMobileDate(body.paymentDate)
-  if (!paymentDate) return mobileError("Введите корректную дату оплаты")
+  if (!paymentDate) return mobileError(t("adminDocs.api.payments.badDate"))
 
   const method = String(body.method ?? "TRANSFER").trim().toUpperCase()
-  if (!PAYMENT_METHODS.has(method)) return mobileError("Выберите корректный способ оплаты")
+  if (!PAYMENT_METHODS.has(method)) return mobileError(t("adminDocs.api.payments.badMethod"))
 
   const paymentPurpose = String(body.paymentPurpose ?? getMobilePaymentPurpose(tenant)).trim().slice(0, 300)
   const note = String(body.note ?? "").trim().slice(0, 500)
   const admins = await getTenantAdminContactsForUser(ctx.user.id)
   if (admins.length === 0) {
-    return mobileError("Для вашего помещения не назначен администратор. Напишите в поддержку здания.", 409)
+    return mobileError(t("adminDocs.api.common.noAdminForSpaceSupport"), 409)
   }
 
   let storedReceipt: { id: string; url: string; fileName: string; mimeType: string } | null = null
@@ -183,7 +188,7 @@ export async function POST(req: Request) {
         allowedMimeTypes: PAYMENT_RECEIPT_ALLOWED_MIME_TYPES,
       })
     } catch (error) {
-      return mobileError(error instanceof Error ? error.message : "Не удалось сохранить чек")
+      return mobileError(error instanceof Error ? error.message : t("adminDocs.api.payments.receiptFailed"))
     }
   }
 
@@ -222,39 +227,54 @@ export async function POST(req: Request) {
     })
   }
 
-  const methodLabel = PAYMENT_METHOD_LABELS[method] ?? method
-  const formattedDate = paymentDate.toLocaleDateString("ru-RU")
-  await db.message.createMany({
-    data: admins.map((admin) => ({
+  // Письмо и уведомление читают администраторы, а языки у них разные —
+  // поэтому тело собирается отдельно на каждого получателя.
+  const rows = await Promise.all(admins.map(async (admin) => {
+    const { t: tAdmin, locale: adminLocale } = await getTForUser(admin.id)
+    const methodLabel = tAdmin(`domain.paymentMethods.${method}` as Parameters<typeof tAdmin>[0])
+    return {
       fromId: ctx.user.id,
       toId: admin.id,
-      subject: "Арендатор сообщил об оплате",
+      subject: tAdmin("emails.paymentReport.subject"),
       body: [
-        `Арендатор: ${tenant.companyName}`,
-        `Сумма: ${formatMoney(amount)}`,
-        `Дата оплаты: ${formattedDate}`,
-        `Способ оплаты: ${methodLabel}`,
-        paymentPurpose ? `Назначение платежа: ${paymentPurpose}` : null,
-        note ? `Комментарий: ${note}` : null,
-        storedReceipt ? `Чек: ${storedReceipt.fileName}` : "Чек не приложен",
+        tAdmin("emails.paymentReport.tenantLine", { tenant: tenant.companyName }),
+        tAdmin("emails.paymentReport.amountLine", { amount: formatMoneyL(adminLocale, amount) }),
+        tAdmin("emails.paymentReport.dateLine", { date: formatDateShortL(adminLocale, paymentDate) }),
+        tAdmin("emails.paymentReport.methodLine", { method: methodLabel }),
+        paymentPurpose ? tAdmin("emails.paymentReport.purposeLine", { purpose: paymentPurpose }) : null,
+        note ? tAdmin("emails.paymentReport.noteLine", { note }) : null,
+        storedReceipt
+          ? tAdmin("emails.paymentReport.receiptLine", { file: storedReceipt.fileName })
+          : tAdmin("emails.paymentReport.noReceipt"),
       ].filter(Boolean).join("\n"),
       attachmentUrl: storedReceipt?.url ?? null,
-    })),
-  })
+    }
+  }))
+  await db.message.createMany({ data: rows })
 
-  await Promise.allSettled(admins.map((admin) => notifyUser({
-    userId: admin.id,
-    type: "PAYMENT_REPORTED",
-    title: `Оплата от ${tenant.companyName}`,
-    message: `${formatMoney(amount)} за ${formattedDate}. ${methodLabel}.${storedReceipt ? " Чек приложен." : ""}`,
-    link: "/admin/finances",
-    sendEmail: false,
-    sendPush: true,
-    pushData: {
-      paymentReportId: report.id,
-      tenantId: tenant.id,
-    },
-  })))
+  await Promise.allSettled(admins.map(async (admin) => {
+    const { t: tAdmin, locale: adminLocale } = await getTForUser(admin.id)
+    const vars = {
+      amount: formatMoneyL(adminLocale, amount),
+      date: formatDateShortL(adminLocale, paymentDate),
+      method: tAdmin(`domain.paymentMethods.${method}` as Parameters<typeof tAdmin>[0]),
+    }
+    return notifyUser({
+      userId: admin.id,
+      type: "PAYMENT_REPORTED",
+      title: tAdmin("emails.paymentReport.notifyTitle", { tenant: tenant.companyName }),
+      message: storedReceipt
+        ? tAdmin("emails.paymentReport.notifyMessageWithReceipt", vars)
+        : tAdmin("emails.paymentReport.notifyMessage", vars),
+      link: "/admin/finances",
+      sendEmail: false,
+      sendPush: true,
+      pushData: {
+        paymentReportId: report.id,
+        tenantId: tenant.id,
+      },
+    })
+  }))
 
   return NextResponse.json({ data: report }, { status: 201 })
 }

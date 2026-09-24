@@ -245,7 +245,7 @@ export function IndoorMapApp({
             ) : null}
             {view.debtCount > 0 ? (
               <span className="text-red-600 dark:text-red-400">
-                С долгом <b className="tabular-nums">{view.debtCount}</b>
+                {t("adminObjects.map.debtCount")} <b className="tabular-nums">{view.debtCount}</b>
               </span>
             ) : null}
           </div>
@@ -310,7 +310,7 @@ export function IndoorMapApp({
                   title={t("adminObjects.map.dropScanHint")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:text-red-600 dark:border-slate-800 dark:text-slate-400"
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> Скан
+                  <Trash2 className="h-3.5 w-3.5" /> {t("adminObjects.map.dropScanShort")}
                 </button>
               ) : null}
               {layout ? (
@@ -320,7 +320,7 @@ export function IndoorMapApp({
                   title={t("adminObjects.map.dropPlanHint")}
                   className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:border-red-300 hover:text-red-600 dark:border-slate-800 dark:text-slate-400"
                 >
-                  <Trash2 className="h-3.5 w-3.5" /> План
+                  <Trash2 className="h-3.5 w-3.5" /> {t("adminObjects.map.dropPlanShort")}
                 </button>
               ) : null}
             </div>
@@ -381,7 +381,7 @@ export function IndoorMapApp({
             onClick={() => setConfirmDelete(null)}
             className="rounded-md border border-red-300 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
           >
-            Отмена
+            {t("common.actions.cancel")}
           </button>
         </div>
       ) : null}
@@ -403,7 +403,7 @@ export function IndoorMapApp({
             onClick={() => setConfirmReplace(false)}
             className="rounded-md border border-red-300 px-2 py-1 font-medium hover:bg-red-100 dark:border-red-500/40 dark:hover:bg-red-500/20"
           >
-            Отмена
+            {t("common.actions.cancel")}
           </button>
         </div>
       ) : null}
@@ -536,7 +536,7 @@ export function IndoorMapApp({
                     onClick={() => setEditing(true)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                   >
-                    <PencilRuler className="h-3.5 w-3.5" /> Нарисовать самому
+                    <PencilRuler className="h-3.5 w-3.5" /> {t("adminObjects.map.drawSelf")}
                   </button>
                 </div>
               ) : null}

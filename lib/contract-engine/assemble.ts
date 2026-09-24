@@ -1,6 +1,9 @@
 // Движок сборки (спецификация §7). Включает только активные секции/пункты,
 // присваивает номера ДИНАМИЧЕСКИ (сквозная ренумерация — §16.2, выбор заказчика:
 // удалённые блоки не оставляют дыр), фиксирует snapshot ID→номер для ДС.
+//
+// ЯЗЫК: заголовки разделов и текст пунктов приходят из registry.ts/placement.ts
+// и остаются русскими — это документ, а не интерфейс (docs/i18n-documents-plan.md).
 
 import { type ContractState } from "./schema"
 import { deriveContext, type DerivedContext } from "./derive"
@@ -94,9 +97,13 @@ export function assemble(s: ContractState): AssemblyResult {
   return { sections, ctx, snapshot, requisitesNum: secNum + 1, validation }
 }
 
-/** Бросает, если есть hard-ошибки (использовать перед генерацией документа). */
+/**
+ * Бросает, если есть hard-ошибки (использовать перед генерацией документа).
+ * В сообщении — ключи замечаний: это техническая страховка для лога, а
+ * человеческую подпись показывает интерфейс (contractEngine.validation.*).
+ */
 export function assertGeneratable(result: AssemblyResult): void {
   if (result.validation.hard.length) {
-    throw new Error("Договор содержит ошибки: " + result.validation.hard.join("; "))
+    throw new Error("contract validation failed: " + result.validation.hard.map((i) => i.key).join("; "))
   }
 }

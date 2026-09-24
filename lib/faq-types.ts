@@ -12,8 +12,3 @@ export type FaqItem = {
   hrefLabel?: string
 }
 
-export const faqAudienceLabels: Record<FaqAudience, string> = {
-  owner: "Владелец",
-  admin: "Администратор",
-  tenant: "Арендатор",
-}

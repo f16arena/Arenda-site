@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Upload, Loader2, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { uploadSiteImage, removeSiteImage } from "@/app/actions/site-images"
+import { useT } from "@/lib/i18n/client"
 
 export function SiteImageUploader({
   slot,
@@ -19,6 +20,7 @@ export function SiteImageUploader({
   version: number | null
 }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const has = version != null
 
@@ -28,12 +30,12 @@ export function SiteImageUploader({
     fd.append("file", file)
     startTransition(async () => {
       const r = await uploadSiteImage(slot, fd)
-      if (r.ok) { toast.success("Изображение обновлено"); router.refresh() }
-      else toast.error(r.error ?? "Ошибка")
+      if (r.ok) { toast.success(t("superadmin.siteImages.updated")); router.refresh() }
+      else toast.error(r.error ?? t("common.state.error"))
     })
   }
   function remove() {
-    startTransition(async () => { await removeSiteImage(slot); toast.success("Удалено"); router.refresh() })
+    startTransition(async () => { await removeSiteImage(slot); toast.success(t("superadmin.siteImages.removed")); router.refresh() })
   }
 
   return (
@@ -46,7 +48,7 @@ export function SiteImageUploader({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/site-image/${slot}?v=${version}`} alt={label} className="max-h-64 w-full object-contain" />
         ) : (
-          <div className="flex h-40 items-center justify-center text-sm text-slate-400">Изображение не загружено</div>
+          <div className="flex h-40 items-center justify-center text-sm text-slate-400">{t("superadmin.siteImages.noImage")}</div>
         )}
       </div>
 
@@ -54,11 +56,11 @@ export function SiteImageUploader({
         <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900">
           <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" className="hidden" disabled={pending} onChange={(e) => onFile(e.target.files?.[0])} />
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-          {has ? "Заменить" : "Загрузить"}
+          {has ? t("common.actions.replace") : t("common.actions.upload")}
         </label>
         {has && (
           <button type="button" onClick={remove} disabled={pending} className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-500/30 dark:hover:bg-red-500/10">
-            <Trash2 className="h-4 w-4" /> Удалить
+            <Trash2 className="h-4 w-4" /> {t("common.actions.delete")}
           </button>
         )}
       </div>

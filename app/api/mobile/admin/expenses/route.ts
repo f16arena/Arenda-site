@@ -4,6 +4,7 @@ import { mobileError } from "@/lib/mobile-context"
 import { getMobilePaymentStaffRequest } from "@/lib/mobile-admin"
 import { EXPENSE_CATEGORIES, expenseCategoryLabel } from "@/lib/utils"
 import { parsePositiveAmount } from "@/lib/mobile-tenant"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -87,6 +88,9 @@ export async function POST(req: Request) {
   const result = await getMobilePaymentStaffRequest(req)
   if (!result.ok) return result.response
 
+  // Ответ читает мобильное приложение админа — язык берём из его профиля,
+  // cookie в bearer-запросе нет.
+  const { t } = await getTForUser(result.ctx.user.id)
   const { buildingIds } = result
   const body = (await req.json().catch(() => null)) as {
     buildingId?: string
@@ -95,17 +99,17 @@ export async function POST(req: Request) {
     description?: string
     period?: string
   } | null
-  if (!body) return mobileError("Некорректный запрос")
+  if (!body) return mobileError(t("adminDocs.api.common.badRequest"))
 
   const buildingId = String(body.buildingId ?? "").trim()
   if (!buildingId || !buildingIds.includes(buildingId)) {
-    return mobileError("Выберите доступное здание")
+    return mobileError(t("adminDocs.api.expenses.buildingRequired"))
   }
   const category = String(body.category ?? "").trim()
-  if (!EXPENSE_CATEGORIES[category]) return mobileError("Неизвестная категория расхода")
+  if (!EXPENSE_CATEGORIES[category]) return mobileError(t("adminDocs.api.expenses.unknownCategory"))
 
   const amount = parsePositiveAmount(body.amount)
-  if (!amount) return mobileError("Введите корректную сумму расхода")
+  if (!amount) return mobileError(t("adminDocs.api.expenses.badAmount"))
 
   const period = /^\d{4}-(0[1-9]|1[0-2])$/.test(body.period ?? "")
     ? body.period!

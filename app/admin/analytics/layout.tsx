@@ -5,10 +5,11 @@ import { dictionaries, pickNamespaces } from "@/lib/i18n/messages"
 /** Словарь для клиентских графиков и отчётов аналитики. */
 export default async function AdminAnalyticsLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale()
+  // catalogs — виды помещений и города в сводке по рынку (lib/market.ts).
   return (
     <I18nProvider
       locale={locale}
-      messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminFinance"])}
+      messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminFinance", "catalogs"])}
     >
       {children}
     </I18nProvider>

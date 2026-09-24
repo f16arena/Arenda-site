@@ -2,6 +2,9 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileContext } from "@/lib/mobile-context"
 import { getMobileAccessibleBuildings } from "@/lib/mobile-buildings"
+import { getT, getTForUser } from "@/lib/i18n/server"
+
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 export const dynamic = "force-dynamic"
 
@@ -10,6 +13,9 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { user, org } = result.ctx
+  // Подписи меню отдаёт сервер, а читает их владелец аккаунта в приложении:
+  // язык берём из его профиля, cookie в bearer-запросе нет.
+  const { t } = await getTForUser(user.id)
   const userPhone = "phone" in user && typeof user.phone === "string" ? user.phone : null
   const buildings = await getMobileAccessibleBuildings(user, org.id)
   const buildingIds = buildings.map((building) => building.id)
@@ -68,7 +74,7 @@ export async function GET(req: Request) {
       pendingSignatures: pendingSignatureRequests + tenantContracts,
       activeBuildingNotices: activeNotices,
     },
-    menu: buildMobileMenu(user.role),
+    menu: buildMobileMenu(user.role, t),
     featureFlags: {
       nativeMacApp: false,
       pushNotifications: true,
@@ -107,22 +113,23 @@ export async function GET(req: Request) {
   })
 }
 
-function buildMobileMenu(role?: string | null) {
+// key и icon — контракт с приложением, их не переводим; переводится только label.
+function buildMobileMenu(role: string | null | undefined, t: Tr) {
   if (role === "TENANT") {
     return [
-      { key: "home", label: "Главная", icon: "house", path: "/" },
-      { key: "payments", label: "Оплата", icon: "creditcard", path: "/payments" },
-      { key: "requests", label: "Заявки", icon: "wrench.and.screwdriver", path: "/requests" },
-      { key: "documents", label: "Документы", icon: "doc.text", path: "/documents" },
-      { key: "more", label: "Еще", icon: "ellipsis", path: "/more" },
+      { key: "home", label: t("emails.mobileNav.home"), icon: "house", path: "/" },
+      { key: "payments", label: t("emails.mobileNav.payments"), icon: "creditcard", path: "/payments" },
+      { key: "requests", label: t("emails.mobileNav.requests"), icon: "wrench.and.screwdriver", path: "/requests" },
+      { key: "documents", label: t("emails.mobileNav.documents"), icon: "doc.text", path: "/documents" },
+      { key: "more", label: t("emails.mobileNav.more"), icon: "ellipsis", path: "/more" },
     ]
   }
 
   return [
-    { key: "today", label: "Сегодня", icon: "list.bullet.rectangle", path: "/" },
-    { key: "buildings", label: "Объекты", icon: "building.2", path: "/buildings" },
-    { key: "finances", label: "Финансы", icon: "chart.line.uptrend.xyaxis", path: "/finances" },
-    { key: "requests", label: "Заявки", icon: "tray.full", path: "/requests" },
-    { key: "more", label: "Еще", icon: "ellipsis", path: "/more" },
+    { key: "today", label: t("emails.mobileNav.today"), icon: "list.bullet.rectangle", path: "/" },
+    { key: "buildings", label: t("emails.mobileNav.buildings"), icon: "building.2", path: "/buildings" },
+    { key: "finances", label: t("emails.mobileNav.finances"), icon: "chart.line.uptrend.xyaxis", path: "/finances" },
+    { key: "requests", label: t("emails.mobileNav.requests"), icon: "tray.full", path: "/requests" },
+    { key: "more", label: t("emails.mobileNav.more"), icon: "ellipsis", path: "/more" },
   ]
 }

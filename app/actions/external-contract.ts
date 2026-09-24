@@ -165,6 +165,8 @@ export async function createExternalContract(formData: FormData) {
         number,
         type: "EXTERNAL",
         // Договор контрагента (редакция не наша) — текст не храним, только PDF.
+        // Это поле — ТЕЛО документа: остаётся русским, как и остальные
+        // формулировки договоров (docs/i18n-documents-plan.md).
         content: "Внешний договор контрагента (PDF приложен).",
         status: "SIGNED",
         signedAt: startDate ?? now,

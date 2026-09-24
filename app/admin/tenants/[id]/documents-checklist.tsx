@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import { CheckCircle2, Circle, Plus, ExternalLink, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { addTenantDocument, deleteTenantDocument } from "@/app/actions/tenant-docs"
-import { getRequiredDocs, DOC_TYPE_LABELS } from "@/lib/required-docs"
+import { getRequiredDocs } from "@/lib/required-docs"
 import { DeleteAction } from "@/components/ui/delete-action"
 import { CollapsibleCard } from "@/components/ui/collapsible-card"
 import { Button } from "@/components/ui/button"
@@ -30,17 +30,18 @@ export function DocumentsChecklist({
   documents: Doc[]
 }) {
   const { t } = useT()
-  // Названия видов документов — из словаря по коду; в lib/required-docs текст
-  // русский, он остаётся запасным вариантом для новых кодов.
-  const docLabel = (type: string, fallback: string) => {
+  // Названия видов документов — из словаря по коду (lib/required-docs отдаёт
+  // только коды). Для кода, которого в словаре ещё нет, показываем сам код:
+  // это видно как недоделка, а не как русская подпись в казахском интерфейсе.
+  const docLabel = (type: string) => {
     const key = `adminTenants.docs.types.${type}` as Parameters<typeof t>[0]
     const label = t(key)
-    return label === key ? fallback : label
+    return label === key ? type : label
   }
-  const docHint = (type: string, fallback?: string) => {
+  const docHint = (type: string) => {
     const key = `adminTenants.docs.hints.${type}` as Parameters<typeof t>[0]
     const label = t(key)
-    return label === key ? fallback : label
+    return label === key ? undefined : label
   }
   const required = getRequiredDocs(legalType)
   const uploadedTypes = new Set(documents.map((d) => d.type))
@@ -69,7 +70,7 @@ export function DocumentsChecklist({
       <div className="divide-y divide-slate-50 dark:divide-slate-800">
         {required.map((r) => {
           const uploaded = documents.find((d) => d.type === r.type)
-          const hint = docHint(r.type, r.description)
+          const hint = r.hint ? docHint(r.type) : undefined
           return (
             <div key={r.type} className="px-5 py-3 flex items-start gap-3">
               {uploaded ? (
@@ -78,7 +79,7 @@ export function DocumentsChecklist({
                 <Circle className="h-4 w-4 text-slate-300 mt-0.5 shrink-0" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{docLabel(r.type, r.label)}</p>
+                <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{docLabel(r.type)}</p>
                 {hint && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{hint}</p>
                 )}
@@ -111,7 +112,7 @@ export function DocumentsChecklist({
             <CheckCircle2 className="h-4 w-4 text-slate-400 dark:text-slate-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{d.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{docLabel(d.type, DOC_TYPE_LABELS[d.type] ?? d.type)}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{docLabel(d.type)}</p>
               <div className="flex items-center gap-2 mt-1.5">
                 <a
                   href={d.fileUrl ?? "#"}
@@ -169,7 +170,7 @@ export function DocumentsChecklist({
                 className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
               >
                 {required.map((r) => (
-                  <option key={r.type} value={r.type}>{docLabel(r.type, r.label)}</option>
+                  <option key={r.type} value={r.type}>{docLabel(r.type)}</option>
                 ))}
                 <option value="CONTRACT">{t("adminTenants.docs.types.CONTRACT")}</option>
                 <option value="ACT">{t("adminTenants.docs.types.ACT")}</option>

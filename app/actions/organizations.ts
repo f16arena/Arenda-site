@@ -65,9 +65,11 @@ export async function createOrganization(formData: FormData): Promise<{ orgId: s
   const ownerName = String(formData.get("ownerName") ?? "").trim()
   const ownerEmail = normalizeEmail(formData.get("ownerEmail"), {
     fieldName: t("actions.organizations.ownerEmailField"),
+    t,
   })
   const ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), {
     fieldName: t("actions.organizations.ownerPhoneField"),
+    t,
   })
   const ownerPassword = String(formData.get("ownerPassword") ?? "").trim() || generatePassword()
 

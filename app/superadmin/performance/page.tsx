@@ -18,6 +18,11 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { db } from "@/lib/db"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import { formatNumberL } from "@/lib/i18n/format"
+import type { Messages } from "@/lib/i18n/messages"
+import { getLocale, getT } from "@/lib/i18n/server"
+import type { Translator } from "@/lib/i18n/translate"
 import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
@@ -33,38 +38,18 @@ const METRIC_TARGETS: Record<string, number> = {
   FCP: 1800,
   TTFB: 800,
 }
+// Путь и лимит — технические, подпись «что делать» живёт в словаре.
 const CODE_WATCH_TARGETS = [
-  {
-    file: "app/admin/floors/[id]/floor-editor.tsx",
-    budget: "75 KB",
-    action: "Разрезать редактор этажа на lazy-инструменты: AI распознавание, подложка, свойства и опасные действия.",
-  },
-  {
-    file: "lib/faq.ts",
-    budget: "55 KB",
-    action: "Не раздувать статический FAQ: крупные инструкции хранить в БД и отдавать постранично.",
-  },
-  {
-    file: "app/admin/tenants/[id]/page.tsx",
-    budget: "55 KB",
-    action: "Держать быстрый верх карточки арендатора, документы/историю/начисления оставлять lazy-секциями.",
-  },
-  {
-    file: "app/admin/page.tsx",
-    budget: "55 KB",
-    action: "Не возвращать вторичные отчеты в первый render dashboard, сравнение зданий и cashflow держать отдельно.",
-  },
-  {
-    file: "app/admin/spaces/page.tsx",
-    budget: "45 KB",
-    action: "Не тянуть layout JSON, tenant picker и тяжелый floor view до явного действия пользователя.",
-  },
-  {
-    file: "app/superadmin/performance/page.tsx",
-    budget: "40 KB",
-    action: "Показывать метрики и подсказки компактно, без превращения страницы скорости в тяжелую страницу.",
-  },
+  { file: "app/admin/floors/[id]/floor-editor.tsx", budget: "75 KB", actionKey: "floorEditor" },
+  { file: "lib/faq.ts", budget: "55 KB", actionKey: "faq" },
+  { file: "app/admin/tenants/[id]/page.tsx", budget: "55 KB", actionKey: "tenantCard" },
+  { file: "app/admin/page.tsx", budget: "55 KB", actionKey: "dashboard" },
+  { file: "app/admin/spaces/page.tsx", budget: "45 KB", actionKey: "spaces" },
+  { file: "app/superadmin/performance/page.tsx", budget: "40 KB", actionKey: "performance" },
 ] as const
+
+/** Переводчик страницы: синхронные помощники получают его параметром. */
+type PageTranslator = Translator<Messages>["t"]
 
 type MetricGroup = {
   name: string
@@ -116,6 +101,8 @@ export default async function SuperadminPerformancePage({
 }) {
   return measureServerRoute("/superadmin/performance", async () => {
     const { userId } = await requirePlatformOwner()
+    const locale = await getLocale()
+    const { t } = await getT(locale)
     const resolved = await searchParams
     const page = normalizePage(resolved?.page)
     const now = new Date()
@@ -243,7 +230,7 @@ export default async function SuperadminPerformancePage({
       .filter((item) => item.rating === "poor" || item.rating === "needs-improvement")
       .reduce((sum, item) => sum + item._count._all, 0)
     const badShare = total24h > 0 ? Math.round((bad24h / total24h) * 100) : 0
-    const performanceActions = buildPerformanceActions(slowByPath, badShare, total24h)
+    const performanceActions = buildPerformanceActions(t, slowByPath, badShare, total24h)
 
     return (
       <div className="space-y-6">
@@ -253,9 +240,9 @@ export default async function SuperadminPerformancePage({
               <Gauge className="h-5 w-5" />
             </div>
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Скорость сайта</h1>
+              <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.title")}</h1>
               <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-                Реальные Core Web Vitals из браузеров пользователей: какие страницы тормозят, где плохой LCP/INP/CLS и что надо разбирать первым.
+                {t("superadmin.perf.subtitle")}
               </p>
             </div>
           </div>
@@ -265,21 +252,21 @@ export default async function SuperadminPerformancePage({
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               <Download className="h-4 w-4" />
-              Скачать JSON
+              {t("superadmin.perf.downloadJson")}
             </a>
             <Link
               href="/superadmin/system-health"
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-900"
             >
               <ShieldCheck className="h-4 w-4" />
-              Проверка системы
+              {t("superadmin.perf.healthLink")}
             </Link>
             <Link
               href="/superadmin/errors"
               className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-3 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
             >
               <AlertTriangle className="h-4 w-4" />
-              Ошибки сайта
+              {t("superadmin.perf.errorsLink")}
             </Link>
           </div>
         </header>
@@ -287,19 +274,48 @@ export default async function SuperadminPerformancePage({
         <ProbePagesButton />
 
         <section className="grid gap-4 md:grid-cols-5">
-          <StatCard icon={Activity} label="Метрик за 24 часа" value={formatInteger(total24h)} hint="LCP, INP, CLS, TTFB, FCP" />
-          <StatCard icon={AlertTriangle} label="Требуют внимания" value={`${badShare}%`} hint={`${formatInteger(bad24h)} плохих или средних замеров`} tone={badShare > 20 ? "red" : badShare > 0 ? "amber" : "emerald"} />
-          <StatCard icon={Clock} label="Цель LCP" value="до 2.5 с" hint="первый крупный контент" tone="blue" />
-          <StatCard icon={TrendingUp} label="Цель INP" value="до 200 мс" hint="отклик интерфейса" tone="purple" />
-          <StatCard icon={Server} label="Server logs 24ч" value={formatInteger(serverLogTotal24h)} hint={`ошибок: ${formatInteger(serverErrorTotal24h)}`} tone={serverErrorTotal24h > 0 ? "red" : "cyan"} />
+          <StatCard
+            icon={Activity}
+            label={t("superadmin.perf.statMetrics24h")}
+            value={formatInteger(locale, total24h)}
+            hint={t("superadmin.perf.statMetricsHint")}
+          />
+          <StatCard
+            icon={AlertTriangle}
+            label={t("superadmin.perf.statAttention")}
+            value={`${badShare}%`}
+            hint={t("superadmin.perf.statAttentionHint", { count: formatInteger(locale, bad24h) })}
+            tone={badShare > 20 ? "red" : badShare > 0 ? "amber" : "emerald"}
+          />
+          <StatCard
+            icon={Clock}
+            label={t("superadmin.perf.statLcpGoal")}
+            value={t("superadmin.perf.statLcpValue")}
+            hint={t("superadmin.perf.statLcpHint")}
+            tone="blue"
+          />
+          <StatCard
+            icon={TrendingUp}
+            label={t("superadmin.perf.statInpGoal")}
+            value={t("superadmin.perf.statInpValue")}
+            hint={t("superadmin.perf.statInpHint")}
+            tone="purple"
+          />
+          <StatCard
+            icon={Server}
+            label={t("superadmin.perf.statServerLogs")}
+            value={formatInteger(locale, serverLogTotal24h)}
+            hint={t("superadmin.perf.statServerLogsHint", { count: formatInteger(locale, serverErrorTotal24h) })}
+            tone={serverErrorTotal24h > 0 ? "red" : "cyan"}
+          />
         </section>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Что оптимизировать первым</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.actionsTitle")}</h2>
               <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
-                Система переводит web-vitals в конкретные инженерные действия: какую страницу открыть, какую метрику чинить и какой слой проверить.
+                {t("superadmin.perf.actionsHint")}
               </p>
             </div>
             <Gauge className="h-4 w-4 shrink-0 text-slate-400" />
@@ -327,9 +343,9 @@ export default async function SuperadminPerformancePage({
         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Файлы под наблюдением CI</h2>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.watchTitle")}</h2>
               <p className="mt-1 max-w-3xl text-xs text-slate-500 dark:text-slate-400">
-                Это текущие тяжелые места. `npm run perf:audit` и CI performance gate теперь падают, если эти файлы снова начнут расти сверх отдельного лимита.
+                {t("superadmin.perf.watchHint")}
               </p>
             </div>
             <ShieldCheck className="h-4 w-4 shrink-0 text-slate-400" />
@@ -343,7 +359,9 @@ export default async function SuperadminPerformancePage({
                     ≤ {target.budget}
                   </Badge>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{target.action}</p>
+                <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                  {t(`superadmin.perf.watchActions.${target.actionKey}`)}
+                </p>
               </div>
             ))}
           </div>
@@ -353,14 +371,14 @@ export default async function SuperadminPerformancePage({
           <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Сводка за 24 часа</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Среднее, максимум и распределение качества.</p>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.summary24h")}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("superadmin.perf.summary24hHint")}</p>
               </div>
               <BarChart3 className="h-4 w-4 text-slate-400" />
             </div>
             <div className="space-y-3">
               {metric24h.length === 0 ? (
-                <EmptyState text="Метрик пока нет. Они появятся после визитов пользователей на сайт." />
+                <EmptyState text={t("superadmin.perf.noMetrics")} />
               ) : (
                 WATCHED_METRICS.map((metric) => {
                   const row = metric24h.find((item) => item.name === metric)
@@ -373,6 +391,7 @@ export default async function SuperadminPerformancePage({
                       max={row?._max.value ?? null}
                       count={row?._count._all ?? 0}
                       ratings={ratings}
+                      t={t}
                     />
                   )
                 })
@@ -382,11 +401,11 @@ export default async function SuperadminPerformancePage({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Медленные страницы за 7 дней</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Сгруппировано по пути, чтобы сразу видеть, куда идти с оптимизацией.</p>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.slowPages")}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("superadmin.perf.slowPagesHint")}</p>
             </div>
             {slowByPath.length === 0 ? (
-              <EmptyState text="Критичных страниц за последние 7 дней не найдено." />
+              <EmptyState text={t("superadmin.perf.noSlowPages")} />
             ) : (
               <div className="space-y-2">
                 {slowByPath.slice(0, 8).map((item) => (
@@ -395,11 +414,15 @@ export default async function SuperadminPerformancePage({
                       <div className="min-w-0">
                         <p className="truncate font-mono text-xs text-slate-900 dark:text-slate-100">{item.path}</p>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {item.count} замеров · худшее: {item.worstMetric} {formatMetricValue(item.worstMetric, item.worstValue)}
+                          {t("superadmin.perf.slowPageRow", {
+                            count: item.count,
+                            metric: item.worstMetric,
+                            value: formatMetricValue(t, item.worstMetric, item.worstValue),
+                          })}
                         </p>
                       </div>
                       <Badge variant="secondary" className={cn("text-[11px]", ratingClass(item.worstRating))}>
-                        {ratingLabel(item.worstRating)}
+                        {ratingLabel(t, item.worstRating)}
                       </Badge>
                     </div>
                   </div>
@@ -413,13 +436,13 @@ export default async function SuperadminPerformancePage({
           <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Server routes за 24 часа</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Сколько занял Server Components render по ключевым страницам.</p>
+                <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.serverRoutes")}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("superadmin.perf.serverRoutesHint")}</p>
               </div>
               <Server className="h-4 w-4 text-slate-400" />
             </div>
             {serverRouteSummary.length === 0 ? (
-              <EmptyState text="Медленных server-route логов пока нет. Они пишутся при превышении порога или при ROUTE_PERF_LOG_ALL=1." />
+              <EmptyState text={t("superadmin.perf.noServerRoutes")} />
             ) : (
               <div className="space-y-2">
                 {serverRouteSummary.slice(0, 10).map((item) => (
@@ -428,11 +451,14 @@ export default async function SuperadminPerformancePage({
                       <div className="min-w-0">
                         <p className="truncate font-mono text-xs text-slate-900 dark:text-slate-100">{item.route}</p>
                         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                          {item._count._all} замеров · среднее {formatDurationMs(item._avg.durationMs)}
+                          {t("superadmin.perf.serverRouteRow", {
+                            count: item._count._all,
+                            avg: formatDurationMs(t, item._avg.durationMs),
+                          })}
                         </p>
                       </div>
                       <Badge variant="secondary" className={cn("text-[11px]", durationToneClass(item._max.durationMs ?? 0))}>
-                        max {formatDurationMs(item._max.durationMs)}
+                        max {formatDurationMs(t, item._max.durationMs)}
                       </Badge>
                     </div>
                   </div>
@@ -443,11 +469,11 @@ export default async function SuperadminPerformancePage({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-4">
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Самые дорогие server steps за 7 дней</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Показывает, какой route или query-блок тормозит до того, как это почувствует браузер.</p>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.serverSteps")}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t("superadmin.perf.serverStepsHint")}</p>
             </div>
             {serverSlowRows.length === 0 ? (
-              <EmptyState text="Медленных server steps за последние 7 дней не найдено." />
+              <EmptyState text={t("superadmin.perf.noServerSteps")} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
@@ -455,9 +481,9 @@ export default async function SuperadminPerformancePage({
                     <tr>
                       <th className="px-3 py-2">Route</th>
                       <th className="px-3 py-2">Step</th>
-                      <th className="px-3 py-2">Время</th>
-                      <th className="px-3 py-2">Статус</th>
-                      <th className="px-3 py-2">Когда</th>
+                      <th className="px-3 py-2">{t("superadmin.perf.colDuration")}</th>
+                      <th className="px-3 py-2">{t("superadmin.cols.status")}</th>
+                      <th className="px-3 py-2">{t("superadmin.perf.colWhen")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -465,13 +491,13 @@ export default async function SuperadminPerformancePage({
                       <tr key={row.id} className="text-slate-700 dark:text-slate-300">
                         <td className="max-w-[220px] truncate px-3 py-2 font-mono text-xs">{row.route}</td>
                         <td className="max-w-[180px] truncate px-3 py-2 text-xs text-slate-500">{row.step ?? row.kind}</td>
-                        <td className="px-3 py-2 font-semibold">{formatDurationMs(row.durationMs)}</td>
+                        <td className="px-3 py-2 font-semibold">{formatDurationMs(t, row.durationMs)}</td>
                         <td className="px-3 py-2">
                           <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", serverStatusClass(row.status))}>
-                            {row.status === "error" ? "ошибка" : "ok"}
+                            {row.status === "error" ? t("superadmin.perf.statusError") : "ok"}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-500">{formatDateTime(row.createdAt)}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500">{formatDateTime(locale, row.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -483,26 +509,26 @@ export default async function SuperadminPerformancePage({
 
         <section className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="border-b border-slate-100 p-5 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние замеры</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.perf.recentTitle")}</h2>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Нужны для расследования: страница, тип метрики, значение, оценка и время.
+              {t("superadmin.perf.recentHint")}
             </p>
           </div>
           {recentRows.length === 0 ? (
             <div className="p-5">
-              <EmptyState text="Последних замеров нет." />
+              <EmptyState text={t("superadmin.perf.noRecent")} />
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-950/70 dark:text-slate-500">
                   <tr>
-                    <th className="px-5 py-3">Страница</th>
-                    <th className="px-5 py-3">Метрика</th>
-                    <th className="px-5 py-3">Значение</th>
-                    <th className="px-5 py-3">Оценка</th>
-                    <th className="px-5 py-3">Переход</th>
-                    <th className="px-5 py-3">Время</th>
+                    <th className="px-5 py-3">{t("superadmin.cols.page")}</th>
+                    <th className="px-5 py-3">{t("superadmin.perf.colMetric")}</th>
+                    <th className="px-5 py-3">{t("superadmin.perf.colValue")}</th>
+                    <th className="px-5 py-3">{t("superadmin.perf.colRating")}</th>
+                    <th className="px-5 py-3">{t("superadmin.perf.colNavigation")}</th>
+                    <th className="px-5 py-3">{t("superadmin.perf.colDuration")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -510,14 +536,14 @@ export default async function SuperadminPerformancePage({
                     <tr key={row.id} className="text-slate-700 dark:text-slate-300">
                       <td className="max-w-[360px] truncate px-5 py-3 font-mono text-xs">{row.path ?? row.url ?? "-"}</td>
                       <td className="px-5 py-3 font-semibold">{row.name}</td>
-                      <td className="px-5 py-3">{formatMetricValue(row.name, row.value)}</td>
+                      <td className="px-5 py-3">{formatMetricValue(t, row.name, row.value)}</td>
                       <td className="px-5 py-3">
                         <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", ratingClass(row.rating))}>
-                          {ratingLabel(row.rating)}
+                          {ratingLabel(t, row.rating)}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-xs text-slate-500">{row.navigationType ?? "-"}</td>
-                      <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(row.createdAt)}</td>
+                      <td className="px-5 py-3 text-xs text-slate-500">{formatDateTime(locale, row.createdAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -525,16 +551,16 @@ export default async function SuperadminPerformancePage({
             </div>
           )}
           <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-xs text-slate-500 dark:border-slate-800">
-            <span>Всего замеров: {formatInteger(recentTotal)}</span>
+            <span>{t("superadmin.perf.totalSamples", { count: formatInteger(locale, recentTotal) })}</span>
             <div className="flex gap-2">
               {page > 1 && (
                 <Link href={`/superadmin/performance?page=${page - 1}`} className="rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
-                  Назад
+                  {t("common.actions.back")}
                 </Link>
               )}
               {page * PAGE_SIZE < recentTotal && (
                 <Link href={`/superadmin/performance?page=${page + 1}`} className="rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800">
-                  Дальше
+                  {t("common.actions.next")}
                 </Link>
               )}
             </div>
@@ -574,12 +600,14 @@ function MetricRow({
   max,
   count,
   ratings,
+  t,
 }: {
   metric: string
   avg: number | null
   max: number | null
   count: number
   ratings: RatingGroup[]
+  t: PageTranslator
 }) {
   const target = METRIC_TARGETS[metric]
   const avgTone = avg == null || target == null || avg <= target ? "emerald" : avg <= target * 1.5 ? "amber" : "red"
@@ -593,14 +621,21 @@ function MetricRow({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="font-semibold text-slate-900 dark:text-slate-100">{metric}</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">цель: {target ? formatMetricValue(metric, target) : "без цели"}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {target
+              ? t("superadmin.perf.goal", { value: formatMetricValue(t, metric, target) })
+              : t("superadmin.perf.noGoal")}
+          </p>
         </div>
         <div className="text-right">
           <p className={cn("text-sm font-semibold", toneTextClass(avgTone))}>
-            среднее {avg == null ? "-" : formatMetricValue(metric, avg)}
+            {t("superadmin.perf.avg", { value: avg == null ? "-" : formatMetricValue(t, metric, avg) })}
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            максимум {max == null ? "-" : formatMetricValue(metric, max)} · {count} замеров
+            {t("superadmin.perf.maxAndCount", {
+              value: max == null ? "-" : formatMetricValue(t, metric, max),
+              count,
+            })}
           </p>
         </div>
       </div>
@@ -691,116 +726,119 @@ function aggregateSlowPages(samples: WebVitalSample[]) {
 }
 
 function buildPerformanceActions(
+  t: PageTranslator,
   slowByPath: ReturnType<typeof aggregateSlowPages>,
   badShare: number,
   total24h: number,
 ) {
+  // priority — внутренний код приоритета: он же красит плашку, его не переводим.
   if (total24h === 0) {
     return [
       {
-        title: "Сначала собрать данные",
+        title: t("superadmin.perf.actions.collectFirst"),
         priority: "setup",
         path: "/api/web-vitals",
-        body: "Откройте сайт в production и пройдите основные страницы. После первых реальных визитов здесь появятся LCP, INP, CLS и TTFB.",
+        body: t("superadmin.perf.actions.collectFirstBody"),
       },
       {
-        title: "Проверить скрипт метрик",
+        title: t("superadmin.perf.actions.checkReporter"),
         priority: "setup",
         path: "components/web-vitals-reporter.tsx",
-        body: "Если замеры не появляются, проверьте подключение reporter в layout и доступность API сохранения web-vitals.",
+        body: t("superadmin.perf.actions.checkReporterBody"),
       },
       {
-        title: "Держать бюджет скорости",
+        title: t("superadmin.perf.actions.keepBudget"),
         priority: "guard",
         path: "npm run perf:audit",
-        body: "Performance audit должен падать при слишком больших client/server файлах, больших Prisma take и страницах без server timing.",
+        body: t("superadmin.perf.actions.keepBudgetBody"),
       },
     ]
   }
 
   const worst = slowByPath[0]
   const metric = worst?.worstMetric ?? "LCP"
-  const metricAction = actionForMetric(metric, worst?.path)
+  const metricAction = actionForMetric(t, metric, worst?.path)
   const scopeAction = badShare > 20
     ? {
-        title: "Много плохих замеров",
+        title: t("superadmin.perf.actions.manyBad"),
         priority: "high",
         path: worst?.path,
-        body: `Плохих или средних замеров ${badShare}%. Сначала чините самую верхнюю страницу из списка: там эффект будет заметнее всего для пользователей.`,
+        body: t("superadmin.perf.actions.manyBadBody", { percent: badShare }),
       }
     : {
-        title: "Точечная оптимизация",
+        title: t("superadmin.perf.actions.pointwise"),
         priority: "normal",
         path: worst?.path,
-        body: "Критической деградации нет, но можно убрать самые дорогие запросы и тяжелые client components на страницах из списка.",
+        body: t("superadmin.perf.actions.pointwiseBody"),
       }
 
   return [
     scopeAction,
     metricAction,
     {
-      title: "Проверить базу",
+      title: t("superadmin.perf.actions.checkDb"),
       priority: "guard",
       path: "prisma/schema.prisma",
-      body: "Для медленных admin-страниц проверьте индексы под organizationId, buildingId, tenantId, status, period и createdAt, затем сравните server timing до и после.",
+      body: t("superadmin.perf.actions.checkDbBody"),
     },
   ]
 }
 
-function actionForMetric(metric: string, path?: string) {
+function actionForMetric(t: PageTranslator, metric: string, path?: string) {
   if (metric === "INP") {
     return {
-      title: "Уменьшить JS и клики",
+      title: t("superadmin.perf.actions.inp"),
       priority: "high",
       path,
-      body: "INP страдает от тяжелого клиентского JavaScript. Вынесите редакторы, графики, поиск и модалки в lazy sections, а кнопки оставьте легкими.",
+      body: t("superadmin.perf.actions.inpBody"),
     }
   }
 
   if (metric === "CLS") {
     return {
-      title: "Зафиксировать размеры",
+      title: t("superadmin.perf.actions.cls"),
       priority: "medium",
       path,
-      body: "CLS означает скачки интерфейса. Задайте размеры изображениям, таблицам, карточкам и баннерам, чтобы контент не прыгал при загрузке.",
+      body: t("superadmin.perf.actions.clsBody"),
     }
   }
 
   if (metric === "TTFB") {
     return {
-      title: "Сократить server work",
+      title: t("superadmin.perf.actions.ttfb"),
       priority: "high",
       path,
-      body: "TTFB упирается в сервер. Разбейте большие Prisma запросы, уберите лишние include, добавьте count/groupBy вместо загрузки списков и кешируйте shell.",
+      body: t("superadmin.perf.actions.ttfbBody"),
     }
   }
 
   return {
-    title: "Ускорить первый экран",
+    title: t("superadmin.perf.actions.lcp"),
     priority: "high",
     path,
-    body: "LCP чинится через быстрый первый экран: меньше server-запросов до render, меньше тяжелых изображений, lazy ниже первого экрана и preload ключевых assets.",
+    body: t("superadmin.perf.actions.lcpBody"),
   }
 }
 
-function formatMetricValue(name: string, value: number) {
+/** CLS — безразмерный, остальные метрики в секундах или миллисекундах. */
+function formatMetricValue(t: PageTranslator, name: string, value: number) {
   if (name === "CLS") return value.toFixed(3)
-  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} с`
-  return `${Math.round(value)} мс`
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} ${t("superadmin.perf.unitSec")}`
+  return `${Math.round(value)} ${t("superadmin.perf.unitMs")}`
 }
 
-function formatDurationMs(value: number | null) {
+function formatDurationMs(t: PageTranslator, value: number | null) {
   if (value == null) return "-"
-  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} с`
-  return `${Math.round(value)} мс`
+  if (value >= 1000) return `${(value / 1000).toFixed(value >= 10000 ? 0 : 1)} ${t("superadmin.perf.unitSec")}`
+  return `${Math.round(value)} ${t("superadmin.perf.unitMs")}`
 }
 
-function formatInteger(value: number) {
-  return new Intl.NumberFormat("ru-RU").format(value)
+function formatInteger(locale: Locale, value: number) {
+  return formatNumberL(locale, value)
 }
 
-function formatDateTime(value: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+function formatDateTime(locale: Locale, value: Date) {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     day: "2-digit",
     month: "2-digit",
     year: "2-digit",
@@ -809,11 +847,11 @@ function formatDateTime(value: Date) {
   }).format(value)
 }
 
-function ratingLabel(value: string | null) {
-  if (value === "good") return "хорошо"
-  if (value === "needs-improvement") return "средне"
-  if (value === "poor") return "плохо"
-  return "нет оценки"
+function ratingLabel(t: PageTranslator, value: string | null) {
+  if (value === "good") return t("superadmin.perf.ratingGood")
+  if (value === "needs-improvement") return t("superadmin.perf.ratingNeeds")
+  if (value === "poor") return t("superadmin.perf.ratingPoor")
+  return t("superadmin.perf.ratingNone")
 }
 
 function ratingClass(value: string | null) {

@@ -16,7 +16,7 @@ import { contractScope } from "@/lib/tenant-scope"
 import { assertContractInOrg } from "@/lib/scope-guards"
 import { Breadcrumbs } from "@/components/layout/breadcrumbs"
 import { contractPayloadBase64 } from "@/lib/contract-signing-payload"
-import { contractTypeShort } from "@/lib/contract-placement-types"
+import { contractTypeShortKey } from "@/lib/contract-placement-types"
 import { renderContractText, type ContractState } from "@/lib/contract-engine"
 import { ContractDocumentView } from "@/components/contract-constructor/contract-document-view"
 import { ContractEcpSign } from "@/components/contract-ecp-sign"
@@ -156,7 +156,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               <Badge className={statusColor}>{statusLabel(contract.status)}</Badge>
               {contract.placementType && !isAddendum && (
                 <Badge className="bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
-                  {contractTypeShort(contract.placementType)}
+                  {t(contractTypeShortKey(contract.placementType))}
                 </Badge>
               )}
               {contract.version > 1 && (

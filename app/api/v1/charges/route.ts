@@ -5,6 +5,7 @@ import { chargeScope } from "@/lib/tenant-scope"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { isOrgFeatureAvailable } from "@/lib/capabilities"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -24,12 +25,16 @@ export const dynamic = "force-dynamic"
  * Авторизация: Bearer ApiKey (создаётся в /admin/api-keys)
  */
 export async function GET(req: Request) {
+  // Про тариф читает владелец, который завёл ключ в /admin/api-keys, — это
+  // не код ошибки, а подсказка человеку. Остальные тексты тут английские:
+  // их разбирает интеграция.
+  const { t } = await getT()
   try {
     const auth = await requireApiKey(req, "READ")
     const apiAllowed = await isOrgFeatureAvailable(auth.organizationId, "api")
     if (!apiAllowed) {
       return NextResponse.json(
-        { error: "Публичный API доступен на тарифе Business и выше" },
+        { error: t("adminDocs.api.export.publicApiPlan") },
         { status: 403 },
       )
     }

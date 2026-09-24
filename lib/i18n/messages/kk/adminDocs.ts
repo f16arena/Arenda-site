@@ -509,7 +509,8 @@ export const adminDocs: typeof ru = {
       feeNote:
         "Жыл бойына бір мөлшерлеме, қысқысы жоқ. Шотта жалдаумен бірге жеке жолмен есептеледі.",
       equipment: "Жабдық",
-      object: "Объект",
+      // «Нысан» — так это слово переведено в 3D-конструкторе и в common.
+      object: "Нысан",
       eqNamePlaceholder: "Сауда автоматы",
       objNamePlaceholder: "Сауда дүңгіршегі",
       qty: "Саны",
@@ -849,6 +850,26 @@ export const adminDocs: typeof ru = {
       cleaningFee: "Тазалау ₸/ай",
       startDate: "Басталу күні",
       endDate: "Аяқталу күні",
+      // Үлгідегі мысал жолдары: пайдаланушы оларды өшіріп, өз деректерін
+      // жазады — сондықтан аттар, түрлер мен мекенжайлар да қазақша.
+      examples: {
+        name1: "Аманов Асқар Серікұлы",
+        company1: "«Үлгі» ЖШС",
+        legalType1: "ЖШС",
+        category1: "IT-консалтинг",
+        address1: "Алматы қ., Абай к-сі, 150",
+        director1: "Аманов А.С.",
+        name2: "Бекова Айгүл Мұратқызы",
+        company2: "ЖК Бекова",
+        legalType2: "ЖК",
+        category2: "Заң қызметтері",
+        name3: "Серіков Дәулет Қайратұлы",
+        company3: "ЖСО Серіков Дәулет Қайратұлы",
+        legalType3: "ЖСО",
+        category3: "жеке сот орындаушысы",
+        address3: "Астана қ., Қабанбай батыр к-сі, 10",
+        director3: "Серіков Д.Қ.",
+      },
       instructions: [
         "ЖАЛҒА АЛУШЫЛАРДЫ ИМПОРТТАУ ҮЛГІСІ — Commrent",
         "",
@@ -900,10 +921,6 @@ export const adminDocs: typeof ru = {
       noPlacement: "Аудан тағайындалмаған",
       room: "Каб. {number}",
     },
-    roles: {
-      FACILITY_MANAGER: "Шаруашылық меңгерушісі",
-      EMPLOYEE: "Қызметкер",
-    },
     // Жылдам іздеу (⌘K) тұспалдары.
     search: {
       request: "Өтінім · {status}",
@@ -953,6 +970,9 @@ export const adminDocs: typeof ru = {
       failed: "AI қатесі: {error}",
       unavailable: "AI қызметі қолжетімсіз",
       unavailableShort: "қызмет қолжетімсіз",
+      expectedImage: "Суреттің data URL-і күтілді",
+      unsupportedImage: "Сурет пішімі қолдау таппайды",
+      imageTooBig: "Сурет тым үлкен (ең көбі ~5 МБ)",
       tooComplex: "Жоспар тым күрделі — AI жауабы сыймады. Жоспарды бөлікпен тануға тырысыңыз.",
       refused: "AI бұл суретті өңдеуден бас тартты",
       noText: "AI мәтін қайтармады",

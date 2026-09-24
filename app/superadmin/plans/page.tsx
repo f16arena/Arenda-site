@@ -7,9 +7,13 @@ import { requirePlatformOwner } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
 import { enabledPlanCapabilityCount } from "@/lib/plan-capabilities"
 import { PlansClient } from "./plans-client"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 export default async function PlansPage() {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
 
   const plans = await safeServerValue(
     db.plan.findMany({
@@ -45,47 +49,46 @@ export default async function PlansPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-purple-600 dark:text-purple-400">
-            Конструктор подписок
+            {t("superadmin.plans.eyebrow")}
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">
-            Тарифы платформы
+            {t("superadmin.plans.title")}
           </h1>
           <p className="mt-1 max-w-3xl text-sm text-slate-500 dark:text-slate-400">
-            Здесь superadmin определяет, что клиент покупает: цену, лимиты, модули и возможности тарифа.
-            Владелец внутри своей организации потом раздаст доступ сотрудникам только в пределах этих функций.
+            {t("superadmin.plans.subtitle")}
           </p>
         </div>
         <div className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-xs text-purple-900 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-200">
-          Тариф = коммерческий пакет. Должности владельца будут следующим слоем доступа.
+          {t("superadmin.plans.note")}
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
-          label="Всего тарифов"
+          label={t("superadmin.plans.summaryTotal")}
           value={plans.length}
-          detail={`${activePlans} активных`}
+          detail={t("superadmin.plans.summaryTotalDetail", { count: activePlans })}
           icon={Layers3}
           tone="slate"
         />
         <SummaryCard
-          label="Организаций на тарифах"
+          label={t("superadmin.plans.summaryOrgs")}
           value={assignedOrganizations}
-          detail="клиенты с назначенным планом"
+          detail={t("superadmin.plans.summaryOrgsDetail")}
           icon={PackageCheck}
           tone="emerald"
         />
         <SummaryCard
-          label="Оценочный MRR"
-          value={`${estimatedMrr.toLocaleString("ru-RU")} ₸`}
-          detail="по текущим организациям"
+          label={t("superadmin.plans.summaryMrr")}
+          value={formatMoneyL(locale, estimatedMrr)}
+          detail={t("superadmin.plans.summaryMrrDetail")}
           icon={TrendingUp}
           tone="blue"
         />
         <SummaryCard
-          label="Включенных функций"
+          label={t("superadmin.plans.summaryFeatures")}
           value={capabilitySlots}
-          detail="суммарно по всем тарифам"
+          detail={t("superadmin.plans.summaryFeaturesDetail")}
           icon={Power}
           tone="amber"
         />

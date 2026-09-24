@@ -10,6 +10,7 @@ import {
   releaseFoundersSlot,
   grantFoundersSlot,
 } from "@/app/actions/superadmin-founders"
+import { useT } from "@/lib/i18n/client"
 
 export function FoundersStateForm({
   isActive,
@@ -20,6 +21,7 @@ export function FoundersStateForm({
   totalSlots: number
   discountPct: number
 }) {
+  const { t } = useT()
   const [active, setActive] = useState(isActive)
   const [slots, setSlots] = useState(totalSlots)
   const [pct, setPct] = useState(discountPct)
@@ -32,8 +34,8 @@ export function FoundersStateForm({
         totalSlots: slots,
         discountPct: pct,
       })
-      if (r.ok) toast.success("Настройки программы сохранены")
-      else toast.error(r.error ?? "Не удалось сохранить")
+      if (r.ok) toast.success(t("superadmin.founders.saved"))
+      else toast.error(r.error ?? t("superadmin.founders.saveFailed"))
     })
   }
 
@@ -42,7 +44,7 @@ export function FoundersStateForm({
   return (
     <div className="grid gap-4 sm:grid-cols-3">
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Статус</span>
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.founders.fieldStatus")}</span>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -58,13 +60,13 @@ export function FoundersStateForm({
             />
           </button>
           <span className="text-sm text-slate-700 dark:text-slate-300">
-            {active ? "программа активна" : "выключена"}
+            {active ? t("superadmin.founders.toggleActive") : t("superadmin.founders.toggleOff")}
           </span>
         </div>
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Всего слотов</span>
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.founders.fieldSlots")}</span>
         <Input
           type="number"
           min={1}
@@ -75,7 +77,7 @@ export function FoundersStateForm({
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Скидка lifetime, %</span>
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.founders.fieldDiscount")}</span>
         <Input
           type="number"
           min={0}
@@ -93,7 +95,7 @@ export function FoundersStateForm({
           className="inline-flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-          Сохранить
+          {t("common.actions.save")}
         </button>
       </div>
     </div>
@@ -101,13 +103,19 @@ export function FoundersStateForm({
 }
 
 export function ReleaseSlotButton({ orgId, orgName }: { orgId: string; orgName: string }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   async function onClick() {
-    if (!(await askConfirm({ title: `Снять статус Founding с «${orgName}»?`, description: "Слот будет освобождён.", danger: true }))) return
+    const ok = await askConfirm({
+      title: t("superadmin.founders.releaseTitle", { name: orgName }),
+      description: t("superadmin.founders.releaseDescription"),
+      danger: true,
+    })
+    if (!ok) return
     startTransition(async () => {
       const r = await releaseFoundersSlot(orgId)
-      if (r.ok) toast.success("Статус Founding снят")
-      else toast.error(r.error ?? "Не удалось")
+      if (r.ok) toast.success(t("superadmin.founders.released"))
+      else toast.error(r.error ?? t("superadmin.founders.failed"))
     })
   }
   return (
@@ -118,19 +126,24 @@ export function ReleaseSlotButton({ orgId, orgName }: { orgId: string; orgName: 
       className="inline-flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-500/10 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 disabled:opacity-50"
     >
       {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-      Снять
+      {t("superadmin.founders.release")}
     </button>
   )
 }
 
 export function GrantSlotButton({ orgId, orgName }: { orgId: string; orgName: string }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   async function onClick() {
-    if (!(await askConfirm({ title: `Выдать статус Founding Member «${orgName}»?`, description: "Это пожизненная скидка." }))) return
+    const ok = await askConfirm({
+      title: t("superadmin.founders.grantConfirmTitle", { name: orgName }),
+      description: t("superadmin.founders.grantConfirmDescription"),
+    })
+    if (!ok) return
     startTransition(async () => {
       const r = await grantFoundersSlot(orgId)
-      if (r.ok) toast.success(`Founding Member #${r.slotNumber ?? "?"} выдан`)
-      else toast.error(r.error ?? "Не удалось")
+      if (r.ok) toast.success(t("superadmin.founders.granted", { number: r.slotNumber ?? "?" }))
+      else toast.error(r.error ?? t("superadmin.founders.failed"))
     })
   }
   return (
@@ -141,7 +154,7 @@ export function GrantSlotButton({ orgId, orgName }: { orgId: string; orgName: st
       className="inline-flex items-center gap-1 rounded-md bg-amber-50 dark:bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 disabled:opacity-50"
     >
       {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-      Выдать
+      {t("superadmin.founders.grant")}
     </button>
   )
 }

@@ -7,6 +7,9 @@
 // 3. В Vercel env: RESEND_API_KEY=re_xxxxx, EMAIL_FROM="Commrent <noreply@commrent.kz>"
 
 import { Resend } from "resend"
+import { createTranslator } from "@/lib/i18n/translate"
+import { dictionaries, ru } from "@/lib/i18n/messages"
+import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n/config"
 
 export interface SendEmailParams {
   to: string | string[]
@@ -50,7 +53,7 @@ export async function sendEmail(p: SendEmailParams): Promise<SendResult> {
 
   if (!client) {
     console.warn("[email] RESEND_API_KEY не задан — пропускаю отправку:", p.subject)
-    return { ok: false, error: "RESEND_API_KEY не задан" }
+    return { ok: false, error: "RESEND_API_KEY is not set" }
   }
 
   try {
@@ -106,7 +109,12 @@ export function basicEmailTemplate(params: {
 }): string {
   const { title, body, buttonText, buttonUrl, footer, lang } = params
   const safeTitle = escapeHtml(title)
-  const safeFooter = footer ? escapeHtml(footer) : "Это автоматическое письмо от системы управления арендой. По вопросам свяжитесь с администрацией."
+  // Подпись по умолчанию — на языке письма: вызывающий код обычно передаёт
+  // свою, но если не передал, русская подпись в казахском письме была бы
+  // заметнее всего. Переводчик здесь синхронный (без cookie и сессии).
+  const footerLocale = isLocale(lang) ? lang : DEFAULT_LOCALE
+  const tFooter = createTranslator(footerLocale, dictionaries[footerLocale], ru).t
+  const safeFooter = escapeHtml(footer ?? tFooter("emails.common.footer"))
   const safeButtonText = buttonText ? escapeHtml(buttonText) : ""
   const safeButtonUrl = buttonUrl ? safeUrl(buttonUrl) : ""
   return `<!DOCTYPE html>

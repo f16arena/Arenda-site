@@ -6,17 +6,20 @@ import { db } from "@/lib/db"
 import { safeServerValue } from "@/lib/server-fallback"
 import { ImageIcon } from "lucide-react"
 import { SiteImageUploader } from "./uploader"
+import { getT } from "@/lib/i18n/server"
 
 // Изображения публичного сайта (лендинг), редактируемые без передеплоя.
 // Доступ — только платформенный владелец.
+// key — код слота в базе (SiteImage.slot), не переводится; подписи в словаре.
 const SLOTS = [
-  { key: "landing-3d", label: "Скриншот 3D-редактора (главная)", hint: "Блок «3D-редактор здания» на лендинге" },
-  { key: "landing-hero", label: "Скриншот в hero (главная)", hint: "Зарезервировано: визуал в шапке (если включим)" },
-]
+  { key: "landing-3d", labelKey: "superadmin.siteImages.slots.landing3dLabel", hintKey: "superadmin.siteImages.slots.landing3dHint" },
+  { key: "landing-hero", labelKey: "superadmin.siteImages.slots.landingHeroLabel", hintKey: "superadmin.siteImages.slots.landingHeroHint" },
+] as const
 
 export default async function SiteImagesPage() {
   const session = await auth()
   if (!session?.user?.isPlatformOwner) redirect("/admin")
+  const { t } = await getT()
 
   const rows = await safeServerValue(
     db.siteImage.findMany({ select: { slot: true, updatedAt: true } }),
@@ -30,10 +33,10 @@ export default async function SiteImagesPage() {
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
           <ImageIcon className="h-6 w-6 text-slate-400" />
-          Изображения сайта
+          {t("superadmin.siteImages.title")}
         </h1>
         <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-          Скриншоты для публичной главной. Меняются здесь — без передеплоя.
+          {t("superadmin.siteImages.subtitle")}
         </p>
       </div>
 
@@ -42,8 +45,8 @@ export default async function SiteImagesPage() {
           <SiteImageUploader
             key={s.key}
             slot={s.key}
-            label={s.label}
-            hint={s.hint}
+            label={t(s.labelKey)}
+            hint={t(s.hintKey)}
             version={versionBySlot.get(s.key) ?? null}
           />
         ))}

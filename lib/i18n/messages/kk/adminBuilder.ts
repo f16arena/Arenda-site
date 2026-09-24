@@ -950,6 +950,7 @@ export const adminBuilder: typeof ru = {
       area: "Ауданы:",
       rate: "Мөлшерлеме:",
       close: "Жабу",
+      rateValue: "{amount} ₸/ай",
       sent: "Өтінім жіберілді",
       sentNote: "Жақын арада сізбен байланысамыз.",
       done: "Дайын",

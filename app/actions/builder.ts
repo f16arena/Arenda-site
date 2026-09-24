@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
+import { getT } from "@/lib/i18n/server"
 import { uid } from "@/core/id"
 import { parseDocument, type BuilderDocument } from "@/types/builder"
 import { assertBuildingAccess, getAccessibleBuildingsForUser } from "@/lib/building-access"
@@ -18,18 +19,20 @@ import { floorsForBuildingTag } from "@/lib/admin-shell-cache"
 
 /** Модель, привязанная к зданию, открыта только тем, кому открыто здание. */
 async function assertProjectAccess(id: string, orgId: string): Promise<void> {
+  const { t } = await getT()
   const project = await db.builderProject.findFirst({
     where: { id, organizationId: orgId },
     select: { buildingId: true },
   })
-  if (!project) throw new Error("Модель не найдена")
+  if (!project) throw new Error(t("actions.builder.modelNotFound"))
   if (project.buildingId) await assertBuildingAccess(project.buildingId, orgId)
 }
 
 /** Здания, открытые текущему пользователю: список моделей фильтруем по ним. */
 async function accessibleBuildingIds(orgId: string): Promise<string[]> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) throw new Error("Не авторизован")
+  if (!session?.user) throw new Error(t("actions.builder.notAuthorized"))
   const list = await getAccessibleBuildingsForUser({
     userId: session.user.id,
     orgId,
@@ -40,20 +43,22 @@ async function accessibleBuildingIds(orgId: string): Promise<string[]> {
 }
 
 async function requireBuilderAccess(): Promise<string> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
+  if (!session?.user || session.user.role === "TENANT") throw new Error(t("actions.builder.forbidden"))
   const { orgId } = await requireOrgAccess()
   return orgId
 }
 
 export async function createBuilderProject(name: string, doc: BuilderDocument): Promise<{ id: string; revision: number }> {
+  const { t } = await getT()
   const orgId = await requireBuilderAccess()
   const session = await auth()
   const validated = parseDocument(doc)
   const created = await db.builderProject.create({
     data: {
       organizationId: orgId,
-      name: (name || "Без названия").slice(0, 120),
+      name: (name || t("actions.builder.untitled")).slice(0, 120),
       doc: validated,
       schemaVersion: validated.schemaVersion,
       revision: 0,
@@ -186,15 +191,16 @@ export async function listBuilderSnapshots(
  * в снимки — вернуться обратно всегда можно.
  */
 export async function restoreBuilderSnapshot(projectId: string, snapshotId: string): Promise<{ revision: number }> {
+  const { t } = await getT()
   const orgId = await requireBuilderAccess()
   await assertProjectAccess(projectId, orgId)
   const snap = await db.builderSnapshot.findFirst({ where: { id: snapshotId, projectId }, select: { doc: true } })
-  if (!snap) throw new Error("Снимок не найден")
+  if (!snap) throw new Error(t("actions.builder.snapshotNotFound"))
   const current = await db.builderProject.findFirst({ where: { id: projectId }, select: { revision: true, doc: true } })
-  if (!current) throw new Error("Проект не найден")
+  if (!current) throw new Error(t("actions.builder.projectNotFound"))
   const validated = parseDocument(snap.doc)
   // перед откатом кладём текущую модель в снимки — «отменить отмену»
-  await db.builderSnapshot.create({ data: { projectId, revision: current.revision, doc: current.doc as never, note: "перед восстановлением" } })
+  await db.builderSnapshot.create({ data: { projectId, revision: current.revision, doc: current.doc as never, note: t("actions.builder.beforeRestore") } })
   await db.builderProject.update({
     where: { id: projectId },
     data: { doc: validated, revision: current.revision + 1, schemaVersion: validated.schemaVersion },
@@ -271,11 +277,12 @@ export async function listBuilderProjects(): Promise<Array<{ id: string; name: s
 }
 
 export async function renameBuilderProject(id: string, name: string): Promise<{ ok: boolean }> {
+  const { t } = await getT()
   const orgId = await requireBuilderAccess()
   await assertProjectAccess(id, orgId)
   const res = await db.builderProject.updateMany({
     where: { id, organizationId: orgId },
-    data: { name: (name || "Без названия").slice(0, 120) },
+    data: { name: (name || t("actions.builder.untitled")).slice(0, 120) },
   })
   revalidatePath("/admin/builder/projects")
   return { ok: res.count > 0 }
@@ -297,6 +304,7 @@ export async function deleteBuilderProject(id: string): Promise<{ ok: boolean }>
 }
 
 export async function duplicateBuilderProject(id: string): Promise<{ id: string } | null> {
+  const { t } = await getT()
   const orgId = await requireBuilderAccess()
   await assertProjectAccess(id, orgId)
   const session = await auth()
@@ -306,7 +314,7 @@ export async function duplicateBuilderProject(id: string): Promise<{ id: string 
   const created = await db.builderProject.create({
     data: {
       organizationId: orgId,
-      name: `${src.name} (копия)`.slice(0, 120),
+      name: t("actions.builder.copySuffix", { name: src.name }).slice(0, 120),
       doc: validated,
       schemaVersion: src.schemaVersion,
       revision: 0,

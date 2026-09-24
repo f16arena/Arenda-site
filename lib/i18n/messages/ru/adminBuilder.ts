@@ -974,6 +974,7 @@ export const adminBuilder = {
       area: "Площадь:",
       rate: "Ставка:",
       close: "Закрыть",
+      rateValue: "{amount} ₸/мес",
       sent: "Заявка отправлена",
       sentNote: "Мы свяжемся с вами в ближайшее время.",
       done: "Готово",

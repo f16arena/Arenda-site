@@ -6,7 +6,7 @@ import { plural } from "../../translate"
 // они в domain.*, кнопки и состояния — в common.*.
 
 export const adminTenants = {
-  // Правовые формы арендатора (РК). Расширяют LEGAL_TYPE_LABELS из lib/utils.
+  // Правовые формы арендатора (РК) — единственный источник подписей.
   legalTypes: {
     IP: "ИП",
     TOO: "ТОО",

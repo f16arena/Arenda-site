@@ -216,7 +216,6 @@ export const common = {
       finances: "Финансы",
       documents: "Документы",
       createDocument: "Создать документ",
-      templates: "Шаблоны документов",
       dataQuality: "Качество данных",
       systemHealth: "Проверка системы",
       faq: "FAQ и инструкции",

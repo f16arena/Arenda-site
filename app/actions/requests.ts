@@ -31,7 +31,7 @@ export async function createRequestAdmin(formData: FormData) {
     type: formData.get("type"),
     priority: formData.get("priority"),
   })
-  if (!parsed.success) return { error: firstZodError(parsed.error) }
+  if (!parsed.success) return { error: firstZodError(parsed.error, t) }
   const { title, description, type, priority } = parsed.data
 
   const tenant = await db.tenant.findUnique({
@@ -58,7 +58,6 @@ export async function createRequestAdmin(formData: FormData) {
 
 export async function updateRequestStatus(requestId: string, status: string, assigneeId?: string) {
   await requireCapabilityAndFeature("requests.manage")
-  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   await assertRequestInOrg(requestId, orgId)
 

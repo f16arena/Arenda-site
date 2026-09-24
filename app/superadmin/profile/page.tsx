@@ -6,9 +6,11 @@ import { redirect } from "next/navigation"
 import { Shield } from "lucide-react"
 import { ProfileTabs } from "@/components/profile/profile-tabs"
 import { formatPersonShortName } from "@/lib/display-name"
+import { getT } from "@/lib/i18n/server"
 
 export default async function SuperadminProfilePage() {
   const session = await auth()
+  const { t } = await getT()
   if (!session?.user) redirect("/login")
   if (!session.user.isPlatformOwner) redirect("/admin")
 
@@ -26,8 +28,8 @@ export default async function SuperadminProfilePage() {
           <Shield className="h-5 w-5 text-purple-700 dark:text-purple-300" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Мой профиль</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{formatPersonShortName(user.name)} · Платформенный администратор</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.profile.title")}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{formatPersonShortName(user.name)} · {t("superadmin.profile.role")}</p>
         </div>
       </div>
 

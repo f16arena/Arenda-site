@@ -8,6 +8,11 @@ import { getT } from "@/lib/i18n/server"
 import { parseExcel, autoMapColumns, getField, parseFlexibleDate, extractBinIin } from "@/lib/excel-import"
 
 // Реестр договоров: номер + идентификатор арендатора (БИН/ИИН или название) + даты + статус.
+//
+// Список русский, но распознавание двуязычное: казахские варианты («Шарт
+// нөмірі», «Басталу күні», «Мәртебесі» …) лежат в KK_FIELD_SYNONYMS
+// (lib/excel-import.ts) и добавляются к этим автоматически. Русские варианты
+// удалять нельзя — реестры приходят и на русском.
 const FIELD_SYNONYMS: Record<string, string[]> = {
   number: ["Номер", "№", "Номер договора", "Договор", "№ договора", "Number", "Договор №"],
   tenant: ["Арендатор", "Компания", "Контрагент", "Организация", "Название", "Наименование"],
@@ -20,12 +25,16 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
 
 // Сопоставление текста статуса из файла → статус договора в системе. Реестр = реальные
 // заключённые договоры, поэтому по умолчанию SIGNED.
+//
+// Основы и русские, и казахские: в казахском реестре здесь стоит «қол қойылған»,
+// «мерзімі өтті», «бұзылған», «жоба». Русские основы остаются — файл может быть
+// на любом из двух языков.
 function mapStatus(raw: string): string {
   const s = raw.toLowerCase()
-  if (/черновик|draft/.test(s)) return "DRAFT"
-  if (/истёк|истек|expired|законч|заверш/.test(s)) return "EXPIRED"
-  if (/отклон|reject|расторг|terminat|растор/.test(s)) return "REJECTED"
-  if (/подпис|signed|действ|актив|active/.test(s)) return "SIGNED"
+  if (/черновик|draft|жоба/.test(s)) return "DRAFT"
+  if (/истёк|истек|expired|законч|заверш|мерзімі өт|мерзімі бітк|аяқталған|бітті/.test(s)) return "EXPIRED"
+  if (/отклон|reject|расторг|terminat|растор|бұзыл|күшін жой|қабылданба/.test(s)) return "REJECTED"
+  if (/подпис|signed|действ|актив|active|қол қой|қолданыс|белсенді/.test(s)) return "SIGNED"
   return "SIGNED"
 }
 
@@ -60,7 +69,7 @@ export async function previewContractImport(formData: FormData): Promise<Contrac
   if (file.size > 10 * 1024 * 1024) throw new Error(t("actions.imports.fileTooBig"))
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  const sheet = await parseExcel(buffer)
+  const sheet = await parseExcel(buffer, t)
   const mapping = autoMapColumns(sheet.headers, FIELD_SYNONYMS)
 
   const unmapped = (["number"] as const).filter((f) => mapping[f] === undefined)
@@ -96,14 +105,15 @@ export async function previewContractImport(formData: FormData): Promise<Contrac
     const tenantName = getField(row, mapping, "tenant").trim()
     const match = (bin && byTax.get(bin)) || (tenantName && byName.get(tenantName.toLowerCase())) || null
     if (!match) {
-      invalidRows.push({ rowIndex, error: t("actions.imports.tenantNotFound", { hint: tenantName || bin || t("actions.imports.noIdentifier") }) })
+      invalidRows.push({ rowIndex, error: t("imports.tenantNotFoundHint", { hint: tenantName || bin || t("actions.imports.noIdentifier") }) })
       continue
     }
     const startDate = parseFlexibleDate(getField(row, mapping, "startDate"))
     const endDate = parseFlexibleDate(getField(row, mapping, "endDate"))
     const status = mapStatus(getField(row, mapping, "status"))
     const rawType = getField(row, mapping, "type").trim()
-    const type = /внешн|external|pdf/i.test(rawType) ? "EXTERNAL" : "STANDARD"
+    // «Внешний» договор (скан/PDF) по-казахски — «сыртқы».
+    const type = /внешн|external|pdf|сыртқы/i.test(rawType) ? "EXTERNAL" : "STANDARD"
     const warnings: string[] = []
     if (endDate && startDate && endDate < startDate) warnings.push(t("actions.common.endBeforeStart"))
 

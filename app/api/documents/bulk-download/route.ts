@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { documentBuildingFilter } from "@/lib/building-access"
 import PizZip from "pizzip"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic"
 // Body: { ids: string[] }
 // Возвращает ZIP-архив с выбранными документами.
 export async function POST(req: Request) {
+  const { t } = await getT()
   const session = await auth()
   if (!session?.user || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No documents selected" }, { status: 400 })
   }
   if (ids.length > 100) {
-    return NextResponse.json({ error: "Слишком много документов (максимум 100)" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.export.tooManyDocuments") }, { status: 400 })
   }
 
   const docs = await safeServerValue(
@@ -54,7 +56,7 @@ export async function POST(req: Request) {
   )
 
   if (docs.length === 0) {
-    return NextResponse.json({ error: "Документы не найдены" }, { status: 404 })
+    return NextResponse.json({ error: t("adminDocs.api.export.documentsNotFound") }, { status: 404 })
   }
 
   // Собираем ZIP

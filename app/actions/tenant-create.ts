@@ -13,10 +13,11 @@ import { assertSpaceAssignable } from "@/lib/full-floor-guards"
 import { sendEmail, basicEmailTemplate } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
-import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
+import { normalizeTenantLegalType, normalizeTenantTaxIds, taxIdMessage } from "@/lib/tenant-identity"
 import { parseTenantSpaceIds } from "@/lib/tenant-spaces"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
-import { getT } from "@/lib/i18n/server"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 
 export type CreateTenantResult = { success: true; tenantId: string } | { success: false; error: string }
 
@@ -35,7 +36,7 @@ export async function createTenant(formData: FormData): Promise<CreateTenantResu
 }
 
 async function createTenantUnchecked(formData: FormData): Promise<CreateTenantResult> {
-  const { t } = await getT()
+  const { t, locale } = await getT()
   await requireCapabilityAndFeature("tenants.create")
   const { orgId } = await requireOrgAccess()
   await requireSubscriptionActive(orgId)
@@ -43,7 +44,7 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"), { required: true })
-  const email = await normalizeEmailWithDns(formData.get("email"))
+  const email = await normalizeEmailWithDns(formData.get("email"), { t })
   const password = String(formData.get("password") ?? "")
   const companyName = String(formData.get("companyName") ?? "").trim()
   const legalType = normalizeTenantLegalType(formData.get("legalType"))
@@ -51,6 +52,11 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
     legalType,
     bin: formData.get("bin"),
     iin: formData.get("iin"),
+    labels: {
+      bin: t("common.settings.identity.binLabel"),
+      iin: t("common.settings.identity.iinLabel"),
+    },
+    translate: taxIdMessage(t),
   })
   const bin = taxIds.bin
   const iin = taxIds.iin
@@ -77,11 +83,11 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
   // Если флажок включён — отправить welcome-письмо с логином/паролем на email
   const sendWelcome = formData.get("sendWelcome") === "on"
 
-  if (!name) throw new Error("Введите ФИО контактного лица")
-  if (!companyName) throw new Error("Введите название компании")
+  if (!name) throw new Error(t("actions.tenantCreate.contactNameRequired"))
+  if (!companyName) throw new Error(t("actions.tenantCreate.companyNameRequired"))
   if (buildingId) await assertBuildingInOrg(buildingId, orgId)
 
-  if (spaceIds.length > 20) throw new Error("За один раз можно привязать до 20 помещений")
+  if (spaceIds.length > 20) throw new Error(t("actions.tenantCreate.tooManySpaces"))
 
   if (spaceIds.length > 0) {
     for (const id of spaceIds) {
@@ -110,34 +116,42 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
     })
 
     if (existingSpaces.length !== spaceIds.length) {
-      throw new Error("Некоторые помещения не найдены")
+      throw new Error(t("actions.tenantCreate.spacesNotFound"))
     }
 
     for (const existing of existingSpaces) {
       if (buildingId && existing.floor.buildingId !== buildingId) {
         throw new Error(
-          `Помещение «Каб. ${existing.number}» относится к зданию «${existing.floor.building.name}». ` +
-            "Переключитесь на это здание или выберите помещение из текущего здания.",
+          t("actions.tenantCreate.spaceOtherBuilding", {
+            number: existing.number,
+            building: existing.floor.building.name,
+          }),
         )
       }
       if (existing.floor.buildingId) await assertBuildingAccess(existing.floor.buildingId, orgId)
       const occupiedBy = existing.tenant ?? existing.tenantSpaces[0]?.tenant ?? null
       if (occupiedBy) {
         const until = occupiedBy.contractEnd
-          ? ` (договор до ${occupiedBy.contractEnd.toLocaleDateString("ru-RU")})`
+          ? t("actions.tenantCreate.untilContract", {
+              date: formatDateShortL(locale, occupiedBy.contractEnd),
+            })
           : ""
         throw new Error(
-          `Кабинет ${existing.number} уже занят арендатором «${occupiedBy.companyName}»${until}. Сначала выселите.`,
+          t("actions.tenantCreate.spaceOccupied", {
+            number: existing.number,
+            company: occupiedBy.companyName,
+            until,
+          }),
         )
       }
     }
   }
 
   if (phone && !(await releaseContactOfDeletedTenant({ phone }, orgId))) {
-    throw new Error(`Телефон ${phone} уже используется другим пользователем`)
+    throw new Error(t("actions.users.phoneTaken", { phone }))
   }
   if (email && !(await releaseContactOfDeletedTenant({ email }, orgId))) {
-    throw new Error(`Email ${email} уже используется другим пользователем`)
+    throw new Error(t("actions.users.emailTaken", { email }))
   }
 
   // Проверка чёрного списка по БИН/ИИН — предупреждаем не блокируя.
@@ -156,11 +170,13 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
         select: { id: true, companyName: true, blacklistReason: true, blacklistedAt: true },
       })
       if (blocked && formData.get("ignoreBlacklist") !== "on") {
-        const dt = blocked.blacklistedAt?.toLocaleDateString("ru-RU") ?? "—"
+        const dt = blocked.blacklistedAt ? formatDateShortL(locale, blocked.blacklistedAt) : "—"
         throw new Error(
-          `⛔ Этот БИН/ИИН в чёрном списке (компания «${blocked.companyName}», добавлен ${dt}). ` +
-            `Причина: ${blocked.blacklistReason ?? "—"}. ` +
-            `Если уверены — отметьте «Игнорировать чёрный список» и попробуйте снова.`,
+          t("actions.tenantCreate.blacklisted", {
+            company: blocked.companyName,
+            date: dt,
+            reason: blocked.blacklistReason ?? "—",
+          }),
         )
       }
     }
@@ -190,6 +206,7 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown"
     if (msg.includes("does not exist") || msg.includes("column")) {
+      // Сообщение для разработчика: сломан деплой, а не ошибка пользователя.
       throw new Error("Не применены миграции БД. Запустите prisma db push.")
     }
     throw new Error(`Не удалось создать пользователя: ${msg}`)
@@ -245,9 +262,10 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
     await db.user.delete({ where: { id: userId } }).catch(() => {})
     const msg = e instanceof Error ? e.message : "unknown"
     if (msg.includes("does not exist") || msg.includes("column")) {
+      // Сообщение для разработчика: сломан деплой, а не ошибка пользователя.
       throw new Error("Не применены миграции БД. Запустите prisma db push.")
     }
-    throw new Error(`Не удалось создать арендатора: ${msg}`)
+    throw new Error(t("actions.tenantCreate.createFailed", { reason: msg }))
   }
 
   // ── Welcome-письмо арендатору (если есть email и флажок) ─────────
@@ -263,30 +281,39 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
         ? `${proto}://${org.slug}.${ROOT_HOST}/cabinet`
         : `${proto}://${ROOT_HOST}/login`
 
+      // Письмо читает арендатор — берём его язык, а не язык создавшего.
+      const { t: tt } = await getTForUser(userId)
+      const orgName = org?.name ?? tt("actions.tenantCreate.orgFallback")
       const html = basicEmailTemplate({
-        title: `Добро пожаловать в Commrent · ${org?.name ?? "Кабинет арендатора"}`,
-        body: `<p>Здравствуйте, ${name}!</p>
-<p>Для вас создан личный кабинет арендатора в <b>${org?.name ?? "Commrent"}</b>.</p>
-<p>В кабинете вы можете:</p>
-<ul>
-<li>Просматривать счета и оплачивать их</li>
-<li>Скачивать договоры, акты и другие документы</li>
-<li>Отправлять заявки на обслуживание помещения</li>
-<li>Общаться с администрацией</li>
-</ul>
-<p><b>Логин:</b> ${email}<br/>
-<b>Временный пароль:</b> ${plainPassword}</p>
-<p style="font-size:12px;color:#64748b;">⚠ Рекомендуем сменить пароль при первом входе (Профиль → Безопасность).</p>`,
-        buttonText: "Открыть кабинет",
+        title: tt("actions.tenantCreate.mailTitle", { org: orgName }),
+        body: [
+          tt("actions.tenantCreate.mailGreeting", { name }),
+          tt("actions.tenantCreate.mailLead", { org: orgName }),
+          tt("actions.tenantCreate.mailCanTitle"),
+          "<ul>",
+          `<li>${tt("actions.tenantCreate.mailCanInvoices")}</li>`,
+          `<li>${tt("actions.tenantCreate.mailCanDocs")}</li>`,
+          `<li>${tt("actions.tenantCreate.mailCanRequests")}</li>`,
+          `<li>${tt("actions.tenantCreate.mailCanChat")}</li>`,
+          "</ul>",
+          tt("actions.tenantCreate.mailCredentials", { login: email, password: plainPassword }),
+          `<p style="font-size:12px;color:#64748b;">${tt("actions.tenantCreate.mailChangePassword")}</p>`,
+        ].join("\n"),
+        buttonText: tt("actions.tenantCreate.mailButton"),
         buttonUrl: cabinetLink,
-        footer: "Если возникнут вопросы — свяжитесь с администрацией здания.",
+        footer: tt("actions.tenantCreate.mailFooter"),
       })
 
       const result = await sendEmail({
         to: email,
-        subject: `Доступ к кабинету арендатора · ${org?.name ?? "Commrent"}`,
+        subject: tt("actions.tenantCreate.mailSubject", { org: orgName }),
         html,
-        text: `Здравствуйте, ${name}! Ваш кабинет: ${cabinetLink}\nЛогин: ${email}\nПароль: ${plainPassword}`,
+        text: tt("actions.tenantCreate.mailText", {
+          name,
+          link: cabinetLink,
+          login: email,
+          password: plainPassword,
+        }),
       })
 
       // Лог в email_logs
@@ -294,7 +321,7 @@ async function createTenantUnchecked(formData: FormData): Promise<CreateTenantRe
         await db.emailLog.create({
           data: {
             recipient: email,
-            subject: `Доступ к кабинету арендатора`,
+            subject: tt("actions.tenantCreate.mailSubject", { org: orgName }),
             type: "WELCOME",
             tenantId,
             userId,

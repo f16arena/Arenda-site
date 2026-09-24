@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { mobileError } from "@/lib/mobile-context"
 import { getMobileStaffRequest } from "@/lib/mobile-admin"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -11,6 +12,9 @@ export async function GET(req: Request) {
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
+  // Язык ответа — из профиля админа: в bearer-запросе мобильного приложения
+  // cookie нет, а сообщение читает человек.
+  const { t } = await getTForUser(result.ctx.user.id)
   const { buildingIds } = result
   const url = new URL(req.url)
   const spaceId = url.searchParams.get("spaceId")?.trim()
@@ -25,7 +29,7 @@ export async function GET(req: Request) {
     : buildingIds
 
   if (targetBuildings.length === 0) {
-    return mobileError("Здание недоступно", 403)
+    return mobileError(t("adminDocs.api.common.buildingUnavailable"), 403)
   }
 
   const where: Record<string, unknown> = {
@@ -87,6 +91,7 @@ export async function POST(req: Request) {
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const { buildingIds } = result
   const body = (await req.json().catch(() => null)) as {
     spaceId?: string
@@ -98,15 +103,15 @@ export async function POST(req: Request) {
   const spaceId = body?.spaceId?.trim()
   const type = body?.type?.trim().toUpperCase()
   const number = body?.number?.trim()
-  if (!spaceId) return mobileError("Укажите помещение")
-  if (!type || !METER_TYPES.has(type)) return mobileError("Выберите корректный тип счётчика")
-  if (!number) return mobileError("Укажите номер счётчика")
+  if (!spaceId) return mobileError(t("adminDocs.api.meters.spaceRequired"))
+  if (!type || !METER_TYPES.has(type)) return mobileError(t("adminDocs.api.meters.typeRequired"))
+  if (!number) return mobileError(t("adminDocs.api.meters.numberRequired"))
 
   const space = await db.space.findFirst({
     where: { id: spaceId, floor: { buildingId: { in: buildingIds } } },
     select: { id: true },
   })
-  if (!space) return mobileError("Помещение недоступно", 403)
+  if (!space) return mobileError(t("adminDocs.api.common.spaceUnavailable"), 403)
 
   const meter = await db.meter.create({
     data: { spaceId, type, number },
@@ -116,7 +121,7 @@ export async function POST(req: Request) {
   if (body?.initialValue !== undefined && body.initialValue !== null) {
     const initial = Number(body.initialValue)
     if (!Number.isFinite(initial) || initial < 0) {
-      return mobileError("Начальное показание должно быть неотрицательным")
+      return mobileError(t("adminDocs.api.meters.initialNonNegative"))
     }
     if (initial > 0) {
       const period = new Date().toISOString().slice(0, 7)
@@ -133,16 +138,17 @@ export async function DELETE(req: Request) {
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const { buildingIds } = result
   const url = new URL(req.url)
   const id = url.searchParams.get("id")?.trim()
-  if (!id) return mobileError("Не указан id счётчика")
+  if (!id) return mobileError(t("adminDocs.api.meters.idRequired"))
 
   const meter = await db.meter.findFirst({
     where: { id, space: { floor: { buildingId: { in: buildingIds } } } },
     select: { id: true },
   })
-  if (!meter) return mobileError("Счётчик не найден", 404)
+  if (!meter) return mobileError(t("adminDocs.api.meters.notFound"), 404)
 
   const [readings] = await db.$transaction([
     db.meterReading.deleteMany({ where: { meterId: id } }),

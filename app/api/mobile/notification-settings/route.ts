@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
-import { MOBILE_NOTIFICATION_TYPES, normalizeMutedTypes } from "@/lib/notification-preferences"
+import { MOBILE_NOTIFICATION_TYPES, normalizeMutedTypes, notificationTypeNameKey } from "@/lib/notification-preferences"
+import { getTForUser } from "@/lib/i18n/server"
+import type { Translator } from "@/lib/i18n/translate"
+import type { Messages } from "@/lib/i18n/messages"
+
+// Список видов уведомлений уходит в приложение готовыми подписями — на языке
+// владельца настроек, а не того, кто дёрнул эндпоинт.
+function eventTypes(t: Translator<Messages>["t"]) {
+  return MOBILE_NOTIFICATION_TYPES.map((type) => ({ key: type, label: t(notificationTypeNameKey(type)) }))
+}
 
 export const dynamic = "force-dynamic"
 
@@ -9,6 +18,7 @@ export async function GET(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const [user, devices] = await Promise.all([
     db.user.findUnique({
       where: { id: result.ctx.user.id },
@@ -55,7 +65,7 @@ export async function GET(req: Request) {
       quietFrom: user.notifyQuietFrom,
       quietTo: user.notifyQuietTo,
       mutedTypes: normalizeMutedTypes(user.notifyMutedTypes),
-      eventTypes: MOBILE_NOTIFICATION_TYPES,
+      eventTypes: eventTypes(t),
     },
     devices,
   })
@@ -65,6 +75,7 @@ export async function PATCH(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const body = await req.json().catch(() => null) as {
     notifyEmail?: boolean
     notifyTelegram?: boolean
@@ -123,7 +134,7 @@ export async function PATCH(req: Request) {
       quietFrom: updated.notifyQuietFrom,
       quietTo: updated.notifyQuietTo,
       mutedTypes: normalizeMutedTypes(updated.notifyMutedTypes),
-      eventTypes: MOBILE_NOTIFICATION_TYPES,
+      eventTypes: eventTypes(t),
     },
   })
 }

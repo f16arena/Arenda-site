@@ -16,6 +16,12 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { APPROVAL_PENDING, APPROVAL_REJECTED } from "@/lib/approval"
 import { RegistrationApprovalButtons } from "./registration-approval-buttons"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
+type T = Translator<Messages>["t"]
 
 const PAGE_SIZE = 30
 type StatusFilter = "all" | "pending" | "active" | "expiring" | "suspended" | "inactive" | "rejected"
@@ -45,6 +51,8 @@ export default async function OrgsListPage({
   searchParams?: Promise<{ q?: string | string[]; status?: string | string[]; page?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const resolved = await searchParams
   const query = one(resolved?.q).trim()
   const status = normalizeStatus(one(resolved?.status))
@@ -139,11 +147,11 @@ export default async function OrgsListPage({
       isSuspended: o.isSuspended,
       approvalStatus: o.approvalStatus,
       rejectionReason: o.rejectionReason,
-      approvalRequestedAtLabel: o.approvalRequestedAt ? formatDateRu(o.approvalRequestedAt) : null,
+      approvalRequestedAtLabel: o.approvalRequestedAt ? formatOrgDate(locale, o.approvalRequestedAt) : null,
       hasOwner: !!o.ownerUserId,
       planName: o.plan?.name ?? null,
       planExpiresAt: o.planExpiresAt ? o.planExpiresAt.toISOString() : null,
-      planExpiresAtLabel: o.planExpiresAt ? formatDateRu(o.planExpiresAt) : null,
+      planExpiresAtLabel: o.planExpiresAt ? formatOrgDate(locale, o.planExpiresAt) : null,
       expired,
       expiringSoon,
       daysLeft,
@@ -156,9 +164,9 @@ export default async function OrgsListPage({
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Организации</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.orgs.title")}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-            {stats.total} клиентов на платформе · показано {items.length} из {total}
+            {t("superadmin.orgs.subtitle", { total: stats.total, shown: items.length, found: total })}
           </p>
         </div>
         <Link
@@ -166,7 +174,7 @@ export default async function OrgsListPage({
           className="flex items-center gap-2 rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2 text-sm font-medium text-white shadow-sm"
         >
           <Plus className="h-4 w-4" />
-          Создать организацию
+          {t("superadmin.orgs.create")}
         </Link>
       </div>
 
@@ -178,23 +186,23 @@ export default async function OrgsListPage({
             <Input
               name="q"
               defaultValue={query}
-              placeholder="Поиск по названию или slug..."
+              placeholder={t("superadmin.orgs.searchPlaceholder")}
               className="pl-9"
             />
           </div>
           <Button>
-            Найти
+            {t("common.actions.search")}
           </Button>
         </form>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {[
-            ["all", "Все", stats.total],
-            ["pending", "На подтверждение", stats.pending],
-            ["active", "Активные", stats.active],
-            ["expiring", "Истекают", stats.expiringSoon],
-            ["suspended", "Приостановлено", stats.suspended],
-            ["inactive", "Деактивировано", null],
-            ["rejected", "Отклонено", null],
+            ["all", t("superadmin.orgs.filters.all"), stats.total],
+            ["pending", t("superadmin.orgs.filters.pending"), stats.pending],
+            ["active", t("superadmin.orgs.filters.active"), stats.active],
+            ["expiring", t("superadmin.orgs.filters.expiring"), stats.expiringSoon],
+            ["suspended", t("superadmin.orgs.filters.suspended"), stats.suspended],
+            ["inactive", t("superadmin.orgs.filters.inactive"), null],
+            ["rejected", t("superadmin.orgs.filters.rejected"), null],
           ].map(([value, label, count]) => {
             const filter = value as StatusFilter
             const active = status === filter
@@ -223,22 +231,22 @@ export default async function OrgsListPage({
 
       {/* KPI mini-cards */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KpiCard label="Всего" value={stats.total} icon={Building2} color="slate" />
-        <KpiCard label="На подтверждении" value={stats.pending} icon={Clock} color="amber" />
-        <KpiCard label="Активных" value={stats.active} icon={CheckCircle2} color="emerald" />
-        <KpiCard label="Истекают за 7 дн." value={stats.expiringSoon} icon={Clock} color="amber" />
-        <KpiCard label="Приостановлено" value={stats.suspended} icon={Pause} color="red" />
+        <KpiCard label={t("superadmin.orgs.kpi.total")} value={stats.total} icon={Building2} color="slate" />
+        <KpiCard label={t("superadmin.orgs.kpi.pending")} value={stats.pending} icon={Clock} color="amber" />
+        <KpiCard label={t("superadmin.orgs.kpi.active")} value={stats.active} icon={CheckCircle2} color="emerald" />
+        <KpiCard label={t("superadmin.orgs.kpi.expiring")} value={stats.expiringSoon} icon={Clock} color="amber" />
+        <KpiCard label={t("superadmin.orgs.kpi.suspended")} value={stats.suspended} icon={Pause} color="red" />
       </div>
 
       {items.length === 0 ? (
         <Card className="block rounded-2xl p-12 text-center">
           <Building2 className="h-12 w-12 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
-          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Пока нет организаций</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Создайте первую через кнопку выше</p>
+          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("superadmin.orgs.emptyTitle")}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t("superadmin.orgs.emptyHint")}</p>
         </Card>
       ) : (
         <Card className="block p-0">
-          <OrgsTable items={items} rootHost={ROOT_HOST} />
+          <OrgsTable items={items} rootHost={ROOT_HOST} t={t} />
           <PaginationControls
             basePath="/superadmin/orgs"
             page={page}
@@ -252,30 +260,30 @@ export default async function OrgsListPage({
   )
 }
 
-function OrgsTable({ items, rootHost }: { items: OrgListItem[]; rootHost: string }) {
+function OrgsTable({ items, rootHost, t }: { items: OrgListItem[]; rootHost: string; t: T }) {
   return (
     <table className="w-full text-sm">
       <thead>
         <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-          <TableHead>Организация</TableHead>
-          <TableHead>Тариф</TableHead>
-          <TableHead>Подписка</TableHead>
-          <TableHead align="right">Зданий</TableHead>
-          <TableHead align="right">Пользователей</TableHead>
-          <TableHead>Статус</TableHead>
-          <TableHead align="right">Действия</TableHead>
+          <TableHead>{t("superadmin.cols.org")}</TableHead>
+          <TableHead>{t("superadmin.cols.plan")}</TableHead>
+          <TableHead>{t("superadmin.orgs.colSubscription")}</TableHead>
+          <TableHead align="right">{t("superadmin.cols.buildings")}</TableHead>
+          <TableHead align="right">{t("superadmin.cols.users")}</TableHead>
+          <TableHead>{t("superadmin.cols.status")}</TableHead>
+          <TableHead align="right">{t("superadmin.cols.actions")}</TableHead>
         </tr>
       </thead>
       <tbody>
         {items.map((org) => (
-          <OrgRow key={org.id} org={org} rootHost={rootHost} />
+          <OrgRow key={org.id} org={org} rootHost={rootHost} t={t} />
         ))}
       </tbody>
     </table>
   )
 }
 
-function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
+function OrgRow({ org, rootHost, t }: { org: OrgListItem; rootHost: string; t: T }) {
   const orgUrl = `https://${org.slug}.${rootHost}`
   const isPendingApproval = org.approvalStatus === APPROVAL_PENDING
 
@@ -300,14 +308,14 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
             target="_blank"
             rel="noopener noreferrer"
             className="mt-0.5 inline-flex items-center gap-0.5 font-mono text-[10px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400"
-            title="Открыть поддомен в новой вкладке"
+            title={t("superadmin.orgs.openSubdomain")}
           >
             {org.slug}.{rootHost}
             <ExternalLink className="h-2.5 w-2.5" />
           </a>
           {isPendingApproval && (
             <p className="mt-1 text-[10px] font-medium text-amber-600 dark:text-amber-300">
-              Заявка от {org.approvalRequestedAtLabel ?? "сегодня"}
+              {t("superadmin.orgs.requestFrom", { date: org.approvalRequestedAtLabel ?? t("superadmin.orgs.requestToday") })}
             </p>
           )}
           {org.approvalStatus === APPROVAL_REJECTED && org.rejectionReason && (
@@ -343,7 +351,9 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
             </p>
             {org.daysLeft !== null && (
               <p suppressHydrationWarning className="mt-0.5 text-[10px] text-slate-400 dark:text-slate-500">
-                {org.expired ? `просрочен ${-org.daysLeft} дн.` : `${org.daysLeft} дн.`}
+                {org.expired
+                  ? t("superadmin.orgs.overdueDays", { count: -org.daysLeft })
+                  : t("superadmin.orgs.daysLeftShort", { count: org.daysLeft })}
               </p>
             )}
           </div>
@@ -355,19 +365,19 @@ function OrgRow({ org, rootHost }: { org: OrgListItem; rootHost: string }) {
       <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400">{org.usersCount}</td>
       <td className="px-5 py-3.5">
         {isPendingApproval ? (
-          <Badge color="amber">На подтверждении</Badge>
+          <Badge color="amber">{t("superadmin.orgs.badge.pending")}</Badge>
         ) : org.approvalStatus === APPROVAL_REJECTED ? (
-          <Badge color="red">Отклонено</Badge>
+          <Badge color="red">{t("superadmin.orgs.badge.rejected")}</Badge>
         ) : org.isSuspended ? (
-          <Badge color="red" icon={AlertTriangle}>Приостановлен</Badge>
+          <Badge color="red" icon={AlertTriangle}>{t("superadmin.orgs.badge.suspended")}</Badge>
         ) : !org.isActive ? (
-          <Badge color="slate" icon={Pause}>Деактивирован</Badge>
+          <Badge color="slate" icon={Pause}>{t("superadmin.orgs.badge.inactive")}</Badge>
         ) : org.expired ? (
-          <Badge color="red">Истек</Badge>
+          <Badge color="red">{t("superadmin.orgs.badge.expired")}</Badge>
         ) : org.expiringSoon ? (
-          <Badge color="amber">Истекает</Badge>
+          <Badge color="amber">{t("superadmin.orgs.badge.expiring")}</Badge>
         ) : (
-          <Badge color="emerald">Активен</Badge>
+          <Badge color="emerald">{t("superadmin.orgs.badge.active")}</Badge>
         )}
       </td>
       <td className="px-5 py-3.5">
@@ -440,8 +450,10 @@ function hrefFor(params: { q?: string | null; status?: string | null }) {
   return qs ? `/superadmin/orgs?${qs}` : "/superadmin/orgs"
 }
 
-function formatDateRu(value: Date): string {
-  return new Intl.DateTimeFormat("ru-RU", { timeZone: "Asia/Qyzylorda" }).format(value)
+// Часовой пояс фиксируем: дата подписки должна читаться по Казахстану,
+// а не по часовому поясу сервера.
+function formatOrgDate(locale: Locale, value: Date): string {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], { timeZone: "Asia/Qyzylorda" }).format(value)
 }
 
 function KpiCard({ label, value, icon: Icon, color }: {

@@ -4,6 +4,7 @@ import { mobileError } from "@/lib/mobile-context"
 import { getMobileTenantRequest } from "@/lib/mobile-tenant"
 import { notifyUser } from "@/lib/notify"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
+import { getTForUser } from "@/lib/i18n/server"
 import {
   REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES,
   REQUEST_ATTACHMENT_MAX_BYTES,
@@ -88,6 +89,8 @@ export async function POST(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  // Ошибки читает арендатор, письмо администрации — админы: языки разные.
+  const { t } = await getTForUser(ctx.user.id)
   const parsed = await parseRequestBody(req)
   const body = parsed.body
 
@@ -96,10 +99,10 @@ export async function POST(req: Request) {
   const type = String(body?.type ?? "OTHER").trim().toUpperCase()
   const priority = String(body?.priority ?? "MEDIUM").trim().toUpperCase()
 
-  if (title.length < 3) return mobileError("Коротко укажите тему заявки")
-  if (description.length < 5) return mobileError("Опишите проблему или вопрос")
-  if (!REQUEST_TYPES.has(type)) return mobileError("Некорректный тип заявки")
-  if (!PRIORITIES.has(priority)) return mobileError("Некорректный приоритет")
+  if (title.length < 3) return mobileError(t("adminDocs.api.requests.titleRequiredShort"))
+  if (description.length < 5) return mobileError(t("adminDocs.api.requests.descriptionRequiredTenant"))
+  if (!REQUEST_TYPES.has(type)) return mobileError(t("adminDocs.api.requests.badType"))
+  if (!PRIORITIES.has(priority)) return mobileError(t("adminDocs.api.requests.badPriority"))
 
   let storedAttachment: { id: string; url: string; fileName: string; mimeType: string } | null = null
   if (parsed.attachment && parsed.attachment.size > 0) {
@@ -118,7 +121,7 @@ export async function POST(req: Request) {
         allowedMimeTypes: REQUEST_ATTACHMENT_ALLOWED_MIME_TYPES,
       })
     } catch (error) {
-      return mobileError(error instanceof Error ? error.message : "Не удалось сохранить вложение")
+      return mobileError(error instanceof Error ? error.message : t("adminDocs.api.requests.attachmentFailed"))
     }
   }
 
@@ -151,39 +154,51 @@ export async function POST(req: Request) {
   }
 
   const admins = await getTenantAdminContactsForUser(ctx.user.id)
-  await db.message.createMany({
-    data: admins.map((admin) => ({
+  // Тело письма собираем на каждого администратора отдельно — у них могут
+  // быть разные языки, а один общий текст пришлось бы писать на одном.
+  const rows = await Promise.all(admins.map(async (admin) => {
+    const { t: tAdmin } = await getTForUser(admin.id)
+    return {
       fromId: ctx.user.id,
       toId: admin.id,
-      subject: `Заявка: ${title}`,
+      subject: tAdmin("emails.messaging.requestSubject", { title }),
       body: [
-        `Арендатор: ${tenant.companyName}`,
-        `Тип: ${type}`,
-        `Приоритет: ${priority}`,
-        storedAttachment ? `Вложение: ${storedAttachment.fileName}` : null,
+        tAdmin("emails.messaging.requestTenantLine", { tenant: tenant.companyName }),
+        tAdmin("emails.messaging.requestTypeLine", { type }),
+        tAdmin("emails.messaging.requestPriorityLine", { priority }),
+        storedAttachment
+          ? tAdmin("emails.messaging.requestAttachmentLine", { file: storedAttachment.fileName })
+          : null,
         "",
         description,
         "",
-        `Заявка: #${requestRecord.id}`,
+        tAdmin("emails.messaging.requestIdLine", { id: requestRecord.id }),
       ].filter(Boolean).join("\n"),
       attachmentUrl: storedAttachment?.url ?? null,
-    })),
-  })
+    }
+  }))
+  await db.message.createMany({ data: rows })
 
-  await Promise.allSettled(admins.map((admin) => notifyUser({
-    userId: admin.id,
-    type: "NEW_REQUEST",
-    title: `Новая заявка: ${title}`,
-    message: `${tenant.companyName}: ${description.slice(0, 180)}${storedAttachment ? " Вложение приложено." : ""}`,
-    link: "/admin/requests",
-    sendEmail: false,
-    sendPush: true,
-    pushData: {
-      requestId: requestRecord.id,
-      tenantId: tenant.id,
-      priority,
-    },
-  })))
+  await Promise.allSettled(admins.map(async (admin) => {
+    const { t: tAdmin } = await getTForUser(admin.id)
+    const vars = { tenant: tenant.companyName, description: description.slice(0, 180) }
+    return notifyUser({
+      userId: admin.id,
+      type: "NEW_REQUEST",
+      title: tAdmin("emails.messaging.newRequestTitle", { title }),
+      message: storedAttachment
+        ? tAdmin("emails.messaging.newRequestMessageWithFile", vars)
+        : tAdmin("emails.messaging.newRequestMessage", vars),
+      link: "/admin/requests",
+      sendEmail: false,
+      sendPush: true,
+      pushData: {
+        requestId: requestRecord.id,
+        tenantId: tenant.id,
+        priority,
+      },
+    })
+  }))
 
   return NextResponse.json({ data: requestRecord }, { status: 201 })
 }

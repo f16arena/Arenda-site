@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sun, Moon, Monitor } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
 type Theme = "light" | "dark" | "system"
 
@@ -21,11 +22,12 @@ const ICONS: Record<Theme, React.ElementType> = {
   system: Monitor,
 }
 
-const LABELS: Record<Theme, string> = {
-  light: "Светлая",
-  dark: "Тёмная",
-  system: "Системная",
-}
+// Короткая подпись режима: её подставляют в подсказку и в aria-label.
+const THEME_KEYS = {
+  light: "common.theme.shortLight",
+  dark: "common.theme.shortDark",
+  system: "common.theme.shortSystem",
+} as const
 
 const NEXT: Record<Theme, Theme> = {
   light: "dark",
@@ -38,6 +40,7 @@ const NEXT: Record<Theme, Theme> = {
  * Один клик — циклически переключает: light → dark → system → light.
  */
 export function ThemeIconToggle() {
+  const { t } = useT()
   const [theme, setTheme] = useState<Theme>("system")
   const [mounted, setMounted] = useState(false)
 
@@ -73,12 +76,13 @@ export function ThemeIconToggle() {
   }
 
   const Icon = ICONS[theme]
+  const themeName = t(THEME_KEYS[theme])
 
   return (
     <button
       onClick={cycle}
-      title={`Тема: ${LABELS[theme]}. Клик — следующая.`}
-      aria-label={`Переключить тему. Сейчас: ${LABELS[theme]}`}
+      title={t("common.theme.toggleTitle", { name: themeName })}
+      aria-label={t("common.theme.toggleAria", { name: themeName })}
       className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
     >
       <Icon className="h-4 w-4" />

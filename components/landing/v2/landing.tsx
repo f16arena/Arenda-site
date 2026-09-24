@@ -50,12 +50,15 @@ export function LandingV2({
           .replaceAll('href="/login"', `href="${dashboardUrl}"`)
           .replaceAll('href="/signup"', `href="${dashboardUrl}"`)
       : html
+  // alt читают поисковик и экранный диктор — он должен быть на языке страницы.
+  const screenshotAlt =
+    locale === "kk" ? "Commrent ғимарат 3D-редакторы" : "3D-редактор здания Commrent"
   // Подстановка реального скриншота 3D-редактора (из БД) вместо плейсхолдера.
   const before = withCta(
     editorImageUrl
       ? bodyBefore.replace(
           screenshotPlaceholder,
-          `<img src="${editorImageUrl}" alt="3D-редактор здания Commrent" style="width:100%;height:clamp(320px,38vw,420px);object-fit:cover;display:block" />`,
+          `<img src="${editorImageUrl}" alt="${screenshotAlt}" style="width:100%;height:clamp(320px,38vw,420px);object-fit:cover;display:block" />`,
         )
       : bodyBefore,
   ).replace('<div class="nav-cta">', `<div class="nav-cta">${languageLink}`)

@@ -43,7 +43,6 @@ export const adminFinance = {
       title: "Начисления за {period}",
       typeLabel: "Что начислено",
       typeAll: "Всё начисленное",
-      parking: "Парковка",
       statusLabel: "Оплата",
       statusAll: "Оплаченные и нет",
       statusPaid: "Оплачено",

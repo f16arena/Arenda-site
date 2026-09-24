@@ -1,3 +1,9 @@
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
+/** Переводчик страницы: const { t } = await getT() или useT(). */
+type RefsTranslator = Translator<Messages>["t"]
+
 export type ErrorReportDetails = {
   errorId?: string | null
   source?: string | null
@@ -35,6 +41,14 @@ export type ErrorReportDecode = {
   hints: string[]
 }
 
+/**
+ * Классификация ошибки для журнала. Текст остаётся русским осознанно: этот
+ * разбор пишется в audit_logs при приёме отчёта (app/api/errors/report) и
+ * хранится там как исторический след, а читают его lib/action-error.ts и
+ * lib/server-fallback.ts, где переводчика нет. Перевод поздних записей всё
+ * равно не изменил бы уже сохранённые. Для интерфейса «Ошибки сайта» текст на
+ * языке пользователя собирает humanizeErrorReport ниже.
+ */
 export function decodeErrorReport(input: {
   source?: string | null
   path?: string | null
@@ -176,33 +190,41 @@ export type HumanErrorSummary = {
   technicalKind: string
 }
 
-export function humanizeErrorReport(details: ErrorReportDetails): HumanErrorSummary {
-  const path = details.path || "неизвестная страница"
+/**
+ * Разбор ошибки человеческим языком для страницы «Ошибки сайта». Строки —
+ * в словаре (superadmin.diag.*), здесь только выбор случая и подстановки.
+ */
+export function humanizeErrorReport(t: RefsTranslator, details: ErrorReportDetails): HumanErrorSummary {
+  const path = details.path || t("superadmin.diag.unknownPage")
   const source = details.source || ""
   const message = details.message || ""
   const stack = details.stack || ""
-  const text = `${source}\n${path}\n${message}\n${stack}\n${details.digest ?? ""}`.toLowerCase()
-  const pageLabel = path.startsWith("/") ? path : `страница ${path}`
+  const text = `${source}
+${path}
+${message}
+${stack}
+${details.digest ?? ""}`.toLowerCase()
+  const page = path.startsWith("/") ? path : t("superadmin.diag.pageLabel", { path })
 
   if (text.includes("minified react error #418") || text.includes("react.dev/errors/418")) {
     return {
-      title: `На странице ${pageLabel} сломалась отрисовка интерфейса`,
-      problem: "Браузер получил ошибку React #418. Пользователь мог увидеть белый экран, сломанную страницу или сообщение об ошибке.",
-      cause: "Чаще всего сервер отдал один HTML, а браузер попытался собрать другой. Проверьте компоненты страницы: даты, случайные значения, данные из window/localStorage и некорректную HTML-разметку.",
-      action: "Откройте страницу, повторите действие пользователя и проверьте последний релиз. Если ошибка повторяется, исправьте компонент, который по-разному рендерится на сервере и в браузере.",
-      impact: "Это клиентская ошибка интерфейса: данные обычно не повреждаются, но пользователь не может нормально работать на этой странице.",
-      technicalKind: "React hydration/render",
+      title: t("superadmin.diag.hydration.title", { page }),
+      problem: t("superadmin.diag.hydration.problem"),
+      cause: t("superadmin.diag.hydration.cause"),
+      action: t("superadmin.diag.hydration.action"),
+      impact: t("superadmin.diag.hydration.impact"),
+      technicalKind: t("superadmin.diag.hydration.kind"),
     }
   }
 
   if (text.includes("server components render") || (details.digest && source.includes("/error"))) {
     return {
-      title: `Страница ${pageLabel} не открылась на сервере`,
-      problem: "Next.js скрыл точную серверную ошибку в production, чтобы не показать секреты. Пользователь видит только код ошибки.",
-      cause: "Обычно причина в Prisma-запросе, отсутствующей переменной окружения, несовпадении схемы базы данных или ошибке внутри server component.",
-      action: "Найдите запись по коду ошибки или digest, откройте stack trace и проверьте запросы этой страницы. В первую очередь смотрите Prisma, scope организации/здания и обязательные поля.",
-      impact: "Страница не работает для пользователя до исправления серверной причины.",
-      technicalKind: "Next.js Server Component",
+      title: t("superadmin.diag.serverComponent.title", { page }),
+      problem: t("superadmin.diag.serverComponent.problem"),
+      cause: t("superadmin.diag.serverComponent.cause"),
+      action: t("superadmin.diag.serverComponent.action"),
+      impact: t("superadmin.diag.serverComponent.impact"),
+      technicalKind: t("superadmin.diag.serverComponent.kind"),
     }
   }
 
@@ -210,59 +232,61 @@ export function humanizeErrorReport(details: ErrorReportDetails): HumanErrorSumm
   if (prismaInvocation || text.includes("prisma") || text.includes("unique constraint") || text.includes("foreign key constraint")) {
     const model = prismaInvocation?.[1]
     const operation = prismaInvocation?.[2]
-    const subject = model && operation ? `Prisma ${model}.${operation}` : "Prisma-запрос"
+    const subject = model && operation
+      ? t("superadmin.diag.database.subjectKnown", { model, operation })
+      : t("superadmin.diag.database.subjectUnknown")
     const isSchemaMismatch = text.includes("unknown argument") || text.includes("unknown field") || text.includes("invalid")
     return {
-      title: `Ошибка базы данных на ${pageLabel}`,
-      problem: `${subject} не выполнился. Пользовательский экран или действие получили ошибку вместо данных.`,
+      title: t("superadmin.diag.database.title", { page }),
+      problem: t("superadmin.diag.database.problem", { subject }),
       cause: isSchemaMismatch
-        ? "Код обращается к полю или связи, которых нет в текущей Prisma-схеме/клиенте. Часто это происходит после неполной миграции или когда в запрос добавили relation, но не добавили её в schema.prisma."
-        : "База данных отклонила запрос: возможны неверная связь, дубль уникального значения, отсутствующая запись или нарушение scope между организациями/зданиями.",
-      action: "Проверьте модель в schema.prisma, миграции и конкретный where/select из stack trace. После исправления запустите prisma generate, build и проверьте страницу повторно.",
-      impact: "Данные не должны исчезнуть, но нужная страница или действие сейчас не завершается.",
-      technicalKind: "Prisma / Database",
+        ? t("superadmin.diag.database.causeSchema")
+        : t("superadmin.diag.database.cause"),
+      action: t("superadmin.diag.database.action"),
+      impact: t("superadmin.diag.database.impact"),
+      technicalKind: t("superadmin.diag.database.kind"),
     }
   }
 
   if (text.includes("server-action") || (source.includes(".") && !source.includes("/"))) {
     return {
-      title: `Действие пользователя на ${pageLabel} не выполнилось`,
-      problem: "Пользователь нажал кнопку или отправил форму, но серверное действие завершилось ошибкой.",
-      cause: "Возможны неверные данные формы, отсутствие прав, невалидная связь с организацией/зданием или ошибка записи в базе.",
-      action: "Откройте контекст действия, проверьте пользователя, организацию, форму и stack trace. Если это ошибка ввода, покажите пользователю понятный текст прямо в форме.",
-      impact: "Изменение не применилось, поэтому пользователю нужно повторить действие после исправления причины.",
-      technicalKind: "Server action",
+      title: t("superadmin.diag.serverAction.title", { page }),
+      problem: t("superadmin.diag.serverAction.problem"),
+      cause: t("superadmin.diag.serverAction.cause"),
+      action: t("superadmin.diag.serverAction.action"),
+      impact: t("superadmin.diag.serverAction.impact"),
+      technicalKind: t("superadmin.diag.serverAction.kind"),
     }
   }
 
   if (text.includes("next_redirect") || text.includes("redirect")) {
     return {
-      title: `Пользователя неожиданно перенаправило с ${pageLabel}`,
-      problem: "Система выполнила redirect не там, где ожидалось.",
-      cause: "Чаще всего причина в роли пользователя, subdomain routing, middleware/proxy или логике входа.",
-      action: "Проверьте host, роль пользователя, текущую организацию и правила redirect для root-домена и поддоменов.",
-      impact: "Пользователь может попасть не в тот кабинет или не увидеть нужную страницу.",
-      technicalKind: "Redirect",
+      title: t("superadmin.diag.redirect.title", { page }),
+      problem: t("superadmin.diag.redirect.problem"),
+      cause: t("superadmin.diag.redirect.cause"),
+      action: t("superadmin.diag.redirect.action"),
+      impact: t("superadmin.diag.redirect.impact"),
+      technicalKind: t("superadmin.diag.redirect.kind"),
     }
   }
 
   if (text.includes("failed to fetch") || text.includes("networkerror") || text.includes("load failed")) {
     return {
-      title: `Не загрузился запрос или файл на ${pageLabel}`,
-      problem: "Браузер не смог получить ответ от API или загрузить ресурс.",
-      cause: "Возможны сеть, неправильный URL, redirect вместо JSON, ошибка API route или блокировка доступа.",
-      action: "Проверьте Network tab, URL запроса, статус ответа и серверный лог API за это же время.",
-      impact: "Часть страницы может не загрузиться, но остальные данные обычно остаются целыми.",
-      technicalKind: "Network / API",
+      title: t("superadmin.diag.network.title", { page }),
+      problem: t("superadmin.diag.network.problem"),
+      cause: t("superadmin.diag.network.cause"),
+      action: t("superadmin.diag.network.action"),
+      impact: t("superadmin.diag.network.impact"),
+      technicalKind: t("superadmin.diag.network.kind"),
     }
   }
 
   return {
-    title: `Ошибка на ${pageLabel}`,
-    problem: "Система поймала ошибку в интерфейсе или серверной операции.",
-    cause: "Точная причина пока не распознана автоматически. Нужны страница, пользователь, время события и технические детали.",
-    action: "Сначала повторите действие пользователя. Затем откройте техническое сообщение и stack trace, чтобы найти файл или запрос, где возникла ошибка.",
-    impact: "Нужно проверить, мешает ли ошибка пользователю завершить действие.",
-    technicalKind: "Application error",
+    title: t("superadmin.diag.unknown.title", { page }),
+    problem: t("superadmin.diag.unknown.problem"),
+    cause: t("superadmin.diag.unknown.cause"),
+    action: t("superadmin.diag.unknown.action"),
+    impact: t("superadmin.diag.unknown.impact"),
+    technicalKind: t("superadmin.diag.unknown.kind"),
   }
 }

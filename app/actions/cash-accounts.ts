@@ -55,7 +55,7 @@ export async function createCashAccount(formData: FormData): Promise<Result> {
         accountId: account.id,
         amount: balance,
         type: "ADJUSTMENT",
-        description: "Начальный баланс",
+        description: t("actions.cashAccounts.openingBalance"),
         createdById: session.user.id,
       },
     })
@@ -78,7 +78,7 @@ export async function depositToAccount(formData: FormData): Promise<Result> {
   const accountId = String(formData.get("accountId") ?? "")
   const amountStr = String(formData.get("amount") ?? "0").replace(",", ".")
   const amount = parseFloat(amountStr)
-  const description = String(formData.get("description") ?? "").trim() || "Пополнение"
+  const description = String(formData.get("description") ?? "").trim() || t("actions.cashAccounts.topUp")
 
   if (!accountId) return { ok: false, error: t("actions.cashAccounts.accountRequired") }
   if (!isFinite(amount) || amount <= 0) return { ok: false, error: t("actions.cashAccounts.amountPositive") }
@@ -117,7 +117,7 @@ export async function withdrawFromAccount(formData: FormData): Promise<Result> {
   const accountId = String(formData.get("accountId") ?? "")
   const amountStr = String(formData.get("amount") ?? "0").replace(",", ".")
   const amount = parseFloat(amountStr)
-  const description = String(formData.get("description") ?? "").trim() || "Списание"
+  const description = String(formData.get("description") ?? "").trim() || t("actions.cashAccounts.withdrawal")
 
   if (!accountId) return { ok: false, error: t("actions.cashAccounts.accountRequired") }
   if (!isFinite(amount) || amount <= 0) return { ok: false, error: t("actions.cashAccounts.amountPositive") }
@@ -157,7 +157,7 @@ export async function transferBetweenAccounts(formData: FormData): Promise<Resul
   const toId = String(formData.get("toId") ?? "")
   const amountStr = String(formData.get("amount") ?? "0").replace(",", ".")
   const amount = parseFloat(amountStr)
-  const description = String(formData.get("description") ?? "").trim() || "Перевод между счетами"
+  const description = String(formData.get("description") ?? "").trim() || t("actions.cashAccounts.transfer")
 
   if (!fromId || !toId) return { ok: false, error: t("actions.cashAccounts.bothAccountsRequired") }
   if (fromId === toId) return { ok: false, error: t("actions.cashAccounts.accountsMustDiffer") }
@@ -211,7 +211,7 @@ export async function adjustAccountBalance(formData: FormData): Promise<Result> 
   const accountId = String(formData.get("accountId") ?? "")
   const newBalanceStr = String(formData.get("newBalance") ?? "0").replace(",", ".")
   const newBalance = parseFloat(newBalanceStr)
-  const description = String(formData.get("description") ?? "").trim() || "Корректировка баланса"
+  const description = String(formData.get("description") ?? "").trim() || t("actions.cashAccounts.adjustment")
 
   if (!accountId) return { ok: false, error: t("actions.cashAccounts.accountRequired") }
   if (!isFinite(newBalance)) return { ok: false, error: t("actions.cashAccounts.badAmount") }

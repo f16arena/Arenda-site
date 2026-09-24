@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { tenantScope } from "@/lib/tenant-scope"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +18,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 })
   }
 
+  // Подсказку с номером кабинета видит сотрудник в админке — язык запроса.
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   const allowed = await getAllowedCapabilityKeysForUser({
     userId: session.user.id,
@@ -96,9 +99,13 @@ export async function GET(req: Request) {
   return NextResponse.json({
     tenants: tenants.map((tenant) => {
       const placements = new Set<string>()
-      if (tenant.space?.floor.buildingId === buildingId) placements.add(`Каб. ${tenant.space.number}`)
+      if (tenant.space?.floor.buildingId === buildingId) {
+        placements.add(t("adminDocs.api.common.room", { number: tenant.space.number }))
+      }
       for (const item of tenant.tenantSpaces) {
-        if (item.space.floor.buildingId === buildingId) placements.add(`Каб. ${item.space.number}`)
+        if (item.space.floor.buildingId === buildingId) {
+          placements.add(t("adminDocs.api.common.room", { number: item.space.number }))
+        }
       }
       return {
         id: tenant.id,

@@ -4,6 +4,7 @@ import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { PasswordChangeSchema, firstZodError } from "@/lib/schemas"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -11,13 +12,15 @@ export async function POST(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  // Ошибки читает владелец аккаунта — язык из его профиля.
+  const { t } = await getTForUser(result.ctx.user.id)
   const rl = checkRateLimit(`mobile-pwd:${result.ctx.user.id}`, {
     max: 10,
     window: 10 * 60_000,
   })
   if (!rl.ok) {
     return mobileError(
-      `Слишком много попыток. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      t("adminDocs.api.common.tooManyAttempts", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
       429,
     )
   }
@@ -33,16 +36,16 @@ export async function POST(req: Request) {
     newPassword: body?.newPassword ?? "",
     confirmPassword: body?.confirmPassword ?? "",
   })
-  if (!parsed.success) return mobileError(firstZodError(parsed.error))
+  if (!parsed.success) return mobileError(firstZodError(parsed.error, t))
 
   const user = await db.user.findUnique({
     where: { id: result.ctx.user.id },
     select: { id: true, password: true },
   })
-  if (!user) return mobileError("Пользователь не найден", 404)
+  if (!user) return mobileError(t("adminDocs.api.common.userNotFound"), 404)
 
   const valid = await bcrypt.compare(parsed.data.currentPassword, user.password)
-  if (!valid) return mobileError("Текущий пароль неверный", 400)
+  if (!valid) return mobileError(t("adminDocs.api.auth.currentPasswordWrong"), 400)
 
   const newHash = await bcrypt.hash(parsed.data.newPassword, 10)
   await db.user.update({

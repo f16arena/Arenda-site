@@ -1,3 +1,6 @@
+// Формулировки пунктов договора для генерации по загруженному шаблону.
+// Это ТЕКСТ ДОКУМЕНТА: остаётся русским до вычитки юриста
+// (docs/i18n-documents-plan.md).
 import { calculateTenantMonthlyRent, calculateTenantRatePerSqm, hasFixedTenantRent } from "@/lib/rent"
 
 type LeaseRentTenant = {

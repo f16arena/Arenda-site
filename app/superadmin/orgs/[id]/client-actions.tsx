@@ -16,26 +16,29 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boolean }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
 
   return (
     <div className="flex gap-2">
       {hasOwner && (
         <ConfirmDialog
-          title="Войти под этим клиентом?"
-          description="Все ваши действия будут залогированы."
-          confirmLabel="Войти"
+          title={t("superadmin.orgs.loginAsClientTitle")}
+          description={t("superadmin.orgs.loginAsClientDescription")}
+          confirmLabel={t("superadmin.orgs.loginAs")}
           onConfirm={() =>
             startTransition(async () => {
               try {
                 await impersonateOrg(orgId)
-                toast.success("Входим как клиент...")
+                toast.success(t("superadmin.orgs.loggingIn"))
                 router.push("/admin")
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Ошибка")
+                toast.error(e instanceof Error ? e.message : t("common.state.error"))
               }
             })
           }
@@ -45,7 +48,7 @@ export function OrgActions({ orgId, hasOwner }: { orgId: string; hasOwner: boole
               disabled={pending}
             >
               <LogIn className="h-3.5 w-3.5" />
-              Войти как клиент
+              {t("superadmin.orgs.loginAsClient")}
             </Button>
           }
         />
@@ -61,6 +64,7 @@ export function OrgEditForm({
   initial: { name: string; planId: string; isActive: boolean; isSuspended: boolean }
   plans: { id: string; name: string; priceMonthly: number }[]
 }) {
+  const { t, locale } = useT()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -69,16 +73,16 @@ export function OrgEditForm({
         startTransition(async () => {
           try {
             await updateOrganization(orgId, fd)
-            toast.success("Сохранено")
+            toast.success(t("common.state.saved"))
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Ошибка")
+            toast.error(e instanceof Error ? e.message : t("common.state.error"))
           }
         })
       }}
       className="space-y-3"
     >
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Название</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("superadmin.org.fieldName")}</label>
         <Input
           name="name"
           defaultValue={initial.name}
@@ -86,25 +90,25 @@ export function OrgEditForm({
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Тариф</label>
+        <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("superadmin.org.fieldPlan")}</label>
         <select
           name="planId"
           defaultValue={initial.planId}
           className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900"
         >
           {plans.map((p) => (
-            <option key={p.id} value={p.id}>{p.name} — {p.priceMonthly.toLocaleString("ru-RU")} ₸/мес</option>
+            <option key={p.id} value={p.id}>{p.name} — {formatMoneyL(locale, p.priceMonthly)}{t("common.money.perMonth")}</option>
           ))}
         </select>
       </div>
       <div className="flex gap-4">
         <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
           <input type="checkbox" name="isActive" defaultChecked={initial.isActive} className="rounded" />
-          Активна
+          {t("superadmin.org.isActive")}
         </label>
         <label className="flex items-center gap-2 text-sm text-red-700 dark:text-red-300 cursor-pointer">
           <input type="checkbox" name="isSuspended" defaultChecked={initial.isSuspended} className="rounded" />
-          Приостановлена
+          {t("superadmin.org.isSuspended")}
         </label>
       </div>
       <Button
@@ -112,13 +116,14 @@ export function OrgEditForm({
         loading={pending}
         className="font-medium"
       >
-        {pending ? "..." : "Сохранить"}
+        {pending ? t("common.actions.saving") : t("common.actions.save")}
       </Button>
     </form>
   )
 }
 
 export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: number }) {
+  const { t, locale } = useT()
   const [pending, startTransition] = useTransition()
   const [months, setMonths] = useState(1)
   const [paid, setPaid] = useState(planPrice)
@@ -127,7 +132,7 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Срок (месяцев)</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("superadmin.org.extendMonths")}</label>
           <Input
             type="number"
             min={1}
@@ -141,7 +146,7 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Оплачено ₸</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t("superadmin.org.extendPaid")}</label>
           <Input
             type="number"
             value={paid}
@@ -154,16 +159,16 @@ export function ExtendForm({ orgId, planPrice }: { orgId: string; planPrice: num
           startTransition(async () => {
             try {
               await extendSubscription(orgId, months, paid)
-              toast.success(`Продлено на ${months} мес. Оплачено ${paid.toLocaleString("ru-RU")} ₸`)
+              toast.success(t("superadmin.org.extended", { count: months, amount: formatMoneyL(locale, paid) }))
             } catch (e) {
-              toast.error(e instanceof Error ? e.message : "Ошибка")
+              toast.error(e instanceof Error ? e.message : t("common.state.error"))
             }
           })
         }}
         disabled={pending}
         className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
       >
-        {pending ? "..." : `Продлить на ${months} мес.`}
+        {pending ? t("common.actions.saving") : t("superadmin.org.extendButton", { count: months })}
       </button>
     </div>
   )
@@ -185,6 +190,7 @@ export function DangerZone({
   usersCount: number
 }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [confirmInput, setConfirmInput] = useState("")
   const [showDelete, setShowDelete] = useState(false)
@@ -193,34 +199,36 @@ export function DangerZone({
     <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 p-5 space-y-4">
       <div className="flex items-center gap-2">
         <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-        <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">Опасная зона</p>
+        <p className="text-xs font-semibold text-red-700 dark:text-red-300 uppercase tracking-wide">{t("superadmin.org.danger.zone")}</p>
       </div>
 
       {/* Деактивация / Реактивация */}
       <div className="flex items-center justify-between gap-3 bg-white dark:bg-slate-900 rounded-xl border border-red-100 dark:border-red-500/20 p-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-            {isActive ? "Деактивировать организацию" : "Активировать организацию"}
+            {isActive ? t("superadmin.org.danger.deactivate") : t("superadmin.org.danger.activate")}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {isActive
-              ? "Клиент не сможет войти. Данные сохранятся, можно восстановить."
-              : "Клиент снова сможет войти и работать."}
+              ? t("superadmin.org.danger.deactivateHint")
+              : t("superadmin.org.danger.activateHint")}
           </p>
         </div>
         <ConfirmDialog
           variant={isActive ? "danger" : "default"}
-          title={`${isActive ? "Деактивировать" : "Активировать"} организацию «${orgName}»?`}
-          confirmLabel={isActive ? "Деактивировать" : "Активировать"}
+          title={isActive
+            ? t("superadmin.org.danger.deactivateTitle", { name: orgName })
+            : t("superadmin.org.danger.activateTitle", { name: orgName })}
+          confirmLabel={isActive ? t("superadmin.org.danger.deactivateAction") : t("superadmin.org.danger.activateAction")}
           onConfirm={() =>
             startTransition(async () => {
               try {
                 if (isActive) await deactivateOrganization(orgId)
                 else await reactivateOrganization(orgId)
-                toast.success(isActive ? "Деактивирована" : "Активирована")
+                toast.success(isActive ? t("superadmin.org.danger.deactivated") : t("superadmin.org.danger.activated"))
                 router.refresh()
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Ошибка")
+                toast.error(e instanceof Error ? e.message : t("common.state.error"))
               }
             })
           }
@@ -232,7 +240,7 @@ export function DangerZone({
               }`}
             >
               {isActive ? <PowerOff className="h-3.5 w-3.5" /> : <Power className="h-3.5 w-3.5" />}
-              {isActive ? "Деактивировать" : "Активировать"}
+              {isActive ? t("superadmin.org.danger.deactivateAction") : t("superadmin.org.danger.activateAction")}
             </button>
           }
         />
@@ -242,11 +250,9 @@ export function DangerZone({
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-red-200 dark:border-red-500/30 p-4 space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-red-900 dark:text-red-200">Удалить организацию навсегда</p>
+            <p className="text-sm font-medium text-red-900 dark:text-red-200">{t("superadmin.org.danger.deleteTitle")}</p>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Удалит {buildingsCount} зданий и каскадно все связанные данные (этажи, помещения,
-              арендаторы, договора, платежи). Пользователи останутся в системе как
-              неактивные. Действие необратимо.
+              {t("superadmin.org.danger.deleteHint", { count: buildingsCount })}
             </p>
           </div>
           {!showDelete && (
@@ -257,7 +263,7 @@ export function DangerZone({
               className="shrink-0"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              Удалить…
+              {t("superadmin.org.danger.deleteStart")}
             </Button>
           )}
         </div>
@@ -265,7 +271,7 @@ export function DangerZone({
         {showDelete && (
           <div className="rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 p-3 space-y-2">
             <p className="text-xs text-red-800 dark:text-red-200">
-              Чтобы подтвердить — введите slug организации <b className="font-mono">{orgSlug}</b>:
+              {t("superadmin.org.danger.confirmSlug")} <b className="font-mono">{orgSlug}</b>
             </p>
             <div className="flex gap-2">
               <input
@@ -276,18 +282,18 @@ export function DangerZone({
               />
               <ConfirmDialog
                 variant="danger"
-                title={`УДАЛИТЬ ${orgName} НАВСЕГДА?`}
-                description="Это необратимо. Все данные организации будут удалены каскадно."
-                confirmLabel="Удалить навсегда"
+                title={t("superadmin.org.danger.confirmDialogTitle", { name: orgName })}
+                description={t("superadmin.org.danger.confirmDialogText")}
+                confirmLabel={t("superadmin.org.danger.deleteForever")}
                 onConfirm={() =>
                   startTransition(async () => {
                     try {
                       await deleteOrganization(orgId, confirmInput)
-                      toast.success("Организация удалена")
+                      toast.success(t("superadmin.org.danger.deleted"))
                       // Server action делает redirect — но на всякий случай
                       router.push("/superadmin/orgs")
                     } catch (e) {
-                      toast.error(e instanceof Error ? e.message : "Ошибка")
+                      toast.error(e instanceof Error ? e.message : t("common.state.error"))
                     }
                   })
                 }
@@ -297,7 +303,7 @@ export function DangerZone({
                     size="sm"
                     disabled={pending || confirmInput.trim() !== orgSlug}
                   >
-                    Удалить навсегда
+                    {t("superadmin.org.danger.deleteForever")}
                   </Button>
                 }
               />
@@ -309,12 +315,12 @@ export function DangerZone({
                   setConfirmInput("")
                 }}
               >
-                Отмена
+                {t("common.actions.cancel")}
               </Button>
             </div>
             {usersCount > 0 && (
               <p className="text-[10px] text-amber-700 dark:text-amber-300">
-                ⚠️ {usersCount} пользователей будут отвязаны от организации и деактивированы.
+                ⚠️ {t("superadmin.org.danger.usersWarning", { count: usersCount })}
               </p>
             )}
           </div>
@@ -332,13 +338,14 @@ export function ChangeOwnerForm({
   owners: { id: string; name: string; email: string | null; phone: string | null; role: string }[]
 }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [selected, setSelected] = useState(currentOwnerId ?? "")
 
   if (owners.length === 0) {
     return (
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-3">
-        В организации нет активных OWNER/ADMIN. Войдите в /admin/users как клиент чтобы создать.
+        {t("superadmin.org.noOwnersHint")}
       </p>
     )
   }
@@ -350,14 +357,14 @@ export function ChangeOwnerForm({
 
   return (
     <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">Сменить владельца</label>
+      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.org.changeOwner")}</label>
       <div className="flex gap-2">
         <select
           value={selected}
           onChange={(e) => setSelected(e.target.value)}
           className="flex-1 rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs bg-white dark:bg-slate-900"
         >
-          <option value="">— выбрать —</option>
+          <option value="">{t("superadmin.org.choose")}</option>
           {owners.map((u) => (
             <option key={u.id} value={u.id}>
               [{u.role}] {u.name} — {u.email || u.phone}
@@ -368,16 +375,16 @@ export function ChangeOwnerForm({
           size="sm"
           onClick={() => {
             if (!selected) {
-              toast.error("Выберите пользователя")
+              toast.error(t("superadmin.org.pickUser"))
               return
             }
             startTransition(async () => {
               try {
                 await changeOrgOwner(orgId, selected)
-                toast.success(willPromote ? "Повышен до OWNER и назначен владельцем" : "Владелец изменён")
+                toast.success(willPromote ? t("superadmin.org.promoted") : t("superadmin.org.ownerChanged"))
                 router.refresh()
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Ошибка")
+                toast.error(e instanceof Error ? e.message : t("common.state.error"))
               }
             })
           }}
@@ -385,12 +392,12 @@ export function ChangeOwnerForm({
           disabled={!selected || selected === currentOwnerId}
           className="font-medium"
         >
-          Сменить
+          {t("superadmin.org.changeOwnerButton")}
         </Button>
       </div>
       {willPromote && (
         <p className="text-[10px] text-amber-700 dark:text-amber-300">
-          ⚠️ Пользователь будет автоматически повышен с ADMIN до OWNER.
+          ⚠️ {t("superadmin.org.promoteWarning")}
         </p>
       )}
     </div>

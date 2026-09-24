@@ -4,6 +4,7 @@ import { mobileError } from "@/lib/mobile-context"
 import { getMobileStaffRequest } from "@/lib/mobile-admin"
 import { assertUserInOrg } from "@/lib/scope-guards"
 import { notifyUser } from "@/lib/notify"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,8 @@ export async function GET(req: Request) {
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
+  // Язык ответа — из профиля админа: bearer-запрос приходит без cookie.
+  const { t } = await getTForUser(result.ctx.user.id)
   const { buildingIds } = result
   const url = new URL(req.url)
   const status = url.searchParams.get("status")?.trim()
@@ -36,7 +39,7 @@ export async function GET(req: Request) {
   if (buildingIds.length === 0) {
     where.buildingId = "__none__"
   } else if (buildingId) {
-    if (!buildingIds.includes(buildingId)) return mobileError("Здание недоступно", 403)
+    if (!buildingIds.includes(buildingId)) return mobileError(t("adminDocs.api.common.buildingUnavailable"), 403)
     where.buildingId = buildingId
   } else {
     where.buildingId = { in: buildingIds }
@@ -97,6 +100,7 @@ export async function POST(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, buildingIds } = result
+  const { t } = await getTForUser(ctx.user.id)
 
   const body = (await req.json().catch(() => null)) as {
     buildingId?: string
@@ -118,16 +122,16 @@ export async function POST(req: Request) {
   const assignedToId = body?.assignedToId?.trim() || null
   const spaceNumber = String(body?.spaceNumber ?? "").trim()
 
-  if (title.length < 2) return mobileError("Введите название задачи")
-  if (!ALLOWED_CATEGORIES.has(category)) return mobileError("Неверная категория")
-  if (!ALLOWED_PRIORITIES.has(priority)) return mobileError("Неверный приоритет")
-  if (spaceNumber.length > 50) return mobileError("Слишком длинный номер помещения")
+  if (title.length < 2) return mobileError(t("adminDocs.api.tasks.titleRequired"))
+  if (!ALLOWED_CATEGORIES.has(category)) return mobileError(t("adminDocs.api.tasks.badCategory"))
+  if (!ALLOWED_PRIORITIES.has(priority)) return mobileError(t("adminDocs.api.tasks.badPriority"))
+  if (spaceNumber.length > 50) return mobileError(t("adminDocs.api.tasks.spaceNumberTooLong"))
 
   let floorNumber: number | null = null
   if (body?.floorNumber !== undefined && body.floorNumber !== null) {
     const n = Number(body.floorNumber)
     if (!Number.isFinite(n) || n < -10 || n > 200) {
-      return mobileError("Этаж должен быть числом от -10 до 200")
+      return mobileError(t("adminDocs.api.tasks.badFloor"))
     }
     floorNumber = Math.trunc(n)
   }
@@ -135,13 +139,13 @@ export async function POST(req: Request) {
   let estimatedCost: number | null = null
   if (body?.estimatedCost !== undefined && body.estimatedCost !== null) {
     const n = Number(body.estimatedCost)
-    if (!Number.isFinite(n) || n < 0) return mobileError("Неверная сумма")
+    if (!Number.isFinite(n) || n < 0) return mobileError(t("adminDocs.api.tasks.badAmount"))
     estimatedCost = n
   }
 
   let buildingId: string | null = null
   if (body?.buildingId) {
-    if (!buildingIds.includes(body.buildingId)) return mobileError("Здание недоступно", 403)
+    if (!buildingIds.includes(body.buildingId)) return mobileError(t("adminDocs.api.common.buildingUnavailable"), 403)
     buildingId = body.buildingId
   } else if (buildingIds.length === 1) {
     buildingId = buildingIds[0]
@@ -154,7 +158,7 @@ export async function POST(req: Request) {
   let dueDate: Date | null = null
   if (body?.dueDate) {
     const d = new Date(body.dueDate)
-    if (Number.isNaN(d.getTime())) return mobileError("Неверная дата")
+    if (Number.isNaN(d.getTime())) return mobileError(t("adminDocs.api.tasks.badDate"))
     dueDate = d
   }
 
@@ -194,10 +198,12 @@ export async function POST(req: Request) {
   })
 
   if (assignedToId && assignedToId !== ctx.user.id) {
+    // Уведомление читает исполнитель — берём его язык, а не язык автора.
+    const { t: tAssignee } = await getTForUser(assignedToId)
     await notifyUser({
       userId: assignedToId,
       type: "TASK_ASSIGNED",
-      title: "Назначена задача",
+      title: tAssignee("emails.messaging.taskAssignedTitle"),
       message: title,
       link: "/admin/tasks",
       sendEmail: false,

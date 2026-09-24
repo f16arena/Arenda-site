@@ -56,7 +56,7 @@ export async function createStaff(formData: FormData) {
 
   const name = formData.get("name") as string
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = normalizeEmail(formData.get("email"), { t })
   const role = formData.get("role") as string
   const position = formData.get("position") as string
   const salaryStr = formData.get("salary") as string
@@ -113,7 +113,7 @@ export async function updateStaff(staffId: string, userId: string, formData: For
 
   const name = formData.get("name") as string
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = normalizeEmail(formData.get("email"), { t })
   const role = formData.get("role") as string
   const position = formData.get("position") as string
   const salaryStr = formData.get("salary") as string

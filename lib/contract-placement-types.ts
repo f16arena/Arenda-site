@@ -12,31 +12,38 @@ export type ContractPlacementType =
   | "EQUIPMENT"
   | "PARKING"
 
+/** Ключ короткой метки в словаре (catalogs.contractTypes.*). */
+export type ContractTypeShortKey = `catalogs.contractTypes.${ContractPlacementType}`
+
 export interface ContractTypeDef {
   key: ContractPlacementType
-  /** Полное название для договора/меню. */
+  /**
+   * Полное название предмета аренды. Остаётся русским: этими же словами
+   * набран подзаголовок договора и Акта (DOC_SUBTITLE/ACT_SUBTITLE ниже), а
+   * текст документа переводит юрист, не интерфейс. Показывается только в
+   * выпадающем списке конструктора договора.
+   */
   label: string
-  /** Короткая метка (для списков/бейджей). */
-  short: string
   /** Базовый тип — кандидат на показ всегда (если есть помещения). */
   core: boolean
+  /** Пояснение для разработчика: в интерфейс не выводится. */
   description: string
 }
 
 export const CONTRACT_PLACEMENT_TYPES: ContractTypeDef[] = [
-  { key: "PREMISES", label: "Аренда помещения", short: "Помещение", core: true,
+  { key: "PREMISES", label: "Аренда помещения", core: true,
     description: "Помещение на этаже здания (расчёт: площадь × ставка)." },
-  { key: "ROOF", label: "Аренда места на крыше/фасаде", short: "Крыша/фасад", core: true,
+  { key: "ROOF", label: "Аренда места на крыше/фасаде", core: true,
     description: "Антенно-мачтовые сооружения, оборудование, реклама на крыше/фасаде (фикс-сумма)." },
-  { key: "TERRITORY", label: "Аренда места на территории", short: "Территория", core: true,
+  { key: "TERRITORY", label: "Аренда места на территории", core: true,
     description: "Двор, парковка, открытые площадки, веранды (фикс-сумма)." },
-  { key: "WAREHOUSE", label: "Аренда склада", short: "Склад", core: false,
+  { key: "WAREHOUSE", label: "Аренда склада", core: false,
     description: "Складское помещение." },
-  { key: "ADVERTISING", label: "Размещение рекламной конструкции", short: "Реклама/щит", core: false,
+  { key: "ADVERTISING", label: "Размещение рекламной конструкции", core: false,
     description: "Рекламные конструкции, билборды, баннеры." },
-  { key: "EQUIPMENT", label: "Размещение оборудования", short: "Оборудование", core: true,
+  { key: "EQUIPMENT", label: "Размещение оборудования", core: true,
     description: "Автоматы (хватайка, вендинг), банкоматы, кофемашины — размещение оборудования арендатора (фикс-сумма, без эксп.сбора)." },
-  { key: "PARKING", label: "Аренда парковочного места", short: "Парковка", core: false,
+  { key: "PARKING", label: "Аренда парковочного места", core: false,
     description: "Парковочное место." },
 ]
 
@@ -97,8 +104,13 @@ export function contractTypeDef(key: string | null | undefined): ContractTypeDef
   return key ? BY_KEY.get(key as ContractPlacementType) ?? null : null
 }
 
-export function contractTypeShort(key: string | null | undefined): string {
-  return contractTypeDef(key)?.short ?? "Помещение"
+/**
+ * Ключ короткой метки предмета для бейджа в списке договоров. Модуль чистый и
+ * уезжает в браузер, поэтому отдаёт ключ, а подпись берут из словаря.
+ */
+export function contractTypeShortKey(key: string | null | undefined): ContractTypeShortKey {
+  const def = contractTypeDef(key)
+  return `catalogs.contractTypes.${def?.key ?? "PREMISES"}`
 }
 
 // ── Определение типа по размещению арендатора ───────────────────────────

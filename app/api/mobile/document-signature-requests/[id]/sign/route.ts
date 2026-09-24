@@ -2,6 +2,7 @@ import { parseCmsSignature, signerDisplayName } from "@/lib/ncalayer-cms"
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -9,6 +10,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  // Сообщение о негодной подписи читает подписант — язык из его профиля.
+  // Остальные ответы здесь — контракт с приложением, их не переводим.
+  const { t } = await getTForUser(result.ctx.user.id)
   const { id } = await params
   const requestRecord = await db.documentSignatureRequest.findFirst({
     where: {
@@ -70,7 +74,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // странице проверки появлялись бы «подписи» из произвольных строк.
   const parsed = parseCmsSignature(signatureB64)
   if (!parsed.ok || !parsed.signer) {
-    return mobileError(parsed.ok ? "В подписи нет сертификата подписанта" : (parsed.error ?? "Некорректная подпись"), 400)
+    return mobileError(parsed.ok ? t("adminDocs.api.sign.noCertificate") : (parsed.error ?? t("adminDocs.api.sign.badSignature")), 400)
   }
   const signer = parsed.signer
 

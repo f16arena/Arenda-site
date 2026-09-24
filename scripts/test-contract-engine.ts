@@ -113,7 +113,7 @@ function base(): ContractState {
   s.building.totalRentableAreaSqm = 0
   const c = deriveContext(s)
   const v = validate(s, c)
-  check("4: hard про общую площадь", v.hard.some((m) => m.includes("общую арендуемую площадь")))
+  check("4: hard про общую площадь", v.hard.some((i) => i.key === "buildingAreaMissing"))
   check("4: Помощник POOL_AREA_EMPTY", advise(s, c).some((a) => a.id === "POOL_AREA_EMPTY"))
 }
 
@@ -124,7 +124,7 @@ function base(): ContractState {
   s.financials.operatingCosts = { method: "fixed_per_sqm", scope: "all_inclusive", fixed: { winterRate: 1, summerRate: 1 } }
   const c = deriveContext(s)
   const v = validate(s, c)
-  check("4b: hard про двойное начисление", v.hard.some((m) => m.includes("Двойное начисление")))
+  check("4b: hard про двойное начисление", v.hard.some((i) => i.key === "doubleCharge"))
 }
 
 // 5. Акт выключен → нет Прил.№1, альт. редакции, annex_list без Прил.№1

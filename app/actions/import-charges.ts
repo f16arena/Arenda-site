@@ -8,6 +8,11 @@ import { getT } from "@/lib/i18n/server"
 import { parseExcel, autoMapColumns, getField, parseFlexibleDate, parseFlexibleNumber, extractBinIin } from "@/lib/excel-import"
 
 // История начислений: арендатор + период + тип + сумма (+ оплачено/срок).
+//
+// Список русский, но распознавание двуязычное: казахские варианты («Кезең»,
+// «Сома», «Төленген» …) лежат в KK_FIELD_SYNONYMS (lib/excel-import.ts) и
+// добавляются к этим автоматически. Русские варианты удалять нельзя — файлы
+// приходят и на русском, часто из 1С.
 const FIELD_SYNONYMS: Record<string, string[]> = {
   tenant: ["Арендатор", "Компания", "Контрагент", "Организация", "Название", "Наименование"],
   bin: ["БИН", "ИИН", "БИН/ИИН", "ИНН", "BIN"],
@@ -19,22 +24,34 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
   description: ["Описание", "Комментарий", "Примечание", "Note"],
 }
 
+// Вид начисления по тексту в клетке. Ищем и русские, и казахские основы: в
+// казахском файле в этой колонке будет «жалдау ақысы», «электр энергиясы»,
+// «тазалау». Русские основы обязаны остаться — большинство выгрузок русские.
+// «су» (вода) проверяем только в составе слов («сумен жабдықтау», «ауызсу»):
+// две буквы сами по себе попадаются внутри других слов.
 function mapType(raw: string): string {
   const s = raw.toLowerCase()
-  if (/аренд|rent/.test(s)) return "RENT"
-  if (/электр|elect|свет/.test(s)) return "ELECTRICITY"
-  if (/вода|water|водоснаб/.test(s)) return "WATER"
-  if (/отопл|heat|тепло/.test(s)) return "HEATING"
-  if (/уборк|клининг|clean/.test(s)) return "CLEANING"
-  if (/эксплуат|сервис|service|обслуж/.test(s)) return "SERVICE_FEE"
-  if (/пени|штраф|penalt/.test(s)) return "PENALTY"
-  if (/депозит|залог|deposit/.test(s)) return "DEPOSIT"
+  if (/аренд|rent|жалдау|жалға/.test(s)) return "RENT"
+  if (/электр|elect|свет|жарық/.test(s)) return "ELECTRICITY"
+  if (/вода|water|водоснаб|сумен|сужабдық|су жабдық|ауызсу|суық су|(^|\s)су(\s|$)/.test(s)) return "WATER"
+  if (/отопл|heat|тепло|жылу/.test(s)) return "HEATING"
+  if (/уборк|клининг|clean|тазала/.test(s)) return "CLEANING"
+  if (/эксплуат|сервис|service|обслуж|пайдалану|қызмет көрсет/.test(s)) return "SERVICE_FEE"
+  if (/пени|штраф|penalt|өсімпұл|айыппұл/.test(s)) return "PENALTY"
+  if (/депозит|залог|deposit|кепілдік/.test(s)) return "DEPOSIT"
   if (!s) return "RENT"
   return "OTHER"
 }
 
+// «Оплачено» может быть написано и по-казахски: «төленген», «төленді», «иә».
 function isPaidValue(raw: string): boolean {
-  return /оплач|да|yes|paid|true|1/i.test(raw.trim())
+  const s = raw.trim().toLowerCase()
+  if (!s) return false
+  // Отрицание — первым: «не оплачено» содержит «оплач», а казахское «төленбеген»
+  // содержит «төлен». Без этой проверки неоплаченное начисление вошло бы в базу
+  // как оплаченное и просто исчезло из долга арендатора.
+  if (/не\s*оплач|неоплач|төленбе|төленген жоқ|(^|\s)жоқ|unpaid|not\s*paid|^нет$|^no$|^false$|^0$|^[-—]$/.test(s)) return false
+  return /оплач|да|yes|paid|true|1|төлен|иә/.test(s)
 }
 
 // Период → "YYYY-MM". Принимает уже-формат, дату, ММ.ГГГГ.
@@ -71,7 +88,7 @@ export async function previewChargeImport(formData: FormData): Promise<ChargePre
   if (file.size > 10 * 1024 * 1024) throw new Error(t("actions.imports.fileTooBig"))
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  const sheet = await parseExcel(buffer)
+  const sheet = await parseExcel(buffer, t)
   const mapping = autoMapColumns(sheet.headers, FIELD_SYNONYMS)
 
   const unmapped = (["period", "amount"] as const).filter((f) => mapping[f] === undefined)
@@ -101,7 +118,7 @@ export async function previewChargeImport(formData: FormData): Promise<ChargePre
     const tenantName = getField(row, mapping, "tenant").trim()
     const match = (bin && byTax.get(bin)) || (tenantName && byName.get(tenantName.toLowerCase())) || null
     if (!match) {
-      invalidRows.push({ rowIndex, error: t("actions.imports.tenantNotFound", { hint: tenantName || bin || t("actions.imports.noIdentifier") }) })
+      invalidRows.push({ rowIndex, error: t("imports.tenantNotFoundHint", { hint: tenantName || bin || t("actions.imports.noIdentifier") }) })
       continue
     }
     const period = normalizePeriod(getField(row, mapping, "period"))

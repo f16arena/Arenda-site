@@ -10,12 +10,17 @@ import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { validateSlug } from "@/lib/reserved-slugs"
 import { slugify, suggestSlugs } from "@/lib/slugify"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { htmlEscape } from "@/lib/email"
 
 export const dynamic = "force-dynamic"
 
 const TRIAL_DAYS = 14
 
 export async function POST(req: Request) {
+  // Регистрация анонимна — профиля ещё нет, поэтому язык ошибок берём из
+  // запроса. Приветственное письмо уходит уже по языку созданного аккаунта.
+  const { t } = await getT()
   const body = await req.json().catch(() => null) as {
     companyName?: string
     slug?: string
@@ -33,7 +38,7 @@ export async function POST(req: Request) {
   const rateLimit = checkRateLimit(getClientKey(req.headers, "mobile-signup"), { max: 5, window: 60 * 60_000 })
   if (!rateLimit.ok) {
     return NextResponse.json(
-      { error: `Слишком много регистраций. Попробуйте через ${Math.ceil(rateLimit.retryAfterSec / 60)} мин.` },
+      { error: t("adminDocs.api.auth.tooManySignups", { minutes: Math.ceil(rateLimit.retryAfterSec / 60) }) },
       { status: 429 },
     )
   }
@@ -46,20 +51,22 @@ export async function POST(req: Request) {
   let ownerEmail: string | null = null
   let ownerPhone: string | null = null
   try {
-    ownerEmail = normalizeEmail(body?.ownerEmail, { fieldName: "Email владельца" })
-    ownerPhone = normalizeKzPhone(body?.ownerPhone, { fieldName: "Телефон владельца" })
+    // Название поля и текст ошибки — на языке запроса: сообщение уходит прямо
+    // в мобильное приложение, оно его показывает как есть.
+    ownerEmail = normalizeEmail(body?.ownerEmail, { fieldName: t("catalogs.contact.fields.ownerEmail"), t })
+    ownerPhone = normalizeKzPhone(body?.ownerPhone, { fieldName: t("catalogs.contact.fields.ownerPhone"), t })
   } catch (error) {
-    return jsonError(error instanceof Error ? error.message : "Некорректные контакты", 400)
+    return jsonError(error instanceof Error ? error.message : t("adminDocs.api.auth.badContacts"), 400)
   }
 
-  if (!companyName) return jsonError("Введите название организации", 400)
-  if (!ownerName) return jsonError("Введите ФИО владельца", 400)
-  if (!ownerEmail && !ownerPhone) return jsonError("Укажите email или телефон", 400)
-  if (password.length < 8) return jsonError("Пароль должен быть минимум 8 символов", 400)
-  if (!body?.agreed) return jsonError("Примите публичную оферту и политику конфиденциальности", 400)
+  if (!companyName) return jsonError(t("adminDocs.api.auth.companyRequired"), 400)
+  if (!ownerName) return jsonError(t("adminDocs.api.auth.ownerNameRequired"), 400)
+  if (!ownerEmail && !ownerPhone) return jsonError(t("adminDocs.api.auth.contactRequired"), 400)
+  if (password.length < 8) return jsonError(t("adminDocs.api.auth.passwordTooShort"), 400)
+  if (!body?.agreed) return jsonError(t("adminDocs.api.auth.acceptRequired"), 400)
 
   const slugValidation = validateSlug(slug)
-  if (!slugValidation.ok) return jsonError(`Поддомен: ${slugValidation.reason}`, 400)
+  if (!slugValidation.ok) return jsonError(t("adminDocs.api.auth.subdomain", { reason: slugValidation.reason }), 400)
 
   const [existingOrg, existingEmail, existingPhone] = await Promise.all([
     db.organization.findUnique({ where: { slug }, select: { id: true } }),
@@ -68,10 +75,10 @@ export async function POST(req: Request) {
   ])
 
   if (existingOrg) {
-    return jsonError(`Поддомен «${slug}» занят. Попробуйте: ${suggestSlugs(slug).join(", ")}`, 409)
+    return jsonError(t("adminDocs.api.auth.subdomainTaken", { slug, suggestions: suggestSlugs(slug).join(", ") }), 409)
   }
-  if (existingEmail) return jsonError(`Email ${ownerEmail} уже зарегистрирован`, 409)
-  if (existingPhone) return jsonError(`Телефон ${ownerPhone} уже зарегистрирован`, 409)
+  if (existingEmail) return jsonError(t("adminDocs.api.auth.emailTaken", { email: ownerEmail! }), 409)
+  if (existingPhone) return jsonError(t("adminDocs.api.auth.phoneRegistered", { phone: ownerPhone! }), 409)
 
   const trialPlan = await ensureTrialPlan()
   const expiresAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60_000)
@@ -224,22 +231,27 @@ async function sendWelcomeEmail(input: {
     const proto = input.req.headers.get("x-forwarded-proto") ?? "https"
     const verifyLink = `${proto}://${ROOT_HOST}/verify-email?token=${token}`
     const adminLink = `${proto}://${input.slug}.${ROOT_HOST}/admin/onboarding`
+    // Письмо читает новый владелец — язык из его профиля (у свежего аккаунта
+    // это язык платформы по умолчанию).
+    const { t: tMail, locale: mailLocale } = await getTForUser(input.userId)
     const html = basicEmailTemplate({
-      title: "Добро пожаловать в Commrent",
-      body: `<p>Здравствуйте, ${input.ownerName}!</p>
-<p>Организация <b>${input.companyName}</b> зарегистрирована. Вы можете продолжить настройку кабинета по ссылке ниже.</p>
-<p>Логин: <b>${input.ownerEmail}</b></p>
-<p>Также подтвердите email, чтобы получать важные уведомления по документам, оплатам и заявкам.</p>`,
-      buttonText: "Открыть кабинет",
+      lang: mailLocale,
+      title: tMail("emails.welcome.title"),
+      // Имя, название и логин эскейпим: body уходит в письмо как готовый HTML.
+      body: `<p>${htmlEscape(tMail("emails.common.greetingNamed", { name: input.ownerName }))}</p>
+<p>${tMail("emails.welcome.body", { company: htmlEscape(input.companyName) })}</p>
+<p>${tMail("emails.welcome.loginLine", { login: htmlEscape(input.ownerEmail) })}</p>
+<p>${tMail("emails.welcome.verifyLine")}</p>`,
+      buttonText: tMail("emails.common.openCabinet"),
       buttonUrl: adminLink,
-      footer: `Подтверждение email: ${verifyLink}`,
+      footer: tMail("emails.welcome.footer", { link: verifyLink }),
     })
 
     await sendEmail({
       to: input.ownerEmail,
-      subject: `Добро пожаловать в Commrent · ${input.companyName}`,
+      subject: tMail("emails.welcome.subject", { company: input.companyName }),
       html,
-      text: `Кабинет: ${adminLink}\nПодтверждение email: ${verifyLink}`,
+      text: tMail("emails.welcome.text", { admin: adminLink, verify: verifyLink }),
     })
   } catch (error) {
     console.warn("[mobile-signup] welcome email failed:", error instanceof Error ? error.message : error)

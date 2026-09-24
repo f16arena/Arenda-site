@@ -137,6 +137,7 @@ export function TenantLazySectionsProvider({
   canSignDocuments: boolean
   children: ReactNode
 }) {
+  const { t } = useT()
   const [state, setState] = useState<LazyState>({ loading: true, error: null, data: null })
 
   useEffect(() => {
@@ -145,7 +146,7 @@ export function TenantLazySectionsProvider({
 
     fetch(`/api/admin/tenants/${tenantId}/sections?${params.toString()}`, { signal: controller.signal })
       .then((response) => {
-        if (!response.ok) throw new Error("Не удалось загрузить дополнительные данные арендатора")
+        if (!response.ok) throw new Error(t("adminTenants.lazy.loadFailed"))
         return response.json()
       })
       .then((data: LazyPayload) => {
@@ -161,7 +162,9 @@ export function TenantLazySectionsProvider({
       })
 
     return () => controller.abort()
-  }, [period, tenantId])
+    // t в зависимостях: при смене языка подгрузка повторится и сообщение об
+    // ошибке окажется на новом языке, а не на том, что был при монтировании.
+  }, [period, tenantId, t])
 
   const value = useMemo(
     () => ({ tenantId, legalType, period, defaultDueDate, canSignDocuments, state }),

@@ -22,16 +22,25 @@ import { requirePlatformOwner } from "@/lib/org"
 import { safeServerValue } from "@/lib/server-fallback"
 import { measureServerRoute, measureServerStep } from "@/lib/server-performance"
 import { cn } from "@/lib/utils"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
+import type { Locale } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
+type T = Translator<Messages>["t"]
 
 const PAGE_SIZE = 30
 
+// Значения фильтра уходят в адрес страницы — не переводятся; подписи берём
+// из словаря по этому же коду.
 const FILTERS = [
-  { value: "all", label: "Все" },
-  { value: "expired", label: "Истекли" },
-  { value: "expiring7", label: "До 7 дней" },
-  { value: "expiring30", label: "До 30 дней" },
-  { value: "ok", label: "Активные" },
-  { value: "noExpiry", label: "Без даты" },
+  { value: "all", labelKey: "superadmin.subs.filters.all" },
+  { value: "expired", labelKey: "superadmin.subs.filters.expired" },
+  { value: "expiring7", labelKey: "superadmin.subs.filters.expiring7" },
+  { value: "expiring30", labelKey: "superadmin.subs.filters.expiring30" },
+  { value: "ok", labelKey: "superadmin.subs.filters.ok" },
+  { value: "noExpiry", labelKey: "superadmin.subs.filters.noExpiry" },
 ] as const
 
 type SubscriptionFilter = (typeof FILTERS)[number]["value"]
@@ -56,6 +65,8 @@ async function renderSubscriptionsTimelinePage({
   searchParams: Promise<SearchParams>
 }) {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const params = await searchParams
   const page = normalizePage(params.page)
   const query = one(params.q).trim()
@@ -183,7 +194,7 @@ async function renderSubscriptionsTimelinePage({
       const priceMonthly = plan?.priceMonthly ?? 0
       return {
         key: group.planId ?? "none",
-        name: plan?.name ?? "Без тарифа",
+        name: plan?.name ?? t("superadmin.subs.noPlan"),
         clients: group._count._all,
         priceMonthly,
         mrr: priceMonthly * group._count._all,
@@ -206,35 +217,35 @@ async function renderSubscriptionsTimelinePage({
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
             <CalendarIcon className="h-6 w-6 text-slate-500" />
-            Подписки и выручка
+            {t("superadmin.subs.title")}
           </h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Контроль тарифов, MRR, риска продления и распределения клиентов. Список грузится страницами по {PAGE_SIZE}.
+            {t("superadmin.subs.subtitle", { size: PAGE_SIZE })}
           </p>
         </div>
         <Link
           href="/superadmin/plans"
           className="inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 px-4 py-2 text-sm text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
-          Конструктор тарифов
+          {t("superadmin.subs.plansLink")}
         </Link>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <StatCard label="MRR" value={`${mrr.toLocaleString("ru-RU")} ₸`} icon={TrendingUp} tone="emerald" />
-        <StatCard label="ARR" value={`${(mrr * 12).toLocaleString("ru-RU")} ₸`} icon={TrendingUp} tone="blue" />
-        <StatCard label="Истекшая выручка" value={`${expiredMrr.toLocaleString("ru-RU")} ₸`} icon={AlertTriangle} tone="red" urgent={expiredMrr > 0} />
-        <StatCard label="Риск 7 дней" value={`${expiring7Mrr.toLocaleString("ru-RU")} ₸`} icon={Clock} tone="amber" urgent={expiring7Mrr > 0} />
-        <StatCard label="Активные клиенты" value={String(activePaidCount)} icon={Users} tone="slate" />
+        <StatCard label={t("superadmin.subs.mrr")} value={formatMoneyL(locale, mrr)} icon={TrendingUp} tone="emerald" />
+        <StatCard label={t("superadmin.subs.arr")} value={formatMoneyL(locale, mrr * 12)} icon={TrendingUp} tone="blue" />
+        <StatCard label={t("superadmin.subs.expiredRevenue")} value={formatMoneyL(locale, expiredMrr)} icon={AlertTriangle} tone="red" urgent={expiredMrr > 0} />
+        <StatCard label={t("superadmin.subs.risk7")} value={formatMoneyL(locale, expiring7Mrr)} icon={Clock} tone="amber" urgent={expiring7Mrr > 0} />
+        <StatCard label={t("superadmin.subs.activeClients")} value={String(activePaidCount)} icon={Users} tone="slate" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Истекли" value={String(expiredCount)} icon={AlertTriangle} tone="red" urgent={expiredCount > 0} />
-            <StatCard label="До 7 дней" value={String(expiring7Count)} icon={AlertTriangle} tone="amber" urgent={expiring7Count > 0} />
-            <StatCard label="До 30 дней" value={String(expiring30Count)} icon={Clock} tone="blue" />
-            <StatCard label="В порядке" value={String(okCount)} icon={CheckCircle} tone="emerald" />
+            <StatCard label={t("superadmin.subs.expired")} value={String(expiredCount)} icon={AlertTriangle} tone="red" urgent={expiredCount > 0} />
+            <StatCard label={t("superadmin.subs.upTo7")} value={String(expiring7Count)} icon={AlertTriangle} tone="amber" urgent={expiring7Count > 0} />
+            <StatCard label={t("superadmin.subs.upTo30")} value={String(expiring30Count)} icon={Clock} tone="blue" />
+            <StatCard label={t("superadmin.subs.ok")} value={String(okCount)} icon={CheckCircle} tone="emerald" />
           </div>
 
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
@@ -245,12 +256,12 @@ async function renderSubscriptionsTimelinePage({
                 <Input
                   name="q"
                   defaultValue={query}
-                  placeholder="Поиск по организации или slug..."
+                  placeholder={t("superadmin.subs.searchPlaceholder")}
                   className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 pl-9 text-slate-900 dark:text-slate-100 placeholder:text-slate-600"
                 />
               </label>
               <Button>
-                Найти
+                {t("common.actions.search")}
               </Button>
             </form>
             <div className="mt-4 flex flex-wrap gap-2">
@@ -265,7 +276,7 @@ async function renderSubscriptionsTimelinePage({
                       : "border-slate-200 dark:border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-900 dark:hover:text-slate-200",
                   )}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                   <span className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] text-slate-700 dark:text-slate-300">
                     {filterCounts[item.value]}
                   </span>
@@ -277,21 +288,24 @@ async function renderSubscriptionsTimelinePage({
 
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <div className="border-b border-slate-200 dark:border-slate-800 px-5 py-3">
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Тарифы по выручке</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.subs.plansByRevenue")}</h2>
           </div>
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {planRows.length === 0 ? (
-              <p className="px-5 py-4 text-sm text-slate-500">Активных организаций пока нет.</p>
+              <p className="px-5 py-4 text-sm text-slate-500">{t("superadmin.subs.noActiveOrgs")}</p>
             ) : (
               planRows.map((plan) => (
                 <div key={plan.key} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{plan.name}</p>
                     <p className="text-xs text-slate-500">
-                      {plan.clients} клиентов · {plan.priceMonthly.toLocaleString("ru-RU")} ₸/мес за клиента
+                      {t("superadmin.subs.planRow", {
+                        clients: plan.clients,
+                        price: `${formatMoneyL(locale, plan.priceMonthly)}${t("common.money.perMonth")}`,
+                      })}
                     </p>
                   </div>
-                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{plan.mrr.toLocaleString("ru-RU")} ₸</p>
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{formatMoneyL(locale, plan.mrr)}</p>
                 </div>
               ))
             )}
@@ -301,10 +315,12 @@ async function renderSubscriptionsTimelinePage({
 
       <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
         <Group
-          title={filterTitle(filter)}
+          title={t(filterTitleKey(filter))}
           orgs={orgs}
           accent={filterAccent(filter)}
-          emptyText={query ? "По этому поиску организаций не найдено." : "В этом срезе организаций нет."}
+          emptyText={query ? t("superadmin.subs.emptySearch") : t("superadmin.subs.emptySlice")}
+          locale={locale}
+          t={t}
         />
         <PaginationControls
           basePath="/superadmin/subscriptions"
@@ -343,11 +359,15 @@ function Group({
   orgs,
   accent,
   emptyText,
+  locale,
+  t,
 }: {
   title: string
   orgs: OrgRow[]
   accent: Accent
   emptyText: string
+  locale: Locale
+  t: T
 }) {
   const style = ACCENT_STYLES[accent]
 
@@ -373,21 +393,21 @@ function Group({
           <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${style.dot}`} />
           <h2 className={`text-sm font-semibold ${style.titleText}`}>
             {title}
-            <span className="ml-2 font-normal text-slate-500">· {orgs.length} на странице</span>
+            <span className="ml-2 font-normal text-slate-500">{t("superadmin.subs.onPage", { count: orgs.length })}</span>
           </h2>
         </div>
-        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{pageMrr.toLocaleString("ru-RU")} ₸ MRR на странице</span>
+        <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">{t("superadmin.subs.pageMrr", { amount: formatMoneyL(locale, pageMrr) })}</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/50">
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Организация</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Тариф</th>
-              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">Истекает</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">MRR</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Зданий</th>
-              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">Юзеров</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">{t("superadmin.cols.org")}</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">{t("superadmin.cols.plan")}</th>
+              <th className="px-5 py-2 text-left text-xs font-medium text-slate-500">{t("superadmin.cols.expires")}</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">{t("superadmin.cols.mrr")}</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">{t("superadmin.cols.buildings")}</th>
+              <th className="px-5 py-2 text-right text-xs font-medium text-slate-500">{t("superadmin.cols.users")}</th>
               <th className="px-5 py-2" />
             </tr>
           </thead>
@@ -417,7 +437,7 @@ function Group({
                   <td className="px-5 py-2.5">
                     {org.planExpiresAt ? (
                       <div>
-                        <p className="text-slate-700 dark:text-slate-300">{org.planExpiresAt.toLocaleDateString("ru-RU")}</p>
+                        <p className="text-slate-700 dark:text-slate-300">{formatDateShortL(locale, org.planExpiresAt)}</p>
                         {days !== null && (
                           <p className={cn(
                             "text-[11px]",
@@ -427,7 +447,9 @@ function Group({
                                 ? "font-medium text-amber-400"
                                 : "text-slate-500",
                           )}>
-                            {days < 0 ? `просрочено ${Math.abs(days)} дн.` : `через ${days} дн.`}
+                            {days < 0
+                              ? t("superadmin.subs.overdueDays", { count: Math.abs(days) })
+                              : t("superadmin.subs.inDays", { count: days })}
                           </p>
                         )}
                       </div>
@@ -436,12 +458,12 @@ function Group({
                     )}
                   </td>
                   <td className="px-5 py-2.5 text-right font-medium text-emerald-700 dark:text-emerald-300">
-                    {org.plan ? `${org.plan.priceMonthly.toLocaleString("ru-RU")} ₸` : "-"}
+                    {org.plan ? formatMoneyL(locale, org.plan.priceMonthly) : "-"}
                   </td>
                   <td className="px-5 py-2.5 text-right text-slate-400">{org._count.buildings}</td>
                   <td className="px-5 py-2.5 text-right text-slate-400">{org._count.users}</td>
                   <td className="px-5 py-2.5 text-right">
-                    {org.isSuspended && <span className="text-[10px] font-medium text-red-400">приостановлен</span>}
+                    {org.isSuspended && <span className="text-[10px] font-medium text-red-400">{t("superadmin.subs.suspendedShort")}</span>}
                   </td>
                 </tr>
               )
@@ -516,21 +538,21 @@ function statusWhere(
   }
 }
 
-function filterTitle(filter: SubscriptionFilter) {
+function filterTitleKey(filter: SubscriptionFilter) {
   switch (filter) {
     case "expired":
-      return "Истекшие подписки"
+      return "superadmin.subs.groupTitle.expired" as const
     case "expiring7":
-      return "Истекают в течение 7 дней"
+      return "superadmin.subs.groupTitle.expiring7" as const
     case "expiring30":
-      return "Истекают в течение 30 дней"
+      return "superadmin.subs.groupTitle.expiring30" as const
     case "ok":
-      return "Активные подписки"
+      return "superadmin.subs.groupTitle.ok" as const
     case "noExpiry":
-      return "Без даты окончания"
+      return "superadmin.subs.groupTitle.noExpiry" as const
     case "all":
     default:
-      return "Все активные организации"
+      return "superadmin.subs.groupTitle.all" as const
   }
 }
 

@@ -5,6 +5,9 @@ import { requireOrgAccess } from "@/lib/org"
 import { restrictedBuildingIds, tenantInBuildingIds } from "@/lib/building-access"
 import { tenantScope, spaceScope, requestScope, contractScope, userScope } from "@/lib/tenant-scope"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getT } from "@/lib/i18n/server"
+
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 export const dynamic = "force-dynamic"
 
@@ -17,6 +20,8 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
+  // Подсказки быстрого поиска видит сотрудник в браузере — язык запроса.
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   const safe = <T,>(source: string, promise: Promise<T>, fallback: T) =>
     safeServerValue(promise, fallback, { source, route: "/api/search", orgId, userId: session.user.id })
@@ -152,17 +157,18 @@ export async function GET(req: Request) {
 
   type Item = { type: string; id: string; title: string; subtitle?: string; href: string }
   const items: Item[] = [
-    ...tenants.map((t) => ({
+    // Имя `t` занято переводчиком — в лямбде называем запись row.
+    ...tenants.map((row) => ({
       type: "tenant",
-      id: t.id,
-      title: t.companyName,
-      subtitle: t.user.name,
-      href: `/admin/tenants/${t.id}`,
+      id: row.id,
+      title: row.companyName,
+      subtitle: row.user.name,
+      href: `/admin/tenants/${row.id}`,
     })),
     ...spaces.map((s) => ({
       type: "space",
       id: s.id,
-      title: `Каб. ${s.number}`,
+      title: t("adminDocs.api.common.room", { number: s.number }),
       subtitle: s.floor.name,
       href: `/admin/spaces`,
     })),
@@ -170,20 +176,20 @@ export async function GET(req: Request) {
       type: "request",
       id: r.id,
       title: r.title,
-      subtitle: `Заявка · ${r.status}`,
+      subtitle: t("adminDocs.api.search.request", { status: r.status }),
       href: `/admin/requests/${r.id}`,
     })),
     ...contracts.map((c) => ({
       type: "contract",
       id: c.id,
-      title: `Договор № ${c.number}`,
+      title: t("adminDocs.api.search.numbered", { type: t("domain.docTypes.CONTRACT"), number: c.number }),
       subtitle: c.tenant.companyName,
       href: `/admin/tenants/${c.tenant.id}`,
     })),
     ...generated.map((g) => ({
       type: "document",
       id: g.id,
-      title: `${docTypeLabel(g.documentType)} № ${g.number ?? "—"}`,
+      title: t("adminDocs.api.search.numbered", { type: docTypeLabel(g.documentType, t), number: g.number ?? "—" }),
       subtitle: g.tenantName,
       href: g.tenantId ? `/admin/tenants/${g.tenantId}` : "/admin/documents",
     })),
@@ -191,7 +197,9 @@ export async function GET(req: Request) {
       type: "staff",
       id: s.id,
       title: s.name,
-      subtitle: `${roleLabel(s.role)}${s.email ? ` · ${s.email}` : ""}`,
+      subtitle: s.email
+        ? t("adminDocs.api.search.staff", { role: roleLabel(s.role, t), email: s.email })
+        : roleLabel(s.role, t),
       href: `/admin/staff`,
     })),
   ]
@@ -199,24 +207,22 @@ export async function GET(req: Request) {
   return NextResponse.json({ items })
 }
 
-function docTypeLabel(type: string): string {
+// Чистые помощники переводчик сами не добывают — принимают его параметром.
+// Неизвестный код возвращаем как есть: это техническое значение из базы.
+function docTypeLabel(type: string, t: Tr): string {
   const map: Record<string, string> = {
-    INVOICE: "Счёт",
-    ACT: "Акт услуг",
-    RECONCILIATION: "Акт сверки",
-    HANDOVER: "Передача",
-    CONTRACT: "Договор",
+    INVOICE: t("domain.docTypes.INVOICE"),
+    ACT: t("domain.docTypes.ACT"),
+    RECONCILIATION: t("domain.docTypes.RECONCILIATION"),
+    HANDOVER: t("domain.docTypes.HANDOVER"),
+    CONTRACT: t("domain.docTypes.CONTRACT"),
   }
   return map[type] ?? type
 }
 
-function roleLabel(role: string): string {
-  const map: Record<string, string> = {
-    OWNER: "Владелец",
-    ADMIN: "Администратор",
-    ACCOUNTANT: "Бухгалтер",
-    FACILITY_MANAGER: "Управляющий",
-    EMPLOYEE: "Сотрудник",
-  }
-  return map[role] ?? role
+function roleLabel(role: string, t: Tr): string {
+  const key = `domain.roles.${role}` as Parameters<typeof t>[0]
+  const label = t(key)
+  // Неизвестную роль показываем кодом: это виднее, чем ключ словаря.
+  return label === key ? role : label
 }

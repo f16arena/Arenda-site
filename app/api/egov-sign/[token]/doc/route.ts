@@ -8,17 +8,21 @@ import {
   extractSignedCms,
   loadContractForEgov,
 } from "@/lib/egov-sign"
+import { getT } from "@/lib/i18n/server"
 
 // API №2 (GET): документ(ы) на подпись. auth_type=Token → нужен Bearer.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  // Текст показывает приложение eGov Mobile, cookie сайта там нет — язык
+  // получаем по умолчанию для платформы.
+  const { t } = await getT()
   const { token } = await params
   if (!checkEgovBearer(req, token)) {
-    return NextResponse.json({ message: "Не авторизовано" }, { status: 401 })
+    return NextResponse.json({ message: t("adminDocs.api.sign.notAuthorized") }, { status: 401 })
   }
   const contract = await loadContractForEgov(token)
-  if (!contract) return NextResponse.json({ message: "Документ не найден" }, { status: 404 })
+  if (!contract) return NextResponse.json({ message: t("adminDocs.api.sign.documentNotFound") }, { status: 404 })
   if (contract.status === "SIGNED" || contract.status === "REJECTED" || contract.signedByTenantAt) {
-    return NextResponse.json({ message: "Договор уже подписан или завершён" }, { status: 410 })
+    return NextResponse.json({ message: t("adminDocs.api.sign.alreadyFinished") }, { status: 410 })
   }
   return NextResponse.json(buildApi2Documents(contract))
 }
@@ -28,21 +32,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
 // общий поток (signContractByTenantEcp): разбор CMS, сверка ИИН/БИН арендатора,
 // NCANode-криптопроверка, привязка к каноническому тексту.
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ token: string }> }) {
+  // Переводчик объявлен до try — иначе он не виден в блоке catch.
+  const { t } = await getT()
   const { token } = await params
   if (!checkEgovBearer(req, token)) {
-    return NextResponse.json({ message: "Не авторизовано" }, { status: 401 })
+    return NextResponse.json({ message: t("adminDocs.api.sign.notAuthorized") }, { status: 401 })
   }
 
   let body: unknown
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ message: "Некорректный JSON" }, { status: 400 })
+    return NextResponse.json({ message: t("adminDocs.api.common.invalidJson") }, { status: 400 })
   }
 
   const cms = extractSignedCms(body)
   if (!cms) {
-    return NextResponse.json({ message: "В запросе нет подписанного документа" }, { status: 400 })
+    return NextResponse.json({ message: t("adminDocs.api.sign.noSignedDocument") }, { status: 400 })
   }
 
   const result = await signContractByTenantEcp(token, cms)

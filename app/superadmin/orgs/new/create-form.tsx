@@ -9,6 +9,8 @@ import { Copy, Check, Loader2, AlertCircle, ExternalLink } from "lucide-react"
 import { KzPhoneInput, AsciiEmailInput } from "@/components/forms/contact-inputs"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
 
 type Plan = {
   id: string
@@ -21,6 +23,7 @@ type Plan = {
 
 export function CreateOrgForm({ plans }: { plans: Plan[] }) {
   const router = useRouter()
+  const { t, locale } = useT()
   const [pending, startTransition] = useTransition()
   const [name, setName] = useState("")
   const [slug, setSlug] = useState("")
@@ -41,9 +44,10 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
     setSlug(slugify(v))
   }
 
-  // Debounced check at slug change
+  // Debounced check at slug change. Переменную таймера зовём timer: имя t
+  // занято переводчиком.
   useEffect(() => {
-    const t = setTimeout(async () => {
+    const timer = setTimeout(async () => {
       if (!slug) {
         setSlugCheck({ status: "idle" })
         return
@@ -56,7 +60,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
         setSlugCheck({ status: "idle" })
       }
     }, slug ? 400 : 0)
-    return () => clearTimeout(t)
+    return () => clearTimeout(timer)
   }, [slug])
 
   if (created) {
@@ -64,33 +68,40 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
       <div className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 rounded-xl p-6 space-y-4">
         <div className="flex items-center gap-3">
           <Check className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-          <h2 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">Организация создана</h2>
+          <h2 className="text-lg font-semibold text-emerald-900 dark:text-emerald-200">{t("superadmin.newOrg.createdTitle")}</h2>
         </div>
-        <p className="text-sm text-emerald-800 dark:text-emerald-200">Передайте эти данные владельцу:</p>
+        <p className="text-sm text-emerald-800 dark:text-emerald-200">{t("superadmin.newOrg.createdHint")}</p>
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-emerald-200 dark:border-emerald-500/30 p-4 font-mono text-sm space-y-2">
-          {created.ownerEmail && <div>Логин (email): <b>{created.ownerEmail}</b></div>}
-          {created.ownerPhone && <div>Логин (телефон): <b>{created.ownerPhone}</b></div>}
-          <div>Временный пароль: <b>{created.tempPassword}</b></div>
-          <div>URL входа: <b>https://commrent.kz/login</b></div>
-          <div>Рабочая зона: <b>https://{created.slug}.commrent.kz</b></div>
+          {created.ownerEmail && <div>{t("superadmin.newOrg.loginEmail")}: <b>{created.ownerEmail}</b></div>}
+          {created.ownerPhone && <div>{t("superadmin.newOrg.loginPhone")}: <b>{created.ownerPhone}</b></div>}
+          <div>{t("superadmin.newOrg.tempPassword")}: <b>{created.tempPassword}</b></div>
+          <div>{t("superadmin.newOrg.loginUrl")}: <b>https://commrent.kz/login</b></div>
+          <div>{t("superadmin.newOrg.workspace")}: <b>https://{created.slug}.commrent.kz</b></div>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => {
-              const text = `Логин: ${created.ownerEmail || created.ownerPhone}\nПароль: ${created.tempPassword}\nURL входа: https://commrent.kz/login\nРабочая зона: https://${created.slug}.commrent.kz`
+              const text = [
+                `${t("superadmin.newOrg.loginEmail")}: ${created.ownerEmail || created.ownerPhone}`,
+                `${t("superadmin.newOrg.tempPassword")}: ${created.tempPassword}`,
+                `${t("superadmin.newOrg.loginUrl")}: https://commrent.kz/login`,
+                `${t("superadmin.newOrg.workspace")}: https://${created.slug}.commrent.kz`,
+              ].join("\n")
               navigator.clipboard.writeText(text)
               setCopied(true)
               setTimeout(() => setCopied(false), 2000)
             }}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white"
           >
-            {copied ? <><Check className="h-3.5 w-3.5" /> Скопировано</> : <><Copy className="h-3.5 w-3.5" /> Копировать всё</>}
+            {copied
+              ? <><Check className="h-3.5 w-3.5" /> {t("common.actions.copied")}</>
+              : <><Copy className="h-3.5 w-3.5" /> {t("superadmin.newOrg.copyAll")}</>}
           </button>
           <button
             onClick={() => router.push(`/superadmin/orgs/${created.orgId}`)}
             className="rounded-lg border border-emerald-300 dark:border-emerald-500/40 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
           >
-            Перейти к организации
+            {t("superadmin.newOrg.goToOrg")}
           </button>
           <Button
             variant="outline"
@@ -102,7 +113,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
               setSlugTouched(false)
             }}
           >
-            Создать ещё
+            {t("superadmin.newOrg.createMore")}
           </Button>
         </div>
       </div>
@@ -122,21 +133,21 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
           try {
             const result = await createOrganization(fd)
             setCreated({ ...result, slug })
-            toast.success("Организация создана!")
+            toast.success(t("superadmin.newOrg.createdToast"))
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Ошибка")
+            toast.error(e instanceof Error ? e.message : t("common.state.error"))
           }
         })
       }}
       className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 space-y-5"
     >
-      <Section title="Организация">
-        <Field label="Название *" name="name" value={name} onChange={autoSlug} required placeholder='БЦ "Plaza"' />
+      <Section title={t("superadmin.newOrg.sectionOrg")}>
+        <Field label={t("superadmin.newOrg.fieldName")} name="name" value={name} onChange={autoSlug} required placeholder={t("superadmin.newOrg.namePlaceholder")} />
 
         {/* Slug с live-проверкой */}
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
-            Поддомен (slug) *
+            {t("superadmin.newOrg.fieldSlug")}
           </label>
           <div className="relative">
             <input
@@ -162,12 +173,12 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
           {/* Hint / preview / error */}
           {!slug && (
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">5–20 символов: латиница нижнего регистра, цифры, дефис</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">{t("superadmin.newOrg.slugHint")}</p>
           )}
           {isSlugOk && checkResult && checkResult.ok && (
             <p className="text-[11px] mt-1 flex items-center gap-1 text-emerald-700 dark:text-emerald-300">
               <Check className="h-3 w-3" />
-              Доступен. Будет:{" "}
+              {t("superadmin.newOrg.slugFree")}{" "}
               <a href={checkResult.url} target="_blank" rel="noopener noreferrer" className="font-mono text-emerald-700 dark:text-emerald-300 hover:underline inline-flex items-center gap-0.5">
                 {checkResult.url}
                 <ExternalLink className="h-3 w-3" />
@@ -179,7 +190,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
               <p className="text-[11px] text-red-600 dark:text-red-400">{checkResult.reason}</p>
               {checkResult.suggestions && checkResult.suggestions.length > 0 && (
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Свободные варианты:{" "}
+                  {t("superadmin.newOrg.slugSuggestions")}{" "}
                   {checkResult.suggestions.map((s, i) => (
                     <span key={s}>
                       <button
@@ -200,31 +211,33 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Тариф *</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">{t("superadmin.newOrg.fieldPlan")}</label>
             <select name="planId" required className="w-full rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm bg-white dark:bg-slate-900">
               {plans.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} — {p.priceMonthly.toLocaleString("ru-RU")} ₸/мес
-                  {p.maxBuildings ? ` · до ${p.maxBuildings} зданий` : " · ∞ зданий"}
+                  {p.name} — {formatMoneyL(locale, p.priceMonthly)}{t("common.money.perMonth")}
+                  {p.maxBuildings
+                    ? t("superadmin.newOrg.planBuildingsLimit", { count: p.maxBuildings })
+                    : t("superadmin.newOrg.planBuildingsUnlimited")}
                 </option>
               ))}
             </select>
           </div>
-          <Field label="Срок (мес)" name="months" type="number" defaultValue="1" />
+          <Field label={t("superadmin.newOrg.fieldMonths")} name="months" type="number" defaultValue="1" />
         </div>
       </Section>
 
-      <Section title="Владелец организации">
-        <Field label="ФИО *" name="ownerName" required placeholder="Иванов Иван Иванович" />
+      <Section title={t("superadmin.newOrg.sectionOwner")}>
+        <Field label={t("superadmin.newOrg.fieldOwnerName")} name="ownerName" required placeholder={t("superadmin.newOrg.ownerNamePlaceholder")} />
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Email" name="ownerEmail" type="email" placeholder="ivan@plaza.kz" />
-          <Field label="Телефон" name="ownerPhone" type="tel" placeholder="+7 700 000 00 00" />
+          <Field label={t("superadmin.newOrg.fieldEmail")} name="ownerEmail" type="email" placeholder="ivan@plaza.kz" />
+          <Field label={t("superadmin.newOrg.fieldPhone")} name="ownerPhone" type="tel" placeholder="+7 700 000 00 00" />
         </div>
         <Field
-          label="Временный пароль"
+          label={t("superadmin.newOrg.fieldPassword")}
           name="ownerPassword"
-          placeholder="Оставьте пустым — сгенерируем"
-          hint="Если оставить пустым, система сгенерирует надёжный пароль"
+          placeholder={t("superadmin.newOrg.passwordPlaceholder")}
+          hint={t("superadmin.newOrg.passwordHint")}
         />
       </Section>
 
@@ -233,7 +246,7 @@ export function CreateOrgForm({ plans }: { plans: Plan[] }) {
         disabled={pending || !canSubmit}
         className="w-full rounded-lg bg-purple-600 hover:bg-purple-700 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        {pending ? "Создание..." : "Создать организацию"}
+        {pending ? t("superadmin.newOrg.submitting") : t("superadmin.newOrg.submit")}
       </button>
     </form>
   )

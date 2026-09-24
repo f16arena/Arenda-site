@@ -16,6 +16,10 @@ import type { SheetSection } from "@/lib/builder/drawing/mep-drawing"
  * Лист чертежа плана этажа из модели здания: размеры, оси, помещения, штамп.
  * Печать в PDF и выгрузка DXF для AutoCAD.
  */
+
+// ЭМ, ЭО, СС, ВК, ОВ — марки комплектов чертежей по ГОСТ, а не подписи для
+// экрана: это значения параметра адреса, переводить их нельзя.
+const SHEET_SECTIONS: string[] = ["ar", "mep", "ЭМ", "ЭО", "СС", "ВК", "ОВ"]
 export default async function BuildingSheetPage({
   params,
   searchParams,
@@ -80,7 +84,7 @@ export default async function BuildingSheetPage({
       site={project.doc.site}
       allBuildings={project.doc.buildings}
       initialView={view && /^(plan|evac|finish|roof|site|slabs|replan:(demolish|install|after)|facade:(south|north|west|east)|section:[\w-]+)$/.test(view) ? view : "plan"}
-      initialSection={section && ["ar", "mep", "ЭМ", "ЭО", "СС", "ВК", "ОВ"].includes(section) ? (section as SheetSection) : "ar"}
+      initialSection={section && SHEET_SECTIONS.includes(section) ? (section as SheetSection) : "ar"}
     />
   )
 }

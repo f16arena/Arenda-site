@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input"
 import { PaginationControls } from "@/components/ui/pagination-controls"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { INTL_LOCALE } from "@/lib/i18n/config"
 
 const PAGE_SIZE = 50
 
@@ -26,6 +28,8 @@ export default async function SuperadminAuditPage({
   searchParams?: Promise<{ page?: string | string[]; q?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
   const query = normalizeAuditQuery(resolved?.q)
@@ -71,8 +75,8 @@ export default async function SuperadminAuditPage({
           <History className="h-5 w-5 text-amber-600 dark:text-amber-400" />
         </div>
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Журнал платформы</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">Журнал действий по всем организациям · {total} записей</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.audit.title")}</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{t("superadmin.audit.subtitle", { total })}</p>
         </div>
       </div>
 
@@ -82,12 +86,12 @@ export default async function SuperadminAuditPage({
           <Input
             name="q"
             defaultValue={query}
-            placeholder="Организация, код, пользователь, IP..."
+            placeholder={t("superadmin.audit.searchPlaceholder")}
             className="pl-9"
           />
         </div>
         <button className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
-          Найти
+          {t("common.actions.search")}
         </button>
       </form>
 
@@ -95,11 +99,11 @@ export default async function SuperadminAuditPage({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Время</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Организация</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Пользователь</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Действие</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Объект</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.time")}</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.org")}</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.user")}</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.action")}</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.entity")}</th>
               <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">IP</th>
             </tr>
           </thead>
@@ -107,14 +111,14 @@ export default async function SuperadminAuditPage({
             {logs.length === 0 ? (
               <tr><td colSpan={6} className="px-4 py-12 text-center">
                 <History className="h-10 w-10 text-slate-200 dark:text-slate-700 mx-auto mb-3" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Нет записей</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{t("superadmin.audit.emptyRecords")}</p>
               </td></tr>
             ) : logs.map((l) => {
               const org = l.userId ? userOrgMap.get(l.userId) : null
               return (
                 <tr key={l.id} className="border-b border-slate-50">
                   <td className="px-4 py-2.5 text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(l.createdAt).toLocaleString("ru-RU", {
+                    {new Date(l.createdAt).toLocaleString(INTL_LOCALE[locale], {
                       day: "2-digit", month: "2-digit", year: "numeric",
                       hour: "2-digit", minute: "2-digit",
                     })}
@@ -133,7 +137,7 @@ export default async function SuperadminAuditPage({
                         <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{l.userName}</span>
                         {l.userRole && <span className="text-[10px] text-slate-400 dark:text-slate-500">({l.userRole})</span>}
                       </div>
-                    ) : <span className="text-slate-400 dark:text-slate-500">Система</span>}
+                    ) : <span className="text-slate-400 dark:text-slate-500">{t("superadmin.audit.systemUser")}</span>}
                   </td>
                   <td className="px-4 py-2.5">
                     <span className={cn("inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium", ACTION_COLORS[l.action] ?? "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400")}>

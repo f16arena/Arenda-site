@@ -15,6 +15,7 @@ export const domain: typeof ru = {
     INTERNET: "Интернет",
     GAS: "Газ",
     CLEANING: "Тазалау",
+    PARKING: "Тұрақ",
     PENALTY: "Айыппұл/өсімпұл",
     SERVICE_DELIVERED: "Көрсетілген қызмет",
     OTHER: "Басқа",
@@ -22,16 +23,20 @@ export const domain: typeof ru = {
   roles: {
     OWNER: "Иесі",
     ADMIN: "Әкімші",
-    MANAGER: "Менеджер",
     ACCOUNTANT: "Бухгалтер",
-    STAFF: "Қызметкер",
+    // «Шаруашылық меңгерушісі» — как в кадровых документах; так же в
+    // common.roles и adminSettings, чтобы одна роль звалась везде одинаково.
+    FACILITY_MANAGER: "Шаруашылық меңгерушісі",
+    EMPLOYEE: "Қызметкер",
     TENANT: "Жалға алушы",
   },
   statuses: {
     NEW: "Жаңа",
+    OPEN: "Ашық",
     IN_PROGRESS: "Жұмыста",
     DONE: "Орындалды",
     CLOSED: "Жабылды",
+    CANCELLED: "Бас тартылды",
     POSTPONED: "Кейінге қалдырылды",
     DRAFT: "Жоба",
     SENT: "Жіберілді",

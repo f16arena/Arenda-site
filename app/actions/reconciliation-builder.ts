@@ -1,6 +1,7 @@
 "use server"
 
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
 import { auth } from "@/auth"
 import { revalidatePath } from "next/cache"
@@ -21,6 +22,10 @@ function toPartyType(legalType: string | null | undefined): ReconPartyType {
   return "too"
 }
 
+// Эти подписи печатаются в САМОМ акте сверки, поэтому они свои и русские, а не
+// из domain.chargeTypes: текст документа переводится только после вычитки
+// юриста (docs/i18n-documents-plan.md). В интерфейсе те же названия берутся
+// из словаря.
 const CHARGE_TYPES: Record<string, string> = {
   RENT: "Аренда", ELECTRICITY: "Электричество", WATER: "Вода", HEATING: "Отопление",
   GARBAGE: "Вывоз мусора", SECURITY: "Охрана", INTERNET: "Интернет", GAS: "Газ",
@@ -41,12 +46,13 @@ async function computeNextReconNumber(orgId: string): Promise<string> {
 }
 
 export async function getNextReconNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await computeNextReconNumber(orgId) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить номер" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.numberFailed") }
   }
 }
 
@@ -55,6 +61,7 @@ export async function prefillReconFromTenant(
   from: string,
   to: string,
 ): Promise<{ ok: boolean; error?: string; state?: ReconState }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
@@ -73,7 +80,7 @@ export async function prefillReconFromTenant(
       }),
       getOrganizationRequisites(orgId),
     ])
-    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+    if (!tenant) return { ok: false, error: t("actions.docBuilders.tenantNotFoundOrNoAccess") }
 
     // Правило: акт сверки выставляется только по действующему договору.
     const activeContract = await getActiveContractForTenant(tenantId)
@@ -126,19 +133,21 @@ export async function prefillReconFromTenant(
 }
 
 export async function generateReconDocx(state: ReconState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
     const buf = await renderReconDocx(state)
     const num = (state.meta.number || "").trim() || "сверка"
-    return { ok: true, base64: buf.toString("base64"), fileName: `Акт_сверки_${num}.docx` }
+    return { ok: true, base64: buf.toString("base64"), fileName: t("actions.reconciliationBuilder.fileName", { number: num }) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.generateFailed") }
   }
 }
 
 /** Акт сверки строго в PDF (DOCX → конвертер на VPS). */
 export async function generateReconPdf(state: ReconState): Promise<{ ok: boolean; error?: string; base64?: string; fileName?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
@@ -146,9 +155,9 @@ export async function generateReconPdf(state: ReconState): Promise<{ ok: boolean
     const buf = await renderReconDocx(state)
     const num = (state.meta.number || "").trim() || "сверка"
     const pdf = await convertDocxToPdf(buf, `Акт_сверки_${num}.docx`)
-    return { ok: true, base64: pdf.toString("base64"), fileName: `Акт_сверки_${num}.pdf` }
+    return { ok: true, base64: pdf.toString("base64"), fileName: t("actions.reconciliationBuilder.fileNamePdf", { number: num }) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Ошибка генерации PDF" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.pdfGenerateFailed") }
   }
 }
 
@@ -157,14 +166,15 @@ export async function createReconFromBuilder(
   state: ReconState,
   opts?: { autoNumber?: boolean; requestSignature?: boolean },
 ): Promise<{ ok: boolean; error?: string; documentId?: string; number?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     const session = await auth()
-    if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }
+    if (!tenantId) return { ok: false, error: t("actions.docBuilders.pickTenantFirst") }
 
     const tenant = await db.tenant.findFirst({ where: { AND: [tenantScope(orgId), { id: tenantId }] }, select: { id: true, companyName: true, user: { select: { id: true } } } })
-    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+    if (!tenant) return { ok: false, error: t("actions.docBuilders.tenantNotFoundOrNoAccess") }
 
     // Правило: акт сверки создаётся только контрагенту с действующим договором.
     const activeContract = await getActiveContractForTenant(tenant.id)
@@ -177,13 +187,13 @@ export async function createReconFromBuilder(
         where: { organizationId: orgId, documentType: "RECONCILIATION", tenantId: tenant.id, period: periodStr },
         select: { number: true },
       })
-      if (dup) return { ok: false, error: `Акт сверки за этот период (№ ${dup.number}) уже создан. Чтобы пересоздать — удалите старый в разделе «Документы».` }
+      if (dup) return { ok: false, error: t("actions.reconciliationBuilder.duplicate", { number: dup.number ?? "" }) }
     }
 
-    const number = opts?.autoNumber ? await computeNextReconNumber(orgId) : (state.meta.number || "").trim() || "Б/Н"
+    const number = opts?.autoNumber ? await computeNextReconNumber(orgId) : (state.meta.number || "").trim() || t("actions.docBuilders.noNumber")
     const finalState: ReconState = { ...state, meta: { ...state.meta, number } }
     const buf = await renderReconDocx(finalState)
-    const fileName = `Акт_сверки_${number}.docx`
+    const fileName = t("actions.reconciliationBuilder.fileName", { number })
 
     const doc = await db.generatedDocument.create({
       data: {
@@ -221,6 +231,6 @@ export async function createReconFromBuilder(
     }
     return { ok: true, documentId: doc.id, number }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать акт сверки" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.reconciliationBuilder.createFailed") }
   }
 }

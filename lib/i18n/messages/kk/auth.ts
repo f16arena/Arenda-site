@@ -56,7 +56,7 @@ export const auth: typeof ru = {
     slugSuggestions: "Бос нұсқалар:",
     ownerSection: "Аккаунт иесі",
     ownerName: "Аты-жөні *",
-    ownerNamePlaceholder: "Иванов Иван Иванович",
+    ownerNamePlaceholder: "Сәрсенов Аян Мұратұлы",
     email: "Email",
     phone: "Телефон",
     password: "Құпия сөз *",

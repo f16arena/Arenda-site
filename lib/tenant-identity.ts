@@ -1,4 +1,24 @@
-import { assertKazakhstanIin } from "@/lib/kz-iin"
+import { assertKazakhstanIin, type KzIinIssue } from "@/lib/kz-iin"
+
+/**
+ * Переводчик сообщений проверки БИН/ИИН. Ключи те же, что у lib/kz-iin.ts
+ * (common.iinChecks.*), поэтому вызывающая сторона передаёт один и тот же
+ * помощник и для БИН, и для ИИН. Без переводчика текст остаётся русским.
+ */
+export type TaxIdTranslate = (issue: KzIinIssue | null, label: string) => string
+
+type IinCheckKey = `common.iinChecks.${KzIinIssue}` | "common.iinChecks.invalid"
+
+/**
+ * Готовый переводчик из t вызывающей стороны. Тип ключа узкий, а не string, —
+ * тогда t из getT() подходит без приведения (его ключ шире).
+ */
+export function taxIdMessage(
+  t: (key: IinCheckKey, vars?: Record<string, string | number>) => string,
+): TaxIdTranslate {
+  return (issue, label) =>
+    t(issue ? (`common.iinChecks.${issue}` as IinCheckKey) : "common.iinChecks.invalid", { label })
+}
 
 /**
  * Формы собственности для арендатора (РК). Расширено 2026-05-26:
@@ -43,35 +63,40 @@ export function tenantTaxIdValue(args: {
   return tenantLegalTypeUsesBin(args.legalType) ? args.bin ?? "" : args.iin ?? args.bin ?? ""
 }
 
-function normalizeTaxId(value: FormDataEntryValue | string | null | undefined, label: "БИН" | "ИИН") {
+function normalizeTaxId(
+  value: FormDataEntryValue | string | null | undefined,
+  label: string,
+  translate?: TaxIdTranslate,
+) {
   const raw = String(value ?? "").trim()
   if (!raw) return null
   const compact = raw.replace(/\s+/g, "")
   if (!/^\d+$/.test(compact)) {
-    throw new Error(`${label} должен содержать только цифры`)
+    throw new Error(translate ? translate("onlyDigits", label) : `${label} должен содержать только цифры`)
   }
   if (compact.length !== 12) {
-    throw new Error(`${label} должен состоять из 12 цифр`)
+    throw new Error(translate ? translate("length", label) : `${label} должен состоять из 12 цифр`)
   }
   return compact
-}
-
-function normalizeIin(value: FormDataEntryValue | string | null | undefined) {
-  return assertKazakhstanIin(value)
 }
 
 export function normalizeTenantTaxIds(args: {
   legalType: unknown
   bin?: FormDataEntryValue | string | null
   iin?: FormDataEntryValue | string | null
+  /** Подписи «БИН»/«ИИН» на языке интерфейса; по умолчанию русские. */
+  labels?: { bin: string; iin: string }
+  translate?: TaxIdTranslate
 }) {
   const legalType = normalizeTenantLegalType(args.legalType)
   const usesBin = tenantLegalTypeUsesBin(legalType)
+  const binLabel = args.labels?.bin ?? "БИН"
+  const iinLabel = args.labels?.iin ?? "ИИН"
 
   if (usesBin) {
     return {
       legalType,
-      bin: normalizeTaxId(args.bin, "БИН"),
+      bin: normalizeTaxId(args.bin, binLabel, args.translate),
       iin: null,
     }
   }
@@ -79,6 +104,6 @@ export function normalizeTenantTaxIds(args: {
   return {
     legalType,
     bin: null,
-    iin: normalizeIin(args.iin ?? args.bin),
+    iin: assertKazakhstanIin(args.iin ?? args.bin, iinLabel, args.translate),
   }
 }

@@ -6,35 +6,61 @@ import { getTenantAreaTotal } from "@/lib/tenant-placement"
 // Город здания → slug krisha; берём последний снимок медиан по типам; считаем
 // ₸/м² владельца как Σ аренды / Σ площади по арендаторам здания.
 
-export const MARKET_TYPE_LABELS: Record<string, string> = {
-  OFFICE: "Офисы",
-  FREE: "Свободное назначение",
-  RETAIL: "Магазины/торговые",
-  WAREHOUSE: "Склады",
-  OTHER: "Прочее",
-}
+// Названия видов помещений и городов — в словаре (catalogs.marketTypes,
+// catalogs.cities): модуль отдаёт ключ, подпись подставляет страница.
+export type MarketPropertyType = "OFFICE" | "FREE" | "RETAIL" | "WAREHOUSE" | "OTHER"
+export type MarketTypeNameKey = `catalogs.marketTypes.${MarketPropertyType}`
+
+type CityId =
+  | "ustKamenogorsk"
+  | "almaty"
+  | "astana"
+  | "shymkent"
+  | "karaganda"
+  | "aktobe"
+  | "taraz"
+  | "pavlodar"
+  | "semey"
+  | "kostanay"
+  | "kyzylorda"
+  | "atyrau"
+  | "uralsk"
+  | "petropavlovsk"
+export type CityNameKey = `catalogs.cities.${CityId}`
 
 // Город (как в адресе здания) → slug krisha. Расширяемо.
-const CITY_SLUGS: Record<string, { slug: string; label: string }> = {
-  "усть-каменогорск": { slug: "ust-kamenogorsk", label: "Усть-Каменогорск" },
-  "оскемен": { slug: "ust-kamenogorsk", label: "Усть-Каменогорск" },
-  "алматы": { slug: "almaty", label: "Алматы" },
-  "астана": { slug: "astana", label: "Астана" },
-  "нур-султан": { slug: "astana", label: "Астана" },
-  "шымкент": { slug: "shymkent", label: "Шымкент" },
-  "караганда": { slug: "karaganda", label: "Караганда" },
-  "актобе": { slug: "aktobe", label: "Актобе" },
-  "тараз": { slug: "taraz", label: "Тараз" },
-  "павлодар": { slug: "pavlodar", label: "Павлодар" },
-  "семей": { slug: "semey", label: "Семей" },
-  "костанай": { slug: "kostanay", label: "Костанай" },
-  "кызылорда": { slug: "kyzylorda", label: "Кызылорда" },
-  "атырау": { slug: "atyrau", label: "Атырау" },
-  "уральск": { slug: "uralsk", label: "Уральск" },
-  "петропавловск": { slug: "petropavlovsk", label: "Петропавловск" },
+//
+// Ключи — это СПИСОК ДЛЯ СОПОСТАВЛЕНИЯ: адрес здания заводит владелец руками, и
+// мы ищем город по подстроке. Поэтому здесь нужны оба написания — русское и
+// казахское («Өскемен», «Қарағанды», «Орал»), и переводить их нельзя, только
+// дополнять. Подпись города берётся из nameKey, а не отсюда.
+const CITY_SLUGS: Record<string, { slug: string; nameKey: CityNameKey }> = {
+  "усть-каменогорск": { slug: "ust-kamenogorsk", nameKey: "catalogs.cities.ustKamenogorsk" },
+  "оскемен": { slug: "ust-kamenogorsk", nameKey: "catalogs.cities.ustKamenogorsk" },
+  "өскемен": { slug: "ust-kamenogorsk", nameKey: "catalogs.cities.ustKamenogorsk" },
+  "алматы": { slug: "almaty", nameKey: "catalogs.cities.almaty" },
+  "астана": { slug: "astana", nameKey: "catalogs.cities.astana" },
+  "нур-султан": { slug: "astana", nameKey: "catalogs.cities.astana" },
+  "шымкент": { slug: "shymkent", nameKey: "catalogs.cities.shymkent" },
+  "караганда": { slug: "karaganda", nameKey: "catalogs.cities.karaganda" },
+  "қарағанды": { slug: "karaganda", nameKey: "catalogs.cities.karaganda" },
+  "актобе": { slug: "aktobe", nameKey: "catalogs.cities.aktobe" },
+  "ақтөбе": { slug: "aktobe", nameKey: "catalogs.cities.aktobe" },
+  "тараз": { slug: "taraz", nameKey: "catalogs.cities.taraz" },
+  "павлодар": { slug: "pavlodar", nameKey: "catalogs.cities.pavlodar" },
+  "семей": { slug: "semey", nameKey: "catalogs.cities.semey" },
+  "костанай": { slug: "kostanay", nameKey: "catalogs.cities.kostanay" },
+  "қостанай": { slug: "kostanay", nameKey: "catalogs.cities.kostanay" },
+  "кызылорда": { slug: "kyzylorda", nameKey: "catalogs.cities.kyzylorda" },
+  "қызылорда": { slug: "kyzylorda", nameKey: "catalogs.cities.kyzylorda" },
+  "атырау": { slug: "atyrau", nameKey: "catalogs.cities.atyrau" },
+  "уральск": { slug: "uralsk", nameKey: "catalogs.cities.uralsk" },
+  "орал": { slug: "uralsk", nameKey: "catalogs.cities.uralsk" },
+  "петропавловск": { slug: "petropavlovsk", nameKey: "catalogs.cities.petropavlovsk" },
+  "петропавл": { slug: "petropavlovsk", nameKey: "catalogs.cities.petropavlovsk" },
 }
 
-function resolveCity(text: string | null | undefined): { slug: string; label: string } | null {
+function resolveCity(text: string | null | undefined): { slug: string; nameKey: CityNameKey } | null {
   if (!text) return null
   const norm = text.toLowerCase().replace(/^г\.?\s*/, "").replace(/\s+/g, " ").trim()
   for (const key of Object.keys(CITY_SLUGS)) {
@@ -43,9 +69,20 @@ function resolveCity(text: string | null | undefined): { slug: string; label: st
   return null
 }
 
+const MARKET_TYPES: readonly MarketPropertyType[] = ["OFFICE", "FREE", "RETAIL", "WAREHOUSE", "OTHER"]
+
+/**
+ * Ключ названия вида помещения в словаре; null для вида, которого в справочнике
+ * нет (сборщик krisha мог принести новый) — такой показываем кодом как есть.
+ */
+export function marketTypeNameKey(propertyType: string): MarketTypeNameKey | null {
+  return (MARKET_TYPES as readonly string[]).includes(propertyType)
+    ? `catalogs.marketTypes.${propertyType as MarketPropertyType}`
+    : null
+}
+
 export type MarketTypeStat = {
   propertyType: string
-  label: string
   perSqmMedian: number
   perSqmMin: number | null
   perSqmMax: number | null
@@ -56,13 +93,14 @@ export type MarketTypeStat = {
 // сужает/расширяет область, чтобы видеть рынок ближе к своему адресу или шире.
 export type MarketScope = {
   key: string // "city" | district name
-  label: string
+  /** Название района как его отдаёт krisha; null — весь город. */
+  district: string | null
   isCity: boolean
   types: MarketTypeStat[]
 }
 
 export type MarketComparison = {
-  cityLabel: string
+  cityNameKey: CityNameKey
   citySlug: string
   collectedAt: string | null
   scopes: MarketScope[] // [0] = Город, далее районы с данными
@@ -111,7 +149,7 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
     where: { id: { in: buildingIds } },
     select: { addressCity: true, address: true, documentAddress: true },
   })
-  let city: { slug: string; label: string } | null = null
+  let city: { slug: string; nameKey: CityNameKey } | null = null
   for (const b of buildings) {
     city = resolveCity(b.addressCity) ?? resolveCity(b.documentAddress) ?? resolveCity(b.address)
     if (city) break
@@ -144,7 +182,6 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
     [...tmap.values()]
       .map((r) => ({
         propertyType: r.propertyType,
-        label: MARKET_TYPE_LABELS[r.propertyType] ?? r.propertyType,
         perSqmMedian: Math.round(r.perSqmMedian),
         perSqmMin: r.perSqmMin !== null ? Math.round(r.perSqmMin) : null,
         perSqmMax: r.perSqmMax !== null ? Math.round(r.perSqmMax) : null,
@@ -154,10 +191,10 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
 
   const scopes: MarketScope[] = []
   const cityMap = byScope.get("__city__")
-  if (cityMap) scopes.push({ key: "city", label: `Весь город (${city.label})`, isCity: true, types: toTypes(cityMap) })
+  if (cityMap) scopes.push({ key: "city", district: null, isCity: true, types: toTypes(cityMap) })
   for (const [key, tmap] of byScope) {
     if (key === "__city__") continue
-    scopes.push({ key, label: key, isCity: false, types: toTypes(tmap) })
+    scopes.push({ key, district: key, isCity: false, types: toTypes(tmap) })
   }
   // районы — по убыванию выборки (надёжнее сверху)
   scopes.sort((a, b) => {
@@ -171,7 +208,7 @@ export async function getMarketComparison({ buildingIds }: { buildingIds: string
   const owner = await computeOwnerPerSqm(buildingIds)
 
   return {
-    cityLabel: city.label,
+    cityNameKey: city.nameKey,
     citySlug: city.slug,
     collectedAt: collectedAt ? collectedAt.toISOString() : null,
     scopes,

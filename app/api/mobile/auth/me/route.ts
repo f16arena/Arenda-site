@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -39,6 +40,8 @@ export async function PATCH(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  // Ошибки читает владелец аккаунта — язык из его профиля.
+  const { t } = await getTForUser(result.ctx.user.id)
   const body = (await req.json().catch(() => null)) as {
     name?: string
     phone?: string
@@ -48,7 +51,7 @@ export async function PATCH(req: Request) {
   const phoneRaw = body?.phone?.trim() ?? null
 
   if (name !== undefined && (name.length < 2 || name.length > 120)) {
-    return mobileError("Имя должно быть от 2 до 120 символов")
+    return mobileError(t("adminDocs.api.auth.nameLength"))
   }
 
   let phone: string | null | undefined
@@ -58,13 +61,13 @@ export async function PATCH(req: Request) {
     } else {
       const normalized = phoneRaw.replace(/[^\d+]/g, "")
       if (!/^\+?\d{10,15}$/.test(normalized)) {
-        return mobileError("Введите телефон в международном формате")
+        return mobileError(t("adminDocs.api.auth.phoneFormat"))
       }
       const conflict = await db.user.findFirst({
         where: { phone: normalized, NOT: { id: result.ctx.user.id } },
         select: { id: true },
       })
-      if (conflict) return mobileError("Этот телефон уже привязан к другому аккаунту", 409)
+      if (conflict) return mobileError(t("adminDocs.api.auth.phoneTaken"), 409)
       phone = normalized
     }
   }
@@ -76,7 +79,7 @@ export async function PATCH(req: Request) {
     data.phoneVerifiedAt = null
   }
 
-  if (Object.keys(data).length === 0) return mobileError("Нечего обновлять")
+  if (Object.keys(data).length === 0) return mobileError(t("adminDocs.api.common.nothingToUpdate"))
 
   const updated = await db.user.update({
     where: { id: result.ctx.user.id },

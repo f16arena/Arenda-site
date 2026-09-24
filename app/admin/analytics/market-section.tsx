@@ -4,12 +4,18 @@ import { useState } from "react"
 import { Building2, Info, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { useLocale, useT } from "@/lib/i18n/client"
 import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
-import type { MarketComparison } from "@/lib/market"
+import { marketTypeNameKey, type MarketComparison } from "@/lib/market"
 
 export function MarketSection({ data }: { data: MarketComparison | null }) {
   const { t } = useT()
   const locale = useLocale()
   const money = (amount: number) => formatMoneyL(locale, amount)
+  // Вид помещения, которого нет в справочнике, показываем кодом: русская
+  // подпись в казахском интерфейсе была бы хуже, чем видимая недоделка.
+  const typeName = (propertyType: string) => {
+    const key = marketTypeNameKey(propertyType)
+    return key ? t(key) : propertyType
+  }
   const [scopeKey, setScopeKey] = useState<string>("city")
 
   if (!data) {
@@ -59,7 +65,9 @@ export function MarketSection({ data }: { data: MarketComparison | null }) {
             >
               {data.scopes.map((s) => (
                 <option key={s.key} value={s.key}>
-                  {s.isCity ? s.label : t("adminFinance.market.district", { name: s.label })}
+                  {s.district === null
+                    ? t("catalogs.market.wholeCity", { city: t(data.cityNameKey) })
+                    : t("adminFinance.market.district", { name: s.district })}
                 </option>
               ))}
             </select>
@@ -88,7 +96,7 @@ export function MarketSection({ data }: { data: MarketComparison | null }) {
               return (
                 <div key={row.propertyType}>
                   <div className="mb-0.5 flex items-baseline justify-between text-[12px]">
-                    <span className="text-slate-600 dark:text-slate-300">{row.label}</span>
+                    <span className="text-slate-600 dark:text-slate-300">{typeName(row.propertyType)}</span>
                     <span className="tabular-nums font-medium text-slate-900 dark:text-slate-100">
                       {money(row.perSqmMedian)}/м²
                       <span className="ml-1.5 text-[10.5px] font-normal text-slate-400 dark:text-slate-500">n={row.sampleCount}</span>

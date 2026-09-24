@@ -5,15 +5,6 @@ import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
 
 export type DepositStatus = "NOT_REQUIRED" | "NOT_ISSUED" | "UNPAID" | "PARTIAL" | "PAID" | "RETURNED"
 
-export const DEPOSIT_STATUS_LABELS: Record<DepositStatus, string> = {
-  NOT_REQUIRED: "Не требуется",
-  NOT_ISSUED: "Не выставлен",
-  UNPAID: "Не внесён",
-  PARTIAL: "Частично",
-  PAID: "Внесён",
-  RETURNED: "Возвращён",
-}
-
 /**
  * Статус депозита арендатора по его DEPOSIT-начислениям.
  * `held` — сумма оплаченных DEPOSIT-записей (возвраты — отрицательные, вычитаются).

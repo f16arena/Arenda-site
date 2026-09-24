@@ -41,7 +41,7 @@ function NameBlock({ currentName }: { currentName: string }) {
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
         <UserCircle className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Имя</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.profile.name")}</h2>
       </div>
       <form
         action={(fd) =>
@@ -95,12 +95,12 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                 {emailVerified ? (
                   <>
                     <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                    <p className="text-xs text-emerald-700 dark:text-emerald-300">Подтверждён</p>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300">{t("common.profile.emailVerified")}</p>
                   </>
                 ) : (
                   <>
                     <AlertCircle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-                    <p className="text-xs text-amber-700 dark:text-amber-300">Не подтверждён</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">{t("common.profile.emailNotVerified")}</p>
                   </>
                 )}
               </div>
@@ -125,12 +125,12 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
                 disabled={pending}
                 className="rounded-lg border border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 hover:bg-amber-100 dark:hover:bg-amber-500/20 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 disabled:opacity-50"
               >
-                Подтвердить
+                {t("common.profile.verify")}
               </button>
             )}
           </div>
         ) : (
-          <p className="text-sm text-slate-500 dark:text-slate-400">Email не указан</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("common.profile.emailMissing")}</p>
         )}
 
         <form
@@ -152,7 +152,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
           }
           className="space-y-2"
         >
-          <label className="block text-xs text-slate-500 dark:text-slate-400">Сменить email на новый</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400">{t("common.profile.changeEmail")}</label>
           <div className="flex gap-2">
             <AsciiEmailInput
               name="newEmail"
@@ -168,7 +168,7 @@ function EmailBlock({ currentEmail, emailVerified }: { currentEmail: string | nu
             </Button>
           </div>
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            На новый адрес придёт письмо с ссылкой подтверждения. Email обновится после перехода по ссылке.
+            {t("common.profile.changeEmailHint")}
           </p>
         </form>
 
@@ -206,7 +206,7 @@ function PasswordBlock() {
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
         <Lock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Пароль</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.profile.password")}</h2>
       </div>
 
       <form
@@ -225,7 +225,7 @@ function PasswordBlock() {
         className="p-5 space-y-3"
       >
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Текущий пароль</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{t("common.profile.currentPassword")}</label>
           <input
             type={show ? "text" : "password"}
             name="oldPassword"
@@ -234,7 +234,7 @@ function PasswordBlock() {
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Новый пароль (минимум 8 символов)</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{t("common.profile.newPassword")}</label>
           <input
             type={show ? "text" : "password"}
             name="newPassword"
@@ -244,7 +244,7 @@ function PasswordBlock() {
           />
         </div>
         <div>
-          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Повторите новый пароль</label>
+          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">{t("common.profile.repeatPassword")}</label>
           <input
             type={show ? "text" : "password"}
             name="confirmPassword"
@@ -257,7 +257,7 @@ function PasswordBlock() {
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
             <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} />
-            Показать пароль
+            {t("common.profile.showPassword")}
           </label>
           <Button
             type="submit"

@@ -27,17 +27,13 @@ interface TelegramUpdate {
 }
 
 /**
- * Название роли: сначала общий справочник domain.roles, затем те роли, которых
- * в нём нет (adminDocs.api.roles). Если и там нет — отдаём код как есть, чтобы
- * человек хотя бы увидел, что это за роль.
+ * Название роли из общего справочника domain.roles. Неизвестную роль отдаём
+ * кодом: человек хотя бы увидит, что это за роль, а не ключ словаря.
  */
 function roleLabel(t: Awaited<ReturnType<typeof getT>>["t"], role: string): string {
-  const domainKey = `domain.roles.${role}` as Parameters<typeof t>[0]
-  const fromDomain = t(domainKey)
-  if (fromDomain !== domainKey) return fromDomain
-  const extraKey = `adminDocs.api.roles.${role}` as Parameters<typeof t>[0]
-  const fromExtra = t(extraKey)
-  return fromExtra === extraKey ? role : fromExtra
+  const key = `domain.roles.${role}` as Parameters<typeof t>[0]
+  const label = t(key)
+  return label === key ? role : label
 }
 
 export async function POST(req: Request) {

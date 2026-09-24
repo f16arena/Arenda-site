@@ -43,9 +43,9 @@ export async function ImportPage({
       </div>
 
       <ol className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-slate-500 dark:text-slate-400">
-        <Step n={1}>Выберите файл Excel или CSV</Step>
-        <Step n={2}>Проверьте, что система распознала</Step>
-        <Step n={3}>Загрузите</Step>
+        <Step n={1}>{t("imports.page.step1")}</Step>
+        <Step n={2}>{t("imports.page.step2")}</Step>
+        <Step n={3}>{t("imports.page.step3")}</Step>
       </ol>
 
       {warning && (
@@ -64,18 +64,18 @@ export async function ImportPage({
             className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 transition active:scale-[0.97] hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
           >
             <Download className="h-4 w-4 text-slate-400" />
-            Скачать пустой шаблон
+            {t("imports.page.template")}
           </a>
         )}
         <p className="text-sm text-slate-400 dark:text-slate-500">
-          Файл из 1С: «Контрагенты» → Файл → Сохранить как → Excel (xlsx)
+          {t("imports.page.from1c")}
         </p>
       </div>
 
       {columns && (
         <details className="rounded-xl border border-slate-200 dark:border-slate-800">
           <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">
-            Что должно быть в файле
+            {t("imports.page.whatInFile")}
           </summary>
           <div className="space-y-1.5 border-t border-slate-100 px-4 py-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-400">
             {columns}

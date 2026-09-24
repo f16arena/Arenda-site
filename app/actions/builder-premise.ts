@@ -21,6 +21,7 @@ import { revalidatePath } from "next/cache"
 import { db } from "@/lib/db"
 import { shareLinkValid } from "@/lib/builder/share-link"
 import { requireOrgAccess } from "@/lib/org"
+import { getT } from "@/lib/i18n/server"
 import { assertBuildingAccess } from "@/lib/building-access"
 import { tenantInBuildingsWhere } from "@/lib/tenant-scope"
 import type { BuildingPremise } from "@/store/premise-store"
@@ -29,10 +30,15 @@ import type { PremiseStatus } from "@/lib/builder/materials"
 
 const MAX_PREMISES = 500
 
-function floorLabelOf(f: { number: number; kind: string | null }): string {
-  if (f.kind === "ROOF") return "Крыша"
-  if (f.kind === "TERRITORY") return "Территория"
-  return f.number === 0 ? "Цоколь" : `${f.number} этаж`
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
+
+/** Подпись этажа для конструктора. Переводчик — параметром: функция синхронная. */
+function floorLabelOf(f: { number: number; kind: string | null }, t: Tr): string {
+  if (f.kind === "ROOF") return t("actions.builderPremise.roof")
+  if (f.kind === "TERRITORY") return t("actions.builderPremise.territory")
+  return f.number === 0
+    ? t("actions.builderPremise.plinth")
+    : t("actions.builderPremise.floorName", { number: f.number })
 }
 
 /**
@@ -69,6 +75,7 @@ function mapStatus(raw: string, hasDebt: boolean): PremiseStatus {
  * незачем предлагать помещения Magic Room. Ключ — id карточки.
  */
 export async function listBuildingPremises(buildingId: string): Promise<BuildingPremise[]> {
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   await assertBuildingAccess(buildingId, orgId)
   const now = new Date()
@@ -119,7 +126,7 @@ export async function listBuildingPremises(buildingId: string): Promise<Building
       id: sp.id,
       number: sp.number,
       floorNumber: sp.floor.number,
-      floorLabel: floorLabelOf(sp.floor),
+      floorLabel: floorLabelOf(sp.floor, t),
       status: sp.kind === "COMMON" ? "free" : mapStatus(sp.status, debt > 0),
       tenantName: tenant?.companyName ?? null,
       areaM2: typeof sp.area === "number" ? sp.area : null,
@@ -135,6 +142,7 @@ export async function submitBuilderLead(input: {
   phone: string
   message?: string
 }): Promise<{ ok: boolean }> {
+  const { t } = await getT()
   // Защита от мусора: тримминг + лимиты длины. Витрина публичная (без auth).
   const name = (input.name ?? "").trim().slice(0, 120)
   const phone = (input.phone ?? "").trim().slice(0, 40)
@@ -165,7 +173,7 @@ export async function submitBuilderLead(input: {
 
       if (buildingId) {
         const notesParts = [
-          premiseNumber ? `Помещение: ${premiseNumber}` : null,
+          premiseNumber ? t("actions.builderPremise.premise", { number: premiseNumber }) : null,
           message || null,
         ].filter(Boolean) as string[]
 
@@ -186,6 +194,8 @@ export async function submitBuilderLead(input: {
           name,
           contact: phone,
           details: notesParts.length > 0 ? notesParts.join(" — ") : null,
+          // Источник лида пишется в базу и нужен для отчётов — держим одним
+          // значением на все языки, иначе статистика развалится по языкам.
           source: "витрины здания",
         })
       }
@@ -215,6 +225,7 @@ export async function createIslandPremise(input: {
   areaM2: number
   name?: string
 }): Promise<BuildingPremise | null> {
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   const floor = input.floorId
     ? await db.floor.findFirst({
@@ -251,7 +262,7 @@ export async function createIslandPremise(input: {
     id: created.id,
     number: created.number,
     floorNumber: floor.number,
-    floorLabel: floorLabelOf(floor),
+    floorLabel: floorLabelOf(floor, t),
     status: "free",
     tenantName: null,
     areaM2: area,
@@ -270,6 +281,8 @@ async function territoryFloor(buildingId: string, orgId: string) {
   if (existing) return existing
   const top = await db.floor.aggregate({ where: { buildingId }, _max: { number: true } })
   return db.floor.create({
+    // Имя этажа ложится в базу и владелец может его переименовать; тип
+    // различает kind: "TERRITORY", поэтому язык имени роли не играет.
     data: { buildingId, number: (top._max.number ?? 0) + 1, name: "Территория", kind: "TERRITORY", ratePerSqm: 0 },
     select: { id: true, number: true, kind: true, buildingId: true },
   })
@@ -307,12 +320,13 @@ export async function listBuilderTenants(buildingId: string): Promise<BuilderTen
  * in the Server Components render…» и причина не видна.
  */
 export async function assignTenantToPlace(tenantId: string, spaceId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { t } = await getT()
   try {
     const { assignTenantSpace } = await import("@/app/actions/tenant")
     await assignTenantSpace(tenantId, spaceId)
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось посадить арендатора" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.builderPremise.assignFailed") }
   }
 }
 
@@ -322,6 +336,7 @@ export async function assignTenantToPlace(tenantId: string, spaceId: string): Pr
  * Возвращаем обновлённую строку для стора конструктора.
  */
 export async function syncIslandPremiseArea(spaceId: string, areaM2: number): Promise<BuildingPremise | null> {
+  const { t } = await getT()
   const { orgId } = await requireOrgAccess()
   const space = await db.space.findFirst({
     where: { id: spaceId, floor: { building: { organizationId: orgId } } },
@@ -338,7 +353,7 @@ export async function syncIslandPremiseArea(spaceId: string, areaM2: number): Pr
     id: space.id,
     number: space.number,
     floorNumber: space.floor.number,
-    floorLabel: floorLabelOf(space.floor),
+    floorLabel: floorLabelOf(space.floor, t),
     status: space.status === "OCCUPIED" ? "occupied" : "free",
     tenantName: null,
     areaM2: area,

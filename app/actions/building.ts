@@ -49,7 +49,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
     responsible: formData.get("responsible"),
     description: formData.get("description"),
   })
-  if (!parsed.success) throw new Error(firstZodError(parsed.error))
+  if (!parsed.success) throw new Error(firstZodError(parsed.error, t))
 
   const name = parsed.data.name
   const address = String(formData.get("address") ?? "").trim()
@@ -58,6 +58,7 @@ export async function updateBuilding(buildingId: string, formData: FormData) {
   const phone = normalizeKzPhone(formData.get("phone"))
   const email = await normalizeEmailWithDns(formData.get("email"), {
     fieldName: t("actions.buildings.emailField"),
+    t,
   })
   const responsible = String(formData.get("responsible") ?? "").trim()
   // Адрес для документов — необязательный override обычного адреса. Используется
@@ -142,7 +143,7 @@ export async function updateFloor(floorId: string, formData: FormData) {
     ratePerSqm: rateRaw ? Number(rateRaw) : 0,
     totalArea: areaRaw ? Number(areaRaw) : null,
   })
-  if (!parsed.success) throw new Error(firstZodError(parsed.error))
+  if (!parsed.success) throw new Error(firstZodError(parsed.error, t))
   const { name, ratePerSqm, totalArea: newTotalArea } = parsed.data
 
   const floor = await db.floor.findUnique({

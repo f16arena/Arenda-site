@@ -6,11 +6,31 @@ import Link from "next/link"
 import { Briefcase, Clock, CheckCircle2, FileBadge, XCircle } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { MarkPaidButton, MarkDeliveredButton, CancelButton } from "./client-actions"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
+import { INTL_LOCALE } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
+type T = Translator<Messages>["t"]
 
 type SearchParams = Promise<{ status?: string }>
 
+/**
+ * Название услуги по её коду. Код (`serviceCode`) лежит в базе, в словаре по
+ * нему стоит подпись; serviceName в записи — исторический след и запасной
+ * вариант для услуги, которой ещё нет в словаре.
+ */
+function serviceLabel(t: T, code: string, fallback: string) {
+  const key = `adminRefs.services.${code}.label` as Parameters<T>[0]
+  const value = t(key)
+  return value === key ? fallback : value
+}
+
 export default async function SuperadminServicesPage({ searchParams }: { searchParams: SearchParams }) {
   await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const { status } = await searchParams
   const filter = status === "paid" || status === "delivered" || status === "all" ? status : "pending"
 
@@ -39,35 +59,35 @@ export default async function SuperadminServicesPage({ searchParams }: { searchP
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <Briefcase className="h-5 w-5 text-purple-500" />
-          Разовые услуги
+          {t("superadmin.services.title")}
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Заявки на onboarding, юр.пакет, миграцию Excel и др. Оплата вручную.
+          {t("superadmin.services.subtitle")}
         </p>
       </div>
 
       <div className="flex gap-2 flex-wrap">
-        <FilterTab href="/superadmin/services?status=pending" active={filter === "pending"} label={`Ожидают оплаты (${pendingCount})`} icon={Clock} color="amber" />
-        <FilterTab href="/superadmin/services?status=paid" active={filter === "paid"} label={`В работе (${paidCount})`} icon={FileBadge} color="blue" />
-        <FilterTab href="/superadmin/services?status=delivered" active={filter === "delivered"} label={`Выполнены (${deliveredCount})`} icon={CheckCircle2} color="emerald" />
-        <FilterTab href="/superadmin/services?status=all" active={filter === "all"} label="Все" icon={Briefcase} color="slate" />
+        <FilterTab href="/superadmin/services?status=pending" active={filter === "pending"} label={t("superadmin.services.tabPending", { count: pendingCount })} icon={Clock} color="amber" />
+        <FilterTab href="/superadmin/services?status=paid" active={filter === "paid"} label={t("superadmin.services.tabPaid", { count: paidCount })} icon={FileBadge} color="blue" />
+        <FilterTab href="/superadmin/services?status=delivered" active={filter === "delivered"} label={t("superadmin.services.tabDelivered", { count: deliveredCount })} icon={CheckCircle2} color="emerald" />
+        <FilterTab href="/superadmin/services?status=all" active={filter === "all"} label={t("superadmin.services.tabAll")} icon={Briefcase} color="slate" />
       </div>
 
       <Card className="block p-0">
         {services.length === 0 ? (
           <p className="px-5 py-12 text-center text-sm text-slate-400 dark:text-slate-500">
-            {filter === "pending" ? "Нет ожидающих заявок" : "Нет записей"}
+            {filter === "pending" ? t("superadmin.services.emptyPending") : t("superadmin.services.emptyAll")}
           </p>
         ) : (
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Организация</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Услуга</th>
-                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Сумма</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Запрос</th>
-                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
-                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Действия</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.org")}</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.services.colService")}</th>
+                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.amount")}</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.services.colRequest")}</th>
+                <th className="px-5 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.status")}</th>
+                <th className="px-5 py-2 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -80,21 +100,21 @@ export default async function SuperadminServicesPage({ searchParams }: { searchP
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">{s.organization.plan?.name ?? "—"}</p>
                   </td>
                   <td className="px-5 py-3">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.serviceName}</p>
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{serviceLabel(t, s.serviceCode, s.serviceName)}</p>
                     <p className="text-[10px] text-slate-500 font-mono">{s.serviceCode}</p>
                   </td>
                   <td className="px-5 py-3 text-right">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{s.price.toLocaleString("ru-RU")} ₸</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{formatMoneyL(locale, s.price)}</p>
                     {s.paymentMethod && <p className="text-[10px] text-slate-500 mt-0.5">{s.paymentMethod}</p>}
                   </td>
                   <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">
-                    {new Date(s.createdAt).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    {new Date(s.createdAt).toLocaleString(INTL_LOCALE[locale], { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     {s.notes && <p className="mt-1 text-[10px] text-slate-400 max-w-xs whitespace-pre-line">{s.notes}</p>}
                   </td>
                   <td className="px-5 py-3">
-                    <StatusBadge status={s.status} />
-                    {s.paidAt && <p className="text-[10px] text-slate-500 mt-0.5">оплачено {new Date(s.paidAt).toLocaleDateString("ru-RU")}</p>}
-                    {s.deliveredAt && <p className="text-[10px] text-slate-500 mt-0.5">сдано {new Date(s.deliveredAt).toLocaleDateString("ru-RU")}</p>}
+                    <StatusBadge status={s.status} t={t} />
+                    {s.paidAt && <p className="text-[10px] text-slate-500 mt-0.5">{t("superadmin.services.paidAt", { date: formatDateShortL(locale, s.paidAt) })}</p>}
+                    {s.deliveredAt && <p className="text-[10px] text-slate-500 mt-0.5">{t("superadmin.services.deliveredAt", { date: formatDateShortL(locale, s.deliveredAt) })}</p>}
                   </td>
                   <td className="px-5 py-3 text-right space-y-1">
                     {s.status === "PENDING" && (
@@ -120,12 +140,12 @@ export default async function SuperadminServicesPage({ searchParams }: { searchP
   )
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, t }: { status: string; t: T }) {
   const map: Record<string, { cls: string; label: string; icon: React.ElementType }> = {
-    PENDING:   { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",     label: "ожидает оплаты", icon: Clock },
-    PAID:      { cls: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",        label: "в работе",       icon: FileBadge },
-    DELIVERED: { cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300", label: "выполнено",   icon: CheckCircle2 },
-    CANCELLED: { cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",        label: "отменено",       icon: XCircle },
+    PENDING:   { cls: "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300",     label: t("superadmin.services.statusPending"), icon: Clock },
+    PAID:      { cls: "bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300",        label: t("superadmin.services.statusPaid"),    icon: FileBadge },
+    DELIVERED: { cls: "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300", label: t("superadmin.services.statusDelivered"), icon: CheckCircle2 },
+    CANCELLED: { cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",        label: t("superadmin.services.statusCancelled"), icon: XCircle },
   }
   const m = map[status] ?? map.PENDING
   const Icon = m.icon

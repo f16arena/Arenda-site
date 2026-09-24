@@ -5,8 +5,10 @@ import { useState, useTransition } from "react"
 import { toast } from "sonner"
 import { CheckCircle2, X, Loader2, Power } from "lucide-react"
 import { activateAddon, deactivateAddon } from "@/app/actions/superadmin-addons"
+import { useT } from "@/lib/i18n/client"
 
 export function ActivateButton({ addonId }: { addonId: string }) {
+  const { t } = useT()
   const [open, setOpen] = useState(false)
   const [expiresAt, setExpiresAt] = useState("")
   const [pending, startTransition] = useTransition()
@@ -15,10 +17,10 @@ export function ActivateButton({ addonId }: { addonId: string }) {
     startTransition(async () => {
       const r = await activateAddon({ addonId, expiresAt: expiresAt || null })
       if (r.ok) {
-        toast.success("Аддон активирован, клиент уведомлён")
+        toast.success(t("superadmin.addons.activated"))
         setOpen(false)
       } else {
-        toast.error(r.error ?? "Не удалось")
+        toast.error(r.error ?? t("superadmin.addons.failed"))
       }
     })
   }
@@ -31,7 +33,7 @@ export function ActivateButton({ addonId }: { addonId: string }) {
         className="inline-flex items-center gap-1 rounded-md bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
       >
         <CheckCircle2 className="h-3 w-3" />
-        Активировать
+        {t("superadmin.addons.activate")}
       </button>
     )
   }
@@ -42,7 +44,7 @@ export function ActivateButton({ addonId }: { addonId: string }) {
         type="date"
         value={expiresAt}
         onChange={(e) => setExpiresAt(e.target.value)}
-        title="Срок действия (опционально)"
+        title={t("superadmin.addons.expiresTitle")}
         className="rounded border border-emerald-200 dark:border-emerald-500/30 bg-white dark:bg-slate-900 px-1.5 py-0.5 text-xs text-slate-900 dark:text-slate-100"
       />
       <button
@@ -65,14 +67,20 @@ export function ActivateButton({ addonId }: { addonId: string }) {
 }
 
 export function RejectButton({ addonId }: { addonId: string }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   async function onClick() {
-    const reason = await askText({ title: "Отклонить аддон?", label: "Причина (необязательно)", optional: true, confirmLabel: "Отклонить" })
+    const reason = await askText({
+      title: t("superadmin.addons.rejectTitle"),
+      label: t("superadmin.addons.reasonOptional"),
+      optional: true,
+      confirmLabel: t("superadmin.orgs.reject"),
+    })
     if (reason === null) return
     startTransition(async () => {
       const r = await deactivateAddon({ addonId, reject: true, reason: reason || undefined })
-      if (r.ok) toast.success("Заявка отклонена")
-      else toast.error(r.error ?? "Не удалось")
+      if (r.ok) toast.success(t("superadmin.addons.rejected"))
+      else toast.error(r.error ?? t("superadmin.addons.failed"))
     })
   }
   return (
@@ -83,20 +91,26 @@ export function RejectButton({ addonId }: { addonId: string }) {
       className="inline-flex items-center gap-1 rounded-md bg-red-50 dark:bg-red-500/10 px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 disabled:opacity-50"
     >
       {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-      Отклонить
+      {t("superadmin.orgs.reject")}
     </button>
   )
 }
 
 export function DeactivateButton({ addonId }: { addonId: string }) {
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   async function onClick() {
-    const reason = await askText({ title: "Деактивировать аддон?", label: "Причина (необязательно)", optional: true, confirmLabel: "Деактивировать" })
+    const reason = await askText({
+      title: t("superadmin.addons.deactivateTitle"),
+      label: t("superadmin.addons.reasonOptional"),
+      optional: true,
+      confirmLabel: t("superadmin.org.danger.deactivateAction"),
+    })
     if (reason === null) return
     startTransition(async () => {
       const r = await deactivateAddon({ addonId, reason: reason || undefined })
-      if (r.ok) toast.success("Аддон деактивирован")
-      else toast.error(r.error ?? "Не удалось")
+      if (r.ok) toast.success(t("superadmin.addons.deactivated"))
+      else toast.error(r.error ?? t("superadmin.addons.failed"))
     })
   }
   return (
@@ -107,7 +121,7 @@ export function DeactivateButton({ addonId }: { addonId: string }) {
       className="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50"
     >
       {pending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
-      Выключить
+      {t("superadmin.addons.deactivate")}
     </button>
   )
 }

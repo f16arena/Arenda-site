@@ -6,6 +6,7 @@ import { assertBuildingAccess } from "@/lib/building-access"
 import { assertBuildingInOrg } from "@/lib/scope-guards"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { storeBufferFile } from "@/lib/storage"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -19,8 +20,10 @@ const MODEL_MIME = new Set(["model/gltf-binary", "model/gltf+json", "application
  * BuildingDecor kind="custom" со ссылкой на модель.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Переводчик объявлен до try — иначе он не виден в блоке catch ниже.
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 })
+  if (!session?.user) return NextResponse.json({ error: t("adminDocs.api.common.unauthorized") }, { status: 401 })
   await requireCapabilityAndFeature("spaces.edit")
   const { orgId } = await requireOrgAccess()
   const { id: buildingId } = await params
@@ -31,25 +34,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: "Невалидный JSON" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.common.invalidJson") }, { status: 400 })
   }
 
   const dataUrl = body.dataUrl
   if (!dataUrl || typeof dataUrl !== "string") {
-    return NextResponse.json({ error: "Ожидался файл модели" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.model.expectedFile") }, { status: 400 })
   }
   const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
-  if (!m) return NextResponse.json({ error: "Неподдерживаемый формат" }, { status: 400 })
+  if (!m) return NextResponse.json({ error: t("adminDocs.api.model.unsupportedFormat") }, { status: 400 })
   const mime = m[1]
   const bytes = Buffer.from(m[2], "base64")
   const fileName = (body.fileName && /\.(glb|gltf)$/i.test(body.fileName)) ? body.fileName : "model.glb"
 
   // .glb часто отдаётся браузером как octet-stream — допускаем по расширению.
   if (!MODEL_MIME.has(mime) && !/\.(glb|gltf)$/i.test(fileName)) {
-    return NextResponse.json({ error: "Поддерживаются только файлы .glb / .gltf" }, { status: 415 })
+    return NextResponse.json({ error: t("adminDocs.api.model.onlyGlb") }, { status: 415 })
   }
   if (bytes.length > MODEL_MAX_BYTES) {
-    return NextResponse.json({ error: "Модель больше 8 МБ — упростите или уменьшите" }, { status: 413 })
+    return NextResponse.json({ error: t("adminDocs.api.model.tooBig") }, { status: 413 })
   }
 
   let stored: { id: string; url: string }
@@ -68,7 +71,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       allowedMimeTypes: new Set(["model/gltf-binary"]),
     })
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Не удалось сохранить модель" }, { status: 500 })
+    return NextResponse.json({ error: e instanceof Error ? e.message : t("adminDocs.api.model.saveFailed") }, { status: 500 })
   }
 
   const level = typeof body.level === "string" && body.level.trim() ? body.level.trim().slice(0, 64) : "ground"

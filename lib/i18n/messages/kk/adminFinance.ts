@@ -37,7 +37,6 @@ export const adminFinance: typeof ru = {
       title: "{period} есептеулері",
       typeLabel: "Не есептелді",
       typeAll: "Барлық есептеулер",
-      parking: "Тұрақ",
       statusLabel: "Төлем",
       statusAll: "Төленген және төленбеген",
       statusPaid: "Төленді",

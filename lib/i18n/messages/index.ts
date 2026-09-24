@@ -55,6 +55,14 @@ import { adminChecks as ruAdminChecks } from "./ru/adminChecks"
 import { adminChecks as kkAdminChecks } from "./kk/adminChecks"
 import { adminRefs as ruAdminRefs } from "./ru/adminRefs"
 import { adminRefs as kkAdminRefs } from "./kk/adminRefs"
+import { imports as ruImports } from "./ru/imports"
+import { imports as kkImports } from "./kk/imports"
+import { superadmin as ruSuperadmin } from "./ru/superadmin"
+import { superadmin as kkSuperadmin } from "./kk/superadmin"
+import { contractEngine as ruContractEngine } from "./ru/contractEngine"
+import { contractEngine as kkContractEngine } from "./kk/contractEngine"
+import { catalogs as ruCatalogs } from "./ru/catalogs"
+import { catalogs as kkCatalogs } from "./kk/catalogs"
 
 export const ru = {
   common: ruCommon,
@@ -83,6 +91,10 @@ export const ru = {
   actions: ruActions,
   adminChecks: ruAdminChecks,
   adminRefs: ruAdminRefs,
+  imports: ruImports,
+  superadmin: ruSuperadmin,
+  contractEngine: ruContractEngine,
+  catalogs: ruCatalogs,
 }
 
 export type Messages = typeof ru
@@ -115,6 +127,10 @@ export const kk: Messages = {
   actions: kkActions,
   adminChecks: kkAdminChecks,
   adminRefs: kkAdminRefs,
+  imports: kkImports,
+  superadmin: kkSuperadmin,
+  contractEngine: kkContractEngine,
+  catalogs: kkCatalogs,
 }
 
 export const dictionaries: Record<Locale, Messages> = { ru, kk }

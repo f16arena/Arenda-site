@@ -87,7 +87,7 @@ export async function createUserAdmin(formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = normalizeEmail(formData.get("email"), { t })
   const role = String(formData.get("role") ?? "TENANT")
   const password = String(formData.get("password") ?? "")
   const position = String(formData.get("position") ?? "").trim()
@@ -142,7 +142,7 @@ export async function updateUserAdmin(userId: string, formData: FormData) {
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = normalizeEmail(formData.get("email"))
+  const email = normalizeEmail(formData.get("email"), { t })
   const role = String(formData.get("role") ?? "")
   const newPassword = String(formData.get("newPassword") ?? "")
   const buildingIds = parseBuildingIds(formData)

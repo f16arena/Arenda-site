@@ -17,13 +17,19 @@ import {
 } from "@/lib/excel-import"
 import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validation"
 import { normalizeTenantRentChoice } from "@/lib/rent"
-import { normalizeTenantTaxIds } from "@/lib/tenant-identity"
+import { normalizeTenantTaxIds, taxIdMessage } from "@/lib/tenant-identity"
 
 function isPositiveAmount(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value) && value > 0
 }
 
-// Синонимы заголовков (auto-mapping)
+// Синонимы заголовков (auto-mapping).
+//
+// Это не интерфейс, а данные: с чем система сопоставляет шапку присланного
+// файла. Поэтому список двуязычный — казахские варианты («Аты-жөні», «БСН»,
+// «Үй-жай», «Мөлшерлеме» …) лежат в KK_FIELD_SYNONYMS (lib/excel-import.ts) и
+// добавляются к этим автоматически. Переводить список нельзя: русские варианты
+// обязаны остаться, файлы приходят на обоих языках.
 const FIELD_SYNONYMS: Record<string, string[]> = {
   contactName: ["ФИО", "Контактное лицо", "Контакт", "ФИО арендатора", "ФИО контакта", "Имя"],
   phone: ["Телефон", "Тел", "Phone", "Моб", "Мобильный", "Контакт"],
@@ -89,7 +95,7 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
   if (file.size > 10 * 1024 * 1024) throw new Error(t("actions.imports.fileTooBig"))
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  const sheet = await parseExcel(buffer)
+  const sheet = await parseExcel(buffer, t)
 
   const mapping = autoMapColumns(sheet.headers, FIELD_SYNONYMS)
   const requiredFields = ["companyName"]
@@ -136,6 +142,11 @@ export async function previewTenantImport(formData: FormData): Promise<PreviewRe
       taxIds = normalizeTenantTaxIds({
         legalType: rawLegalType,
         bin: extractBinIin(getField(row, mapping, "bin")) || getField(row, mapping, "bin"),
+        labels: {
+          bin: t("common.settings.identity.binLabel"),
+          iin: t("common.settings.identity.iinLabel"),
+        },
+        translate: taxIdMessage(t),
       })
     } catch (error) {
       invalidRows.push({

@@ -76,7 +76,6 @@ async function renderFinancesPage({
   const { t } = await getT(locale)
   const money = (amount: number) => formatMoneyL(locale, amount)
   const chargeTypeLabel = (type: string) => {
-    if (type === "PARKING") return t("adminFinance.page.charges.parking")
     const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
     const label = t(key)
     return label === key ? type : label

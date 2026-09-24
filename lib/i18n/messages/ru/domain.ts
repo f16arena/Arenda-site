@@ -16,23 +16,32 @@ export const domain = {
     INTERNET: "Интернет",
     GAS: "Газ",
     CLEANING: "Уборка",
+    PARKING: "Парковка",
     PENALTY: "Штраф/пеня",
     SERVICE_DELIVERED: "Оказанная услуга",
     OTHER: "Прочее",
   },
+  // Роли: значения Users.role целиком (OWNER | ADMIN | ACCOUNTANT |
+  // FACILITY_MANAGER | EMPLOYEE | TENANT). Роли организации приходят с
+  // приставкой ORG_ и подпись берут из своей записи в базе.
   roles: {
     OWNER: "Владелец",
     ADMIN: "Администратор",
-    MANAGER: "Менеджер",
     ACCOUNTANT: "Бухгалтер",
-    STAFF: "Сотрудник",
+    FACILITY_MANAGER: "Завхоз",
+    EMPLOYEE: "Сотрудник",
     TENANT: "Арендатор",
   },
+  // Статусы. Один список на заявки, задачи, договоры, помещения и платежи:
+  // подпись ищут по значению поля (`domain.statuses.${status}`), и одно и то же
+  // значение не должно переводиться в двух местах по-разному.
   statuses: {
     NEW: "Новая",
+    OPEN: "Открыта",
     IN_PROGRESS: "В работе",
     DONE: "Выполнена",
     CLOSED: "Закрыта",
+    CANCELLED: "Отменена",
     POSTPONED: "Отложена",
     DRAFT: "Черновик",
     SENT: "Отправлен",

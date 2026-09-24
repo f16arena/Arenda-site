@@ -5,6 +5,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { type FloorElement, uid } from "@/lib/floor-layout"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -52,6 +53,8 @@ const SUGGEST_SCHEMA = {
   },
 } as const
 
+// Промпт и подписи, которые генерирует модель, остаются русскими: это
+// инструкция для модели, а не текст интерфейса.
 const SYSTEM_PROMPT = `Ты — планировщик коммерческой недвижимости (Казахстан/СНГ). По заданным габаритам зоны и её типу составь разумную планировку.
 
 ТИПЫ ЗОН:
@@ -71,9 +74,11 @@ type SuggestEl =
   | { el: "icon"; icon: "stairs" | "elevator" | "toilet" | "kitchen" | "parking"; x: number; y: number; size: number; label: string }
 
 export async function POST(req: Request) {
+  // Переводчик объявлен до try — иначе он не виден в блоке catch ниже.
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 })
-  if (session.user.role === "TENANT") return NextResponse.json({ error: "Запрещено" }, { status: 403 })
+  if (!session?.user) return NextResponse.json({ error: t("adminDocs.api.common.unauthorized") }, { status: 401 })
+  if (session.user.role === "TENANT") return NextResponse.json({ error: t("adminDocs.api.common.forbidden") }, { status: 403 })
   await requireOrgAccess()
 
   const reqHeaders = await headers()
@@ -83,7 +88,7 @@ export async function POST(req: Request) {
   })
   if (!rl.ok) {
     return NextResponse.json(
-      { error: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` },
+      { error: t("adminDocs.api.common.rateLimited", { minutes: Math.ceil(rl.retryAfterSec / 60) }) },
       { status: 429 },
     )
   }
@@ -91,7 +96,7 @@ export async function POST(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { error: "AI не настроен. Добавьте ANTHROPIC_API_KEY в переменные окружения." },
+      { error: t("adminDocs.api.ai.notConfigured") },
       { status: 503 },
     )
   }
@@ -100,7 +105,7 @@ export async function POST(req: Request) {
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: "Невалидный JSON" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.common.invalidJson") }, { status: 400 })
   }
 
   const kind = body.kind === "roof" ? "roof" : body.kind === "territory" ? "territory" : "floor"
@@ -124,21 +129,24 @@ export async function POST(req: Request) {
       messages: [{ role: "user", content: [{ type: "text", text: userText }] }],
     })
   } catch (e) {
-    return NextResponse.json({ error: `Ошибка AI: ${e instanceof Error ? e.message : "сервис недоступен"}` }, { status: 502 })
+    return NextResponse.json(
+      { error: t("adminDocs.api.ai.failed", { error: e instanceof Error ? e.message : t("adminDocs.api.ai.unavailableShort") }) },
+      { status: 502 },
+    )
   }
 
   const textBlock = response.content.find((b) => b.type === "text")
   if (!textBlock || textBlock.type !== "text") {
-    return NextResponse.json({ error: "AI не вернул ответ" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.noAnswer") }, { status: 502 })
   }
   let parsed: { elements?: unknown }
   try {
     parsed = JSON.parse(textBlock.text)
   } catch {
-    return NextResponse.json({ error: "AI вернул невалидный JSON" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.invalidJson") }, { status: 502 })
   }
   if (!Array.isArray(parsed.elements)) {
-    return NextResponse.json({ error: "В ответе нет массива elements" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.noElements") }, { status: 502 })
   }
 
   const clampW = (v: number, max: number) => Math.max(0, Math.min(max, v))
@@ -166,7 +174,7 @@ export async function POST(req: Request) {
   }
 
   if (elements.length === 0) {
-    return NextResponse.json({ error: "AI не сгенерировал элементы — попробуйте ещё раз" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.emptyLayout") }, { status: 502 })
   }
 
   return NextResponse.json({

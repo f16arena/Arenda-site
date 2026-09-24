@@ -1,11 +1,13 @@
+// Только коды и описание для документа: подпись услуги на экране берётся из
+// domain.chargeTypes по тому же коду.
 export const SERVICE_CHARGE_TYPES = [
-  { type: "ELECTRICITY", label: "Свет", description: "Электроэнергия" },
-  { type: "WATER", label: "Вода", description: "Водоснабжение" },
-  { type: "GARBAGE", label: "Вывоз мусора", description: "Вывоз мусора" },
-  { type: "HEATING", label: "Отопление", description: "Отопление" },
-  { type: "SECURITY", label: "Охрана", description: "Охрана" },
-  { type: "INTERNET", label: "Интернет", description: "Интернет" },
-  { type: "OTHER", label: "Прочее", description: "Дополнительная услуга" },
+  { type: "ELECTRICITY", description: "Электроэнергия" },
+  { type: "WATER", description: "Водоснабжение" },
+  { type: "GARBAGE", description: "Вывоз мусора" },
+  { type: "HEATING", description: "Отопление" },
+  { type: "SECURITY", description: "Охрана" },
+  { type: "INTERNET", description: "Интернет" },
+  { type: "OTHER", description: "Дополнительная услуга" },
 ] as const
 
 export type ServiceChargeType = (typeof SERVICE_CHARGE_TYPES)[number]["type"]

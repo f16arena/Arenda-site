@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useMemo, useState } from "react"
 import { BookOpen, ChevronRight, Search, X } from "lucide-react"
 import type { FaqAudience, FaqItem } from "@/lib/faq-types"
-import { faqAudienceLabels } from "@/lib/faq-types"
+
 import { useT } from "@/lib/i18n/client"
 
 type FaqSearchProps = {
@@ -15,6 +15,9 @@ type FaqSearchProps = {
 
 export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps) {
   const { t, tp } = useT()
+  // Аудитория справки — это роль, подписи ролей уже есть в словаре.
+  const audienceLabel = (audience: FaqAudience) =>
+    t(`domain.roles.${audience.toUpperCase() as "OWNER" | "ADMIN" | "TENANT"}`)
   const [query, setQuery] = useState("")
   const [activeAudience, setActiveAudience] = useState<FaqAudience>(defaultAudience)
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
@@ -96,7 +99,7 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
                       : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
                   }`}
                 >
-                  {faqAudienceLabels[audience]}
+                  {audienceLabel(audience)}
                 </button>
               ))}
             </div>
@@ -105,7 +108,7 @@ export function FaqSearch({ items, audiences, defaultAudience }: FaqSearchProps)
 
         <div className="mt-3 flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-            {t("common.faq.section", { name: faqAudienceLabels[activeAudience] })}
+            {t("common.faq.section", { name: audienceLabel(activeAudience) })}
           </span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             {t("common.faq.found", { count: filtered.length, total: activeTotal })}

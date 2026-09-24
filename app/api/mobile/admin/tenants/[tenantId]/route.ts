@@ -4,6 +4,9 @@ import { getMobileStaffRequest, tenantInBuildingsWhere } from "@/lib/mobile-admi
 import { mobileError } from "@/lib/mobile-context"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getTenantAreaTotal } from "@/lib/tenant-placement"
+import { getT, getTForUser } from "@/lib/i18n/server"
+
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 export const dynamic = "force-dynamic"
 
@@ -15,6 +18,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ tenantId
   const result = await getMobileStaffRequest(req)
   if (!result.ok) return result.response
 
+  // Подписи карточки читает админ в приложении — язык из его профиля.
+  const { t } = await getTForUser(result.ctx.user.id)
   const { tenantId } = await params
   const origin = new URL(req.url).origin
   const now = new Date()
@@ -70,7 +75,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ tenantId
     },
   })
 
-  if (!tenant) return mobileError("Арендатор не найден или нет доступа", 404)
+  if (!tenant) return mobileError(t("adminDocs.api.common.tenantNotFound"), 404)
 
   const [
     charges,
@@ -277,7 +282,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ tenantId
         phone: tenant.user.phone,
         email: tenant.user.email,
       },
-      placement: tenantPlacement(tenant),
+      placement: tenantPlacement(tenant, t),
       area: roundArea(getTenantAreaTotal(tenant)),
       monthlyRent: calculateTenantMonthlyRent(tenant),
       totalDebt: debt._sum.amount ?? 0,
@@ -341,15 +346,17 @@ type TenantForDetail = {
   }>
 }
 
-function tenantPlacement(tenant: TenantForDetail) {
+// Чистый помощник переводчик сам не добывает — принимает его параметром.
+function tenantPlacement(tenant: TenantForDetail, t: Tr) {
   const labels: string[] = []
+  const room = (number: string) => t("adminDocs.api.common.room", { number })
 
   if (tenant.space) {
-    labels.push(`${tenant.space.floor.building.name}, ${tenant.space.floor.name}, каб. ${tenant.space.number}`)
+    labels.push(`${tenant.space.floor.building.name}, ${tenant.space.floor.name}, ${room(tenant.space.number)}`)
   }
 
   for (const item of tenant.tenantSpaces.slice(0, 2)) {
-    labels.push(`${item.space.floor.building.name}, ${item.space.floor.name}, каб. ${item.space.number}`)
+    labels.push(`${item.space.floor.building.name}, ${item.space.floor.name}, ${room(item.space.number)}`)
   }
 
   for (const floor of tenant.fullFloors.slice(0, 2)) {
@@ -357,5 +364,7 @@ function tenantPlacement(tenant: TenantForDetail) {
   }
 
   const hiddenCount = Math.max(0, tenant.tenantSpaces.length + tenant.fullFloors.length + (tenant.space ? 1 : 0) - labels.length)
-  return labels.length > 0 ? `${labels.join(" · ")}${hiddenCount ? ` +${hiddenCount}` : ""}` : "Площадь не назначена"
+  return labels.length > 0
+    ? `${labels.join(" · ")}${hiddenCount ? ` +${hiddenCount}` : ""}`
+    : t("adminDocs.api.common.noPlacement")
 }

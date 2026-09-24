@@ -3,17 +3,11 @@
 import { useEffect, useState } from "react"
 import { FileText, Loader2, Info } from "lucide-react"
 import { listParentContractsForAddendum, type ParentContractOption } from "@/app/actions/contract-addendums"
+import { useT } from "@/lib/i18n/client"
+import type { Messages } from "@/lib/i18n/messages"
+import type { TextKey } from "@/lib/i18n/translate"
+import { formatDateShortL } from "@/lib/i18n/format"
 import { AddendumActions } from "./addendum-actions"
-
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "черновик",
-  SENT: "отправлен",
-  VIEWED: "просмотрен",
-  SIGNED_BY_TENANT: "подписан арендатором",
-  SIGNED: "подписан",
-  REJECTED: "отклонён",
-  ARCHIVED: "архив",
-}
 
 /**
  * Конструктор доп. соглашения: СНАЧАЛА обязательно выбрать родительский договор,
@@ -21,6 +15,7 @@ const STATUS_LABEL: Record<string, string> = {
  * создать ДС нельзя.
  */
 export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; initialTenantId?: string }) {
+  const { t, locale } = useT()
   const [contracts, setContracts] = useState<ParentContractOption[] | null>(null)
   const [sel, setSel] = useState("")
 
@@ -41,20 +36,20 @@ export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; i
       <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-3 flex items-center gap-2">
           <FileText className="h-5 w-5 text-slate-400" />
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Доп. соглашение к договору</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t("adminDocs.constructor.addendum.constructorTitle")}</h2>
         </div>
 
         <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
-          К какому договору оформляется ДС? <span className="text-red-500">*</span>
+          {t("adminDocs.constructor.addendum.parentQuestion")} <span className="text-red-500">*</span>
         </label>
 
         {contracts === null ? (
           <div className="flex items-center gap-2 py-2 text-sm text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Загрузка договоров…
+            <Loader2 className="h-4 w-4 animate-spin" /> {t("adminDocs.constructor.addendum.loadingContracts")}
           </div>
         ) : contracts.length === 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
-            Нет действующих договоров. ДС оформляется только к договору, подписанному обеими сторонами — сначала создайте и подпишите договор.
+            {t("adminDocs.constructor.addendum.noContracts")}
           </div>
         ) : (
           <select
@@ -62,11 +57,11 @@ export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; i
             onChange={(e) => setSel(e.target.value)}
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
           >
-            <option value="">— выберите договор —</option>
+            <option value="">{t("adminDocs.constructor.addendum.pickContract")}</option>
             {contracts.map((c) => (
               <option key={c.id} value={c.id}>
-                № {c.number} · {c.tenantName} · {STATUS_LABEL[c.status] ?? c.status}
-                {c.endDate ? ` · до ${new Date(c.endDate).toLocaleDateString("ru-RU")}` : ""}
+                № {c.number} · {c.tenantName} · {t(`common.contractStatus.${c.status}` as TextKey<Messages>)}
+                {c.endDate ? t("adminDocs.constructor.addendum.until", { date: formatDateShortL(locale, c.endDate) }) : ""}
               </option>
             ))}
           </select>
@@ -74,7 +69,7 @@ export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; i
 
         {!sel && contracts && contracts.length > 0 && (
           <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-            <Info className="h-3.5 w-3.5" /> Выберите договор — без этого создать ДС нельзя.
+            <Info className="h-3.5 w-3.5" /> {t("adminDocs.constructor.addendum.pickContractHint")}
           </p>
         )}
       </div>
@@ -82,9 +77,9 @@ export function AddendumConstructor({ initialTenantId }: { embedded?: boolean; i
       {selected && (
         <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
           <p className="mb-3 text-sm text-slate-600 dark:text-slate-400">
-            ДС к договору <span className="font-semibold text-slate-900 dark:text-slate-100">№ {selected.number}</span>
-            {" "}({selected.tenantName}). После создания ДС уйдёт арендатору на подпись; изменения применятся
-            к договору после подписания.
+            {t("adminDocs.constructor.addendum.selectedBefore")}
+            <span className="font-semibold text-slate-900 dark:text-slate-100">№ {selected.number}</span>
+            {t("adminDocs.constructor.addendum.selectedAfter", { tenant: selected.tenantName })}
           </p>
           <AddendumActions contractId={selected.id} />
         </div>

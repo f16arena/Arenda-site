@@ -21,7 +21,10 @@ import {
   type SystemCheckStatus,
 } from "@/lib/system-health"
 import { getReleaseInfo } from "@/lib/release"
-import { getT } from "@/lib/i18n/server"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import { getLocale, getT } from "@/lib/i18n/server"
+import type { Translator } from "@/lib/i18n/translate"
 import { requirePlatformOwner } from "@/lib/org"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
@@ -31,38 +34,47 @@ import { TestEmailTool } from "./test-email"
 /** Проверка отдаёт ключи словаря — подписи для карточек собираем здесь. */
 type CheckRow = { check: SystemCheck; label: string; message: string }
 
+/** Переводчик страницы: мелкие синхронные компоненты получают его параметром. */
+type PageTranslator = Translator<Messages>["t"]
+
 const statusMeta: Record<SystemCheckStatus, {
-  label: string
-  title: string
   icon: LucideIcon
   iconClass: string
   pillClass: string
   borderClass: string
 }> = {
   ok: {
-    label: "Работает",
-    title: "Система готова к работе",
     icon: CheckCircle2,
     iconClass: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
     pillClass: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
     borderClass: "border-emerald-200 dark:border-emerald-500/30",
   },
   warning: {
-    label: "Внимание",
-    title: "Система работает, но есть предупреждения",
     icon: CircleAlert,
     iconClass: "bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
     pillClass: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
     borderClass: "border-amber-200 dark:border-amber-500/30",
   },
   error: {
-    label: "Критично",
-    title: "Есть критичные проблемы",
     icon: AlertTriangle,
     iconClass: "bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-300",
     pillClass: "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
     borderClass: "border-red-200 dark:border-red-500/30",
   },
+}
+
+/** Короткая подпись состояния на плашке проверки. */
+function statusLabel(t: PageTranslator, status: SystemCheckStatus): string {
+  if (status === "ok") return t("superadmin.health.statusOk")
+  if (status === "warning") return t("superadmin.health.statusWarning")
+  return t("superadmin.health.statusError")
+}
+
+/** Заголовок сводки по всей системе. */
+function statusTitle(t: PageTranslator, status: SystemCheckStatus): string {
+  if (status === "ok") return t("superadmin.health.titleOk")
+  if (status === "warning") return t("superadmin.health.titleWarning")
+  return t("superadmin.health.titleError")
 }
 
 export default async function SuperadminSystemHealthPage() {
@@ -75,9 +87,9 @@ export default async function SuperadminSystemHealthPage() {
   const summary = summarizeSystemChecks(checks)
   const checkedAt = new Date()
 
-  // Подписи проверок теперь в словаре. Кабинет владельца платформы остаётся
-  // русским, поэтому язык задаём явно, а не по cookie посетителя.
-  const { t } = await getT("ru")
+  // Подписи проверок живут в словаре и переводятся на язык посетителя панели.
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const rows: CheckRow[] = checks.map((check) => ({
     check,
     label: t(check.labelKey),
@@ -94,9 +106,9 @@ export default async function SuperadminSystemHealthPage() {
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Проверка системы</h1>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.health.title")}</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Единая панель production readiness для владельца SaaS: база, миграции, RLS, cron, env, storage и скорость.
+              {t("superadmin.health.subtitle")}
             </p>
           </div>
         </div>
@@ -107,14 +119,14 @@ export default async function SuperadminSystemHealthPage() {
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Bug className="h-4 w-4" />
-            Ошибки сайта
+            {t("superadmin.health.errorsLink")}
           </Link>
           <a
             href="/superadmin/system-health/export"
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <Download className="h-4 w-4" />
-            Скачать JSON
+            {t("superadmin.health.downloadJson")}
           </a>
           <Link
             href="/api/health"
@@ -122,14 +134,14 @@ export default async function SuperadminSystemHealthPage() {
             className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
           >
             <ExternalLink className="h-4 w-4" />
-            API health
+            {t("superadmin.health.apiHealth")}
           </Link>
           <Link
             href="/superadmin/system-health"
             className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-500"
           >
             <RefreshCw className="h-4 w-4" />
-            Обновить
+            {t("superadmin.health.refresh")}
           </Link>
         </div>
       </header>
@@ -139,23 +151,24 @@ export default async function SuperadminSystemHealthPage() {
           <div className="flex items-start gap-4">
             <StatusIcon status={summary.status} size="lg" />
             <div>
-              <h2 className="text-lg font-semibold">{statusMeta[summary.status].title}</h2>
+              <h2 className="text-lg font-semibold">{statusTitle(t, summary.status)}</h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Версия <span className="font-mono text-slate-900 dark:text-slate-200">{release.version}</span>
-                {" "}· commit <span className="font-mono text-slate-900 dark:text-slate-200">{release.commitShort}</span>
-                {" "}· проверено {formatDateTime(checkedAt)}
+                {t("superadmin.health.meta", {
+                  version: release.version,
+                  commit: release.commitShort,
+                  date: formatDateTime(locale, checkedAt),
+                })}
               </p>
               <p className="mt-3 max-w-3xl text-sm text-slate-600 dark:text-slate-300">
-                Красный блок значит, что перед deploy лучше остановиться. Желтый блок не всегда ломает сайт прямо сейчас,
-                но показывает, что нужно довести до production-уровня.
+                {t("superadmin.health.explain")}
               </p>
             </div>
           </div>
 
           <div className="grid min-w-full grid-cols-3 gap-3 sm:min-w-96">
-            <SummaryTile label="OK" value={summary.okCount} tone="emerald" />
-            <SummaryTile label="Внимание" value={summary.warningCount} tone="amber" />
-            <SummaryTile label="Критично" value={summary.errorCount} tone="red" />
+            <SummaryTile label={t("superadmin.health.tileOk")} value={summary.okCount} tone="emerald" />
+            <SummaryTile label={t("superadmin.health.tileWarning")} value={summary.warningCount} tone="amber" />
+            <SummaryTile label={t("superadmin.health.tileError")} value={summary.errorCount} tone="red" />
           </div>
         </div>
       </section>
@@ -165,15 +178,15 @@ export default async function SuperadminSystemHealthPage() {
       {(critical.length > 0 || warnings.length > 0) && (
         <section className="grid gap-4 lg:grid-cols-2">
           <PriorityPanel
-            title="Что чинить первым"
+            title={t("superadmin.health.fixFirst")}
             icon={AlertTriangle}
-            empty="Критичных проблем нет."
+            empty={t("superadmin.health.noCritical")}
             rows={critical}
           />
           <PriorityPanel
-            title="Что довести после"
+            title={t("superadmin.health.fixLater")}
             icon={CircleAlert}
-            empty="Предупреждений нет."
+            empty={t("superadmin.health.noWarnings")}
             rows={warnings}
           />
         </section>
@@ -181,7 +194,7 @@ export default async function SuperadminSystemHealthPage() {
 
       <section className="grid gap-4 xl:grid-cols-2">
         {rows.map((row) => (
-          <CheckCard key={row.check.id} row={row} />
+          <CheckCard key={row.check.id} row={row} t={t} />
         ))}
       </section>
     </div>
@@ -221,7 +234,7 @@ function PriorityPanel({
   )
 }
 
-function CheckCard({ row }: { row: CheckRow }) {
+function CheckCard({ row, t }: { row: CheckRow; t: PageTranslator }) {
   const { check, label, message } = row
   const meta = statusMeta[check.status]
 
@@ -234,7 +247,7 @@ function CheckCard({ row }: { row: CheckRow }) {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{label}</h2>
               <Badge variant="secondary" className={cn("text-[11px]", meta.pillClass)}>
-                {meta.label}
+                {statusLabel(t, check.status)}
               </Badge>
             </div>
             <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">{message}</p>
@@ -292,8 +305,8 @@ function SummaryTile({ label, value, tone }: { label: string; value: number; ton
   )
 }
 
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+function formatDateTime(locale: Locale, date: Date) {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

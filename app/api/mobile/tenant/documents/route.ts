@@ -8,6 +8,7 @@ import {
   getTenantStorageScope,
   storeUploadedFile,
 } from "@/lib/storage"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,8 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  // Названия документов читает арендатор — язык из его профиля.
+  const { t } = await getTForUser(ctx.user.id)
   const origin = new URL(req.url).origin
   const now = new Date()
 
@@ -125,7 +128,12 @@ export async function GET(req: Request) {
       documentType: "CONTRACT",
       documentId: contract.id,
       documentRef: contract.number,
-      title: `${contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"} № ${contract.number}`,
+      title: t("emails.messaging.docTitle", {
+        doc: contract.type === "ADDENDUM"
+          ? t("emails.messaging.docAddendum")
+          : t("emails.messaging.docContract"),
+        number: contract.number,
+      }),
       status: contract.status,
       channel: "WEB_SIGN_LINK",
       allowedMethods: ["SIMPLE_CONFIRMATION"],
@@ -143,11 +151,12 @@ export async function POST(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  const { t } = await getTForUser(ctx.user.id)
   const origin = new URL(req.url).origin
 
   const contentType = req.headers.get("content-type") ?? ""
   if (!contentType.includes("multipart/form-data")) {
-    return mobileError("Прикрепите файл (multipart/form-data)")
+    return mobileError(t("adminDocs.api.tenantDocs.fileRequired"))
   }
 
   const form = await req.formData()
@@ -155,8 +164,8 @@ export async function POST(req: Request) {
   const name = String(form.get("name") ?? "").trim()
   const file = form.get("file")
 
-  if (!name) return mobileError("Название документа обязательно")
-  if (!(file instanceof File) || file.size === 0) return mobileError("Файл документа обязателен")
+  if (!name) return mobileError(t("adminDocs.api.tenantDocs.nameRequired"))
+  if (!(file instanceof File) || file.size === 0) return mobileError(t("adminDocs.api.tenantDocs.documentFileRequired"))
 
   const scope = await getTenantStorageScope(tenant.id)
 
@@ -216,16 +225,17 @@ export async function DELETE(req: Request) {
   const result = await getMobileTenantRequest(req)
   if (!result.ok) return result.response
 
-  const { tenant } = result
+  const { ctx, tenant } = result
+  const { t } = await getTForUser(ctx.user.id)
   const url = new URL(req.url)
   const id = url.searchParams.get("id")?.trim()
-  if (!id) return mobileError("Не указан id документа")
+  if (!id) return mobileError(t("adminDocs.api.tenantDocs.idRequired"))
 
   const doc = await db.tenantDocument.findFirst({
     where: { id, tenantId: tenant.id },
     select: { id: true, storageFileId: true },
   })
-  if (!doc) return mobileError("Документ не найден", 404)
+  if (!doc) return mobileError(t("adminDocs.api.common.documentNotFound"), 404)
 
   await db.tenantDocument.delete({ where: { id: doc.id } })
   if (doc.storageFileId) {

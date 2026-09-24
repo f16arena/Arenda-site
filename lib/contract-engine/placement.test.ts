@@ -107,7 +107,7 @@ describe("договор на размещение", () => {
   it("фиксированная плата за свет без суммы — ошибка, договор не сформировать", () => {
     const s = placed("EQUIPMENT")
     s.placement!.electricity = "fixed"
-    expect(assemble(s).validation.hard.join()).toContain("фиксированной платой")
+    expect(assemble(s).validation.hard.map((i) => i.key)).toContain("electricityFixedMissing")
   })
 })
 

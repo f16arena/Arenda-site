@@ -1,5 +1,10 @@
 // Помощник-советник (спецификация §8А). Правила — данные, не код в UI.
 // Каждое правило при выполнении условия даёт подсказку; некоторые — с autoFix.
+//
+// Подсказки — ИНТЕРФЕЙС конструктора, их читает администратор. Модуль чистый и
+// работает в браузере, поэтому текста здесь нет: правило возвращает КЛЮЧ
+// словаря (contractEngine.advice.*), подпись подставляет компонент через
+// useT() — тот же приём, что в validate.ts и lib/kz-validators.ts.
 
 import { type ContractState } from "./schema"
 import { type DerivedContext } from "./derive"
@@ -7,11 +12,26 @@ import { type DerivedContext } from "./derive"
 export type AdviceSeverity = "info" | "suggest" | "warn"
 export type AdviceCategory = "fairness" | "completeness" | "risk" | "convenience"
 
+/** Ключ подписи в contractEngine.advice.*. */
+export type AdviceKey =
+  | "penaltyAsymmetry"
+  | "pooledFairness"
+  | "meteredPrereq"
+  | "includedRisk"
+  | "operatingRatesEmpty"
+  | "pooledAreaEmpty"
+  | "depositNonstandard"
+  | "indexation"
+  | "insuranceOff"
+  | "termEnding"
+
 export interface Advice {
   id: string
   category: AdviceCategory
   severity: AdviceSeverity
-  message: string
+  messageKey: AdviceKey
+  /** Подстановки в подпись ({cap}, {days}). */
+  vars?: Record<string, string | number>
   /** ключ автофикса (применяется на сервере через applyAdvisorFix) */
   fix?: string
 }
@@ -21,8 +41,15 @@ export interface AdvisorRule {
   category: AdviceCategory
   severity: AdviceSeverity
   when: (s: ContractState, c: DerivedContext) => boolean
-  message: (s: ContractState, c: DerivedContext) => string
+  messageKey: AdviceKey
+  /** Подстановки, если подпись их ждёт. */
+  vars?: (s: ContractState, c: DerivedContext) => Record<string, string | number>
   fix?: string
+}
+
+/** Сколько дней осталось до конца срока (для напоминания о продлении). */
+function daysToEnd(s: ContractState): number {
+  return Math.ceil((new Date(s.term.endDate).getTime() - Date.now()) / 86_400_000)
 }
 
 export const ADVISOR_RULES: AdvisorRule[] = [
@@ -33,8 +60,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     when: (s) =>
       s.financials.penalty.tenantPerDay !== s.financials.penalty.landlordPerDay ||
       s.financials.penalty.tenantCapPercent !== s.financials.penalty.landlordCapPercent,
-    message: () =>
-      "Пеня Арендатора и Арендодателя различается. Обычно её делают одинаковой — это честно и не вызывает споров.",
+    messageKey: "penaltyAsymmetry",
     fix: "equalize_penalty",
   },
   {
@@ -42,8 +68,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     category: "convenience",
     severity: "info",
     when: (s) => s.financials.operatingCosts.method === "pooled_prorata",
-    message: () =>
-      "Котловой долевой расчёт удобен вам — не нужны индивидуальные счётчики. Но арендаторы платят «вскладчину»; для прозрачности рекомендуется перерасчёт по факту раз в квартал.",
+    messageKey: "pooledFairness",
   },
   {
     id: "MODEL_METERED_PREREQ",
@@ -51,16 +76,14 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     severity: "info",
     // в договоре на размещение коммунальной матрицы нет — только электроэнергия
     when: (s, c) => !s.placement && c.metered.length > 0,
-    message: () =>
-      "Раздельный учёт требует исправных индивидуальных счётчиков; при их отсутствии расчёт пойдёт пропорционально площади.",
+    messageKey: "meteredPrereq",
   },
   {
     id: "MODEL_INCLUDED_RISK",
     category: "risk",
     severity: "suggest",
     when: (s, c) => !s.placement && c.included.filter((r) => r.key !== "garbage" && r.key !== "sewerage").length >= 3,
-    message: () =>
-      "Много коммунальных услуг включено в аренду — риск роста тарифов несёт владелец. Рассмотрите счётчики или эксплуатационные расходы.",
+    messageKey: "includedRisk",
   },
   {
     id: "OPCOST_RATE_EMPTY",
@@ -69,7 +92,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     when: (s) =>
       s.financials.operatingCosts.method === "fixed_per_sqm" &&
       (!s.financials.operatingCosts.fixed?.winterRate || !s.financials.operatingCosts.fixed?.summerRate),
-    message: () => "Не заданы тарифы эксплуатационных расходов (зима/лето).",
+    messageKey: "operatingRatesEmpty",
   },
   {
     id: "POOL_AREA_EMPTY",
@@ -77,7 +100,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     severity: "warn",
     when: (s) =>
       s.financials.operatingCosts.method === "pooled_prorata" && !s.building.totalRentableAreaSqm,
-    message: () => "Не указана общая арендуемая площадь здания — это знаменатель долевого расчёта.",
+    messageKey: "pooledAreaEmpty",
   },
   {
     id: "DEPOSIT_NONSTANDARD",
@@ -88,7 +111,7 @@ export const ADVISOR_RULES: AdvisorRule[] = [
       !!s.financials.monthlyRent &&
       !!s.financials.deposit.amount &&
       s.financials.deposit.amount !== s.financials.monthlyRent,
-    message: () => "Депозит ≠ одной месячной плате. Стандартная практика — депозит в размере одной месячной аренды.",
+    messageKey: "depositNonstandard",
     fix: "deposit_one_month",
   },
   {
@@ -96,16 +119,15 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     category: "convenience",
     severity: "info",
     when: (s) => s.financials.indexation.enabled,
-    message: (s) =>
-      `Индексация — только через ДС. Автоиндексации в договоре нет; платформа напомнит и предзаполнит ДС уровнем инфляции (до ${s.financials.indexation.capPercent}%).`,
+    messageKey: "indexation",
+    vars: (s) => ({ cap: s.financials.indexation.capPercent }),
   },
   {
     id: "INSURANCE_OFF",
     category: "risk",
     severity: "suggest",
     when: (s) => !s.modules.insuranceEnabled,
-    message: () =>
-      "Страхование выключено. Без страхования ответственности риски при инциденте стороны несут напрямую.",
+    messageKey: "insuranceOff",
   },
   {
     id: "TERM_REMINDER",
@@ -113,13 +135,11 @@ export const ADVISOR_RULES: AdvisorRule[] = [
     severity: "info",
     when: (s) => {
       if (!s.term.endDate) return false
-      const days = Math.ceil((new Date(s.term.endDate).getTime() - Date.now()) / 86_400_000)
+      const days = daysToEnd(s)
       return days > 0 && days < 60
     },
-    message: (s) => {
-      const days = Math.ceil((new Date(s.term.endDate).getTime() - Date.now()) / 86_400_000)
-      return `Срок подходит к концу (${days} дн.). Автопролонгации нет — оформите ДС о продлении.`
-    },
+    messageKey: "termEnding",
+    vars: (s) => ({ days: daysToEnd(s) }),
   },
 ]
 
@@ -128,7 +148,8 @@ export function advise(s: ContractState, c: DerivedContext): Advice[] {
     id: r.id,
     category: r.category,
     severity: r.severity,
-    message: r.message(s, c),
+    messageKey: r.messageKey,
+    vars: r.vars?.(s, c),
     fix: r.fix,
   }))
 }

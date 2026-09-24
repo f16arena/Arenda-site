@@ -10,8 +10,9 @@ import { db } from "@/lib/db"
 import { requirePlatformOwner } from "@/lib/org"
 import { normalizePage, pageSkip } from "@/lib/pagination"
 import { safeServerValue } from "@/lib/server-fallback"
-import { formatDate } from "@/lib/utils"
 import { ResetOwnerPasswordButton } from "./owner-actions"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL } from "@/lib/i18n/format"
 
 const PAGE_SIZE = 30
 
@@ -21,6 +22,8 @@ export default async function SuperadminUsersPage({
   searchParams?: Promise<{ page?: string | string[]; q?: string | string[] }>
 }) {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const resolved = await searchParams
   const page = normalizePage(resolved?.page)
   const query = normalizeQuery(resolved?.q)
@@ -78,9 +81,9 @@ export default async function SuperadminUsersPage({
             <UserCog className="h-5 w-5 text-purple-600 dark:text-purple-300" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Владельцы</h1>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.owners.title")}</h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Аккаунты владельцев бизнеса по всем организациям. Здесь можно сбросить пароль владельцу — он сменит его при первом входе.
+              {t("superadmin.owners.subtitle")}
             </p>
           </div>
         </div>
@@ -91,12 +94,12 @@ export default async function SuperadminUsersPage({
             <Input
               name="q"
               defaultValue={query}
-              placeholder="Имя, email, телефон, организация…"
+              placeholder={t("superadmin.owners.searchPlaceholder")}
               className="pl-9"
             />
           </div>
           <button className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700">
-            Найти
+            {t("common.actions.search")}
           </button>
         </form>
       </div>
@@ -105,9 +108,9 @@ export default async function SuperadminUsersPage({
         {owners.length === 0 ? (
           <div className="px-5 py-16 text-center">
             <UserCog className="mx-auto mb-2 h-8 w-8 text-slate-300 dark:text-slate-700" />
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Владельцы не найдены</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("superadmin.owners.emptyTitle")}</p>
             <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-              Владельцы создаются вместе с организацией. <Link href="/superadmin/orgs/new" className="text-purple-600 hover:underline dark:text-purple-400">Создать организацию</Link>
+              {t("superadmin.owners.emptyHint")} <Link href="/superadmin/orgs/new" className="text-purple-600 hover:underline dark:text-purple-400">{t("superadmin.owners.emptyLink")}</Link>
             </p>
           </div>
         ) : (
@@ -115,12 +118,12 @@ export default async function SuperadminUsersPage({
             <table className="w-full min-w-[720px] text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50">
-                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Владелец</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Контакты</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Организация</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Статус</th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Создан</th>
-                  <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">Действия</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.owners.colOwner")}</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.owners.colContacts")}</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.org")}</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.status")}</th>
+                  <th className="px-5 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.created")}</th>
+                  <th className="px-5 py-3 text-right text-xs font-medium text-slate-500 dark:text-slate-400">{t("superadmin.cols.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,25 +163,25 @@ export default async function SuperadminUsersPage({
                           </p>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-400">— без организации</span>
+                        <span className="text-xs text-slate-400">{t("superadmin.owners.noOrg")}</span>
                       )}
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex flex-wrap gap-1.5">
                         {owner.isActive ? (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">Активен</span>
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">{t("superadmin.owners.active")}</span>
                         ) : (
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">Неактивен</span>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">{t("superadmin.owners.inactive")}</span>
                         )}
                         {owner.mustChangePassword && (
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">Сменит пароль</span>
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">{t("superadmin.owners.mustChangePassword")}</span>
                         )}
                         {owner.organization?.isSuspended && (
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-500/15 dark:text-red-300">Орг. приостановлена</span>
+                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-500/15 dark:text-red-300">{t("superadmin.owners.orgSuspended")}</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400">{formatDate(owner.createdAt)}</td>
+                    <td className="px-5 py-3.5 text-xs text-slate-500 dark:text-slate-400">{formatDateShortL(locale, owner.createdAt)}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex justify-end">
                         <ResetOwnerPasswordButton userId={owner.id} ownerName={owner.name} />
@@ -196,7 +199,7 @@ export default async function SuperadminUsersPage({
 
       <p className="flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
         <ShieldCheck className="h-3.5 w-3.5" />
-        Сотрудников и арендаторов сбрасывает владелец у себя в разделе «Пользователи». Здесь — только владельцы.
+        {t("superadmin.owners.footnote")}
       </p>
     </div>
   )

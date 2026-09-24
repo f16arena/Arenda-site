@@ -17,7 +17,7 @@ import { normalizeEmailWithDns, normalizeKzPhone } from "@/lib/contact-validatio
 import { isContractNumberUnique, suggestContractNumber } from "@/lib/contract-numbering"
 import { normalizeTenantRentChoice } from "@/lib/rent"
 import { getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
-import { normalizeTenantLegalType, normalizeTenantTaxIds } from "@/lib/tenant-identity"
+import { normalizeTenantLegalType, normalizeTenantTaxIds, taxIdMessage } from "@/lib/tenant-identity"
 import { normalizeIik, validateRequisites } from "@/lib/kz-validators"
 import { getT } from "@/lib/i18n/server"
 import { DEFAULT_KZ_VAT_RATE, normalizeKzVatRate } from "@/lib/kz-vat"
@@ -160,6 +160,8 @@ const RENTAL_TERM_FIELDS: Array<keyof RentalTermsSnapshot> = [
   "penaltyPercent",
 ]
 
+// Подписи и формулировки ниже печатаются В ТЕКСТЕ допсоглашения, поэтому
+// остаются русскими до вычитки юриста (docs/i18n-documents-plan.md).
 const RENTAL_TERM_LABELS: Record<keyof RentalTermsSnapshot, string> = {
   customRate: "Индивидуальная ставка",
   fixedMonthlyRent: "Индивидуальная аренда",
@@ -330,6 +332,11 @@ export async function updateTenant(tenantId: string, formData: FormData) {
       legalType,
       bin: formData.get("bin"),
       iin: formData.get("iin"),
+      labels: {
+        bin: t("common.settings.identity.binLabel"),
+        iin: t("common.settings.identity.iinLabel"),
+      },
+      translate: taxIdMessage(t),
     })
     data.legalType = taxIds.legalType
     data.bin = taxIds.bin
@@ -464,6 +471,7 @@ export async function updateTenantRequisites(
   tenantId: string,
   formData: FormData,
 ): Promise<TenantBankAccountActionResult> {
+  const { t } = await getT()
   let orgId: string | null = null
   try {
     await requireCapabilityAndFeature("tenants.editCompany")
@@ -475,11 +483,16 @@ export async function updateTenantRequisites(
       where: { id: tenantId },
       select: { legalType: true },
     })
-    if (!tenant) throw new Error("Арендатор не найден")
+    if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
     const taxIds = normalizeTenantTaxIds({
       legalType: tenant.legalType,
       bin: formData.get("bin"),
       iin: formData.get("iin"),
+      labels: {
+        bin: t("common.settings.identity.binLabel"),
+        iin: t("common.settings.identity.iinLabel"),
+      },
+      translate: taxIdMessage(t),
     })
 
     const shouldUpdateBank = hasBankAccountInput(formData)
@@ -489,7 +502,7 @@ export async function updateTenantRequisites(
         where: { tenantId, iik: accountInput.iik, isPrimary: false },
         select: { id: true },
       })
-      if (duplicateSecondary) throw new Error("Такой ИИК уже добавлен этому арендатору")
+      if (duplicateSecondary) throw new Error(t("actions.tenantActions.iikAlreadyAdded"))
     }
 
     await db.$transaction(async (tx) => {
@@ -538,7 +551,7 @@ export async function updateTenantRequisites(
     return { ok: true }
   } catch (error) {
     console.error("[updateTenantRequisites]", error)
-    return tenantBankAccountActionError(error, "Не удалось сохранить реквизиты арендатора", {
+    return tenantBankAccountActionError(error, t("actions.tenantActions.requisitesSaveFailed"), {
       source: "tenant.updateRequisites",
       tenantId,
       orgId,
@@ -550,6 +563,7 @@ export async function createTenantBankAccount(
   tenantId: string,
   formData: FormData,
 ): Promise<TenantBankAccountActionResult> {
+  const { t } = await getT()
   let orgId: string | null = null
   try {
     await requireCapabilityAndFeature("tenants.editCompany")
@@ -562,7 +576,7 @@ export async function createTenantBankAccount(
       where: { tenantId, iik: accountInput.iik },
       select: { id: true },
     })
-    if (existing) throw new Error("Такой ИИК уже добавлен этому арендатору")
+    if (existing) throw new Error(t("actions.tenantActions.iikAlreadyAdded"))
 
     await db.$transaction(async (tx) => {
       const count = await tx.tenantBankAccount.count({ where: { tenantId } })
@@ -585,7 +599,7 @@ export async function createTenantBankAccount(
     return { ok: true }
   } catch (error) {
     console.error("[createTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось добавить банковский счёт", {
+    return tenantBankAccountActionError(error, t("actions.tenantActions.accountAddFailed"), {
       source: "tenant.createBankAccount",
       tenantId,
       orgId,
@@ -597,6 +611,7 @@ export async function updateTenantBankAccount(
   accountId: string,
   formData: FormData,
 ): Promise<TenantBankAccountActionResult> {
+  const { t } = await getT()
   let orgId: string | null = null
   let tenantId: string | null = null
   try {
@@ -606,7 +621,7 @@ export async function updateTenantBankAccount(
       where: { id: accountId },
       select: { tenantId: true },
     })
-    if (!account) throw new Error("Счёт не найден")
+    if (!account) throw new Error(t("actions.tenantActions.accountNotFound"))
     tenantId = account.tenantId
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
@@ -616,7 +631,7 @@ export async function updateTenantBankAccount(
       where: { tenantId: account.tenantId, iik: accountInput.iik, id: { not: accountId } },
       select: { id: true },
     })
-    if (duplicate) throw new Error("Такой ИИК уже добавлен этому арендатору")
+    if (duplicate) throw new Error(t("actions.tenantActions.iikAlreadyAdded"))
 
     await db.$transaction(async (tx) => {
       await tx.tenantBankAccount.update({
@@ -630,7 +645,7 @@ export async function updateTenantBankAccount(
     return { ok: true }
   } catch (error) {
     console.error("[updateTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось сохранить банковский счёт", {
+    return tenantBankAccountActionError(error, t("actions.tenantActions.accountSaveFailed"), {
       source: "tenant.updateBankAccount",
       tenantId,
       accountId,
@@ -640,6 +655,7 @@ export async function updateTenantBankAccount(
 }
 
 export async function setPrimaryTenantBankAccount(accountId: string): Promise<TenantBankAccountActionResult> {
+  const { t } = await getT()
   let orgId: string | null = null
   let tenantId: string | null = null
   try {
@@ -649,7 +665,7 @@ export async function setPrimaryTenantBankAccount(accountId: string): Promise<Te
       where: { id: accountId },
       select: { tenantId: true },
     })
-    if (!account) throw new Error("Счёт не найден")
+    if (!account) throw new Error(t("actions.tenantActions.accountNotFound"))
     tenantId = account.tenantId
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
@@ -670,7 +686,7 @@ export async function setPrimaryTenantBankAccount(accountId: string): Promise<Te
     return { ok: true }
   } catch (error) {
     console.error("[setPrimaryTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось выбрать основной счёт", {
+    return tenantBankAccountActionError(error, t("actions.tenantActions.primaryAccountFailed"), {
       source: "tenant.setPrimaryBankAccount",
       tenantId,
       accountId,
@@ -680,6 +696,7 @@ export async function setPrimaryTenantBankAccount(accountId: string): Promise<Te
 }
 
 export async function deleteTenantBankAccount(accountId: string): Promise<TenantBankAccountActionResult> {
+  const { t } = await getT()
   let orgId: string | null = null
   let tenantId: string | null = null
   try {
@@ -689,7 +706,7 @@ export async function deleteTenantBankAccount(accountId: string): Promise<Tenant
       where: { id: accountId },
       select: { tenantId: true },
     })
-    if (!account) throw new Error("Счёт не найден")
+    if (!account) throw new Error(t("actions.tenantActions.accountNotFound"))
     tenantId = account.tenantId
     await assertTenantInOrg(account.tenantId, orgId)
     await assertTenantBuildingAccess(account.tenantId, orgId)
@@ -703,7 +720,7 @@ export async function deleteTenantBankAccount(accountId: string): Promise<Tenant
     return { ok: true }
   } catch (error) {
     console.error("[deleteTenantBankAccount]", error)
-    return tenantBankAccountActionError(error, "Не удалось удалить банковский счёт", {
+    return tenantBankAccountActionError(error, t("actions.tenantActions.accountDeleteFailed"), {
       source: "tenant.deleteBankAccount",
       tenantId,
       accountId,
@@ -730,6 +747,7 @@ export async function setTenantServiceFeeExempt(tenantId: string, exempt: boolea
 }
 
 export async function updateTenantRentalTerms(tenantId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.editRentalTerms")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
@@ -752,7 +770,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
       },
     },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
 
   const rentChoice = normalizeTenantRentChoice({
     rentMode: String(formData.get("rentMode") ?? "").trim() || null,
@@ -848,11 +866,14 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
   const tenantCustomRate = positiveAmount(tenant.customRate)
   const rentalTermsLocked = fullFloorsWithFixedRent.length > 0 || tenantFixedRent !== null || tenantCustomRate !== null
   const lockReason = fullFloorsWithFixedRent.length > 0
-    ? `У арендатора указана стоимость за этажи ${fullFloorsWithFixedRent.map((floor) => floor.name).join(", ")}: ${formatAmount(fullFloorRentTotal)} ₸/мес.`
+    ? t("actions.tenantActions.rentFullFloors", {
+        floors: fullFloorsWithFixedRent.map((floor) => floor.name).join(", "),
+        amount: formatAmount(fullFloorRentTotal),
+      })
     : tenantFixedRent !== null
-      ? `У арендатора указана индивидуальная сумма аренды: ${formatAmount(tenantFixedRent)} ₸/мес.`
+      ? t("actions.tenantActions.rentFixed", { amount: formatAmount(tenantFixedRent) })
       : tenantCustomRate !== null
-        ? `У арендатора указана индивидуальная ставка аренды: ${formatAmount(tenantCustomRate)} ₸/м².`
+        ? t("actions.tenantActions.rentCustomRate", { amount: formatAmount(tenantCustomRate) })
         : ""
   const changed = rentalTermsChanged(before, after)
 
@@ -871,19 +892,21 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
     const addendumDate = parseDateInput(addendumDateRaw)
     const addendumChanges = String(formData.get("addendumChanges") ?? "").trim()
 
-    if (!addendumNumber) throw new Error("Укажите номер дополнительного соглашения")
-    if (addendumNumber.length > 80) throw new Error("Номер дополнительного соглашения должен быть до 80 символов")
-    if (!addendumDate) throw new Error("Укажите дату дополнительного соглашения")
-    if (addendumChanges.length < 10) throw new Error("Опишите изменения в дополнительном соглашении минимум в 10 символов")
-    if (addendumChanges.length > 2000) throw new Error("Описание изменений должно быть до 2000 символов")
+    if (!addendumNumber) throw new Error(t("actions.tenantActions.addendumNumberRequired"))
+    if (addendumNumber.length > 80) throw new Error(t("actions.tenantActions.addendumNumberTooLong"))
+    if (!addendumDate) throw new Error(t("actions.tenantActions.addendumDateRequired"))
+    if (addendumChanges.length < 10) throw new Error(t("actions.tenantActions.addendumChangesTooShort"))
+    if (addendumChanges.length > 2000) throw new Error(t("actions.tenantActions.addendumChangesTooLong"))
 
     const buildingId = getTenantPrimaryBuildingId(tenant)
-    if (!buildingId) throw new Error("Арендатор не привязан к помещению или этажу, поэтому нельзя оформить дополнительное соглашение")
+    if (!buildingId) throw new Error(t("actions.tenantActions.addendumNoPlacement"))
 
     const unique = await isContractNumberUnique(buildingId, addendumNumber)
     if (!unique) {
       const suggested = await suggestContractNumber(buildingId)
-      throw new Error(`Номер «${addendumNumber}» уже используется в этом здании. Можно взять следующий номер: ${suggested}`)
+      throw new Error(
+        t("actions.tenantActions.addendumNumberTaken", { number: addendumNumber, suggested }),
+      )
     }
 
     addendum = {
@@ -978,6 +1001,7 @@ export async function updateTenantRentalTerms(tenantId: string, formData: FormDa
 }
 
 export async function updateTenantUser(userId: string, tenantId: string, formData: FormData) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.editContacts")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
@@ -986,16 +1010,16 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
 
   const name = String(formData.get("name") ?? "").trim()
   const phone = normalizeKzPhone(formData.get("phone"))
-  const email = await normalizeEmailWithDns(formData.get("email"))
+  const email = await normalizeEmailWithDns(formData.get("email"), { t })
 
-  if (!name) throw new Error("Введите ФИО контактного лица")
+  if (!name) throw new Error(t("actions.tenantCreate.contactNameRequired"))
 
   if (phone) {
     const existing = await db.user.findFirst({
       where: { phone, id: { not: userId } },
       select: { id: true },
     })
-    if (existing) throw new Error(`Телефон ${phone} уже используется другим пользователем`)
+    if (existing) throw new Error(t("actions.users.phoneTaken", { phone }))
   }
 
   if (email) {
@@ -1003,7 +1027,7 @@ export async function updateTenantUser(userId: string, tenantId: string, formDat
       where: { email, id: { not: userId } },
       select: { id: true },
     })
-    if (existing) throw new Error(`Email ${email} уже используется другим пользователем`)
+    if (existing) throw new Error(t("actions.users.emailTaken", { email }))
   }
 
   await db.user.update({
@@ -1064,6 +1088,7 @@ export async function deleteTenant(
   tenantId: string,
   options?: { redirectAfter?: boolean; force?: boolean },
 ) {
+  const { t, tp } = await getT()
   await requireCapabilityAndFeature("tenants.delete")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
@@ -1078,23 +1103,26 @@ export async function deleteTenant(
       tenantSpaces: { select: { spaceId: true } },
     },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
 
   // Без force — проверяем связи и кидаем структурированную ошибку
   if (!options?.force) {
     const b = await getTenantDeleteBlockers(tenantId)
     const reasons: string[] = []
-    if (b.charges > 0) reasons.push(`${b.charges} начислени${b.charges === 1 ? "е" : "й"}`)
-    if (b.payments > 0) reasons.push(`${b.payments} платеж${b.payments === 1 ? "" : "ей"}`)
-    if (b.contracts > 0) reasons.push(`${b.contracts} договор${b.contracts === 1 ? "" : "ов"}`)
-    if (b.documents > 0) reasons.push(`${b.documents} документ${b.documents === 1 ? "" : "ов"}`)
-    if (b.requests > 0) reasons.push(`${b.requests} заявок`)
-    if (b.fullFloors > 0) reasons.push(`${b.fullFloors} этаж${b.fullFloors === 1 ? "" : "ей"} сданы целиком`)
+    if (b.charges > 0) reasons.push(tp("actions.tenantActions.blockers.charges", b.charges))
+    if (b.payments > 0) reasons.push(tp("actions.tenantActions.blockers.payments", b.payments))
+    if (b.contracts > 0) reasons.push(tp("actions.tenantActions.blockers.contracts", b.contracts))
+    if (b.documents > 0) reasons.push(tp("actions.tenantActions.blockers.documents", b.documents))
+    if (b.requests > 0) reasons.push(tp("actions.tenantActions.blockers.requests", b.requests))
+    if (b.fullFloors > 0)
+      reasons.push(tp("actions.tenantActions.blockers.fullFloors", b.fullFloors))
 
     if (reasons.length > 0) {
       throw new Error(
-        `Нельзя удалить «${tenant.companyName}» — связан с: ${reasons.join(", ")}. ` +
-          `Используйте каскадное удаление чтобы стереть всё вместе.`,
+        t("actions.tenantActions.deleteBlocked", {
+          company: tenant.companyName,
+          reasons: reasons.join(", "),
+        }),
       )
     }
   }
@@ -1118,6 +1146,7 @@ export async function deleteTenant(
 }
 
 export async function assignTenantSpace(tenantId: string, spaceId: string | null) {
+  const { t } = await getT()
   // Назначение арендатора доступно как из карточки арендатора (tenants.assignSpaces),
   // так и со страницы этажа (spaces.assignTenant) — достаточно одного из прав.
   const session = await auth()
@@ -1125,7 +1154,7 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
   const allowedToAssign =
     (await canPerformCapability(session.user.role, "spaces.assignTenant", session.user.isPlatformOwner, session.user.id)) ||
     (await canPerformCapability(session.user.role, "tenants.assignSpaces", session.user.isPlatformOwner, session.user.id))
-  if (!allowedToAssign) throw new Error("Нет права: назначать арендатора в помещение")
+  if (!allowedToAssign) throw new Error(t("actions.tenantActions.noAssignRight"))
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
   if (spaceId) await assertSpaceInOrg(spaceId, orgId)
@@ -1170,7 +1199,7 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
       },
     },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
 
   if (spaceId) {
     // Помещение должно быть на не-полностью-арендованном этаже
@@ -1206,15 +1235,21 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
       : null
     if (target && tenantBuilding) {
       throw new Error(
-        `Арендатор «${tenant.companyName}» относится к зданию «${tenantBuilding.building.name}», ` +
-          `а Каб. ${target.number} находится в здании «${target.floor.building.name}». ` +
-          "Переключитесь на нужное здание или выберите помещение в том же здании.",
+        t("actions.tenantActions.spaceOtherBuilding", {
+          company: tenant.companyName,
+          tenantBuilding: tenantBuilding.building.name,
+          number: target.number,
+          spaceBuilding: target.floor.building.name,
+        }),
       )
     }
     const occupiedBy = target?.tenantSpaces[0]?.tenant ?? target?.tenant ?? null
     if (occupiedBy && occupiedBy.id !== tenantId) {
       throw new Error(
-        `Кабинет ${target?.number ?? "—"} уже занят арендатором «${occupiedBy.companyName}». Сначала выселите.`,
+        t("actions.tenantActions.spaceOccupied", {
+          number: target?.number ?? "—",
+          company: occupiedBy.companyName,
+        }),
       )
     }
   }
@@ -1254,6 +1289,7 @@ export async function assignTenantSpace(tenantId: string, spaceId: string | null
 }
 
 export async function unassignTenantSpace(tenantId: string, spaceId: string) {
+  const { t } = await getT()
   await requireCapabilityAndFeature("tenants.assignSpaces")
   const { orgId } = await requireOrgAccess()
   await assertTenantInOrg(tenantId, orgId)
@@ -1271,9 +1307,9 @@ export async function unassignTenantSpace(tenantId: string, spaceId: string) {
       },
     },
   })
-  if (!tenant) throw new Error("Арендатор не найден")
+  if (!tenant) throw new Error(t("actions.common.tenantNotFound"))
   if (!tenant.tenantSpaces.some((item) => item.spaceId === spaceId)) {
-    throw new Error("Это помещение не привязано к арендатору")
+    throw new Error(t("actions.tenantActions.spaceNotLinked"))
   }
 
   const remaining = tenant.tenantSpaces.filter((item) => item.spaceId !== spaceId)

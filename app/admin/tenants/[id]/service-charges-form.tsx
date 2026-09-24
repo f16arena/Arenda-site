@@ -30,8 +30,9 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
   const { t } = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  // Название услуги — общее из domain.chargeTypes; в lib/service-charges текст
-  // русский, он остаётся запасным для кодов, которых нет в словаре.
+  // Название услуги — общее из domain.chargeTypes. Для кода, которого в словаре
+  // нет, показываем сам код: русская подпись из lib/service-charges осталась
+  // только для текста документа.
   const serviceLabel = (type: string, fallback: string) => {
     const key = `domain.chargeTypes.${type}` as Parameters<typeof t>[0]
     const label = t(key)
@@ -130,7 +131,7 @@ export function ServiceChargesForm({ tenantId, period, defaultDueDate, existingC
                     }}
                     className="rounded border-slate-300"
                   />
-                  {serviceLabel(item.type, item.label)}
+                  {serviceLabel(item.type, item.type)}
                 </label>
                 <Input
                   name={`amount_${item.type}`}

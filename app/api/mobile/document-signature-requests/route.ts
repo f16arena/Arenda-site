@@ -9,6 +9,9 @@ import {
   normalizeSignatureMethods,
 } from "@/lib/mobile-document-signatures"
 import { notifyUser } from "@/lib/notify"
+import { getT, getTForUser } from "@/lib/i18n/server"
+
+type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +19,8 @@ export async function GET(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  // Названия документов читает получатель — язык из его профиля.
+  const { t } = await getTForUser(result.ctx.user.id)
   const now = new Date()
   const requests = await db.documentSignatureRequest.findMany({
     where: {
@@ -43,7 +48,7 @@ export async function GET(req: Request) {
   })
 
   const contractLinks = result.ctx.user.role === "TENANT"
-    ? await getTenantContractSignatureLinks(req, result.ctx.user.id, result.ctx.org.id)
+    ? await getTenantContractSignatureLinks(req, result.ctx.user.id, result.ctx.org.id, t)
     : []
 
   return NextResponse.json({
@@ -63,6 +68,8 @@ export async function POST(req: Request) {
     return mobileError("Only owner, admin or accountant can create signature requests", 403)
   }
 
+  // Ошибки читает создатель запроса, уведомление — подписант: языки разные.
+  const { t } = await getTForUser(result.ctx.user.id)
   const body = await req.json().catch(() => null) as {
     recipientUserId?: string
     tenantId?: string
@@ -82,7 +89,7 @@ export async function POST(req: Request) {
       where: { id: body.tenantId, user: { organizationId: result.ctx.org.id } },
       select: { userId: true },
     })
-    if (!tenant?.userId) return mobileError("У арендатора нет пользователя для подписи", 404)
+    if (!tenant?.userId) return mobileError(t("adminDocs.api.common.tenantNoUser"), 404)
     recipientUserId = tenant.userId
   }
   const documentType = body?.documentType?.trim().toUpperCase()
@@ -142,10 +149,12 @@ export async function POST(req: Request) {
     },
   })
 
+  // Уведомление читает подписант — заголовок на его языке.
+  const { t: tSigner } = await getTForUser(recipientUserId)
   await notifyUser({
     userId: recipientUserId,
     type: "DOCUMENT_SIGNATURE_REQUEST",
-    title: "Документ на подпись",
+    title: tSigner("emails.messaging.signRequestTitle"),
     message: title,
     link: "/cabinet/documents",
     sendEmail: true,
@@ -160,7 +169,8 @@ export async function POST(req: Request) {
   return NextResponse.json({ data: requestRecord }, { status: 201 })
 }
 
-async function getTenantContractSignatureLinks(req: Request, userId: string, orgId: string) {
+// Чистый помощник переводчик сам не добывает — принимает его параметром.
+async function getTenantContractSignatureLinks(req: Request, userId: string, orgId: string, t: Tr) {
   const origin = new URL(req.url).origin
   const contracts = await db.contract.findMany({
     where: {
@@ -188,7 +198,12 @@ async function getTenantContractSignatureLinks(req: Request, userId: string, org
     documentType: "CONTRACT",
     documentId: contract.id,
     documentRef: contract.number,
-    title: `${contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор"} № ${contract.number}`,
+    title: t("emails.messaging.docTitle", {
+      doc: contract.type === "ADDENDUM"
+        ? t("emails.messaging.docAddendum")
+        : t("emails.messaging.docContract"),
+      number: contract.number,
+    }),
     message: contract.tenant.companyName,
     status: contract.status,
     channel: "WEB_SIGN_LINK",

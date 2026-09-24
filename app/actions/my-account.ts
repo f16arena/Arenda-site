@@ -86,7 +86,7 @@ export async function requestEmailChange(formData: FormData): Promise<Result & {
 
   let newEmail: string
   try {
-    newEmail = await normalizeEmailWithDns(formData.get("newEmail"), { required: true, fieldName: "Email" })
+    newEmail = await normalizeEmailWithDns(formData.get("newEmail"), { required: true, t })
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : t("actions.myAccount.invalidEmail") }
   }

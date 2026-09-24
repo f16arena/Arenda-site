@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { requirePlatformOwner } from "@/lib/org"
 import { decodeErrorReport, humanizeErrorReport, parseErrorDetails } from "@/lib/error-report"
 
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic"
 // Доступ только платформенному владельцу (requirePlatformOwner редиректит остальных).
 export async function GET() {
   await requirePlatformOwner()
+  const { t } = await getT()
 
   const logs = await db.auditLog.findMany({
     where: { action: "ERROR" },
@@ -18,7 +20,7 @@ export async function GET() {
 
   const errors = logs.map((log) => {
     const details = parseErrorDetails(log.details)
-    const human = humanizeErrorReport(details)
+    const human = humanizeErrorReport(t, details)
     const decoded = decodeErrorReport(details)
     return {
       // Идентификация

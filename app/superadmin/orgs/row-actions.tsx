@@ -7,6 +7,7 @@ import { ExternalLink, LogIn } from "lucide-react"
 import { toast } from "sonner"
 import { impersonateOrg } from "@/app/actions/organizations"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useT } from "@/lib/i18n/client"
 
 export function OrgRowActions({
   id,
@@ -20,6 +21,7 @@ export function OrgRowActions({
   isActive: boolean
 }) {
   const router = useRouter()
+  const { t } = useT()
   const [pending, startTransition] = useTransition()
   const [mounted, setMounted] = useState(false)
 
@@ -41,18 +43,18 @@ export function OrgRowActions({
     <div className="flex items-center justify-end gap-1.5">
       {hasOwner && isActive && (
         <ConfirmDialog
-          title={`Войти как клиент в «${name}»?`}
-          description="Все действия в режиме клиента записываются в журнал."
-          confirmLabel="Войти"
+          title={t("superadmin.orgs.loginAsTitle", { name })}
+          description={t("superadmin.orgs.loginAsDescription")}
+          confirmLabel={t("superadmin.orgs.loginAs")}
           onConfirm={() => {
             startTransition(async () => {
               try {
                 await impersonateOrg(id)
-                toast.success("Входим как клиент...")
+                toast.success(t("superadmin.orgs.loggingIn"))
                 router.push("/admin")
                 router.refresh()
               } catch (error) {
-                toast.error(error instanceof Error ? error.message : "Не удалось войти как клиент")
+                toast.error(error instanceof Error ? error.message : t("superadmin.orgs.loginFailed"))
               }
             })
           }}
@@ -61,10 +63,10 @@ export function OrgRowActions({
               type="button"
               disabled={pending}
               className="flex items-center gap-1 rounded-md bg-blue-600 px-2.5 py-1.5 text-[11px] font-medium text-white transition hover:bg-blue-700 disabled:bg-slate-300"
-              title="Войти как клиент"
+              title={t("superadmin.orgs.loginAsClient")}
             >
               <LogIn className="h-3 w-3" />
-              Войти
+              {t("superadmin.orgs.loginAs")}
             </button>
           }
         />
@@ -74,7 +76,7 @@ export function OrgRowActions({
         className="flex items-center gap-1 rounded-md border border-slate-200 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-800/50"
       >
         <ExternalLink className="h-3 w-3" />
-        Открыть
+        {t("common.actions.open")}
       </Link>
     </div>
   )

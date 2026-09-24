@@ -6,6 +6,7 @@
 // движением стены в 3D нельзя. Расхождения возвращаем в отчёте.
 
 import { db } from "@/lib/db"
+import { getT } from "@/lib/i18n/server"
 import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { parseDocument } from "@/types/builder"
@@ -14,8 +15,9 @@ import { layoutKind } from "@/lib/indoor-map/layout-source"
 import { getAccessibleBuildingIdsForSession } from "@/lib/building-access"
 
 async function requireBuilderAccess(): Promise<string> {
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user || session.user.role === "TENANT") throw new Error("Запрещено")
+  if (!session?.user || session.user.role === "TENANT") throw new Error(t("actions.builder.forbidden"))
   const { orgId } = await requireOrgAccess()
   return orgId
 }
@@ -60,6 +62,7 @@ export async function createProjectFromBuilding(
   buildingId: string,
 ): Promise<{ id: string; report: BuildReport }> {
   const orgId = await requireBuilderAccess()
+  const { t } = await getT()
   const session = await auth()
 
   const building = await db.building.findFirst({
@@ -84,19 +87,19 @@ export async function createProjectFromBuilding(
       },
     },
   })
-  if (!building) throw new Error("Здание не найдено")
+  if (!building) throw new Error(t("actions.builder.buildingNotFound"))
 
   const source: SourceBuilding = building
   const { doc, report } = buildProjectFromBuilding(source)
   if (report.floorsExact === 0 && report.floorsApprox === 0) {
-    throw new Error("У здания нет ни планов этажей, ни помещений с площадью — строить нечего")
+    throw new Error(t("actions.builder.nothingToBuild"))
   }
 
   const validated = parseDocument(doc)
   const created = await db.builderProject.create({
     data: {
       organizationId: orgId,
-      name: `${building.name} — из данных`.slice(0, 120),
+      name: t("actions.builder.fromDataSuffix", { name: building.name }).slice(0, 120),
       buildingId: building.id,
       doc: validated,
       schemaVersion: validated.schemaVersion,

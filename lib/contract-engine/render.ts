@@ -4,6 +4,10 @@
 // contract.content и подписывается ЭЦП через lib/contract-signing-payload.ts.
 // Поэтому вывод обязан быть детерминированным: одно и то же состояние → одна и
 // та же строка. Никаких Date.now()/случайностей в рендере.
+//
+// ЯЗЫК: здесь собирается сам документ, поэтому все подписи (шапка, стороны,
+// названия приложений) остаются русскими — docs/i18n-documents-plan.md.
+// Менять их нельзя и по второй причине: строка подписана ЭЦП.
 
 import { type ContractState } from "./schema"
 import { assemble, type AssemblyResult } from "./assemble"

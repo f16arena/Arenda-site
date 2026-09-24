@@ -25,6 +25,13 @@ import {
   getNextActNumber,
 } from "@/app/actions/avr-builder"
 import { listConstructorTenants, type ConstructorTenant } from "@/app/actions/contract-builder"
+import { useT } from "@/lib/i18n/client"
+import type { Translator } from "@/lib/i18n/translate"
+import type { Messages } from "@/lib/i18n/messages"
+
+// Переводчик прокидываем параметром: PartyFields/ItemsEditor — мелкие части одной
+// формы, отдельный useT() в каждой только размножил бы подписку на контекст.
+type T = Translator<Messages>["t"]
 
 const inputCls = FIELD_CLS
 const labelCls = LABEL_CLS
@@ -32,24 +39,26 @@ const secTitleCls = "mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide
 
 type Mutator = (s: AvrState) => void
 
-function PartyFields({ p, onChange }: { p: AvrParty; onChange: (mut: (x: AvrParty) => void) => void }) {
+function PartyFields({ p, onChange, t }: { p: AvrParty; onChange: (mut: (x: AvrParty) => void) => void; t: T }) {
   return (
     <>
-      <div className="mb-2"><label className={labelCls}>Наименование</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.party.name")}</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>ИИН/БИН</label><input className={inputCls} value={p.binIin} onChange={(e) => onChange((x) => { x.binIin = e.target.value })} /></div>
-        <div><label className={labelCls}>Должность</label><input className={inputCls} value={p.position} onChange={(e) => onChange((x) => { x.position = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.avr.taxId")}</label><input className={inputCls} value={p.binIin} onChange={(e) => onChange((x) => { x.binIin = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.avr.position")}</label><input className={inputCls} value={p.position} onChange={(e) => onChange((x) => { x.position = e.target.value })} /></div>
       </div>
-      <div className="mb-2"><label className={labelCls}>Адрес</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.party.address")}</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Подписант (ФИО)</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
-        <div><label className={labelCls}>Средства связи (тел./email)</label><input className={inputCls} value={p.comm} onChange={(e) => onChange((x) => { x.comm = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.avr.signatoryFio")}</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.avr.comm")}</label><input className={inputCls} value={p.comm} onChange={(e) => onChange((x) => { x.comm = e.target.value })} /></div>
       </div>
     </>
   )
 }
 
-function ItemsEditor({ state, set }: { state: AvrState; set: (m: Mutator) => void }) {
+function ItemsEditor({ state, set, t }: { state: AvrState; set: (m: Mutator) => void; t: T }) {
+  // «усл.» — единица измерения, которая печатается в самой форме Р-1.
+  // в документ — переводит юрист
   const add = () => set((s) => { s.items.push({ name: "", date: "", report: "", unit: "усл.", qty: 1, price: 0 }) })
   const remove = (i: number) => set((s) => { s.items.splice(i, 1) })
   return (
@@ -57,26 +66,27 @@ function ItemsEditor({ state, set }: { state: AvrState; set: (m: Mutator) => voi
       {state.items.map((it, i) => (
         <div key={i} className="rounded-lg border border-slate-200 p-2.5 dark:border-slate-800">
           <div className="mb-1.5 flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-slate-400">Позиция {i + 1}</span>
-            <button type="button" onClick={() => remove(i)} className="text-slate-400 hover:text-red-500" aria-label="Удалить позицию"><Trash2 className="h-3.5 w-3.5" /></button>
+            <span className="text-[11px] font-semibold text-slate-400">{t("adminDocs.constructor.avr.itemN", { n: i + 1 })}</span>
+            <button type="button" onClick={() => remove(i)} className="text-slate-400 hover:text-red-500" aria-label={t("adminDocs.constructor.avr.itemRemove")}><Trash2 className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="mb-1.5"><input className={inputCls} placeholder="Наименование работ (услуг)" value={it.name} onChange={(e) => set((s) => { s.items[i].name = e.target.value })} /></div>
+          <div className="mb-1.5"><input className={inputCls} placeholder={t("adminDocs.constructor.avr.itemName")} value={it.name} onChange={(e) => set((s) => { s.items[i].name = e.target.value })} /></div>
           <div className="grid grid-cols-4 gap-1.5">
-            <div><label className={labelCls}>Ед. изм.</label><input className={inputCls} value={it.unit} onChange={(e) => set((s) => { s.items[i].unit = e.target.value })} /></div>
-            <div><label className={labelCls}>Кол-во</label><input type="number" className={inputCls} value={it.qty || ""} onChange={(e) => set((s) => { s.items[i].qty = Number(e.target.value) })} /></div>
-            <div><label className={labelCls}>Цена ₸</label><input type="number" className={inputCls} value={it.price || ""} onChange={(e) => set((s) => { s.items[i].price = Number(e.target.value) })} /></div>
-            <div><label className={labelCls}>Сумма ₸</label><input className={`${inputCls} opacity-70`} value={money(itemSum(it))} disabled /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.avr.unit")}</label><input className={inputCls} value={it.unit} onChange={(e) => set((s) => { s.items[i].unit = e.target.value })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.avr.qty")}</label><input type="number" className={inputCls} value={it.qty || ""} onChange={(e) => set((s) => { s.items[i].qty = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.avr.price")}</label><input type="number" className={inputCls} value={it.price || ""} onChange={(e) => set((s) => { s.items[i].price = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.avr.sum")}</label><input className={`${inputCls} opacity-70`} value={money(itemSum(it))} disabled /></div>
           </div>
         </div>
       ))}
       <button type="button" onClick={add} className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-300 py-2 text-sm text-slate-500 transition hover:border-slate-400 hover:text-slate-700 dark:border-slate-700 dark:text-slate-400">
-        <Plus className="h-4 w-4" /> Добавить позицию
+        <Plus className="h-4 w-4" /> {t("adminDocs.constructor.avr.addItem")}
       </button>
     </div>
   )
 }
 
 export function AvrConstructor({ embedded = false, initialTenantId }: { embedded?: boolean; initialTenantId?: string } = {}) {
+  const { t } = useT()
   const [state, setState] = useState<AvrState>(defaultAvrState)
   const [tenants, setTenants] = useState<ConstructorTenant[]>([])
   const [selTenant, setSelTenant] = useState("")
@@ -105,7 +115,7 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
   const appliedInitialTenant = useRef(false)
   useEffect(() => {
     if (appliedInitialTenant.current || !initialTenantId || !period) return
-    if (!tenants.some((t) => t.id === initialTenantId)) return
+    if (!tenants.some((row) => row.id === initialTenantId)) return
     appliedInitialTenant.current = true
     onPickTenant(initialTenantId)
   }, [tenants, initialTenantId, period]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -121,9 +131,9 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
         if (autoNumber) applyAutoNumber()
         // Честный источник: начисления уже есть или позиции собраны по договору
         toast.success(r.source === "contract"
-          ? "Начислений за период ещё нет — позиции собраны по договору"
-          : "Данные подставлены из начислений за период")
-      } else toast.error(r.error ?? "Не удалось подставить данные")
+          ? t("adminDocs.constructor.avr.prefillFromContract")
+          : t("adminDocs.constructor.avr.prefillFromCharges"))
+      } else toast.error(r.error ?? t("adminDocs.constructor.toasts.prefillFailed"))
     })
   }
   function onPickTenant(id: string) { setSelTenant(id); reprefill(id, period) }
@@ -132,23 +142,24 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
   function doDownload() {
     startTransition(async () => {
       const r = await generateAvrPdf(state)
-      if (!r.ok || !r.base64) { toast.error(r.error ?? "Ошибка генерации"); return }
+      if (!r.ok || !r.base64) { toast.error(r.error ?? t("adminDocs.constructor.toasts.generateFailed")); return }
       const bytes = Uint8Array.from(atob(r.base64), (ch) => ch.charCodeAt(0))
       const blob = new Blob([bytes], { type: "application/pdf" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
+      // Имя файла — реквизит документа, остаётся русским (docs/i18n-documents-plan.md).
       link.download = r.fileName ?? "АВР.pdf"
       link.click()
       URL.revokeObjectURL(url)
     })
   }
   function doCreate() {
-    if (!selTenant) { toast.error("Сначала выберите арендатора"); return }
+    if (!selTenant) { toast.error(t("adminDocs.constructor.avr.pickTenantFirst")); return }
     startTransition(async () => {
       const r = await createAvrFromBuilder(selTenant, state, { autoNumber, requestSignature: notifyTenant })
-      if (!r.ok) { toast.error(r.error ?? "Не удалось создать акт"); return }
-      toast.success(`Акт № ${r.number} создан и сохранён в Документы`)
+      if (!r.ok) { toast.error(r.error ?? t("adminDocs.constructor.avr.createFailed")); return }
+      toast.success(t("adminDocs.constructor.avr.created", { number: r.number ?? "" }))
     })
   }
 
@@ -158,18 +169,18 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
 
   const tenantGroups = useMemo(() => {
     const m = new Map<string, ConstructorTenant[]>()
-    for (const t of tenants) { const k = t.building ?? "Без здания"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(t) }
+    for (const row of tenants) { const k = row.building ?? t("adminDocs.constructor.step1.noBuilding"); if (!m.has(k)) m.set(k, []); m.get(k)!.push(row) }
     return [...m.entries()]
-  }, [tenants])
+  }, [tenants, t])
 
   return (
     <div className="space-y-6">
       {!embedded && (
       <div className="flex items-center gap-3">
-        <Link href="/admin/settings" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" aria-label="Назад к настройкам"><ArrowLeft className="h-5 w-5" /></Link>
+        <Link href="/admin/settings" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" aria-label={t("adminDocs.constructor.backToSettings")}><ArrowLeft className="h-5 w-5" /></Link>
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Конструктор АВР</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Акт выполненных работ (форма Р-1). Позиции подтягиваются из начислений за выбранный месяц.</p>
+          <h1 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t("adminDocs.constructor.avr.title")}</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.avr.subtitle")}</p>
         </div>
       </div>
       )}
@@ -177,72 +188,74 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
       {/* Тулбар: арендатор + месяц + действия */}
       <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="min-w-[220px] flex-1">
-          <label className={labelCls}>Арендатор</label>
+          <label className={labelCls}>{t("adminDocs.constructor.avr.tenant")}</label>
           <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
-            <option value="">— выберите арендатора —</option>
+            <option value="">{t("adminDocs.constructor.step1.pickTenant")}</option>
             {tenantGroups.map(([building, list]) => (
               <optgroup key={building} label={building}>
-                {list.map((t) => <option key={t.id} value={t.id} disabled={!t.activeContract}>{t.name}{t.activeContract ? "" : " — нет действующего договора"}</option>)}
+                {list.map((row) => <option key={row.id} value={row.id} disabled={!row.activeContract}>{row.name}{row.activeContract ? "" : t("adminDocs.constructor.avr.noActiveContract")}</option>)}
               </optgroup>
             ))}
           </select>
         </div>
         <div className="w-[160px]">
-          <label className={labelCls}>Месяц</label>
+          <label className={labelCls}>{t("adminDocs.constructor.avr.month")}</label>
           <input type="month" className={inputCls} value={period} onChange={(e) => onChangePeriod(e.target.value)} />
         </div>
         <Button variant="outline" leftIcon={<Download className="h-4 w-4" />} onClick={doDownload} disabled={pending}>PDF</Button>
-        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title="Прислать арендатору уведомление с просьбой подписать">
-          <input type="checkbox" checked={notifyTenant} onChange={(e) => setNotifyTenant(e.target.checked)} /> уведомить на подпись
+        <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400" title={t("adminDocs.constructor.avr.notifyTitle")}>
+          <input type="checkbox" checked={notifyTenant} onChange={(e) => setNotifyTenant(e.target.checked)} /> {t("adminDocs.constructor.avr.notify")}
         </label>
-        <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>Создать акт</Button>
+        <Button variant="primary" leftIcon={<FilePlus2 className="h-4 w-4" />} onClick={doCreate} disabled={pending}>{t("adminDocs.constructor.avr.create")}</Button>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Форма */}
         <div className="space-y-4">
-          <CollapsibleCard title="Стороны" icon={Users} defaultOpen>
+          <CollapsibleCard title={t("adminDocs.constructor.avr.parties")} icon={Users} defaultOpen>
             <div className="p-5">
-              <div className={secTitleCls}>Исполнитель (арендодатель)</div>
-              <PartyFields p={state.executor} onChange={(mut) => set((s) => mut(s.executor))} />
-              <div className={secTitleCls}>Заказчик (арендатор)</div>
-              <PartyFields p={state.customer} onChange={(mut) => set((s) => mut(s.customer))} />
+              <div className={secTitleCls}>{t("adminDocs.constructor.avr.executor")}</div>
+              <PartyFields p={state.executor} onChange={(mut) => set((s) => mut(s.executor))} t={t} />
+              <div className={secTitleCls}>{t("adminDocs.constructor.avr.customer")}</div>
+              <PartyFields p={state.customer} onChange={(mut) => set((s) => mut(s.customer))} t={t} />
             </div>
           </CollapsibleCard>
 
-          <CollapsibleCard title="Акт, договор, период" icon={ReceiptText} defaultOpen>
+          <CollapsibleCard title={t("adminDocs.constructor.avr.cardMeta")} icon={ReceiptText} defaultOpen>
             <div className="space-y-1 p-5">
               <div className="mb-2 grid grid-cols-2 gap-2">
                 <div>
-                  <label className={labelCls}>Номер {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">авто</span>}</label>
+                  <label className={labelCls}>{t("adminDocs.constructor.premises.number")} {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("adminDocs.constructor.premises.auto")}</span>}</label>
                   <div className="flex gap-1.5">
-                    <input className={`${inputCls} disabled:opacity-60`} placeholder="например, 001" value={state.meta.number} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.number = e.target.value })} />
-                    <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">{autoNumber ? "Другой" : "Авто"}</button>
+                    <input className={`${inputCls} disabled:opacity-60`} placeholder={t("adminDocs.constructor.egAmount", { value: "001" })} value={state.meta.number} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.number = e.target.value })} />
+                    <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">{autoNumber ? t("adminDocs.constructor.premises.btnManual") : t("adminDocs.constructor.premises.btnAuto")}</button>
                   </div>
                 </div>
-                <div><label className={labelCls}>Дата составления</label><input type="date" className={inputCls} value={state.meta.date} onChange={(e) => set((s) => { s.meta.date = e.target.value })} /></div>
+                <div><label className={labelCls}>{t("adminDocs.constructor.avr.dateMade")}</label><input type="date" className={inputCls} value={state.meta.date} onChange={(e) => set((s) => { s.meta.date = e.target.value })} /></div>
               </div>
               <div className="mb-2 grid grid-cols-2 gap-2">
-                <div><label className={labelCls}>Договор № <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из договора</span></label><input className={`${inputCls} disabled:opacity-60`} value={state.contractRef.number} disabled readOnly title="Подставляется автоматически из действующего договора выбранного арендатора" /></div>
-                <div><label className={labelCls}>Дата договора <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из договора</span></label><input type="date" className={`${inputCls} disabled:opacity-60`} value={state.contractRef.date} disabled readOnly title="Подставляется автоматически из действующего договора выбранного арендатора" /></div>
+                <div><label className={labelCls}>{t("adminDocs.constructor.avr.contractNumber")} <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("adminDocs.constructor.avr.fromContract")}</span></label><input className={`${inputCls} disabled:opacity-60`} value={state.contractRef.number} disabled readOnly title={t("adminDocs.constructor.avr.fromContractTitle")} /></div>
+                <div><label className={labelCls}>{t("adminDocs.constructor.avr.contractDate")} <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("adminDocs.constructor.avr.fromContract")}</span></label><input type="date" className={`${inputCls} disabled:opacity-60`} value={state.contractRef.date} disabled readOnly title={t("adminDocs.constructor.avr.fromContractTitle")} /></div>
               </div>
               <div className="mb-2 grid grid-cols-2 gap-2">
                 <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                  <input type="checkbox" checked={state.vat.enabled} onChange={(e) => set((s) => { s.vat.enabled = e.target.checked })} /> НДС
+                  <input type="checkbox" checked={state.vat.enabled} onChange={(e) => set((s) => { s.vat.enabled = e.target.checked })} /> {t("adminDocs.constructor.avr.vat")}
                 </label>
-                <div><label className={labelCls}>Ставка НДС, %</label><input type="number" className={inputCls} value={state.vat.rate} disabled={!state.vat.enabled} onChange={(e) => set((s) => { s.vat.rate = Number(e.target.value) })} /></div>
+                <div><label className={labelCls}>{t("adminDocs.constructor.avr.vatRate")}</label><input type="number" className={inputCls} value={state.vat.rate} disabled={!state.vat.enabled} onChange={(e) => set((s) => { s.vat.rate = Number(e.target.value) })} /></div>
               </div>
-              <div className="mb-2"><label className={labelCls}>Сведения об использовании запасов заказчика</label><input className={inputCls} placeholder="не использовались" value={state.stocks} onChange={(e) => set((s) => { s.stocks = e.target.value })} /></div>
-              <div><label className={labelCls}>Приложение: документации на N страниц</label><input type="number" className={inputCls} value={state.attachmentPages || ""} onChange={(e) => set((s) => { s.attachmentPages = Number(e.target.value) })} /></div>
+              <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.avr.stocks")}</label>{/* плейсхолдер повторяет значение по умолчанию, которое печатается в акте — в документ — переводит юрист */}<input className={inputCls} placeholder="не использовались" value={state.stocks} onChange={(e) => set((s) => { s.stocks = e.target.value })} /></div>
+              <div><label className={labelCls}>{t("adminDocs.constructor.avr.attachmentPages")}</label><input type="number" className={inputCls} value={state.attachmentPages || ""} onChange={(e) => set((s) => { s.attachmentPages = Number(e.target.value) })} /></div>
             </div>
           </CollapsibleCard>
 
-          <CollapsibleCard title="Позиции (работы / услуги)" icon={ListChecks} defaultOpen>
-            <div className="p-5"><ItemsEditor state={state} set={set} /></div>
+          <CollapsibleCard title={t("adminDocs.constructor.avr.items")} icon={ListChecks} defaultOpen>
+            <div className="p-5"><ItemsEditor state={state} set={set} t={t} /></div>
           </CollapsibleCard>
         </div>
 
-        {/* Предпросмотр */}
+        {/* Предпросмотр формы Р-1: это сам документ для налоговой, а не интерфейс,
+            поэтому его текст остаётся русским (docs/i18n-documents-plan.md).
+            в документ — переводит юрист */}
         <div className="lg:sticky lg:top-4 lg:self-start">
           <div className="rounded-xl border border-slate-200 bg-white p-6 text-[13px] leading-relaxed text-slate-800 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200">
             <div className="text-right text-[10px] italic text-slate-400">Приложение 50 к приказу Министра финансов РК от 20.12.2012 № 562 · Форма Р-1</div>
@@ -277,7 +290,7 @@ export function AvrConstructor({ embedded = false, initialTenantId }: { embedded
               </thead>
               <tbody>
                 {state.items.length === 0 && (
-                  <tr><td colSpan={8} className="border border-slate-300 px-2 py-3 text-center text-slate-400 dark:border-slate-700">Нет позиций — добавьте слева или выберите арендатора с начислениями</td></tr>
+                  <tr><td colSpan={8} className="border border-slate-300 px-2 py-3 text-center text-slate-400 dark:border-slate-700">{t("adminDocs.constructor.avr.emptyItems")}</td></tr>
                 )}
                 {state.items.map((it, i) => (
                   <tr key={i}>

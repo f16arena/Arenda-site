@@ -13,9 +13,18 @@ import { cn } from "@/lib/utils"
 import { ROOT_HOST } from "@/lib/host"
 import { tenantScope, leadScope } from "@/lib/tenant-scope"
 import { safeServerValue } from "@/lib/server-fallback"
+import { getLocale, getT } from "@/lib/i18n/server"
+import { formatDateShortL, formatMoneyL } from "@/lib/i18n/format"
+import { INTL_LOCALE, type Locale } from "@/lib/i18n/config"
+import type { Messages } from "@/lib/i18n/messages"
+import type { Translator } from "@/lib/i18n/translate"
+
+type T = Translator<Messages>["t"]
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { userId } = await requirePlatformOwner()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
   const { id } = await params
 
   const org = await db.organization.findUnique({
@@ -176,24 +185,32 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
       {org.isSuspended && (
         <div className="bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
-          <p className="text-sm text-red-800 dark:text-red-200">Организация <b>приостановлена</b>. Клиент не может работать в системе.</p>
+          <p className="text-sm font-medium text-red-800 dark:text-red-200">{t("superadmin.org.suspendedAlert")}</p>
         </div>
       )}
       {expired && !org.isSuspended && (
         <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4 flex items-center gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
-          <p className="text-sm text-amber-800 dark:text-amber-200">Подписка <b>истекла</b>. Клиент не может создавать новые объекты.</p>
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-200">{t("superadmin.org.expiredAlert")}</p>
         </div>
       )}
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Тариф" value={org.plan?.name ?? "—"} sub={`${org.plan?.priceMonthly?.toLocaleString("ru-RU") ?? 0} ₸/мес`} />
-        <Stat label="Срок до" value={org.planExpiresAt ? new Date(org.planExpiresAt).toLocaleDateString("ru-RU") : "—"}
-              sub={daysLeft !== null ? (daysLeft >= 0 ? `${daysLeft} дн. осталось` : `Просрочен ${-daysLeft} дн.`) : ""}
+        <Stat
+          label={t("superadmin.org.statPlan")}
+          value={org.plan?.name ?? "—"}
+          sub={`${formatMoneyL(locale, org.plan?.priceMonthly ?? 0)}${t("common.money.perMonth")}`}
+        />
+        <Stat label={t("superadmin.org.statUntil")} value={org.planExpiresAt ? formatDateShortL(locale, org.planExpiresAt) : "—"}
+              sub={daysLeft !== null
+                ? (daysLeft >= 0
+                    ? t("superadmin.org.daysLeft", { count: daysLeft })
+                    : t("superadmin.org.overdue", { count: -daysLeft }))
+                : ""}
               accent={expired ? "red" : daysLeft !== null && daysLeft <= 7 ? "amber" : "slate"} />
-        <Stat label="Зданий" value={String(org._count.buildings)} icon={Building2} />
-        <Stat label="Пользователей" value={String(org._count.users)} icon={Users} />
+        <Stat label={t("superadmin.cols.buildings")} value={String(org._count.buildings)} icon={Building2} />
+        <Stat label={t("superadmin.cols.users")} value={String(org._count.users)} icon={Users} />
       </div>
 
       {/* Лимиты тарифа */}
@@ -218,11 +235,13 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         recentErrors={recentErrors}
         recentAuditLogs={recentAuditLogs}
         poorVitalsCount={poorVitalsCount}
+        locale={locale}
+        t={t}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Edit form */}
-        <Card title="Параметры организации">
+        <Card title={t("superadmin.org.cardParams")}>
           <OrgEditForm
             orgId={org.id}
             initial={{
@@ -236,12 +255,12 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         </Card>
 
         {/* Extend subscription */}
-        <Card title="Продлить подписку">
+        <Card title={t("superadmin.org.cardExtend")}>
           <ExtendForm orgId={org.id} planPrice={org.plan?.priceMonthly ?? 0} />
         </Card>
 
         {/* Owner */}
-        <Card title="Владелец организации">
+        <Card title={t("superadmin.org.cardOwner")}>
           {ownerUser ? (
             <div className="space-y-2">
               <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{ownerUser.name}</p>
@@ -249,7 +268,7 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
               {ownerUser.phone && <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">{ownerUser.phone}</p>}
             </div>
           ) : (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Владелец не назначен</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t("superadmin.org.noOwner")}</p>
           )}
           <ChangeOwnerForm
             orgId={org.id}
@@ -259,9 +278,9 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
         </Card>
 
         {/* Subscriptions history */}
-        <Card title="История подписок">
+        <Card title={t("superadmin.org.cardSubscriptions")}>
           {subscriptions.length === 0 ? (
-            <p className="text-sm text-slate-400 dark:text-slate-500">Нет записей</p>
+            <p className="text-sm text-slate-400 dark:text-slate-500">{t("superadmin.org.noRecords")}</p>
           ) : (
             <div className="space-y-2">
               {subscriptions.map((s) => (
@@ -269,11 +288,11 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ id: 
                   <div>
                     <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{s.plan.name}</p>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                      {new Date(s.startedAt).toLocaleDateString("ru-RU")} → {new Date(s.expiresAt).toLocaleDateString("ru-RU")}
+                      {formatDateShortL(locale, s.startedAt)} → {formatDateShortL(locale, s.expiresAt)}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{s.paidAmount.toLocaleString("ru-RU")} ₸</p>
+                    <p className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatMoneyL(locale, s.paidAmount)}</p>
                     {s.paymentMethod && <p className="text-[10px] text-slate-400 dark:text-slate-500">{s.paymentMethod}</p>}
                   </div>
                 </div>
@@ -326,6 +345,8 @@ function SupportSnapshot({
   recentErrors,
   recentAuditLogs,
   poorVitalsCount,
+  locale,
+  t,
 }: {
   orgId: string
   pendingPaymentReportsCount: number
@@ -349,40 +370,42 @@ function SupportSnapshot({
     createdAt: Date
   }>
   poorVitalsCount: number
+  locale: Locale
+  t: T
 }) {
   const cards = [
     {
-      label: "Оплаты на проверке",
+      label: t("superadmin.org.support.pendingPayments"),
       value: pendingPaymentReportsCount,
       icon: Wallet,
       tone: pendingPaymentReportsCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
     },
     {
-      label: "Документов создано",
+      label: t("superadmin.org.support.documents"),
       value: generatedDocumentsCount,
       icon: FileText,
       tone: "text-blue-600 dark:text-blue-400",
     },
     {
-      label: "Файлов в хранилище",
+      label: t("superadmin.org.support.files"),
       value: storedFilesCount,
       icon: HardDrive,
       tone: "text-slate-900 dark:text-slate-100",
     },
     {
-      label: "Сигналы качества данных",
+      label: t("superadmin.org.support.dataQuality"),
       value: dataQualitySignalCount,
       icon: AlertTriangle,
       tone: dataQualitySignalCount > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400",
     },
     {
-      label: "Ошибки за 24 часа",
+      label: t("superadmin.org.support.errors24h"),
       value: recentErrorCount,
       icon: Bug,
       tone: recentErrorCount > 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400",
     },
     {
-      label: "Poor Web Vitals за 7 дней",
+      label: t("superadmin.org.support.poorVitals"),
       value: poorVitalsCount,
       icon: Activity,
       tone: poorVitalsCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400",
@@ -390,7 +413,7 @@ function SupportSnapshot({
   ]
 
   return (
-    <Card title="Support mode">
+    <Card title={t("superadmin.org.support.title")}>
       <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
         {cards.map((card) => (
           <div key={card.label} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
@@ -403,13 +426,13 @@ function SupportSnapshot({
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние ошибки</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.org.support.recentErrors")}</p>
             <Link href={`/superadmin/errors?q=${encodeURIComponent(orgId)}`} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-              открыть
+              {t("superadmin.org.support.openLink")}
             </Link>
           </div>
           {recentErrors.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">За организацией не закреплены свежие ошибки.</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t("superadmin.org.support.noErrors")}</p>
           ) : (
             <div className="mt-3 space-y-2">
               {recentErrors.map((log) => (
@@ -420,9 +443,9 @@ function SupportSnapshot({
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-mono font-semibold text-red-600 dark:text-red-300">#{getSupportErrorCode(log)}</span>
-                    <span className="text-slate-400 dark:text-slate-500">{formatSupportDate(log.createdAt)}</span>
+                    <span className="text-slate-400 dark:text-slate-500">{formatSupportDate(locale, log.createdAt)}</span>
                   </div>
-                  <p className="mt-1 truncate text-slate-500 dark:text-slate-400">{getSupportErrorPath(log)}</p>
+                  <p className="mt-1 truncate text-slate-500 dark:text-slate-400">{getSupportErrorPath(log, t)}</p>
                 </Link>
               ))}
             </div>
@@ -431,23 +454,23 @@ function SupportSnapshot({
 
         <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Последние действия</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("superadmin.org.support.recentActions")}</p>
             <Link href={`/superadmin/audit?q=${encodeURIComponent(orgId)}`} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
-              открыть
+              {t("superadmin.org.support.openLink")}
             </Link>
           </div>
           {recentAuditLogs.length === 0 ? (
-            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">Действий по организации пока не найдено.</p>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{t("superadmin.org.support.noActions")}</p>
           ) : (
             <div className="mt-3 space-y-2">
               {recentAuditLogs.map((log) => (
                 <div key={log.id} className="rounded-lg border border-slate-100 p-3 text-xs dark:border-slate-800">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold text-slate-800 dark:text-slate-200">{log.action} · {log.entity}</span>
-                    <span className="text-slate-400 dark:text-slate-500">{formatSupportDate(log.createdAt)}</span>
+                    <span className="text-slate-400 dark:text-slate-500">{formatSupportDate(locale, log.createdAt)}</span>
                   </div>
                   <p className="mt-1 truncate text-slate-500 dark:text-slate-400">
-                    {log.userName ?? "Система"}{log.userRole ? ` · ${log.userRole}` : ""}{log.entityId ? ` · ${log.entityId}` : ""}
+                    {log.userName ?? t("superadmin.org.support.systemUser")}{log.userRole ? ` · ${log.userRole}` : ""}{log.entityId ? ` · ${log.entityId}` : ""}
                   </p>
                 </div>
               ))}
@@ -457,13 +480,13 @@ function SupportSnapshot({
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Link href={`/superadmin/errors?q=${encodeURIComponent(orgId)}`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-          Ошибки клиента
+          {t("superadmin.org.support.clientErrors")}
         </Link>
         <Link href={`/superadmin/audit?q=${encodeURIComponent(orgId)}`} className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-          Последние действия
+          {t("superadmin.org.support.recentActions")}
         </Link>
         <Link href="/admin/system-health" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">
-          System health
+          {t("superadmin.org.support.healthLink")}
         </Link>
       </div>
     </Card>
@@ -475,9 +498,9 @@ function getSupportErrorCode(log: { entityId: string | null; details: string | n
   return details.errorId ?? log.entityId ?? "unknown"
 }
 
-function getSupportErrorPath(log: { details: string | null }): string {
+function getSupportErrorPath(log: { details: string | null }, t: T): string {
   const details = parseSupportLogDetails(log.details)
-  return details.path ?? details.source ?? "Нет страницы в журнале"
+  return details.path ?? details.source ?? t("superadmin.org.support.noPage")
 }
 
 function parseSupportLogDetails(details: string | null): { errorId?: string; path?: string; source?: string } {
@@ -489,8 +512,8 @@ function parseSupportLogDetails(details: string | null): { errorId?: string; pat
   }
 }
 
-function formatSupportDate(value: Date): string {
-  return new Intl.DateTimeFormat("ru-RU", {
+function formatSupportDate(locale: Locale, value: Date): string {
+  return new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",

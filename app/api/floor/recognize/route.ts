@@ -4,6 +4,7 @@ import { auth } from "@/auth"
 import { requireOrgAccess } from "@/lib/org"
 import { headers } from "next/headers"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { getT } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -83,6 +84,9 @@ type PolyRoom = {
 
 type Room = RectRoom | PolyRoom
 
+// Промпт читает модель, а не человек: он остаётся русским, потому что
+// чертежи и подписи на планах в РК тоже русские, а перевод инструкции
+// меняет то, что модель распознаёт.
 const SYSTEM_PROMPT = `Ты эксперт по архитектурным чертежам, обученный на проектной документации Республики Казахстан и СНГ.
 
 ИСХОДНЫЕ СТАНДАРТЫ:
@@ -199,8 +203,10 @@ const SYSTEM_PROMPT = `Ты эксперт по архитектурным че�
 - Перед каждой комнатой подумай: реально ли её стены ортогональны? Если есть скос, выступ или поворот — используй polygon.`
 
 export async function POST(req: Request) {
+  // Переводчик объявлен до try — иначе он не виден в блоках catch ниже.
+  const { t } = await getT()
   const session = await auth()
-  if (!session?.user) return NextResponse.json({ error: "Не авторизован" }, { status: 401 })
+  if (!session?.user) return NextResponse.json({ error: t("adminDocs.api.common.unauthorized") }, { status: 401 })
   await requireOrgAccess()
 
   // Rate limit: 10 распознаваний в час с одного пользователя — защита от перерасхода
@@ -211,7 +217,7 @@ export async function POST(req: Request) {
   })
   if (!rl.ok) {
     return NextResponse.json(
-      { error: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` },
+      { error: t("adminDocs.api.common.rateLimited", { minutes: Math.ceil(rl.retryAfterSec / 60) }) },
       { status: 429 },
     )
   }
@@ -219,10 +225,7 @@ export async function POST(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      {
-        error:
-          "AI-распознавание не настроено. Администратор должен добавить ANTHROPIC_API_KEY в переменные окружения Vercel.",
-      },
+      { error: t("adminDocs.api.ai.notConfigured") },
       { status: 503 },
     )
   }
@@ -231,17 +234,17 @@ export async function POST(req: Request) {
   try {
     body = await req.json()
   } catch {
-    return NextResponse.json({ error: "Невалидный JSON" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.common.invalidJson") }, { status: 400 })
   }
 
   const dataUrl = body.imageDataUrl
   if (!dataUrl || typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
-    return NextResponse.json({ error: "Ожидался data URL изображения" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.expectedImage") }, { status: 400 })
   }
 
   const match = dataUrl.match(/^data:(image\/(?:png|jpeg|jpg|webp|gif));base64,(.+)$/)
   if (!match) {
-    return NextResponse.json({ error: "Неподдерживаемый формат изображения" }, { status: 400 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.unsupportedImage") }, { status: 400 })
   }
   const mediaType = match[1] as "image/png" | "image/jpeg" | "image/webp" | "image/gif"
   const base64 = match[2]
@@ -249,7 +252,7 @@ export async function POST(req: Request) {
   // Anthropic ограничивает картинки до ~5 МБ в base64
   if (base64.length > 6_500_000) {
     return NextResponse.json(
-      { error: "Изображение слишком большое (макс ~5 МБ)" },
+      { error: t("adminDocs.api.ai.imageTooBig") },
       { status: 413 },
     )
   }
@@ -286,20 +289,20 @@ export async function POST(req: Request) {
       ],
     })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "AI-сервис недоступен"
-    return NextResponse.json({ error: `Ошибка AI: ${msg}` }, { status: 502 })
+    const msg = e instanceof Error ? e.message : t("adminDocs.api.ai.unavailable")
+    return NextResponse.json({ error: t("adminDocs.api.ai.failed", { error: msg }) }, { status: 502 })
   }
 
   if (response.stop_reason === "max_tokens") {
-    return NextResponse.json({ error: "План слишком сложный — ответ AI не уместился. Попробуйте распознать план по частям." }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.tooComplex") }, { status: 502 })
   }
   if (response.stop_reason === "refusal") {
-    return NextResponse.json({ error: "AI отказался обрабатывать это изображение" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.refused") }, { status: 502 })
   }
 
   const textBlock = response.content.find((b) => b.type === "text")
   if (!textBlock || textBlock.type !== "text") {
-    return NextResponse.json({ error: "AI не вернул текст" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.noText") }, { status: 502 })
   }
 
   // Извлекаем первый сбалансированный JSON-объект из ответа модели.
@@ -331,7 +334,7 @@ export async function POST(req: Request) {
   if (!jsonText) {
     return NextResponse.json(
       {
-        error: "AI не вернул JSON-объект",
+        error: t("adminDocs.api.ai.notJsonObject"),
         raw: textBlock.text.slice(0, 500),
       },
       { status: 502 },
@@ -342,7 +345,7 @@ export async function POST(req: Request) {
   } catch (parseErr) {
     return NextResponse.json(
       {
-        error: "AI вернул не валидный JSON",
+        error: t("adminDocs.api.ai.invalidJson"),
         raw: textBlock.text.slice(0, 500),
         parseError: parseErr instanceof Error ? parseErr.message : String(parseErr),
       },
@@ -351,7 +354,7 @@ export async function POST(req: Request) {
   }
 
   if (!parsed.rooms || !Array.isArray(parsed.rooms)) {
-    return NextResponse.json({ error: "В ответе нет массива rooms" }, { status: 502 })
+    return NextResponse.json({ error: t("adminDocs.api.ai.noRooms") }, { status: 502 })
   }
 
   // Валидация и нормализация

@@ -35,13 +35,21 @@ export async function parseBankCsv(csv: string): Promise<{ rows: ParsedRow[]; er
 
   const headers = lines[0].split(sep).map((h) => h.trim().toLowerCase().replace(/^"|"$/g, ""))
 
-  // Угадываем колонки
+  // Угадываем колонки по началу слова в шапке выписки.
+  //
+  // Основы двуязычные, и это не перевод, а условие работы: банк отдаёт выписку
+  // на языке кабинета, и в казахской шапке стоят «Күні», «Сомасы», «Төлем
+  // тағайындалуы». Русские основы обязаны остаться — выписки приходят и на
+  // русском. Ищем без «ё» и без учёта регистра (headers уже в нижнем).
   const dateIdx = headers.findIndex((h) =>
-    h.includes("дат") || h.includes("date") || h.includes("период"))
+    h.includes("дат") || h.includes("date") || h.includes("период") ||
+    h.includes("күн") || h.includes("кезең"))
   const amountIdx = headers.findIndex((h) =>
-    h.includes("сумм") || h.includes("amount") || h.includes("приход") || h.includes("кредит"))
+    h.includes("сумм") || h.includes("amount") || h.includes("приход") || h.includes("кредит") ||
+    h.includes("сома") || h.includes("түсім") || h.includes("кіріс"))
   const descIdx = headers.findIndex((h) =>
-    h.includes("назначен") || h.includes("описан") || h.includes("description") || h.includes("комментар"))
+    h.includes("назначен") || h.includes("описан") || h.includes("description") || h.includes("комментар") ||
+    h.includes("тағайынд") || h.includes("сипат") || h.includes("мақсат") || h.includes("ескертпе"))
 
   if (dateIdx === -1 || amountIdx === -1) {
     errors.push(t("actions.bankImport.columnsNotFound"))
@@ -144,6 +152,10 @@ export async function applyBankImport(
             amount: r.amount,
             paymentDate,
             method: "TRANSFER",
+            // note попадает в акт сверки (app/actions/reconciliation-builder.ts)
+            // и в выгрузку для 1С — это текст документа, а не интерфейс, поэтому
+            // остаётся русским независимо от языка того, кто грузил выписку
+            // (docs/i18n-documents-plan.md).
             note: `Импорт из выписки: ${r.description.slice(0, 100)}`,
             externalRef,
           },

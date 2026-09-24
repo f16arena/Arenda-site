@@ -23,7 +23,7 @@ export async function GET(req: Request) {
 
   const token = process.env.TELEGRAM_BOT_TOKEN
   if (!token) {
-    return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN не задан в env" }, { status: 500 })
+    return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN is not set" }, { status: 500 })
   }
 
   if (action === "delete") {

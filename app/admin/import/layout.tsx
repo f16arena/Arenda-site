@@ -12,7 +12,7 @@ export default async function AdminImportLayout({ children }: { children: React.
   return (
     <I18nProvider
       locale={locale}
-      messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminSettings"])}
+      messages={pickNamespaces(dictionaries[locale], ["common", "domain", "adminSettings", "imports"])}
     >
       {children}
     </I18nProvider>

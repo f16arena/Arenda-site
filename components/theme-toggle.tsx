@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Sun, Moon, Monitor } from "lucide-react"
+import { useT } from "@/lib/i18n/client"
 
 type Theme = "light" | "dark" | "system"
 
@@ -32,6 +33,7 @@ export const themeInitScript = `
 `
 
 export function ThemeToggle() {
+  const { t } = useT()
   const [theme, setTheme] = useState<Theme>("system")
   const [mounted, setMounted] = useState(false)
 
@@ -64,17 +66,17 @@ export function ThemeToggle() {
   if (!mounted) return null
 
   const items: { value: Theme; icon: React.ElementType; label: string }[] = [
-    { value: "light", icon: Sun, label: "Светлая" },
-    { value: "system", icon: Monitor, label: "Системная" },
-    { value: "dark", icon: Moon, label: "Тёмная" },
+    { value: "light", icon: Sun, label: t("common.theme.shortLight") },
+    { value: "system", icon: Monitor, label: t("common.theme.shortSystem") },
+    { value: "dark", icon: Moon, label: t("common.theme.shortDark") },
   ]
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50">
-        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Тема оформления</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("common.theme.sectionTitle")}</h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-          Сохраняется в браузере
+          {t("common.theme.sectionHint")}
         </p>
       </div>
       <div className="p-3 grid grid-cols-3 gap-2">

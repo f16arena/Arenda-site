@@ -9,6 +9,12 @@ import { getT } from "@/lib/i18n/server"
 import { formatDateShortL } from "@/lib/i18n/format"
 import type { Locale } from "@/lib/i18n/config"
 
+// ЯЗЫК. В этом файле две разные вещи, и путать их нельзя:
+//  • сообщения об ошибках (их видит администратор) — переведены через getT();
+//  • ТЕКСТ ДС в переменных content/lines, номер «…-ДС N», денежный формат и
+//    даты — это сам документ, он остаётся русским: казахская редакция выходит
+//    только после вычитки юриста (docs/i18n-documents-plan.md).
+//
 // Переводчик для вспомогательных синхронных функций: в файле с "use server"
 // экспортировать можно только async-функции, поэтому t передаём параметром.
 type T = Awaited<ReturnType<typeof getT>>["t"]
@@ -126,7 +132,10 @@ async function loadParent(t: T, contractId: string, orgId: string) {
   return { contract: c }
 }
 
-/** Следующий номер ДС для договора: {номер договора}-ДС{N}. */
+/**
+ * Следующий номер ДС для договора: {номер договора}-ДС{N}.
+ * Номер печатается в шапке ДС и хранится в базе — остаётся русским.
+ */
 async function nextAddendumNumber(parentId: string, parentNumber: string): Promise<string> {
   const n = await db.contract.count({ where: { parentContractId: parentId, type: "ADDENDUM" } })
   return `${parentNumber}-ДС${n + 1}`
@@ -156,6 +165,8 @@ export async function createExtensionAddendum(
 
     const number = await nextAddendumNumber(parent.id, parent.number)
     const today = new Date()
+    // Текст ДС — документ, который подписывают стороны: остаётся русским
+    // (docs/i18n-documents-plan.md).
     const content = [
       `ДОПОЛНИТЕЛЬНОЕ СОГЛАШЕНИЕ № ${number}`,
       `к Договору аренды № ${parent.number}${parent.startDate ? ` от ${fmt(parent.startDate)}` : ""}`,
@@ -215,6 +226,7 @@ export async function createTerminationAddendum(
 
     const number = await nextAddendumNumber(parent.id, parent.number)
     const today = new Date()
+    // Текст соглашения о расторжении — документ, остаётся русским.
     const content = [
       `СОГЛАШЕНИЕ о расторжении № ${number}`,
       `Договора аренды № ${parent.number}${parent.startDate ? ` от ${fmt(parent.startDate)}` : ""}`,
@@ -264,6 +276,7 @@ export interface RentalTermsChange {
   moveInDate?: string | null
 }
 
+/** Сумма В ТЕЛЕ ДС. Документ остаётся русским — docs/i18n-documents-plan.md. */
 function money(v: number | null | undefined): string {
   return typeof v === "number" ? new Intl.NumberFormat("ru-RU").format(v) + " ₸" : "—"
 }
@@ -311,6 +324,7 @@ export async function createRentalTermsAddendum(
       ...(typeof terms.rentFreeMonths === "number" ? { rentFreeMonths: terms.rentFreeMonths } : {}),
       ...(terms.moveInDate !== undefined ? { moveInDate: terms.moveInDate } : {}),
     }
+    // Формулировки пунктов ДС — документ, остаются русскими.
     const rentLine = hasFixed
       ? `аренда составляет ${money(terms.fixedMonthlyRent)}/мес (фиксированная сумма)`
       : `ставка аренды составляет ${money(terms.customRate)}/м² в месяц`
@@ -390,6 +404,8 @@ export async function createServicesAddendum(
     const { orgId } = await requireOrgAccess()
 
     const op = services.operatingCosts
+    // items — пункты ДС: текст документа, остаётся русским
+    // (docs/i18n-documents-plan.md).
     const items: string[] = []
     if (op && (typeof op.winterRate === "number" || typeof op.summerRate === "number")) {
       items.push(

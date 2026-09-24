@@ -3,6 +3,9 @@
 // договоре. Хранятся в Organization.contractDefaults (JSON). Порядок при
 // создании договора: пустой договор → условия организации → условия из
 // карточки арендатора (они конкретнее и важнее).
+//
+// ЯЗЫК: значения по умолчанию (город, основание полномочий) попадают прямо в
+// договор, поэтому остаются русскими (docs/i18n-documents-plan.md).
 
 import type { ContractState, Modules, Penalty, Indexation, UtilityKey, UtilityMode } from "./schema"
 import { UTILITY_ORDER } from "./schema"

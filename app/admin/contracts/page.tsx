@@ -11,7 +11,7 @@ import { requireOrgAccess } from "@/lib/org"
 import { tenantScope } from "@/lib/tenant-scope"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { formatTenantPlacement } from "@/lib/tenant-placement"
-import { contractTypeShort } from "@/lib/contract-placement-types"
+import { contractTypeShortKey } from "@/lib/contract-placement-types"
 import { PageHeader, StatGrid, StatCard, Card } from "@/components/ui/page"
 import { RouteTabs } from "@/components/ui/route-tabs"
 import { documentsTabs } from "@/lib/hub-tabs"
@@ -171,7 +171,7 @@ async function Section({
                     <span>{placement}</span>
                     {tenant.contracts[0]?.placementType && (
                       <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-500/15 dark:text-sky-300">
-                        {contractTypeShort(tenant.contracts[0].placementType)}
+                        {t(contractTypeShortKey(tenant.contracts[0].placementType))}
                       </span>
                     )}
                   </div>

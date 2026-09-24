@@ -5,10 +5,15 @@ import { basicEmailTemplate, sendEmail } from "@/lib/email"
 import { ROOT_HOST } from "@/lib/host"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
 import { normalizeEmail } from "@/lib/contact-validation"
+import { getT, getTForUser } from "@/lib/i18n/server"
+import { htmlEscape } from "@/lib/email"
 
 export const dynamic = "force-dynamic"
 
 export async function POST(req: Request) {
+  // Эндпоинт анонимный: кто просит сброс, мы ещё не знаем, поэтому ответ идёт
+  // на языке запроса (cookie/сессия), а само письмо — на языке получателя.
+  const { t } = await getT()
   const body = await req.json().catch(() => null) as { email?: string } | null
   let email: string
 
@@ -16,7 +21,7 @@ export async function POST(req: Request) {
     email = normalizeEmail(body?.email, { required: true })
   } catch (error) {
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Введите корректный email" },
+      { error: error instanceof Error ? error.message : t("adminDocs.api.auth.emailInvalid") },
       { status: 400 },
     )
   }
@@ -24,12 +29,12 @@ export async function POST(req: Request) {
   const rateLimit = checkRateLimit(getClientKey(req.headers, "mobile-password-reset"), { max: 5, window: 15 * 60_000 })
   if (!rateLimit.ok) {
     return NextResponse.json(
-      { error: `Слишком много запросов. Попробуйте через ${Math.ceil(rateLimit.retryAfterSec / 60)} мин.` },
+      { error: t("adminDocs.api.common.rateLimited", { minutes: Math.ceil(rateLimit.retryAfterSec / 60) }) },
       { status: 429 },
     )
   }
 
-  const genericMessage = `Если аккаунт с email ${email} существует, мы отправили письмо для восстановления пароля.`
+  const genericMessage = t("emails.resetPassword.generic", { email })
   const user = await db.user.findUnique({
     where: { email },
     select: { id: true, name: true, email: true, isActive: true },
@@ -54,26 +59,29 @@ export async function POST(req: Request) {
 
   const proto = req.headers.get("x-forwarded-proto") ?? "https"
   const link = `${proto}://${ROOT_HOST}/reset-password?token=${token}`
+  // Письмо читает владелец аккаунта — язык из его профиля, не из запроса.
+  const { t: tMail, locale: mailLocale } = await getTForUser(user.id)
   const html = basicEmailTemplate({
-    title: "Восстановление пароля",
-    body: `<p>Здравствуйте, ${user.name}!</p>
-<p>Вы запросили восстановление пароля для Commrent. Ссылка действует 1 час.</p>`,
-    buttonText: "Сбросить пароль",
+    lang: mailLocale,
+    title: tMail("emails.resetPassword.title"),
+    body: `<p>${htmlEscape(tMail("emails.common.greetingNamed", { name: user.name }))}</p>
+<p>${tMail("emails.resetPassword.body")}</p>`,
+    buttonText: tMail("emails.resetPassword.button"),
     buttonUrl: link,
-    footer: "Если вы не запрашивали восстановление пароля, просто проигнорируйте это письмо.",
+    footer: tMail("emails.resetPassword.footer"),
   })
 
   const emailResult = await sendEmail({
     to: email,
-    subject: "Восстановление пароля Commrent",
+    subject: tMail("emails.resetPassword.subject"),
     html,
-    text: `Ссылка для восстановления пароля: ${link}`,
+    text: tMail("emails.resetPassword.text", { link }),
   })
 
   if (!emailResult.ok && process.env.NODE_ENV !== "production") {
     return NextResponse.json({
       ok: true,
-      message: "Email пока не настроен. В dev-режиме используйте ссылку ниже.",
+      message: t("emails.resetPassword.devHint"),
       previewLink: link,
     })
   }

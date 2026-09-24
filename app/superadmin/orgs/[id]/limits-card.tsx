@@ -1,7 +1,8 @@
 import { Building2, Users, Briefcase, TrendingUp } from "lucide-react"
 import { Card } from "@/components/ui/card"
+import { getT } from "@/lib/i18n/server"
 
-export function LimitsCard({
+export async function LimitsCard({
   buildings,
   tenants,
   users,
@@ -20,13 +21,14 @@ export function LimitsCard({
   maxUsers: number | null
   maxLeads: number | null
 }) {
+  const { t } = await getT()
   return (
     <Card className="block p-5 space-y-3">
-      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">Использование тарифа</p>
-      <Row label="Зданий" current={buildings} max={maxBuildings} icon={Building2} />
-      <Row label="Арендаторов" current={tenants} max={maxTenants} icon={Briefcase} />
-      <Row label="Пользователей" current={users} max={maxUsers} icon={Users} />
-      <Row label="Лидов" current={leads} max={maxLeads} icon={TrendingUp} />
+      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{t("superadmin.org.limitsTitle")}</p>
+      <Row label={t("superadmin.org.limitBuildings")} current={buildings} max={maxBuildings} icon={Building2} />
+      <Row label={t("superadmin.org.limitTenants")} current={tenants} max={maxTenants} icon={Briefcase} />
+      <Row label={t("superadmin.org.limitUsers")} current={users} max={maxUsers} icon={Users} />
+      <Row label={t("superadmin.org.limitLeads")} current={leads} max={maxLeads} icon={TrendingUp} />
     </Card>
   )
 }

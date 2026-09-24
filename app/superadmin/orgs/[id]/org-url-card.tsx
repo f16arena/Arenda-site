@@ -3,8 +3,10 @@
 import { useState } from "react"
 import { Globe, Copy, Check, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useT } from "@/lib/i18n/client"
 
 export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string }) {
+  const { t } = useT()
   const [copied, setCopied] = useState(false)
   const url = `https://${slug}.${rootHost}`
 
@@ -20,7 +22,7 @@ export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string 
         <Globe className="h-5 w-5 text-purple-600 dark:text-purple-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-[10px] uppercase tracking-widest text-purple-700 dark:text-purple-300 font-semibold">Рабочая зона организации</p>
+        <p className="text-[10px] uppercase tracking-widest text-purple-700 dark:text-purple-300 font-semibold">{t("superadmin.org.urlTitle")}</p>
         <p className="text-base font-mono text-slate-900 dark:text-slate-100 truncate">{url}</p>
       </div>
       <div className="flex gap-1.5 shrink-0">
@@ -28,9 +30,11 @@ export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string 
           variant="outline"
           size="sm"
           onClick={copy}
-          title="Скопировать URL"
+          title={t("superadmin.org.copyUrl")}
         >
-          {copied ? <><Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Скопировано</> : <><Copy className="h-3.5 w-3.5" /> Копировать</>}
+          {copied
+            ? <><Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> {t("common.actions.copied")}</>
+            : <><Copy className="h-3.5 w-3.5" /> {t("common.actions.copy")}</>}
         </Button>
         <a
           href={url}
@@ -39,7 +43,7 @@ export function OrgUrlCard({ slug, rootHost }: { slug: string; rootHost: string 
           className="flex items-center gap-1 rounded-lg bg-purple-600 hover:bg-purple-700 px-2.5 py-1.5 text-xs font-medium text-white"
         >
           <ExternalLink className="h-3.5 w-3.5" />
-          Открыть
+          {t("common.actions.open")}
         </a>
       </div>
     </div>

@@ -71,7 +71,12 @@ import {
   type PlacementTerms,
   type PlacedEquipment,
   type PlacementElectricity,
+  type ValidationIssue,
 } from "@/lib/contract-engine"
+import { useT } from "@/lib/i18n/client"
+import { formatMoneyL } from "@/lib/i18n/format"
+import type { Messages } from "@/lib/i18n/messages"
+import type { TextKey, Translator } from "@/lib/i18n/translate"
 
 type Mutator = (s: ContractState) => void
 
@@ -81,24 +86,29 @@ const secTitleCls = "mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide
 const cardCls = "rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
 
 // Варианты состояния помещения для Акта приёма-передачи (выпадающий список).
+// Значение выбранного пункта печатается в Акте, поэтому остаётся русским.
+// в документ — переводит юрист
 const CONDITION_OPTIONS = ["не удовлетворительное", "удовлетворительное", "хорошее", "отличное"]
 
-const PARTY_TYPES: { v: PartyType; label: string }[] = [
-  { v: "too", label: "ТОО" },
-  { v: "ip", label: "ИП" },
-  { v: "individual", label: "Физлицо" },
-]
+// Справочники держат только ключ: подпись берётся из словаря при отрисовке,
+// иначе она застыла бы на языке, который был при загрузке модуля.
+const PARTY_TYPES: PartyType[] = ["too", "ip", "individual"]
+// Основание полномочий склеивается в преамбулу договора («в лице … действующего
+// на основании Устава»), поэтому не переводится.
+// в документ — переводит юрист
 const BASIS_BY_TYPE: Record<PartyType, string> = {
   too: "Устава",
   ip: "Свидетельства/Уведомления о регистрации ИП",
   individual: "удостоверения личности",
 }
-// Подтипы физлица: префикс к наименованию + шаблон основания (лицензия).
-const INDIVIDUAL_SUBTYPES: { v: IndividualSubtype; label: string; prefix: string; basis: string }[] = [
-  { v: "regular", label: "Физлицо", prefix: "", basis: "удостоверения личности" },
-  { v: "chsi", label: "ЧСИ", prefix: "Частный судебный исполнитель ", basis: "государственной лицензии № ____ от __.__.____ г." },
-  { v: "advokat", label: "Адвокат", prefix: "Адвокат ", basis: "лицензии на занятие адвокатской деятельностью № ____ от __.__.____ г." },
-  { v: "notarius", label: "Нотариус", prefix: "Нотариус ", basis: "лицензии на занятие нотариальной деятельностью № ____ от __.__.____ г." },
+// Подтипы физлица: префикс к наименованию + шаблон основания (лицензия). И
+// префикс, и основание попадают в преамбулу договора — остаются русскими.
+// в документ — переводит юрист
+const INDIVIDUAL_SUBTYPES: { v: IndividualSubtype; prefix: string; basis: string }[] = [
+  { v: "regular", prefix: "", basis: "удостоверения личности" },
+  { v: "chsi", prefix: "Частный судебный исполнитель ", basis: "государственной лицензии № ____ от __.__.____ г." },
+  { v: "advokat", prefix: "Адвокат ", basis: "лицензии на занятие адвокатской деятельностью № ____ от __.__.____ г." },
+  { v: "notarius", prefix: "Нотариус ", basis: "лицензии на занятие нотариальной деятельностью № ____ от __.__.____ г." },
 ]
 const SUBTYPE_PREFIXES = INDIVIDUAL_SUBTYPES.map((s) => s.prefix).filter(Boolean)
 const SUBTYPE_BASES = INDIVIDUAL_SUBTYPES.map((s) => s.basis)
@@ -111,17 +121,25 @@ function stripSubtypePrefix(name: string): string {
 function isTemplateBasis(basis: string): boolean {
   return basis.trim() === "" || basis === BASIS_BY_TYPE.individual || SUBTYPE_BASES.includes(basis)
 }
-const UTILITY_MODES: { v: UtilityMode; label: string }[] = [
-  { v: "included", label: "в аренду" },
-  { v: "metered_separate", label: "по счётчику" },
-  { v: "in_operating_costs", label: "в экспл. расходы" },
+const UTILITY_MODES: { v: UtilityMode; labelKey: "included" | "metered" | "operating" }[] = [
+  { v: "included", labelKey: "included" },
+  { v: "metered_separate", labelKey: "metered" },
+  { v: "in_operating_costs", labelKey: "operating" },
 ]
-const PRESETS: { key: string; title: string; hint: string; apply: Mutator }[] = [
-  { key: "A", title: "A. Всё включено, свет по счётчику", hint: "Коммуналка в аренде, электроэнергия отдельно. Без сбора.", apply: (s) => { s.financials.premisesUtilities = { electricity: "metered_separate", coldWater: "included", hotWater: "included", heating: "included", sewerage: "included", garbage: "included" }; s.financials.operatingCosts.method = "none" } },
-  { key: "B", title: "B. Раздельный учёт + сбор за МОП", hint: "Все ресурсы по счётчику, фиксированный сбор за общие зоны.", apply: (s) => { for (const k of UTILITY_ORDER) s.financials.premisesUtilities[k] = "metered_separate"; s.financials.operatingCosts.method = "fixed_per_sqm"; s.financials.operatingCosts.scope = "common_area" } },
-  { key: "C", title: "C. Котловой долевой расчёт", hint: "Расходы делятся на площадь здания. Без счётчиков.", apply: (s) => { for (const k of UTILITY_ORDER) s.financials.premisesUtilities[k] = "in_operating_costs"; s.financials.operatingCosts.method = "pooled_prorata"; s.financials.operatingCosts.scope = "all_inclusive" } },
-  { key: "D", title: "D. Всё включено в аренду", hint: "Вся коммуналка в плате. Риск роста тарифов на владельце.", apply: (s) => { for (const k of UTILITY_ORDER) s.financials.premisesUtilities[k] = "included"; s.financials.operatingCosts.method = "none" } },
+const PRESETS: { key: "A" | "B" | "C" | "D"; apply: Mutator }[] = [
+  { key: "A", apply: (s) => { s.financials.premisesUtilities = { electricity: "metered_separate", coldWater: "included", hotWater: "included", heating: "included", sewerage: "included", garbage: "included" }; s.financials.operatingCosts.method = "none" } },
+  { key: "B", apply: (s) => { for (const k of UTILITY_ORDER) s.financials.premisesUtilities[k] = "metered_separate"; s.financials.operatingCosts.method = "fixed_per_sqm"; s.financials.operatingCosts.scope = "common_area" } },
+  { key: "C", apply: (s) => { for (const k of UTILITY_ORDER) s.financials.premisesUtilities[k] = "in_operating_costs"; s.financials.operatingCosts.method = "pooled_prorata"; s.financials.operatingCosts.scope = "all_inclusive" } },
+  { key: "D", apply: (s) => { for (const k of UTILITY_ORDER) s.financials.premisesUtilities[k] = "included"; s.financials.operatingCosts.method = "none" } },
 ]
+
+/**
+ * Подпись замечания проверки. Валидатор — чистый модуль, работающий и в
+ * браузере: языка он не знает и возвращает ключ (lib/contract-engine/validate.ts).
+ */
+function validationText(t: Translator<Messages>["t"], issue: ValidationIssue): string {
+  return t(`contractEngine.validation.${issue.key}` as TextKey<Messages>, issue.vars)
+}
 
 const ADV_BOX: Record<string, string> = {
   warn: "border-red-200 bg-red-50 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200",
@@ -147,11 +165,12 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
       },
     }
   }
+  const { t, tp } = useT()
   const [state, setState] = useState<ContractState>(defaultState)
   const [tab, setTab] = useState<"contract" | "annexes">("contract")
   const [step, setStep] = useState(1)
   const [draftId, setDraftId] = useState<string | null>(null)
-  const [draftName, setDraftName] = useState("Без названия")
+  const [draftName, setDraftName] = useState(() => t("adminDocs.constructor.untitled"))
   const [drafts, setDrafts] = useState<DraftListItem[]>([])
   const [pending, startTransition] = useTransition()
   const [signing, setSigning] = useState(false)
@@ -169,7 +188,7 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
   // арендатора показываем базовые; после prefill — фактические для орг.
   const [availableTypes, setAvailableTypes] = useState<ContractPlacementType[]>(CORE_CONTRACT_TYPES)
   // У выбранного арендатора уже есть незавершённый договор → создавать новый нельзя.
-  const dupContract = tenants.find((t) => t.id === selTenant)?.existingContract ?? null
+  const dupContract = tenants.find((row) => row.id === selTenant)?.existingContract ?? null
   // Контакты арендодателя на выбор: владелец (аккаунт) или администратор (контакты организации).
   const [landlordContacts, setLandlordContacts] = useState<{ owner: { phone: string; email: string }; admin: { phone: string; email: string } } | null>(null)
   // Автонумерация договора (001, 002, …). Выкл — владелец задаёт номер вручную.
@@ -203,7 +222,7 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
   function doSaveDefaults() {
     setSavingDefaults(true)
     saveContractDefaults(state)
-      .then((r) => (r.ok ? toast.success("Запомнено — новые договоры будут начинаться с этих условий") : toast.error(r.error ?? "Не удалось сохранить")))
+      .then((r) => (r.ok ? toast.success(t("adminDocs.constructor.toasts.defaultsSaved")) : toast.error(r.error ?? t("adminDocs.constructor.toasts.saveFailed"))))
       .finally(() => setSavingDefaults(false))
   }
   // Предзаполнить дату договора сегодняшней (только на клиенте — чтобы не ломать гидрацию).
@@ -232,21 +251,21 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
   const appliedInitialTenant = useRef(false)
   useEffect(() => {
     if (appliedInitialTenant.current || !initialTenantId) return
-    if (!tenants.some((t) => t.id === initialTenantId)) return
+    if (!tenants.some((row) => row.id === initialTenantId)) return
     appliedInitialTenant.current = true
     onPickTenant(initialTenantId)
   }, [tenants, initialTenantId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const tenantGroups = useMemo(() => {
     const m = new Map<string, ConstructorTenant[]>()
-    for (const t of tenants) {
-      const key = t.building ?? "Без здания"
+    for (const row of tenants) {
+      const key = row.building ?? t("adminDocs.constructor.step1.noBuilding")
       const list = m.get(key) ?? []
-      list.push(t)
+      list.push(row)
       m.set(key, list)
     }
     return [...m.entries()]
-  }, [tenants])
+  }, [tenants, t])
 
   function onPickTenant(id: string) {
     setSelTenant(id)
@@ -262,17 +281,17 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
         })
         setLandlordContacts(r.landlordContacts ?? null)
         if (r.availableTypes?.length) setAvailableTypes(r.availableTypes)
-        setDraftName(r.state.tenant.name || "Без названия")
+        setDraftName(r.state.tenant.name || t("adminDocs.constructor.untitled"))
         if (autoNumber) applyAutoNumber() // prefill сбрасывает номер — вернуть автономер
-        toast.success("Данные арендатора подставлены")
-      } else toast.error(r.error ?? "Не удалось подставить данные")
+        toast.success(t("adminDocs.constructor.toasts.prefilled"))
+      } else toast.error(r.error ?? t("adminDocs.constructor.toasts.prefillFailed"))
     })
   }
 
   function doSave() {
     startTransition(async () => {
       const r = await saveContractDraft({ id: draftId ?? undefined, name: draftName, builderState: state, tenantId: selTenant || undefined })
-      if (r.ok) { setDraftId(r.id ?? null); toast.success("Черновик сохранён"); refreshDrafts() } else toast.error(r.error ?? "Ошибка сохранения")
+      if (r.ok) { setDraftId(r.id ?? null); toast.success(t("adminDocs.constructor.toasts.draftSaved")); refreshDrafts() } else toast.error(r.error ?? t("adminDocs.constructor.toasts.saveError"))
     })
   }
   function doLoad(id: string) {
@@ -284,83 +303,84 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
         defaultsApplied.current = true // условия организации не накладываем поверх черновика
         setState(loaded)
         setDraftId(id)
-        setDraftName(r.name ?? "Без названия")
+        setDraftName(r.name ?? t("adminDocs.constructor.untitled"))
         setAutoNum(false)
         // Арендатор черновика — сразу, без перезаполнения из карточки (иначе
         // правки черновика затёрлись бы). Старые черновики без tenantId — по названию.
-        const byName = tenants.find((t) => t.name.trim() === (loaded.tenant.name ?? "").trim())
+        const byName = tenants.find((row) => row.name.trim() === (loaded.tenant.name ?? "").trim())
         setSelTenant(r.tenantId ?? byName?.id ?? "")
-        toast.success("Черновик открыт — можно продолжать")
-      } else toast.error(r.error ?? "Не удалось загрузить")
+        toast.success(t("adminDocs.constructor.toasts.draftOpened"))
+      } else toast.error(r.error ?? t("adminDocs.constructor.toasts.loadFailed"))
     })
   }
   function doDownload() {
     startTransition(async () => {
       const r = await generateContractDocx(state)
-      if (!r.ok || !r.base64) { toast.error(r.error ?? "Ошибка генерации"); return }
+      if (!r.ok || !r.base64) { toast.error(r.error ?? t("adminDocs.constructor.toasts.generateFailed")); return }
       const bytes = Uint8Array.from(atob(r.base64), (ch) => ch.charCodeAt(0))
       const blob = new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" })
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
+      // Имя файла — реквизит документа, остаётся русским (docs/i18n-documents-plan.md).
       link.download = r.fileName ?? "Договор.docx"
       link.click()
       URL.revokeObjectURL(url)
     })
   }
   function doCreate(opts: { send?: boolean; landlordSign?: boolean }) {
-    if (!selTenant) { toast.error("Сначала выберите арендатора в списке вверху формы"); return }
+    if (!selTenant) { toast.error(t("adminDocs.constructor.toasts.pickTenantFirst")); return }
     startTransition(async () => {
       const r = await createContractFromBuilder(selTenant, state, { ...opts, autoNumber })
-      if (!r.ok) { toast.error(r.error ?? "Не удалось создать договор"); return }
+      if (!r.ok) { toast.error(r.error ?? t("adminDocs.constructor.toasts.createFailed")); return }
       if (r.error) { toast.error(r.error); return } // создан, но шаг подписи/отправки не удался
       toast.success(
         opts.send
           ? opts.landlordSign
-            ? "Подписано вами (Арендодатель) и отправлено арендатору на подпись"
-            : "Отправлено арендатору на подпись"
-          : "Договор создан (черновик) — в карточке арендатора",
+            ? t("adminDocs.constructor.toasts.createdSignedSent")
+            : t("adminDocs.constructor.toasts.createdSent")
+          : t("adminDocs.constructor.toasts.createdDraft"),
       )
     })
   }
 
   // Создать → подписать ЭЦП владельца (NCALayer, пароль) → отправить арендатору.
   async function doCreateSignEcpSend() {
-    if (!selTenant) { toast.error("Сначала выберите арендатора в списке вверху формы"); return }
+    if (!selTenant) { toast.error(t("adminDocs.constructor.toasts.pickTenantFirst")); return }
     setSigning(true)
     try {
       // 1) создаём договор (черновик)
       const created = await createContractFromBuilder(selTenant, state, { autoNumber })
-      if (!created.ok || !created.contractId) { toast.error(created.error ?? "Не удалось создать договор"); return }
+      if (!created.ok || !created.contractId) { toast.error(created.error ?? t("adminDocs.constructor.toasts.createFailed")); return }
       const contractId = created.contractId
       // 2) канонический текст для подписи
       const pl = await getLandlordSignPayload(contractId)
-      if (!pl.ok) { toast.error(`${pl.error}. Договор сохранён как черновик — подпишите на его странице.`); return }
+      if (!pl.ok) { toast.error(t("adminDocs.constructor.toasts.signPayloadFailed", { error: String(pl.error) })); return }
       // 3) подпись ЭЦП через NCALayer (запросит пароль к ключу)
       const sig = await signWithNCALayer(pl.payloadB64, "cms", { tsp: true, storage: keyPref })
-      if (!sig.ok) { toast.error(`${sig.error || "Подпись не выполнена"}. Договор сохранён как черновик.`); return }
+      if (!sig.ok) { toast.error(t("adminDocs.constructor.toasts.signFailedDraft", { error: sig.error || t("adminDocs.constructor.toasts.signNotDone") })); return }
       // 4) фиксируем подпись владельца
       const saved = await signContractByLandlordEcp(contractId, sig.signature)
-      if (!saved.ok) { toast.error(`${saved.error ?? "Не удалось сохранить подпись"}. Договор — черновик.`); return }
+      if (!saved.ok) { toast.error(t("adminDocs.constructor.toasts.signSavedFailedDraft", { error: saved.error ?? t("adminDocs.constructor.toasts.signSaveFailed") })); return }
       // 5) отправляем арендатору на подпись
       const sent = await sendContractForSignature(contractId)
-      if (!sent.ok) { toast.error(`Подписано, но не отправлено: ${sent.error}. Отправьте со страницы договора.`); return }
-      toast.success("Подписано вашей ЭЦП и отправлено арендатору на подпись")
+      if (!sent.ok) { toast.error(t("adminDocs.constructor.toasts.signedNotSent", { error: String(sent.error) })); return }
+      toast.success(t("adminDocs.constructor.toasts.signedAndSent"))
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ошибка подписания")
+      toast.error(e instanceof Error ? e.message : t("adminDocs.constructor.toasts.signCrashed"))
     } finally {
       setSigning(false)
     }
   }
 
   const hasTenant = !!selTenant || !!draftId
-  const STEPS = [
-    { n: 1, title: "Арендатор", hint: "кто и с кем" },
-    { n: 2, title: "Что сдаём и срок", hint: "место, даты, тип" },
-    { n: 3, title: "Деньги", hint: "аренда, депозит, пеня" },
-    { n: 4, title: "Приложения", hint: "акт, схема, модули" },
-    { n: 5, title: "Проверка и подпись", hint: "замечания и отправка" },
-  ] as const
+  // Подписи шагов стоят в один ряд — словарь держит их короткими, здесь только
+  // собираем ряд по номеру шага.
+  const STEPS = ([1, 2, 3, 4, 5] as const).map((n) => ({
+    n,
+    title: t(`adminDocs.constructor.steps.s${n}.title` as TextKey<Messages>),
+    hint: t(`adminDocs.constructor.steps.s${n}.hint` as TextKey<Messages>),
+  }))
   const goTo = (n: number) => { if (n === 1 || hasTenant) setStep(n) }
 
   return (
@@ -368,15 +388,15 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
       {/* header */}
       {!embedded && (
       <div className="flex items-center gap-3">
-        <Link href="/admin/settings" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" aria-label="Назад к настройкам">
+        <Link href="/admin/settings" className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" aria-label={t("adminDocs.constructor.backToSettings")}>
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
             <FileSignature className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-            Конструктор договора
+            {t("adminDocs.constructor.title")}
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">Договор аренды собирается из условий — без ручного редактирования текста</p>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.subtitle")}</p>
         </div>
       </div>
       )}
@@ -417,17 +437,17 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
       {/* Черновик: только когда есть что сохранять */}
       {hasTenant && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <input className={`${inputCls} w-56`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Название черновика" aria-label="Название черновика" />
-          <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>Сохранить черновик</Button>
-          <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>Скачать DOCX</Button>
+          <input className={`${inputCls} w-56`} value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder={t("adminDocs.constructor.draft.namePlaceholder")} aria-label={t("adminDocs.constructor.draft.namePlaceholder")} />
+          <Button variant="secondary" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={pending} onClick={doSave}>{t("adminDocs.constructor.draft.save")}</Button>
+          <Button variant="outline" size="sm" leftIcon={<Download className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0} onClick={doDownload}>{t("adminDocs.constructor.draft.downloadDocx")}</Button>
           {hardErrors.length > 0 && (
             <button type="button" onClick={() => setStep(5)} className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-500/20 dark:text-red-300">
-              <AlertTriangle className="h-3 w-3" /> {hardErrors.length} {hardErrors.length === 1 ? "ошибка" : "ошибки"} — посмотреть
+              <AlertTriangle className="h-3 w-3" /> {tp("adminDocs.constructor.draft.errors", hardErrors.length)}
             </button>
           )}
           {dupContract && (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700 dark:bg-amber-500/20 dark:text-amber-300">
-              Договор № {dupContract.number} уже есть — новый создать нельзя
+              {t("adminDocs.constructor.draft.dup", { number: dupContract.number })}
             </span>
           )}
         </div>
@@ -439,31 +459,33 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
           {step === 1 && (
             <>
               <div className={`${cardCls} p-5`}>
-                <label className="mb-1.5 block text-sm font-semibold text-slate-900 dark:text-slate-100">С кем договор?</label>
+                <label className="mb-1.5 block text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminDocs.constructor.step1.withWhom")}</label>
                 <select className={inputCls} value={selTenant} onChange={(e) => onPickTenant(e.target.value)} disabled={pending}>
-                  <option value="">— выберите арендатора —</option>
+                  <option value="">{t("adminDocs.constructor.step1.pickTenant")}</option>
                   {tenantGroups.map(([b, list]) => (
                     <optgroup key={b} label={b}>
-                      {list.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {list.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
                     </optgroup>
                   ))}
                 </select>
                 {(() => {
-                  const ec = tenants.find((t) => t.id === selTenant)?.existingContract
+                  const ec = tenants.find((row) => row.id === selTenant)?.existingContract
                   if (!ec) return null
-                  const st: Record<string, string> = { DRAFT: "черновик", SENT: "отправлен", VIEWED: "просмотрен", SIGNED_BY_TENANT: "подписан арендатором", SIGNED: "подписан" }
                   return (
                     <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                      У этого арендатора уже есть договор <b>№ {ec.number}</b> ({st[ec.status] ?? ec.status}) — второй создать нельзя. Измените условия допсоглашением, сделайте новую версию из карточки договора или расторгните старый.
+                      {t("adminDocs.constructor.step1.existing", {
+                        number: ec.number,
+                        status: t(`common.contractStatus.${ec.status}` as TextKey<Messages>),
+                      })}
                     </div>
                   )
                 })()}
-                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Реквизиты, помещение, ставка, депозит и срок подставятся из карточки арендатора — дальше можно поправить.</p>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.step1.prefillHint")}</p>
                 {!hasTenant && drafts.length > 0 && (
                   <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
-                    <label className={labelCls}>…или продолжить черновик</label>
+                    <label className={labelCls}>{t("adminDocs.constructor.step1.orDraft")}</label>
                     <select className={inputCls} value="" onChange={(e) => doLoad(e.target.value)}>
-                      <option value="">— выберите черновик —</option>
+                      <option value="">{t("adminDocs.constructor.step1.pickDraft")}</option>
                       {drafts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                   </div>
@@ -471,7 +493,7 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
               </div>
               {hasTenant && (
                 <div className={`${cardCls} space-y-1 p-5`}>
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100"><Users className="h-4 w-4 text-slate-400" /> Стороны договора</div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100"><Users className="h-4 w-4 text-slate-400" /> {t("adminDocs.constructor.step1.parties")}</div>
                   <PartiesStep state={state} set={set} landlordContacts={landlordContacts} />
                 </div>
               )}
@@ -496,49 +518,49 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
             <>
               <div className={cardCls}>
                 <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-3 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">
-                  <Sparkles className="h-4 w-4 text-slate-400 dark:text-slate-500" /> Проверка договора
+                  <Sparkles className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {t("adminDocs.constructor.review.title")}
                 </div>
                 <div className="space-y-2 p-5">
-                  {hardErrors.map((m, i) => (
+                  {hardErrors.map((issue, i) => (
                     <div key={"h" + i} className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{m}</span>
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{validationText(t, issue)}</span>
                     </div>
                   ))}
                   {advices.map((a) => (
                     <div key={a.id} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${ADV_BOX[a.severity]}`}>
                       {a.severity === "warn" ? <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> : a.severity === "suggest" ? <Lightbulb className="h-3.5 w-3.5 shrink-0" /> : <Info className="h-3.5 w-3.5 shrink-0" />}
-                      <span className="flex-1">{a.message}</span>
+                      <span className="flex-1">{t(`contractEngine.advice.${a.messageKey}` as TextKey<Messages>, a.vars)}</span>
                       {a.fix && (
-                        <button onClick={() => set((s) => Object.assign(s, applyAdvisorFix(s, a.fix!)))} className="shrink-0 rounded-md border border-current px-2 py-0.5 text-[11px] font-medium hover:bg-white/40">Исправить</button>
+                        <button onClick={() => set((s) => Object.assign(s, applyAdvisorFix(s, a.fix!)))} className="shrink-0 rounded-md border border-current px-2 py-0.5 text-[11px] font-medium hover:bg-white/40">{t("adminDocs.constructor.review.fix")}</button>
                       )}
                     </div>
                   ))}
                   {advices.length === 0 && hardErrors.length === 0 && (
-                    <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300"><Check className="h-4 w-4" /> Замечаний нет — договор готов.</p>
+                    <p className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300"><Check className="h-4 w-4" /> {t("adminDocs.constructor.review.noIssues")}</p>
                   )}
                 </div>
               </div>
 
               <div className={`${cardCls} flex flex-wrap items-center justify-between gap-3 p-5`}>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Запомнить условия для новых договоров</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{REMEMBERED_FIELDS} — чтобы не вбивать заново. Суммы и даты у каждого свои.</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminDocs.constructor.review.rememberTitle")}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.review.rememberHint", { fields: REMEMBERED_FIELDS })}</p>
                 </div>
-                <Button variant="outline" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={savingDefaults} onClick={doSaveDefaults}>Запомнить</Button>
+                <Button variant="outline" size="sm" leftIcon={<Save className="h-4 w-4" />} loading={savingDefaults} onClick={doSaveDefaults}>{t("adminDocs.constructor.review.remember")}</Button>
               </div>
 
               <div className={`${cardCls} space-y-3 p-5`}>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Как оформить</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{t("adminDocs.constructor.review.how")}</p>
                 <div className="flex flex-wrap items-center gap-2">
                   <NcaKeyTypeSelect value={keyPref} onChange={setKeyPref} disabled={signing || pending} />
                   <Button variant="primary" leftIcon={<ShieldCheck className="h-4 w-4" />} loading={signing} disabled={hardErrors.length > 0 || pending || !!dupContract || !selTenant} onClick={doCreateSignEcpSend}>
-                    Подписать ЭЦП и отправить арендатору
+                    {t("adminDocs.constructor.review.signSend")}
                   </Button>
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Вы подписываете своим ключом, арендатор получает договор в кабинет и подписывает со своей стороны.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.review.signHint")}</p>
                 <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-                  <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract || !selTenant} onClick={() => doCreate({ send: true })}>Отправить без вашей подписи</Button>
-                  <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract || !selTenant} onClick={() => doCreate({})}>Создать договор, не отправляя</Button>
+                  <Button variant="outline" size="sm" leftIcon={<Send className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract || !selTenant} onClick={() => doCreate({ send: true })}>{t("adminDocs.constructor.review.sendNoSign")}</Button>
+                  <Button variant="outline" size="sm" leftIcon={<FilePlus2 className="h-4 w-4" />} loading={pending} disabled={hardErrors.length > 0 || signing || !!dupContract || !selTenant} onClick={() => doCreate({})}>{t("adminDocs.constructor.review.createOnly")}</Button>
                 </div>
               </div>
             </>
@@ -546,10 +568,10 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
 
           {/* Навигация по шагам */}
           <div className="flex items-center justify-between">
-            <Button variant="outline" size="sm" leftIcon={<ChevronLeft className="h-4 w-4" />} disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>Назад</Button>
+            <Button variant="outline" size="sm" leftIcon={<ChevronLeft className="h-4 w-4" />} disabled={step === 1} onClick={() => setStep((s) => Math.max(1, s - 1))}>{t("adminDocs.constructor.nav.back")}</Button>
             {step < 5 && (
               <Button variant="primary" size="sm" disabled={!hasTenant} onClick={() => setStep((s) => Math.min(5, s + 1))}>
-                Дальше: {STEPS[step].title.toLowerCase()} <ChevronRight className="ml-1 h-4 w-4" />
+                {t("adminDocs.constructor.nav.next", { step: STEPS[step].title.toLowerCase() })} <ChevronRight className="ml-1 h-4 w-4" />
               </Button>
             )}
           </div>
@@ -559,9 +581,9 @@ export function ContractConstructor({ embedded = false, initialTenantId, initial
         <div className="space-y-4 xl:sticky xl:top-4 xl:self-start">
           <div className={cardCls}>
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 py-2.5 dark:border-slate-800">
-              <button onClick={() => setTab("contract")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "contract" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>Договор</button>
-              <button onClick={() => setTab("annexes")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "annexes" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>Приложения</button>
-              <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">так увидит арендатор · нажмите на пункт, чтобы изменить</span>
+              <button onClick={() => setTab("contract")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "contract" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>{t("adminDocs.constructor.preview.tabContract")}</button>
+              <button onClick={() => setTab("annexes")} className={`rounded-md px-3 py-1.5 text-sm ${tab === "annexes" ? "bg-slate-100 font-semibold text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}>{t("adminDocs.constructor.preview.tabAnnexes")}</button>
+              <span className="ml-auto text-[11px] text-slate-400 dark:text-slate-500">{t("adminDocs.constructor.preview.hint")}</span>
             </div>
             <div className="max-h-[70vh] overflow-y-auto p-6 text-sm leading-relaxed text-slate-800 dark:text-slate-200">
               {tab === "contract" ? <ContractPreview state={state} onPick={hasTenant ? (n) => { setStep(n); window.scrollTo({ top: 0, behavior: "smooth" }) } : undefined} /> : <AnnexesPreview state={state} />}
@@ -603,6 +625,7 @@ function ToggleRow({ on, title, hint, onToggle }: { on: boolean; title: string; 
 // ───────────────────────── steps ─────────────────────────
 
 function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (mut: (x: Party) => void) => void }) {
+  const { t } = useT()
   const isIndiv = p.type === "individual"
   // Чистое физлицо: выступает от своего имени → нет подписанта/основания/банка,
   // основание = удостоверение личности. ЧСИ/адвокат/нотариус — лицо частной
@@ -611,12 +634,12 @@ function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (m
   return (
     <div>
       <div className={secTitleCls}>{role}</div>
-      <div className="mb-2"><Seg value={p.type} options={PARTY_TYPES} onChange={(v) => onChange((x) => { x.type = v; x.basis = BASIS_BY_TYPE[v]; if (v !== "individual") x.individualSubtype = undefined; else if (!x.individualSubtype) x.individualSubtype = "regular" })} /></div>
+      <div className="mb-2"><Seg value={p.type} options={PARTY_TYPES.map((v) => ({ v, label: t(`adminDocs.constructor.party.types.${v}` as TextKey<Messages>) }))} onChange={(v) => onChange((x) => { x.type = v; x.basis = BASIS_BY_TYPE[v]; if (v !== "individual") x.individualSubtype = undefined; else if (!x.individualSubtype) x.individualSubtype = "regular" })} /></div>
       {p.type === "individual" && (
         <div className="mb-2">
           <Seg
             value={p.individualSubtype ?? "regular"}
-            options={INDIVIDUAL_SUBTYPES.map((s) => ({ v: s.v, label: s.label }))}
+            options={INDIVIDUAL_SUBTYPES.map((sub) => ({ v: sub.v, label: t(`adminDocs.constructor.party.subtypes.${sub.v}` as TextKey<Messages>) }))}
             onChange={(v) => onChange((x) => {
               const meta = INDIVIDUAL_SUBTYPES.find((s) => s.v === v)!
               x.individualSubtype = v
@@ -627,34 +650,34 @@ function PartyForm({ p, role, onChange }: { p: Party; role: string; onChange: (m
           />
         </div>
       )}
-      <div className="mb-2"><label className={labelCls}>{isIndiv ? "ФИО" : "Наименование"}</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{isIndiv ? t("adminDocs.constructor.party.fio") : t("adminDocs.constructor.party.name")}</label><input className={inputCls} value={p.name} onChange={(e) => onChange((x) => { x.name = e.target.value })} /></div>
       {!isIndiv && (
-        <div className="mb-2"><label className={labelCls}>Подписант (в лице)</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
+        <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.party.signatory")}</label><input className={inputCls} value={p.signatory} onChange={(e) => onChange((x) => { x.signatory = e.target.value })} /></div>
       )}
       {isRegular ? (
         <>
           {/* Физлицо: ИИН + удостоверение личности (без «основания»/банка). */}
-          <div className="mb-2"><label className={labelCls}>ИИН</label><input className={inputCls} value={p.iin || ""} onChange={(e) => onChange((x) => { x.iin = e.target.value })} /></div>
+          <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.party.iin")}</label><input className={inputCls} value={p.iin || ""} onChange={(e) => onChange((x) => { x.iin = e.target.value })} /></div>
           <div className="mb-2 grid grid-cols-2 gap-2">
-            <div><label className={labelCls}>№ удостоверения</label><input className={inputCls} value={p.idDocNumber ?? ""} onChange={(e) => onChange((x) => { x.idDocNumber = e.target.value })} /></div>
-            <div><label className={labelCls}>Кем выдан</label><input className={inputCls} value={p.idDocIssuedBy ?? ""} onChange={(e) => onChange((x) => { x.idDocIssuedBy = e.target.value })} /></div>
-            <div><label className={labelCls}>Дата выдачи</label><input className={inputCls} placeholder="дд.мм.гггг" value={p.idDocIssuedAt ?? ""} onChange={(e) => onChange((x) => { x.idDocIssuedAt = e.target.value })} /></div>
-            <div><label className={labelCls}>Действует до</label><input className={inputCls} placeholder="дд.мм.гггг" value={p.idDocExpiresAt ?? ""} onChange={(e) => onChange((x) => { x.idDocExpiresAt = e.target.value })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.party.idNumber")}</label><input className={inputCls} value={p.idDocNumber ?? ""} onChange={(e) => onChange((x) => { x.idDocNumber = e.target.value })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.party.idIssuedBy")}</label><input className={inputCls} value={p.idDocIssuedBy ?? ""} onChange={(e) => onChange((x) => { x.idDocIssuedBy = e.target.value })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.party.idIssuedAt")}</label><input className={inputCls} placeholder={t("adminDocs.constructor.party.datePlaceholder")} value={p.idDocIssuedAt ?? ""} onChange={(e) => onChange((x) => { x.idDocIssuedAt = e.target.value })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.party.idExpiresAt")}</label><input className={inputCls} placeholder={t("adminDocs.constructor.party.datePlaceholder")} value={p.idDocExpiresAt ?? ""} onChange={(e) => onChange((x) => { x.idDocExpiresAt = e.target.value })} /></div>
           </div>
         </>
       ) : (
         <div className="mb-2 grid grid-cols-2 gap-2">
           {/* ИП/ЧСИ/адвокат/нотариус — по ИИН, ТОО/АО — по БИН; основание = устав/лицензия. */}
-          <div><label className={labelCls}>{p.type === "too" ? "БИН" : "ИИН"}</label><input className={inputCls} value={(p.type === "too" ? p.bin : p.iin) || ""} onChange={(e) => onChange((x) => { if (x.type === "too") x.bin = e.target.value; else x.iin = e.target.value })} /></div>
-          <div><label className={labelCls}>Основание</label><input className={inputCls} value={p.basis} onChange={(e) => onChange((x) => { x.basis = e.target.value })} /></div>
+          <div><label className={labelCls}>{p.type === "too" ? t("adminDocs.constructor.party.bin") : t("adminDocs.constructor.party.iin")}</label><input className={inputCls} value={(p.type === "too" ? p.bin : p.iin) || ""} onChange={(e) => onChange((x) => { if (x.type === "too") x.bin = e.target.value; else x.iin = e.target.value })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.party.basis")}</label><input className={inputCls} value={p.basis} onChange={(e) => onChange((x) => { x.basis = e.target.value })} /></div>
         </div>
       )}
-      <div className="mb-2"><label className={labelCls}>{isIndiv ? "Адрес проживания" : "Адрес"}</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{isIndiv ? t("adminDocs.constructor.party.residence") : t("adminDocs.constructor.party.address")}</label><input className={inputCls} value={p.address} onChange={(e) => onChange((x) => { x.address = e.target.value })} /></div>
       {!isRegular && (
         <div className="grid grid-cols-3 gap-2">
-          <div><label className={labelCls}>ИИК</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
-          <div><label className={labelCls}>Банк</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
-          <div><label className={labelCls}>БИК</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.party.iik")}</label><input className={inputCls} value={p.iik} onChange={(e) => onChange((x) => { x.iik = e.target.value })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.party.bank")}</label><input className={inputCls} value={p.bank} onChange={(e) => onChange((x) => { x.bank = e.target.value })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.party.bik")}</label><input className={inputCls} value={p.bik} onChange={(e) => onChange((x) => { x.bik = e.target.value })} /></div>
         </div>
       )}
     </div>
@@ -672,83 +695,89 @@ function contactBtn(active: boolean): string {
 }
 
 function PartiesStep({ state, set, landlordContacts }: { state: ContractState; set: (m: Mutator) => void; landlordContacts: { owner: Contacts; admin: Contacts } | null }) {
+  const { t } = useT()
   const ll = state.landlord
   const sameAs = (c: Contacts) => (c.phone || c.email) !== "" && (ll.phone ?? "") === c.phone && (ll.email ?? "") === c.email
   const applyContacts = (c: Contacts) => set((s) => { s.landlord.phone = c.phone; s.landlord.email = c.email })
-  const contactHint = (c: Contacts) => [c.phone, c.email].filter(Boolean).join(" · ") || "не заданы"
+  const contactHint = (c: Contacts) => [c.phone, c.email].filter(Boolean).join(" · ") || t("adminDocs.constructor.party.contactsNone")
   return (
     <>
-      <PartyForm p={state.landlord} role="Арендодатель" onChange={(mut) => set((s) => mut(s.landlord))} />
-      <div className={secTitleCls}>Контакты арендодателя</div>
+      <PartyForm p={state.landlord} role={t("adminDocs.constructor.party.landlord")} onChange={(mut) => set((s) => mut(s.landlord))} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.party.landlordContacts")}</div>
       {landlordContacts && (
         <div className="mb-1.5 flex gap-1.5">
-          <button type="button" title={contactHint(landlordContacts.owner)} onClick={() => applyContacts(landlordContacts.owner)} className={contactBtn(sameAs(landlordContacts.owner))}>Владелец (вы)</button>
-          <button type="button" title={contactHint(landlordContacts.admin)} onClick={() => applyContacts(landlordContacts.admin)} className={contactBtn(sameAs(landlordContacts.admin))}>Администратор</button>
+          <button type="button" title={contactHint(landlordContacts.owner)} onClick={() => applyContacts(landlordContacts.owner)} className={contactBtn(sameAs(landlordContacts.owner))}>{t("adminDocs.constructor.party.contactOwner")}</button>
+          <button type="button" title={contactHint(landlordContacts.admin)} onClick={() => applyContacts(landlordContacts.admin)} className={contactBtn(sameAs(landlordContacts.admin))}>{t("adminDocs.constructor.party.contactAdmin")}</button>
         </div>
       )}
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Телефон</label><input className={inputCls} value={ll.phone ?? ""} onChange={(e) => set((s) => { s.landlord.phone = e.target.value })} /></div>
-        <div><label className={labelCls}>E-mail</label><input className={inputCls} value={ll.email ?? ""} onChange={(e) => set((s) => { s.landlord.email = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.party.phone")}</label><input className={inputCls} value={ll.phone ?? ""} onChange={(e) => set((s) => { s.landlord.phone = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.party.email")}</label><input className={inputCls} value={ll.email ?? ""} onChange={(e) => set((s) => { s.landlord.email = e.target.value })} /></div>
       </div>
-      <PartyForm p={state.tenant} role="Арендатор" onChange={(mut) => set((s) => mut(s.tenant))} />
-      <div className={secTitleCls}>Контакты арендатора</div>
+      <PartyForm p={state.tenant} role={t("adminDocs.constructor.party.tenant")} onChange={(mut) => set((s) => mut(s.tenant))} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.party.tenantContacts")}</div>
       <div className="grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Телефон</label><input className={inputCls} value={state.tenant.phone ?? ""} onChange={(e) => set((s) => { s.tenant.phone = e.target.value })} /></div>
-        <div><label className={labelCls}>E-mail</label><input className={inputCls} value={state.tenant.email ?? ""} onChange={(e) => set((s) => { s.tenant.email = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.party.phone")}</label><input className={inputCls} value={state.tenant.phone ?? ""} onChange={(e) => set((s) => { s.tenant.phone = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.party.email")}</label><input className={inputCls} value={state.tenant.email ?? ""} onChange={(e) => set((s) => { s.tenant.email = e.target.value })} /></div>
       </div>
     </>
   )
 }
 
 function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes }: { state: ContractState; set: (m: Mutator) => void; autoNumber: boolean; onSetAutoNumber: (v: boolean) => void; availableTypes: ContractPlacementType[] }) {
+  const { t } = useT()
   return (
     <>
-      <div className={secTitleCls}>Договор</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.premises.sectionContract")}</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
         <div>
-          <label className={labelCls}>Номер {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">авто</span>}</label>
+          <label className={labelCls}>{t("adminDocs.constructor.premises.number")} {autoNumber && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("adminDocs.constructor.premises.auto")}</span>}</label>
           <div className="flex gap-1.5">
-            <input className={`${inputCls} disabled:opacity-60`} placeholder="например, 001" value={state.meta.contractNumber} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.contractNumber = e.target.value })} />
-            <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} title={autoNumber ? "Задать номер вручную" : "Вернуть автонумерацию"} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">
-              {autoNumber ? "Другой" : "Авто"}
+            <input className={`${inputCls} disabled:opacity-60`} placeholder={t("adminDocs.constructor.egAmount", { value: "001" })} value={state.meta.contractNumber} disabled={autoNumber} onChange={(e) => set((s) => { s.meta.contractNumber = e.target.value })} />
+            <button type="button" onClick={() => onSetAutoNumber(!autoNumber)} title={autoNumber ? t("adminDocs.constructor.premises.manualTitle") : t("adminDocs.constructor.premises.autoTitle")} className="shrink-0 rounded-md border border-slate-200 px-2.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800">
+              {autoNumber ? t("adminDocs.constructor.premises.btnManual") : t("adminDocs.constructor.premises.btnAuto")}
             </button>
           </div>
         </div>
-        <div><label className={labelCls}>Дата</label><input type="date" className={inputCls} value={state.meta.contractDate} onChange={(e) => set((s) => { s.meta.contractDate = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.premises.date")}</label><input type="date" className={inputCls} value={state.meta.contractDate} onChange={(e) => set((s) => { s.meta.contractDate = e.target.value })} /></div>
       </div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Начало аренды</label><input type="date" className={inputCls} value={state.term.startDate} onChange={(e) => set((s) => { s.term.startDate = e.target.value })} /></div>
-        <div><label className={labelCls}>Окончание аренды</label><input type="date" className={inputCls} value={state.term.endDate} onChange={(e) => set((s) => { s.term.endDate = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.premises.start")}</label><input type="date" className={inputCls} value={state.term.startDate} onChange={(e) => set((s) => { s.term.startDate = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.premises.end")}</label><input type="date" className={inputCls} value={state.term.endDate} onChange={(e) => set((s) => { s.term.endDate = e.target.value })} /></div>
       </div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Город</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.premises.city")}</label><input className={inputCls} value={state.meta.city} onChange={(e) => set((s) => { s.meta.city = e.target.value })} /></div>
         <div>
-          <label className={labelCls}>Тип договора</label>
+          <label className={labelCls}>{t("adminDocs.constructor.premises.type")}</label>
           <select
             className={inputCls}
             value={state.meta.placementType ?? "PREMISES"}
             onChange={(e) => { const v = e.target.value; set((s) => { if (isContractPlacementType(v)) applyContractTypePreset(s, v) }) }}
-            title="Определяется автоматически по размещению арендатора; можно изменить. Крыша/территория — фикс-аренда без эксплуатационных расходов."
+            title={t("adminDocs.constructor.premises.typeHint")}
           >
-            {CONTRACT_PLACEMENT_TYPES.filter((t) => availableTypes.includes(t.key)).map((t) => (
-              <option key={t.key} value={t.key}>{t.label}</option>
+            {/* Названия типов договора — терминология предмета аренды из
+                lib/contract-placement-types.ts: те же слова стоят в подзаголовке
+                договора и Акта, поэтому остаются русскими.
+                в документ — переводит юрист */}
+            {CONTRACT_PLACEMENT_TYPES.filter((row) => availableTypes.includes(row.key)).map((row) => (
+              <option key={row.key} value={row.key}>{row.label}</option>
             ))}
           </select>
         </div>
       </div>
       {placementFamily(state) ? <PlacementFields state={state} set={set} /> : (<>
-      <div className={secTitleCls}>Помещение</div>
-      <div className="mb-2"><label className={labelCls}>Адрес здания</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.premises.section")}</div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.premises.buildingAddress")}</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Расположение (этаж/№)</label><input className={inputCls} value={state.premises.placement} onChange={(e) => set((s) => { s.premises.placement = e.target.value })} /></div>
-        <div><label className={labelCls}>Площадь, кв. м</label><input type="number" className={inputCls} value={state.premises.spaceAreaSqm || ""} onChange={(e) => set((s) => { s.premises.spaceAreaSqm = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.premises.placement")}</label><input className={inputCls} value={state.premises.placement} onChange={(e) => set((s) => { s.premises.placement = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.premises.area")}</label><input type="number" className={inputCls} value={state.premises.spaceAreaSqm || ""} onChange={(e) => set((s) => { s.premises.spaceAreaSqm = Number(e.target.value) })} /></div>
       </div>
-      <div className="mb-2"><label className={labelCls}>Целевое назначение</label><input className={inputCls} value={state.premises.purposeUse} onChange={(e) => set((s) => { s.premises.purposeUse = e.target.value })} /></div>
-      <div className="mb-2"><label className={labelCls}>Общая площадь здания, кв. м <span className="text-slate-400 dark:text-slate-500">(для долевого расчёта)</span></label><input type="number" className={inputCls} value={state.building.totalRentableAreaSqm || ""} onChange={(e) => set((s) => { s.building.totalRentableAreaSqm = Number(e.target.value) })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.premises.purpose")}</label><input className={inputCls} value={state.premises.purposeUse} onChange={(e) => set((s) => { s.premises.purposeUse = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.premises.buildingArea")} <span className="text-slate-400 dark:text-slate-500">{t("adminDocs.constructor.premises.buildingAreaNote")}</span></label><input type="number" className={inputCls} value={state.building.totalRentableAreaSqm || ""} onChange={(e) => set((s) => { s.building.totalRentableAreaSqm = Number(e.target.value) })} /></div>
       <ToggleRow
         on={state.modules.asIsAcceptanceEnabled === true}
-        title="Принято «как есть» (без претензий)"
-        hint="Для арендатора, уже занимающего Помещение по прежнему договору: раздел об осведомлённости о состоянии, принятии «как есть» и отказе от претензий."
+        title={t("adminDocs.constructor.premises.asIs")}
+        hint={t("adminDocs.constructor.premises.asIsHint")}
         onToggle={() => set((s) => { s.modules.asIsAcceptanceEnabled = s.modules.asIsAcceptanceEnabled !== true })}
       />
       </>)}
@@ -759,8 +788,8 @@ function PremisesStep({ state, set, autoNumber, onSetAutoNumber, availableTypes 
 // "YYYY-MM" + n месяцев → "YYYY-MM" (для автоподстановки следующей ступени).
 function plusMonths(ym: string, n: number): string {
   const [y, m] = ym.split("-").map(Number)
-  const t = y * 12 + (m - 1) + n
-  return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`
+  const months = y * 12 + (m - 1) + n
+  return `${Math.floor(months / 12)}-${String((months % 12) + 1).padStart(2, "0")}`
 }
 
 // База «плата в месяц» следует за первой ступенью графика (клоз депозита и
@@ -771,26 +800,27 @@ function syncBaseRent(s: ContractState) {
 }
 
 function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
+  const { t, locale } = useT()
   const f = state.financials
   const op = f.operatingCosts
   const stepsOn = (f.rentSteps?.length ?? 0) > 0
   const debt = f.debtSettlement
   return (
     <>
-      <div className={secTitleCls}>Арендная плата</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.section")}</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
         <div>
-          <label className={labelCls}>Плата в месяц, ₸ {stepsOn && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">из 1-й ступени</span>}</label>
+          <label className={labelCls}>{t("adminDocs.constructor.money.monthly")} {stepsOn && <span className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400">{t("adminDocs.constructor.money.fromFirstStep")}</span>}</label>
           <input type="number" className={`${inputCls} disabled:opacity-60`} disabled={stepsOn} value={f.monthlyRent || ""} onChange={(e) => set((s) => { s.financials.monthlyRent = Number(e.target.value) })} />
         </div>
-        <div><label className={labelCls}>День оплаты (1–28)</label><input type="number" className={inputCls} value={f.paymentDueDay} onChange={(e) => set((s) => { s.financials.paymentDueDay = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.money.dueDay")}</label><input type="number" className={inputCls} value={f.paymentDueDay} onChange={(e) => set((s) => { s.financials.paymentDueDay = Number(e.target.value) })} /></div>
       </div>
-      <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.vatIncluded} onChange={(e) => set((s) => { s.financials.vatIncluded = e.target.checked })} /> НДС включён в плату</label>
+      <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.vatIncluded} onChange={(e) => set((s) => { s.financials.vatIncluded = e.target.checked })} /> {t("adminDocs.constructor.money.vat")}</label>
 
       <ToggleRow
         on={stepsOn}
-        title="Ступенчатая аренда (график)"
-        hint="Разные ставки по периодам («первые 12 месяцев — X, далее — Y»). Пункт о плате в договоре и биллинг считаются по графику."
+        title={t("adminDocs.constructor.money.stepsTitle")}
+        hint={t("adminDocs.constructor.money.stepsHint")}
         onToggle={() => set((s) => {
           if ((s.financials.rentSteps?.length ?? 0) > 0) { s.financials.rentSteps = [] } else {
             const startYm = (s.term.startDate || s.meta.contractDate || "").slice(0, 7)
@@ -806,11 +836,11 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
         <div className="mb-2 space-y-1.5">
           {(f.rentSteps ?? []).map((st, i) => (
             <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-1.5">
-              <div><label className={labelCls}>{i === 0 ? "Ступень 1 — с месяца" : `Ступень ${i + 1} — с месяца`}</label><input type="month" className={inputCls} value={st.from} onChange={(e) => set((s) => { s.financials.rentSteps![i].from = e.target.value; syncBaseRent(s) })} /></div>
-              <div><label className={labelCls}>Сумма, ₸/мес</label><input type="number" className={inputCls} value={st.amount || ""} onChange={(e) => set((s) => { s.financials.rentSteps![i].amount = Number(e.target.value); syncBaseRent(s) })} /></div>
+              <div><label className={labelCls}>{t("adminDocs.constructor.money.stepFrom", { n: i + 1 })}</label><input type="month" className={inputCls} value={st.from} onChange={(e) => set((s) => { s.financials.rentSteps![i].from = e.target.value; syncBaseRent(s) })} /></div>
+              <div><label className={labelCls}>{t("adminDocs.constructor.money.stepAmount")}</label><input type="number" className={inputCls} value={st.amount || ""} onChange={(e) => set((s) => { s.financials.rentSteps![i].amount = Number(e.target.value); syncBaseRent(s) })} /></div>
               <button
                 type="button"
-                title="Убрать ступень"
+                title={t("adminDocs.constructor.money.stepRemove")}
                 disabled={(f.rentSteps?.length ?? 0) <= 2}
                 onClick={() => set((s) => { s.financials.rentSteps!.splice(i, 1); syncBaseRent(s) })}
                 className="rounded-md border border-slate-200 px-2.5 py-2 text-xs text-slate-500 transition hover:bg-slate-100 disabled:opacity-40 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
@@ -825,70 +855,73 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
               steps.push({ from: last && /^\d{4}-\d{2}$/.test(last.from) ? plusMonths(last.from, 12) : "", amount: 0 })
             })}
             className="rounded-md border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 transition hover:bg-slate-100 dark:border-slate-800 dark:text-slate-400 dark:hover:bg-slate-800"
-          >+ ступень</button>
+          >{t("adminDocs.constructor.money.stepAdd")}</button>
         </div>
       )}
 
       {!placementFamily(state) && (<>
-      <div className={secTitleCls}>Пресет</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.presetSection")}</div>
       <div className="grid gap-2">
         {PRESETS.map((pr) => (
           <button key={pr.key} onClick={() => set(pr.apply)} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left transition hover:border-blue-400 dark:border-slate-800 dark:bg-slate-800/50 dark:hover:border-blue-500/50">
-            <b className="block text-[13px] text-slate-900 dark:text-slate-100">{pr.title}</b>
-            <small className="text-[11.5px] text-slate-500 dark:text-slate-400">{pr.hint}</small>
+            <b className="block text-[13px] text-slate-900 dark:text-slate-100">{t(`adminDocs.constructor.money.presets.${pr.key}.title` as TextKey<Messages>)}</b>
+            <small className="text-[11.5px] text-slate-500 dark:text-slate-400">{t(`adminDocs.constructor.money.presets.${pr.key}.hint` as TextKey<Messages>)}</small>
           </button>
         ))}
       </div>
 
-      <div className={secTitleCls}>Матрица ресурсов</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.utilitiesSection")}</div>
       <div className="overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800">
         {UTILITY_ORDER.map((k: UtilityKey) => (
           <div key={k} className="grid grid-cols-[1fr_1.4fr] items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0 dark:border-slate-800">
+            {/* Названия ресурсов берём из lib/contract-engine: этими же словами
+                они перечислены в пунктах договора, поэтому остаются русскими.
+                в документ — переводит юрист */}
             <span className="text-[12.5px] text-slate-700 dark:text-slate-300">{UTILITY_LABELS[k]}</span>
             <select className={inputCls} value={f.premisesUtilities[k]} onChange={(e) => set((s) => { s.financials.premisesUtilities[k] = e.target.value as UtilityMode })}>
-              {UTILITY_MODES.map((m) => <option key={m.v} value={m.v}>{m.label}</option>)}
+              {UTILITY_MODES.map((m) => <option key={m.v} value={m.v}>{t(`adminDocs.constructor.money.modes.${m.labelKey}` as TextKey<Messages>)}</option>)}
             </select>
           </div>
         ))}
       </div>
 
-      <div className={secTitleCls}>Эксплуатационные расходы</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.operatingSection")}</div>
       <select className={`${inputCls} mb-2`} value={op.method} onChange={(e) => set((s) => { s.financials.operatingCosts.method = e.target.value as OperatingMethod })}>
-        <option value="none">Нет</option>
-        <option value="fixed_per_sqm">Фиксированный за кв.м</option>
-        <option value="pooled_prorata">Котловой долевой</option>
+        <option value="none">{t("adminDocs.constructor.money.opNone")}</option>
+        <option value="fixed_per_sqm">{t("adminDocs.constructor.money.opFixed")}</option>
+        <option value="pooled_prorata">{t("adminDocs.constructor.money.opPooled")}</option>
       </select>
       {op.method !== "none" && (
         <select className={`${inputCls} mb-2`} value={op.scope} onChange={(e) => set((s) => { s.financials.operatingCosts.scope = e.target.value as "common_area" | "all_inclusive" })}>
-          <option value="common_area">Только места общего пользования</option>
-          <option value="all_inclusive">Всё включено (поглощает коммуналку)</option>
+          <option value="common_area">{t("adminDocs.constructor.money.scopeCommon")}</option>
+          <option value="all_inclusive">{t("adminDocs.constructor.money.scopeAll")}</option>
         </select>
       )}
       {op.method === "fixed_per_sqm" && (
         <div className="grid grid-cols-2 gap-2">
-          <div><label className={labelCls}>Тариф зима, ₸/кв.м</label><input type="number" className={inputCls} value={op.fixed?.winterRate || ""} onChange={(e) => set((s) => { s.financials.operatingCosts.fixed = { winterRate: Number(e.target.value), summerRate: op.fixed?.summerRate ?? 0 } })} /></div>
-          <div><label className={labelCls}>Тариф лето, ₸/кв.м</label><input type="number" className={inputCls} value={op.fixed?.summerRate || ""} onChange={(e) => set((s) => { s.financials.operatingCosts.fixed = { winterRate: op.fixed?.winterRate ?? 0, summerRate: Number(e.target.value) } })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.money.winterRate")}</label><input type="number" className={inputCls} value={op.fixed?.winterRate || ""} onChange={(e) => set((s) => { s.financials.operatingCosts.fixed = { winterRate: Number(e.target.value), summerRate: op.fixed?.summerRate ?? 0 } })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.money.summerRate")}</label><input type="number" className={inputCls} value={op.fixed?.summerRate || ""} onChange={(e) => set((s) => { s.financials.operatingCosts.fixed = { winterRate: op.fixed?.winterRate ?? 0, summerRate: Number(e.target.value) } })} /></div>
         </div>
       )}
       {op.method === "pooled_prorata" && (
-        <div><label className={labelCls}>Авансовая ставка, ₸/кв.м</label><input type="number" className={inputCls} value={op.pooled?.estimatedRatePerSqm || ""} onChange={(e) => set((s) => { if (s.financials.operatingCosts.pooled) s.financials.operatingCosts.pooled.estimatedRatePerSqm = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.money.advanceRate")}</label><input type="number" className={inputCls} value={op.pooled?.estimatedRatePerSqm || ""} onChange={(e) => set((s) => { if (s.financials.operatingCosts.pooled) s.financials.operatingCosts.pooled.estimatedRatePerSqm = Number(e.target.value) })} /></div>
       )}
       </>)}
 
-      <div className={secTitleCls}>Депозит</div>
-      <ToggleRow on={f.deposit.enabled} title="Гарантийный депозит" hint="Выкл — раздел депозита и все упоминания убираются из договора, нумерация пересчитывается." onToggle={() => set((s) => { s.financials.deposit.enabled = !s.financials.deposit.enabled })} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.depositSection")}</div>
+      <ToggleRow on={f.deposit.enabled} title={t("adminDocs.constructor.money.depositTitle")} hint={t("adminDocs.constructor.money.depositHint")} onToggle={() => set((s) => { s.financials.deposit.enabled = !s.financials.deposit.enabled })} />
       {f.deposit.enabled && (
         <>
-          <div className="mb-1"><label className={labelCls}>Сумма, ₸</label><input type="number" className={inputCls} value={f.deposit.amount || ""} onChange={(e) => set((s) => { s.financials.deposit.amount = Number(e.target.value) })} /></div>
-          <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.deposit.installmentAllowed} onChange={(e) => set((s) => { s.financials.deposit.installmentAllowed = e.target.checked })} /> Разрешить рассрочку депозита</label>
+          <div className="mb-1"><label className={labelCls}>{t("adminDocs.constructor.money.amount")}</label><input type="number" className={inputCls} value={f.deposit.amount || ""} onChange={(e) => set((s) => { s.financials.deposit.amount = Number(e.target.value) })} /></div>
+          <label className="mb-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.deposit.installmentAllowed} onChange={(e) => set((s) => { s.financials.deposit.installmentAllowed = e.target.checked })} /> {t("adminDocs.constructor.money.depositInstallment")}</label>
         </>
       )}
 
-      <div className={secTitleCls}>Входящий долг</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.debtSection")}</div>
       <ToggleRow
         on={debt?.enabled === true}
-        title="Урегулирование прошлой задолженности"
-        hint="Долг арендатора по прежнему договору: отдельный раздел в тексте, а при подписании — начисление-остаток со сроком оплаты."
+        title={t("adminDocs.constructor.money.debtTitle")}
+        hint={t("adminDocs.constructor.money.debtHint")}
         onToggle={() => set((s) => {
           const d = s.financials.debtSettlement ?? (s.financials.debtSettlement = { enabled: false, totalAmount: 0, basisDoc: "", discountPercent: 0, payWithinMonths: 2 })
           d.enabled = !d.enabled
@@ -897,61 +930,64 @@ function FinancialStep({ state, set }: { state: ContractState; set: (m: Mutator)
       {debt?.enabled === true && (
         <>
           <div className="mb-2 grid grid-cols-2 gap-2">
-            <div><label className={labelCls}>Сумма долга, ₸</label><input type="number" className={inputCls} value={debt.totalAmount || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.totalAmount = Number(e.target.value) })} /></div>
-            <div><label className={labelCls}>Скидка (прощаем), %</label><input type="number" min="0" max="99" className={inputCls} value={debt.discountPercent || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.discountPercent = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.money.debtAmount")}</label><input type="number" className={inputCls} value={debt.totalAmount || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.totalAmount = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.money.debtDiscount")}</label><input type="number" min="0" max="99" className={inputCls} value={debt.discountPercent || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.discountPercent = Number(e.target.value) })} /></div>
           </div>
-          <div className="mb-2"><label className={labelCls}>Документ-основание</label><input className={inputCls} placeholder="Акт сверки взаимных расчётов № __ от __.__.____ г." value={debt.basisDoc} onChange={(e) => set((s) => { s.financials.debtSettlement!.basisDoc = e.target.value })} /></div>
+          {/* Плейсхолдер — образец названия документа-основания, которое печатается в
+              разделе о прошлой задолженности. в документ — переводит юрист */}
+          <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.money.debtBasis")}</label><input className={inputCls} placeholder="Акт сверки взаимных расчётов № __ от __.__.____ г." value={debt.basisDoc} onChange={(e) => set((s) => { s.financials.debtSettlement!.basisDoc = e.target.value })} /></div>
           <div className="mb-2 grid grid-cols-2 gap-2">
-            <div><label className={labelCls}>Срок погашения, мес.</label><input type="number" min="1" max="36" className={inputCls} value={debt.payWithinMonths || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.payWithinMonths = Number(e.target.value) })} /></div>
+            <div><label className={labelCls}>{t("adminDocs.constructor.money.debtMonths")}</label><input type="number" min="1" max="36" className={inputCls} value={debt.payWithinMonths || ""} onChange={(e) => set((s) => { s.financials.debtSettlement!.payWithinMonths = Number(e.target.value) })} /></div>
             <div>
-              <label className={labelCls}>Остаток к погашению</label>
+              <label className={labelCls}>{t("adminDocs.constructor.money.debtRemainder")}</label>
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100">
-                {debt.totalAmount > 0 ? debtRemainder(debt).toLocaleString("ru-RU") + " ₸" : "—"}
+                {debt.totalAmount > 0 ? formatMoneyL(locale, debtRemainder(debt)) : "—"}
               </div>
             </div>
           </div>
           {debt.discountPercent > 0 && (
-            <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">При нарушении срока скидка по договору сгорает — недостающую часть в этом случае доначислите вручную в «Финансах».</p>
+            <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">{t("adminDocs.constructor.money.debtDiscountNote")}</p>
           )}
         </>
       )}
 
-      <div className={secTitleCls}>Пеня и индексация</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.penaltySection")}</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Пеня арендатора, %/день</label><input type="number" step="0.1" min="0" className={inputCls} value={f.penalty.tenantPerDay} onChange={(e) => set((s) => { s.financials.penalty.tenantPerDay = Number(e.target.value) })} /></div>
-        <div><label className={labelCls}>Пеня арендодателя, %/день</label><input type="number" step="0.1" min="0" className={inputCls} value={f.penalty.landlordPerDay} onChange={(e) => set((s) => { s.financials.penalty.landlordPerDay = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.money.penaltyTenant")}</label><input type="number" step="0.1" min="0" className={inputCls} value={f.penalty.tenantPerDay} onChange={(e) => set((s) => { s.financials.penalty.tenantPerDay = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.money.penaltyLandlord")}</label><input type="number" step="0.1" min="0" className={inputCls} value={f.penalty.landlordPerDay} onChange={(e) => set((s) => { s.financials.penalty.landlordPerDay = Number(e.target.value) })} /></div>
       </div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Макс. пеня арендатора, % от платежа</label><input type="number" step="1" min="0" className={inputCls} value={f.penalty.tenantCapPercent} onChange={(e) => set((s) => { s.financials.penalty.tenantCapPercent = Number(e.target.value) })} /></div>
-        <div><label className={labelCls}>Макс. пеня арендодателя, %</label><input type="number" step="1" min="0" className={inputCls} value={f.penalty.landlordCapPercent} onChange={(e) => set((s) => { s.financials.penalty.landlordCapPercent = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.money.penaltyTenantCap")}</label><input type="number" step="1" min="0" className={inputCls} value={f.penalty.tenantCapPercent} onChange={(e) => set((s) => { s.financials.penalty.tenantCapPercent = Number(e.target.value) })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.money.penaltyLandlordCap")}</label><input type="number" step="1" min="0" className={inputCls} value={f.penalty.landlordCapPercent} onChange={(e) => set((s) => { s.financials.penalty.landlordCapPercent = Number(e.target.value) })} /></div>
       </div>
-      <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">Пеня капается за каждый день просрочки, но суммарно не более указанного % от платежа.</p>
-      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.indexation.enabled} onChange={(e) => set((s) => { s.financials.indexation.enabled = e.target.checked })} /> Индексация (только через ДС)</label>
+      <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">{t("adminDocs.constructor.money.penaltyNote")}</p>
+      <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300"><input type="checkbox" checked={f.indexation.enabled} onChange={(e) => set((s) => { s.financials.indexation.enabled = e.target.checked })} /> {t("adminDocs.constructor.money.indexation")}</label>
     </>
   )
 }
 
 function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
+  const { t } = useT()
   const sv = state.financials.additionalServices
   // Режим уборки: фикс ₸/мес или ставка за м². Инициализируем по тому, что заполнено.
   const [cleaningMode, setCleaningMode] = useState<"fixed" | "sqm">(sv.premisesCleaning.ratePerSqm ? "sqm" : "fixed")
   if (placementFamily(state)) return <PlacementAnnexesStep state={state} set={set} />
   return (
     <>
-      <div className={secTitleCls}>Модули</div>
-      <ToggleRow on={state.modules.actEnabled} title="Акт приёма-передачи (Прил. № 1)" hint="Рекомендуется держать включённым" onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.annexes.modulesSection")}</div>
+      <ToggleRow on={state.modules.actEnabled} title={t("adminDocs.constructor.annexes.act")} hint={t("adminDocs.constructor.annexes.actHint")} onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
       {state.modules.actEnabled && state.modules.asIsAcceptanceEnabled === true && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 my-1 space-y-2 dark:border-slate-800 dark:bg-slate-800/40">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-            Включён режим «как есть» (шаг «Помещение»): Акт оформляется в кратком виде — помещение уже в фактическом пользовании, Арендатор принимает его без претензий (в т.ч. по скрытым недостаткам). Чек-лист состояния и ключи не включаются. Показания счётчиков попадут в Акт, только если заполнены.
+            {t("adminDocs.constructor.annexes.asIsNote")}
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {([
-              ["meterElectricity", "Эл-энергия, кВт·ч"], ["meterColdWater", "Хол. вода, м³"],
-              ["meterHotWater", "Гор. вода, м³"],
-            ] as [keyof HandoverAct, string][]).map(([key, label]) => (
+              ["meterElectricity", "electricity"], ["meterColdWater", "coldWater"],
+              ["meterHotWater", "hotWater"],
+            ] as [keyof HandoverAct, string][]).map(([key, labelKey]) => (
               <label key={key} className="block">
-                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{t(`adminDocs.constructor.annexes.meters.${labelKey}` as TextKey<Messages>)}</span>
                 <input className={inputCls} value={state.handoverAct[key]} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })} placeholder="—" />
               </label>
             ))}
@@ -960,55 +996,57 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
       )}
       {state.modules.actEnabled && state.modules.asIsAcceptanceEnabled !== true && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 my-1 space-y-2 dark:border-slate-800 dark:bg-slate-800/40">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Состояние помещения и счётчики для Акта (необязательно — пустые останутся прочерком)</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.annexes.conditionNote")}</p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {([
-              ["conditionWalls", "Стены"], ["conditionFloor", "Пол"], ["conditionCeiling", "Потолок"],
-              ["conditionWindowsDoors", "Окна, двери"], ["conditionElectrical", "Электропроводка, освещение"],
-              ["conditionPlumbing", "Сантехника, отопление"],
-            ] as [keyof HandoverAct, string][]).map(([key, label]) => {
+              ["conditionWalls", "walls"], ["conditionFloor", "floor"], ["conditionCeiling", "ceiling"],
+              ["conditionWindowsDoors", "windows"], ["conditionElectrical", "electrical"],
+              ["conditionPlumbing", "plumbing"],
+            ] as [keyof HandoverAct, string][]).map(([key, labelKey]) => {
               const cur = state.handoverAct[key] ?? ""
               return (
                 <label key={key} className="block">
-                  <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                  <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{t(`adminDocs.constructor.annexes.conditions.${labelKey}` as TextKey<Messages>)}</span>
                   <select className={inputCls} value={cur} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })}>
-                    <option value="">— (прочерк)</option>
+                    <option value="">{t("adminDocs.constructor.annexes.conditionEmpty")}</option>
+                    {/* Сами значения печатаются в Акте, поэтому остаются русскими.
+                        в документ — переводит юрист */}
                     {CONDITION_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-                    {cur && !CONDITION_OPTIONS.includes(cur) && <option value={cur}>{cur} (произвольно)</option>}
+                    {cur && !CONDITION_OPTIONS.includes(cur) && <option value={cur}>{t("adminDocs.constructor.annexes.conditionCustom", { value: cur })}</option>}
                   </select>
                 </label>
               )
             })}
             <label className="block sm:col-span-2">
-              <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Иное</span>
-              <input className={inputCls} value={state.handoverAct.conditionOther} onChange={(e) => set((s) => { s.handoverAct.conditionOther = e.target.value })} placeholder="состояние / описание" />
+              <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.annexes.conditions.other")}</span>
+              <input className={inputCls} value={state.handoverAct.conditionOther} onChange={(e) => set((s) => { s.handoverAct.conditionOther = e.target.value })} placeholder={t("adminDocs.constructor.annexes.conditionOtherPlaceholder")} />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {([
-              ["meterElectricity", "Эл-энергия, кВт·ч"], ["meterColdWater", "Хол. вода, м³"],
-              ["meterHotWater", "Гор. вода, м³"], ["keysCount", "Ключи, компл."],
-            ] as [keyof HandoverAct, string][]).map(([key, label]) => (
+              ["meterElectricity", "electricity"], ["meterColdWater", "coldWater"],
+              ["meterHotWater", "hotWater"], ["keysCount", "keys"],
+            ] as [keyof HandoverAct, string][]).map(([key, labelKey]) => (
               <label key={key} className="block">
-                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{label}</span>
+                <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{t(`adminDocs.constructor.annexes.meters.${labelKey}` as TextKey<Messages>)}</span>
                 <input className={inputCls} value={state.handoverAct[key]} onChange={(e) => set((s) => { s.handoverAct[key] = e.target.value })} placeholder="—" />
               </label>
             ))}
           </div>
         </div>
       )}
-      <ToggleRow on={state.modules.insuranceEnabled} title="Страхование" hint="Отдельный раздел про страхование ответственности. Выкл — раздел убирается, нумерация и ссылки пересчитываются." onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
-      <ToggleRow on={state.modules.signageEnabled} title="Вывески (п. 1.6, 6.2.3)" onToggle={() => set((s) => { s.modules.signageEnabled = !s.modules.signageEnabled })} />
-      <ToggleRow on={state.modules.confidentialityEnabled !== false} title="Конфиденциальность" hint="Отдельный раздел о конфиденциальности. Выкл — раздел убирается, нумерация и ссылки пересчитываются." onToggle={() => set((s) => { s.modules.confidentialityEnabled = s.modules.confidentialityEnabled === false })} />
-      <ToggleRow on={state.modules.tenantExitOnUnusableEnabled === true} title="Право арендатора на отказ при непригодности" hint="Пункты об отказе арендатора и возврате депозита, если помещение стало непригодным. Выкл — эти пункты убираются." onToggle={() => set((s) => { s.modules.tenantExitOnUnusableEnabled = !(s.modules.tenantExitOnUnusableEnabled === true) })} />
-      <div className={secTitleCls}>Дополнительные услуги (Прил. № 2)</div>
+      <ToggleRow on={state.modules.insuranceEnabled} title={t("adminDocs.constructor.annexes.insurance")} hint={t("adminDocs.constructor.annexes.insuranceHint")} onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
+      <ToggleRow on={state.modules.signageEnabled} title={t("adminDocs.constructor.annexes.signage")} onToggle={() => set((s) => { s.modules.signageEnabled = !s.modules.signageEnabled })} />
+      <ToggleRow on={state.modules.confidentialityEnabled !== false} title={t("adminDocs.constructor.annexes.confidentiality")} hint={t("adminDocs.constructor.annexes.confidentialityHint")} onToggle={() => set((s) => { s.modules.confidentialityEnabled = s.modules.confidentialityEnabled === false })} />
+      <ToggleRow on={state.modules.tenantExitOnUnusableEnabled === true} title={t("adminDocs.constructor.annexes.tenantExit")} hint={t("adminDocs.constructor.annexes.tenantExitHint")} onToggle={() => set((s) => { s.modules.tenantExitOnUnusableEnabled = !(s.modules.tenantExitOnUnusableEnabled === true) })} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.annexes.servicesSection")}</div>
 
-      <ToggleRow on={sv.premisesCleaning.ordered} title="Уборка внутри помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesCleaning.ordered = !sv.premisesCleaning.ordered })} />
+      <ToggleRow on={sv.premisesCleaning.ordered} title={t("adminDocs.constructor.annexes.cleaning")} onToggle={() => set((s) => { s.financials.additionalServices.premisesCleaning.ordered = !sv.premisesCleaning.ordered })} />
       {sv.premisesCleaning.ordered && (
         <div className="mb-2 -mt-0.5 space-y-1.5 pl-1">
           <Seg
             value={cleaningMode}
-            options={[{ v: "fixed", label: "Фикс. ₸/мес" }, { v: "sqm", label: "За м²" }]}
+            options={[{ v: "fixed", label: t("adminDocs.constructor.annexes.modeFixed") }, { v: "sqm", label: t("adminDocs.constructor.annexes.modeSqm") }]}
             onChange={(m) => {
               setCleaningMode(m)
               set((s) => {
@@ -1020,18 +1058,18 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
           />
           {cleaningMode === "fixed" ? (
             <div>
-              <label className={labelCls}>Стоимость уборки, ₸/мес (фиксированная)</label>
-              <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesCleaning.monthly || ""} placeholder="например, 30000"
+              <label className={labelCls}>{t("adminDocs.constructor.annexes.cleaningMonthly")}</label>
+              <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesCleaning.monthly || ""} placeholder={t("adminDocs.constructor.egAmount", { value: 30000 })}
                 onChange={(e) => set((s) => { s.financials.additionalServices.premisesCleaning.monthly = Number(e.target.value) || 0 })} />
             </div>
           ) : (
             <div>
-              <label className={labelCls}>Ставка уборки, ₸ за м²/мес</label>
-              <input type="number" min="0" step="50" className={inputCls} value={sv.premisesCleaning.ratePerSqm || ""} placeholder="например, 300"
+              <label className={labelCls}>{t("adminDocs.constructor.annexes.cleaningPerSqm")}</label>
+              <input type="number" min="0" step="50" className={inputCls} value={sv.premisesCleaning.ratePerSqm || ""} placeholder={t("adminDocs.constructor.egAmount", { value: 300 })}
                 onChange={(e) => set((s) => { s.financials.additionalServices.premisesCleaning.ratePerSqm = Number(e.target.value) || 0 })} />
               {(sv.premisesCleaning.ratePerSqm ?? 0) > 0 && state.premises.spaceAreaSqm > 0 && (
                 <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                  ≈ {money(Math.round((sv.premisesCleaning.ratePerSqm ?? 0) * state.premises.spaceAreaSqm))}/мес за {state.premises.spaceAreaSqm} м²
+                  {t("adminDocs.constructor.annexes.cleaningApprox", { sum: money(Math.round((sv.premisesCleaning.ratePerSqm ?? 0) * state.premises.spaceAreaSqm)), area: state.premises.spaceAreaSqm })}
                 </p>
               )}
             </div>
@@ -1039,29 +1077,29 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
         </div>
       )}
 
-      <ToggleRow on={sv.internet.ordered} title="Интернет" onToggle={() => set((s) => { s.financials.additionalServices.internet.ordered = !sv.internet.ordered })} />
+      <ToggleRow on={sv.internet.ordered} title={t("adminDocs.constructor.annexes.internet")} onToggle={() => set((s) => { s.financials.additionalServices.internet.ordered = !sv.internet.ordered })} />
       {sv.internet.ordered && (
         <div className="mb-2 -mt-0.5 pl-1">
-          <label className={labelCls}>Стоимость интернета, ₸/мес</label>
-          <input type="number" min="0" step="1000" className={inputCls} value={sv.internet.monthly || ""} placeholder="например, 10000"
+          <label className={labelCls}>{t("adminDocs.constructor.annexes.internetMonthly")}</label>
+          <input type="number" min="0" step="1000" className={inputCls} value={sv.internet.monthly || ""} placeholder={t("adminDocs.constructor.egAmount", { value: 10000 })}
             onChange={(e) => set((s) => { s.financials.additionalServices.internet.monthly = Number(e.target.value) || 0 })} />
         </div>
       )}
 
-      <ToggleRow on={sv.phone.ordered} title="Телефон" onToggle={() => set((s) => { s.financials.additionalServices.phone.ordered = !sv.phone.ordered })} />
+      <ToggleRow on={sv.phone.ordered} title={t("adminDocs.constructor.annexes.phone")} onToggle={() => set((s) => { s.financials.additionalServices.phone.ordered = !sv.phone.ordered })} />
       {sv.phone.ordered && (
         <div className="mb-2 -mt-0.5 pl-1">
-          <label className={labelCls}>Стоимость телефона, ₸/мес (пусто — «по тарифам оператора»)</label>
-          <input type="number" min="0" step="500" className={inputCls} value={sv.phone.monthly || ""} placeholder="по тарифам оператора"
+          <label className={labelCls}>{t("adminDocs.constructor.annexes.phoneMonthly")}</label>
+          <input type="number" min="0" step="500" className={inputCls} value={sv.phone.monthly || ""} placeholder={t("adminDocs.constructor.annexes.byOperator")}
             onChange={(e) => set((s) => { s.financials.additionalServices.phone.monthly = Number(e.target.value) || 0 })} />
         </div>
       )}
 
-      <ToggleRow on={sv.premisesSecurity.ordered} title="Охрана помещения" onToggle={() => set((s) => { s.financials.additionalServices.premisesSecurity.ordered = !sv.premisesSecurity.ordered })} />
+      <ToggleRow on={sv.premisesSecurity.ordered} title={t("adminDocs.constructor.annexes.security")} onToggle={() => set((s) => { s.financials.additionalServices.premisesSecurity.ordered = !sv.premisesSecurity.ordered })} />
       {sv.premisesSecurity.ordered && (
         <div className="mb-2 -mt-0.5 pl-1">
-          <label className={labelCls}>Стоимость охраны, ₸/мес</label>
-          <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesSecurity.monthly || ""} placeholder="например, 25000"
+          <label className={labelCls}>{t("adminDocs.constructor.annexes.securityMonthly")}</label>
+          <input type="number" min="0" step="1000" className={inputCls} value={sv.premisesSecurity.monthly || ""} placeholder={t("adminDocs.constructor.egAmount", { value: 25000 })}
             onChange={(e) => set((s) => { s.financials.additionalServices.premisesSecurity.monthly = Number(e.target.value) || 0 })} />
         </div>
       )}
@@ -1071,81 +1109,85 @@ function AnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) =
 
 // ───────────────────────── договор на размещение ─────────────────────────
 
-const ELECTRICITY_OPTIONS: { v: PlacementElectricity; label: string }[] = [
-  { v: "meter", label: "По счётчику" },
-  { v: "fixed", label: "Фикс. ₸/мес" },
-  { v: "none", label: "Без подключения" },
+const ELECTRICITY_OPTIONS: { v: PlacementElectricity; labelKey: "elMeter" | "elFixed" | "elNone" }[] = [
+  { v: "meter", labelKey: "elMeter" },
+  { v: "fixed", labelKey: "elFixed" },
+  { v: "none", labelKey: "elNone" },
 ]
 
 /** Поля места для договора на размещение (оборудование / территория). */
 function PlacementFields({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
-  const t = state.placement!
-  const eq = t.family === "equipment"
+  const { t } = useT()
+  // Условия места держим в pl: имя t занято переводчиком.
+  const pl = state.placement!
+  const eq = pl.family === "equipment"
   const up = (mut: (p: PlacementTerms) => void) => set((s) => { if (s.placement) mut(s.placement) })
   const upRow = (i: number, mut: (e: PlacedEquipment) => void) => up((p) => { mut(p.equipment[i]) })
   return (
     <>
-      <div className={secTitleCls}>{eq ? "Место для оборудования" : "Место на территории"}</div>
-      <div className="mb-2"><label className={labelCls}>Адрес {eq ? "здания" : "участка"}</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
+      <div className={secTitleCls}>{eq ? t("adminDocs.constructor.placement.titleEquipment") : t("adminDocs.constructor.placement.titleTerritory")}</div>
+      <div className="mb-2"><label className={labelCls}>{eq ? t("adminDocs.constructor.placement.addressBuilding") : t("adminDocs.constructor.placement.addressLand")}</label><input className={inputCls} value={state.premises.buildingAddress} onChange={(e) => set((s) => { s.premises.buildingAddress = e.target.value })} /></div>
       <div className="mb-2 grid grid-cols-[1fr_8rem] gap-2">
-        <div><label className={labelCls}>Где именно</label><input className={inputCls} placeholder={eq ? "холл 1 этажа, справа от входа" : "у въезда, вдоль ограждения"} value={t.placeDescription} onChange={(e) => up((p) => { p.placeDescription = e.target.value })} /></div>
-        <div><label className={labelCls}>Площадь, м²</label><input type="number" step="0.1" min="0" className={inputCls} value={t.placeAreaSqm || ""} onChange={(e) => up((p) => { p.placeAreaSqm = Number(e.target.value) || 0 })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.placement.where")}</label><input className={inputCls} placeholder={eq ? t("adminDocs.constructor.placement.whereEqPlaceholder") : t("adminDocs.constructor.placement.whereTerrPlaceholder")} value={pl.placeDescription} onChange={(e) => up((p) => { p.placeDescription = e.target.value })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.placement.area")}</label><input type="number" step="0.1" min="0" className={inputCls} value={pl.placeAreaSqm || ""} onChange={(e) => up((p) => { p.placeAreaSqm = Number(e.target.value) || 0 })} /></div>
       </div>
-      <div className="mb-2"><label className={labelCls}>Цель использования</label><input className={inputCls} value={state.premises.purposeUse} onChange={(e) => set((s) => { s.premises.purposeUse = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.placement.purpose")}</label><input className={inputCls} value={state.premises.purposeUse} onChange={(e) => set((s) => { s.premises.purposeUse = e.target.value })} /></div>
       {!eq && (
         <div className="mb-2 grid grid-cols-[1fr_11rem] gap-2">
-          <div><label className={labelCls}>Документ на земельный участок</label><input className={inputCls} placeholder="акт на право частной собственности № ___ от ___" value={t.landDocument} onChange={(e) => up((p) => { p.landDocument = e.target.value })} /></div>
-          <div><label className={labelCls}>Кадастровый номер</label><input className={inputCls} value={t.cadastralNumber} onChange={(e) => up((p) => { p.cadastralNumber = e.target.value })} /></div>
+          {/* Плейсхолдер — образец названия правоустанавливающего документа, который
+              печатается в предмете договора. в документ — переводит юрист */}
+          <div><label className={labelCls}>{t("adminDocs.constructor.placement.landDocument")}</label><input className={inputCls} placeholder="акт на право частной собственности № ___ от ___" value={pl.landDocument} onChange={(e) => up((p) => { p.landDocument = e.target.value })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.placement.cadastral")}</label><input className={inputCls} value={pl.cadastralNumber} onChange={(e) => up((p) => { p.cadastralNumber = e.target.value })} /></div>
         </div>
       )}
-      <div className="mb-2"><label className={labelCls}>Доступ для обслуживания</label><input className={inputCls} value={t.accessHours} onChange={(e) => up((p) => { p.accessHours = e.target.value })} /></div>
+      <div className="mb-2"><label className={labelCls}>{t("adminDocs.constructor.placement.access")}</label><input className={inputCls} value={pl.accessHours} onChange={(e) => up((p) => { p.accessHours = e.target.value })} /></div>
 
-      <div className={secTitleCls}>Электроэнергия</div>
-      <div className="mb-2"><Seg value={t.electricity} options={ELECTRICITY_OPTIONS} onChange={(v) => up((p) => { p.electricity = v })} /></div>
-      {t.electricity !== "none" && (
+      <div className={secTitleCls}>{t("adminDocs.constructor.placement.electricitySection")}</div>
+      <div className="mb-2"><Seg value={pl.electricity} options={ELECTRICITY_OPTIONS.map((o) => ({ v: o.v, label: t(`adminDocs.constructor.placement.${o.labelKey}` as TextKey<Messages>) }))} onChange={(v) => up((p) => { p.electricity = v })} /></div>
+      {pl.electricity !== "none" && (
         <div className="mb-2 grid grid-cols-2 gap-2">
-          {t.electricity === "meter" && (
-            <div><label className={labelCls}>Тариф, ₸ за кВт·ч</label><input type="number" min="0" step="0.01" className={inputCls} placeholder="по тарифу поставщика" value={t.electricityTariff || ""} onChange={(e) => up((p) => { p.electricityTariff = Number(e.target.value) || 0 })} /></div>
+          {pl.electricity === "meter" && (
+            <div><label className={labelCls}>{t("adminDocs.constructor.placement.tariff")}</label><input type="number" min="0" step="0.01" className={inputCls} placeholder={t("adminDocs.constructor.placement.tariffPlaceholder")} value={pl.electricityTariff || ""} onChange={(e) => up((p) => { p.electricityTariff = Number(e.target.value) || 0 })} /></div>
           )}
-          {t.electricity === "fixed" && (
-            <div><label className={labelCls}>Плата за свет, ₸/мес</label><input type="number" min="0" className={inputCls} value={t.electricityFixed || ""} onChange={(e) => up((p) => { p.electricityFixed = Number(e.target.value) || 0 })} /></div>
+          {pl.electricity === "fixed" && (
+            <div><label className={labelCls}>{t("adminDocs.constructor.placement.fixedMonthly")}</label><input type="number" min="0" className={inputCls} value={pl.electricityFixed || ""} onChange={(e) => up((p) => { p.electricityFixed = Number(e.target.value) || 0 })} /></div>
           )}
-          <div><label className={labelCls}>Разрешённая мощность, кВт</label><input type="number" step="0.1" min="0" className={inputCls} value={t.powerLimitKw || ""} onChange={(e) => up((p) => { p.powerLimitKw = Number(e.target.value) || 0 })} /></div>
-          <div className="col-span-2"><label className={labelCls}>Точка подключения</label><input className={inputCls} placeholder="розетка 220 В у колонны, щит ЩР-1" value={t.connectionPoint} onChange={(e) => up((p) => { p.connectionPoint = e.target.value })} /></div>
+          <div><label className={labelCls}>{t("adminDocs.constructor.placement.powerLimit")}</label><input type="number" step="0.1" min="0" className={inputCls} value={pl.powerLimitKw || ""} onChange={(e) => up((p) => { p.powerLimitKw = Number(e.target.value) || 0 })} /></div>
+          <div className="col-span-2"><label className={labelCls}>{t("adminDocs.constructor.placement.connectionPoint")}</label><input className={inputCls} placeholder={t("adminDocs.constructor.placement.connectionPlaceholder")} value={pl.connectionPoint} onChange={(e) => up((p) => { p.connectionPoint = e.target.value })} /></div>
         </div>
       )}
 
-      <div className={secTitleCls}>Эксплуатационные расходы</div>
+      <div className={secTitleCls}>{t("adminDocs.constructor.money.operatingSection")}</div>
       <div className="mb-2 grid grid-cols-2 gap-2">
-        <div><label className={labelCls}>Ставка, ₸ за м² в месяц</label><input type="number" min="0" className={inputCls} placeholder="нет" value={t.serviceFeePerSqm || ""} onChange={(e) => up((p) => { p.serviceFeePerSqm = Number(e.target.value) || 0 })} /></div>
+        <div><label className={labelCls}>{t("adminDocs.constructor.placement.feeRate")}</label><input type="number" min="0" className={inputCls} placeholder={t("adminDocs.constructor.placement.feeNone")} value={pl.serviceFeePerSqm || ""} onChange={(e) => up((p) => { p.serviceFeePerSqm = Number(e.target.value) || 0 })} /></div>
         <div>
-          <label className={labelCls}>В месяц</label>
+          <label className={labelCls}>{t("adminDocs.constructor.placement.perMonth")}</label>
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-100">
-            {(t.serviceFeePerSqm ?? 0) > 0 && t.placeAreaSqm > 0 ? money(Math.round((t.serviceFeePerSqm ?? 0) * t.placeAreaSqm)) : "—"}
+            {(pl.serviceFeePerSqm ?? 0) > 0 && pl.placeAreaSqm > 0 ? money(Math.round((pl.serviceFeePerSqm ?? 0) * pl.placeAreaSqm)) : "—"}
           </div>
         </div>
       </div>
-      <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">Одна ставка на весь год, без зимней. Начисляется отдельной строкой счёта вместе с арендой.</p>
+      <p className="mb-2 text-[11px] text-slate-400 dark:text-slate-500">{t("adminDocs.constructor.placement.feeNote")}</p>
 
-      <div className={secTitleCls}>{eq ? "Оборудование" : "Объект"}</div>
+      <div className={secTitleCls}>{eq ? t("adminDocs.constructor.placement.equipment") : t("adminDocs.constructor.placement.object")}</div>
       <div className="space-y-2">
-        {t.equipment.map((e, i) => (
+        {pl.equipment.map((e, i) => (
           <div key={i} className="rounded-lg border border-slate-200 p-2 dark:border-slate-800">
             <div className="mb-1.5 grid grid-cols-[1fr_4rem_auto] gap-1.5">
-              <input className={inputCls} placeholder={eq ? "Торговый автомат" : "Торговый киоск"} value={e.name} onChange={(ev) => upRow(i, (x) => { x.name = ev.target.value })} />
-              <input type="number" min="1" className={inputCls} title="Количество" value={e.qty || ""} onChange={(ev) => upRow(i, (x) => { x.qty = Number(ev.target.value) || 0 })} />
-              <button type="button" onClick={() => up((p) => { p.equipment.splice(i, 1) })} className="rounded-md border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800" title="Убрать">×</button>
+              <input className={inputCls} placeholder={eq ? t("adminDocs.constructor.placement.eqNamePlaceholder") : t("adminDocs.constructor.placement.objNamePlaceholder")} value={e.name} onChange={(ev) => upRow(i, (x) => { x.name = ev.target.value })} />
+              <input type="number" min="1" className={inputCls} title={t("adminDocs.constructor.placement.qty")} value={e.qty || ""} onChange={(ev) => upRow(i, (x) => { x.qty = Number(ev.target.value) || 0 })} />
+              <button type="button" onClick={() => up((p) => { p.equipment.splice(i, 1) })} className="rounded-md border border-slate-200 px-2 text-xs text-slate-500 hover:bg-slate-100 dark:border-slate-800 dark:hover:bg-slate-800" title={t("adminDocs.constructor.placement.remove")}>×</button>
             </div>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-              <input className={inputCls} placeholder="Модель" value={e.model} onChange={(ev) => upRow(i, (x) => { x.model = ev.target.value })} />
-              <input className={inputCls} placeholder="Заводской №" value={e.serial} onChange={(ev) => upRow(i, (x) => { x.serial = ev.target.value })} />
-              <input className={inputCls} placeholder="Габариты, мм" value={e.size} onChange={(ev) => upRow(i, (x) => { x.size = ev.target.value })} />
-              <input type="number" step="0.1" min="0" className={inputCls} placeholder="кВт" value={e.powerKw || ""} onChange={(ev) => upRow(i, (x) => { x.powerKw = Number(ev.target.value) || 0 })} />
+              <input className={inputCls} placeholder={t("adminDocs.constructor.placement.model")} value={e.model} onChange={(ev) => upRow(i, (x) => { x.model = ev.target.value })} />
+              <input className={inputCls} placeholder={t("adminDocs.constructor.placement.serial")} value={e.serial} onChange={(ev) => upRow(i, (x) => { x.serial = ev.target.value })} />
+              <input className={inputCls} placeholder={t("adminDocs.constructor.placement.size")} value={e.size} onChange={(ev) => upRow(i, (x) => { x.size = ev.target.value })} />
+              <input type="number" step="0.1" min="0" className={inputCls} placeholder={t("adminDocs.constructor.placement.kw")} value={e.powerKw || ""} onChange={(ev) => upRow(i, (x) => { x.powerKw = Number(ev.target.value) || 0 })} />
             </div>
           </div>
         ))}
         <button type="button" onClick={() => up((p) => { p.equipment.push({ name: "", model: "", serial: "", qty: 1, size: "", powerKw: 0 }) })} className="w-full rounded-lg border border-dashed border-slate-300 py-2 text-xs text-slate-600 hover:border-blue-400 hover:text-blue-600 dark:border-slate-700 dark:text-slate-400">
-          + {eq ? "Добавить оборудование" : "Добавить объект"}
+          + {eq ? t("adminDocs.constructor.placement.addEquipment") : t("adminDocs.constructor.placement.addObject")}
         </button>
       </div>
     </>
@@ -1154,35 +1196,42 @@ function PlacementFields({ state, set }: { state: ContractState; set: (m: Mutato
 
 /** Приложения договора на размещение: Акт (состояние места, показания) и Схема. */
 function PlacementAnnexesStep({ state, set }: { state: ContractState; set: (m: Mutator) => void }) {
-  const t = state.placement!
+  const { t } = useT()
+  // Условия места держим в pl: имя t занято переводчиком.
+  const pl = state.placement!
   const up = (mut: (p: PlacementTerms) => void) => set((s) => { if (s.placement) mut(s.placement) })
   return (
     <>
-      <div className={secTitleCls}>Приложения</div>
-      <ToggleRow on={state.modules.actEnabled} title="Акт приёма-передачи" hint="Место, его состояние, точка подключения и перечень оборудования" onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.placement.annexesSection")}</div>
+      <ToggleRow on={state.modules.actEnabled} title={t("adminDocs.constructor.placement.act")} hint={t("adminDocs.constructor.placement.actHint")} onToggle={() => set((s) => { s.modules.actEnabled = !s.modules.actEnabled })} />
       {state.modules.actEnabled && (
         <div className="my-1 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-800/40">
           <label className="block">
-            <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Состояние места при передаче</span>
-            <input className={inputCls} placeholder={t.family === "equipment" ? "пол — плитка без повреждений" : "асфальт без повреждений, бордюр целый"} value={t.placeCondition} onChange={(e) => up((p) => { p.placeCondition = e.target.value })} />
+            <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.placement.placeCondition")}</span>
+            <input className={inputCls} placeholder={pl.family === "equipment" ? t("adminDocs.constructor.placement.condEqPlaceholder") : t("adminDocs.constructor.placement.condTerrPlaceholder")} value={pl.placeCondition} onChange={(e) => up((p) => { p.placeCondition = e.target.value })} />
           </label>
-          {t.electricity === "meter" && (
+          {pl.electricity === "meter" && (
             <label className="block">
-              <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">Показания счётчика, кВт·ч</span>
+              <span className="mb-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{t("adminDocs.constructor.placement.meterReading")}</span>
               <input className={inputCls} value={state.handoverAct.meterElectricity} onChange={(e) => set((s) => { s.handoverAct.meterElectricity = e.target.value })} placeholder="—" />
             </label>
           )}
         </div>
       )}
-      <ToggleRow on={t.schemeEnabled} title="Схема размещения" hint="Лист с полем под схему: границы места, оборудование, точка подключения" onToggle={() => up((p) => { p.schemeEnabled = !p.schemeEnabled })} />
-      <div className={secTitleCls}>Модули</div>
-      <ToggleRow on={state.modules.insuranceEnabled} title="Страхование ответственности" hint="Обязанность арендатора застраховать ГПО перед третьими лицами" onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
-      <ToggleRow on={state.modules.confidentialityEnabled !== false} title="Конфиденциальность" onToggle={() => set((s) => { s.modules.confidentialityEnabled = s.modules.confidentialityEnabled === false })} />
+      <ToggleRow on={pl.schemeEnabled} title={t("adminDocs.constructor.placement.scheme")} hint={t("adminDocs.constructor.placement.schemeHint")} onToggle={() => up((p) => { p.schemeEnabled = !p.schemeEnabled })} />
+      <div className={secTitleCls}>{t("adminDocs.constructor.annexes.modulesSection")}</div>
+      <ToggleRow on={state.modules.insuranceEnabled} title={t("adminDocs.constructor.placement.liability")} hint={t("adminDocs.constructor.placement.liabilityHint")} onToggle={() => set((s) => { s.modules.insuranceEnabled = !s.modules.insuranceEnabled })} />
+      <ToggleRow on={state.modules.confidentialityEnabled !== false} title={t("adminDocs.constructor.annexes.confidentiality")} onToggle={() => set((s) => { s.modules.confidentialityEnabled = s.modules.confidentialityEnabled === false })} />
     </>
   )
 }
 
 // ───────────────────────── preview ─────────────────────────
+//
+// Ниже — предпросмотр самого договора и приложений. Его текст не переводится:
+// это тот документ, что уходит арендатору (docs/i18n-documents-plan.md).
+// Переведены только подсказки интерфейса («нажмите, чтобы изменить»).
+// в документ — переводит юрист
 
 const docTitleCls = "text-center text-base font-bold text-slate-900 dark:text-slate-100"
 const docSubCls = "text-center text-slate-500 dark:text-slate-400"
@@ -1209,9 +1258,8 @@ function stepForClause(id: string): number {
   for (const [re, n] of STEP_BY_CLAUSE) if (re.test(id)) return n
   return 4
 }
-const STEP_NAMES: Record<number, string> = { 1: "Арендатор", 2: "Что сдаём и срок", 3: "Деньги", 4: "Приложения" }
-
 function ContractPreview({ state, onPick }: { state: ContractState; onPick?: (step: number) => void }) {
+  const { t } = useT()
   const a = assemble(state)
   const pickCls = onPick ? "-mx-1.5 cursor-pointer rounded px-1.5 transition hover:bg-blue-50 dark:hover:bg-blue-500/10" : ""
   return (
@@ -1225,7 +1273,7 @@ function ContractPreview({ state, onPick }: { state: ContractState; onPick?: (st
       <p
         className={`mb-4 text-justify text-slate-700 dark:text-slate-300 ${pickCls}`}
         onClick={onPick ? () => onPick(1) : undefined}
-        title={onPick ? "Изменить на шаге «Арендатор»" : undefined}
+        title={onPick ? t("adminDocs.constructor.preview.editOnStep", { step: t("adminDocs.constructor.steps.s1.title") }) : undefined}
       >
         {partyIntro(state.landlord, "Арендодатель")}, с одной стороны, и {partyIntro(state.tenant, "Арендатор")}, с другой стороны, совместно именуемые «Стороны», заключили настоящий Договор о нижеследующем:
       </p>
@@ -1237,7 +1285,7 @@ function ContractPreview({ state, onPick }: { state: ContractState; onPick?: (st
               key={it.id}
               className={`mb-2 text-justify text-slate-700 dark:text-slate-300 ${pickCls}`}
               onClick={onPick ? () => onPick(stepForClause(it.id)) : undefined}
-              title={onPick ? `Изменить на шаге «${STEP_NAMES[stepForClause(it.id)]}»` : undefined}
+              title={onPick ? t("adminDocs.constructor.preview.editOnStep", { step: t(`adminDocs.constructor.steps.s${stepForClause(it.id)}.title` as TextKey<Messages>) }) : undefined}
             >
               <b className="text-slate-900 dark:text-slate-100">{it.num}.</b> {it.sub && <b>{it.sub} </b>}{it.html}
               {it.children.map((k) => (
@@ -1349,12 +1397,13 @@ function Annex3Preview({ state, annexNo }: { state: ContractState; annexNo: numb
 }
 
 function AnnexesPreview({ state }: { state: ContractState }) {
+  const { t } = useT()
   if (placementFamily(state)) {
     return <div className="space-y-8"><PlacementAnnexesView state={state} /></div>
   }
   const c = assemble(state).ctx
   if (!c.annexes.act && !c.annexes.services && !c.annexes.operatingCosts) {
-    return <p className="text-sm text-slate-400 dark:text-slate-500">Приложения к договору не предусмотрены — включаются Актом (Прил. № 1), доп. услугами (Прил. № 2) или методом эксплуатационных расходов (Прил. № 3).</p>
+    return <p className="text-sm text-slate-400 dark:text-slate-500">{t("adminDocs.constructor.preview.noAnnexes")}</p>
   }
   return (
     <div className="space-y-8">

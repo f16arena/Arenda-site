@@ -2,13 +2,6 @@
 
 export type InstallmentDraft = { seq: number; dueDateISO: string; amount: number }
 
-export const INSTALLMENT_STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Активна",
-  COMPLETED: "Погашена",
-  BROKEN: "Сорвана",
-  CANCELLED: "Отменена",
-}
-
 export const MAX_INSTALLMENTS = 60
 export const MIN_INSTALLMENTS = 2
 

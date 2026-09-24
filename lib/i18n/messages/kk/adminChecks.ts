@@ -152,7 +152,7 @@ export const adminChecks: typeof ru = {
       signatureMeta: "{document} · {reason}",
       meterMeta: "{type} {number} · {reason}",
       placementNone: "Орналасуы көрсетілмеген",
-      placementSpace: "каб. {number}",
+      placementSpace: "{number} каб.",
       placementSpaces: "{count} үй-жай",
       placementFloors: "{count} қабат",
     },

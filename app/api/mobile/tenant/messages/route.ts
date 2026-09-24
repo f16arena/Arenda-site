@@ -4,6 +4,7 @@ import { mobileError } from "@/lib/mobile-context"
 import { getMobileTenantRequest } from "@/lib/mobile-tenant"
 import { notifyUser } from "@/lib/notify"
 import { getTenantAdminContactsForUser } from "@/lib/tenant-admin-contact"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -49,6 +50,8 @@ export async function POST(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, tenant } = result
+  // Ошибки читает арендатор, а тему и уведомление — администратор: языки разные.
+  const { t } = await getTForUser(ctx.user.id)
   const body = await req.json().catch(() => null) as {
     toUserId?: string
     subject?: string
@@ -56,21 +59,23 @@ export async function POST(req: Request) {
   } | null
 
   const admins = await getTenantAdminContactsForUser(ctx.user.id)
-  if (admins.length === 0) return mobileError("Для вашего помещения не назначен администратор", 409)
+  if (admins.length === 0) return mobileError(t("adminDocs.api.common.noAdminForSpace"), 409)
 
   const allowedAdminIds = new Set(admins.map((admin) => admin.id))
   const toUserId = String(body?.toUserId ?? admins[0].id).trim()
-  if (!allowedAdminIds.has(toUserId)) return mobileError("Получатель недоступен", 403)
+  if (!allowedAdminIds.has(toUserId)) return mobileError(t("adminDocs.api.common.recipientUnavailable"), 403)
 
-  const subject = String(body?.subject ?? "Сообщение от арендатора").trim().slice(0, 160)
+  const { t: tAdmin } = await getTForUser(toUserId)
+  const defaultSubject = tAdmin("emails.messaging.fromTenantSubject")
+  const subject = String(body?.subject ?? defaultSubject).trim().slice(0, 160)
   const text = String(body?.body ?? "").trim().slice(0, 3000)
-  if (text.length < 2) return mobileError("Введите сообщение")
+  if (text.length < 2) return mobileError(t("adminDocs.api.messages.textRequired"))
 
   const message = await db.message.create({
     data: {
       fromId: ctx.user.id,
       toId: toUserId,
-      subject: subject || "Сообщение от арендатора",
+      subject: subject || defaultSubject,
       body: text,
     },
     select: {
@@ -86,7 +91,7 @@ export async function POST(req: Request) {
   await notifyUser({
     userId: toUserId,
     type: "MESSAGE",
-    title: `Сообщение от ${tenant.companyName}`,
+    title: tAdmin("emails.messaging.newMessageTitle", { tenant: tenant.companyName }),
     message: text.slice(0, 180),
     link: "/admin/messages",
     sendEmail: false,

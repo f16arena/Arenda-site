@@ -3,6 +3,7 @@ import * as OTPAuth from "otpauth"
 import QRCode from "qrcode"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -12,12 +13,13 @@ export async function POST(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const user = await db.user.findUnique({
     where: { id: result.ctx.user.id },
     select: { email: true, phone: true, name: true, totpEnabledAt: true },
   })
-  if (!user) return mobileError("Пользователь не найден", 404)
-  if (user.totpEnabledAt) return mobileError("2FA уже включена", 409)
+  if (!user) return mobileError(t("adminDocs.api.common.userNotFound"), 404)
+  if (user.totpEnabledAt) return mobileError(t("adminDocs.api.auth.totpAlreadyEnabled"), 409)
 
   const label = user.email ?? user.phone ?? user.name
   const secret = new OTPAuth.Secret({ size: 20 })

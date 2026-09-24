@@ -22,7 +22,7 @@ export async function sendTestEmail(to: string): Promise<TestEmailResult> {
 
   let email: string
   try {
-    email = normalizeEmail(to, { required: true })!
+    email = normalizeEmail(to, { required: true, t })!
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : t("actions.testEmail.badEmail"), from }
   }

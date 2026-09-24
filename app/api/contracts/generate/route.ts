@@ -29,6 +29,7 @@ import { resolveServiceFeeSettings } from "@/lib/service-fee-settings"
 import { buildLegalEntityFullName, buildSignerIntro } from "@/lib/full-name"
 import { shortenFio } from "@/lib/declension"
 import { formatTenantPlacement, getTenantAreaTotal, getTenantPrimaryBuildingId } from "@/lib/tenant-placement"
+import { getT } from "@/lib/i18n/server"
 import { coerceKzVatRate, DEFAULT_KZ_VAT_RATE } from "@/lib/kz-vat"
 import {
   LEASE_ADDITIONAL_SERVICES_CLAUSE,
@@ -42,6 +43,10 @@ export const dynamic = "force-dynamic"
 
 // GET /api/contracts/generate?tenantId=xxx&format=docx
 export async function GET(req: Request) {
+  // Переводим только сообщения об ошибках. Текст самого договора остаётся
+  // русским: казахская редакция без вычитки юриста в прод не идёт, см.
+  // docs/i18n-documents-plan.md.
+  const { t } = await getT()
   const session = await auth()
   if (!session || session.user.role === "TENANT") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
@@ -54,7 +59,7 @@ export async function GET(req: Request) {
   })
   if (!rl.ok) {
     return NextResponse.json(
-      { error: `Слишком много запросов. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.` },
+      { error: t("adminDocs.api.common.rateLimited", { minutes: Math.ceil(rl.retryAfterSec / 60) }) },
       { status: 429 },
     )
   }

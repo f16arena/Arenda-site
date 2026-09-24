@@ -11,7 +11,7 @@ import { tenantScope, contractScope } from "@/lib/tenant-scope"
 import { getCurrentBuildingId } from "@/lib/current-building"
 import { getOrganizationRequisites } from "@/lib/organization-requisites"
 import { calculateTenantMonthlyRent, parseRentSchedule } from "@/lib/rent"
-import { assemble, defaultState, renderContractText, type ContractState, type PartyType } from "@/lib/contract-engine"
+import { assemble, defaultState, renderContractText, type ContractState, type PartyType, type ValidationIssue } from "@/lib/contract-engine"
 import { renderContractDocx } from "@/lib/contract-engine/docx"
 import { buildSignedContractDocxBuffer } from "@/lib/contract-engine/signed-docx"
 import { convertDocxToPdf, pdfConvertConfigured } from "@/lib/pdf-convert"
@@ -21,6 +21,21 @@ import { resolveContractTypeForTenant, isContractPlacementType, type ContractPla
 import { availableContractTypesForOrg } from "@/lib/contract-types-availability"
 import { applyContractTypePreset } from "@/lib/contract-type-presets"
 import { applyContractDefaults, extractContractDefaults } from "@/lib/contract-engine/org-defaults"
+import { getT } from "@/lib/i18n/server"
+
+// Переводчик для вспомогательных синхронных функций: в файле с "use server"
+// экспортировать можно только async-функции, поэтому t передаём параметром.
+type T = Awaited<ReturnType<typeof getT>>["t"]
+
+/**
+ * Замечания проверки одной строкой. Валидатор возвращает ключи (он чистый и
+ * работает в браузере) — человеческие подписи берём из словаря здесь.
+ */
+function issuesText(t: T, issues: ValidationIssue[]): string {
+  return issues
+    .map((i) => t(`contractEngine.validation.${i.key}` as "contractEngine.validation.termOrder", i.vars))
+    .join("; ")
+}
 
 function toPartyType(legalType: string | null | undefined): PartyType {
   const t = String(legalType ?? "").toUpperCase()
@@ -61,13 +76,14 @@ export interface DraftListItem {
 }
 
 export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: boolean; id?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const session = await auth()
     const { orgId } = await requireOrgAccess()
 
     const data = {
-      name: input.name?.trim() || "Без названия",
+      name: input.name?.trim() || t("actions.contractBuilder.untitled"),
       builderState: input.builderState as unknown as Prisma.InputJsonValue,
       tenantId: input.tenantId ?? null,
     }
@@ -79,7 +95,7 @@ export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: bo
         where: { id, organizationId: orgId, deletedAt: null },
         data,
       })
-      if (res.count === 0) return { ok: false, error: "Черновик не найден" }
+      if (res.count === 0) return { ok: false, error: t("actions.contractBuilder.draftNotFound") }
     } else {
       const created = await db.contractDraft.create({
         data: { ...data, organizationId: orgId, createdById: session?.user?.id ?? null },
@@ -91,7 +107,7 @@ export async function saveContractDraft(input: SaveDraftInput): Promise<{ ok: bo
     revalidatePath("/admin/documents")
     return { ok: true, id }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.saveFailed") }
   }
 }
 
@@ -116,7 +132,10 @@ export async function loadContractDraft(
     where: { id, organizationId: orgId, deletedAt: null },
     select: { name: true, builderState: true, tenantId: true },
   })
-  if (!row) return { ok: false, error: "Черновик не найден" }
+  if (!row) {
+    const { t } = await getT()
+    return { ok: false, error: t("actions.contractBuilder.draftNotFound") }
+  }
   return { ok: true, name: row.name, builderState: row.builderState as unknown as ContractState, tenantId: row.tenantId }
 }
 
@@ -219,6 +238,7 @@ export async function prefillFromTenant(
   /** Доступные типы договоров для организации (умная видимость). */
   availableTypes?: ContractPlacementType[]
 }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId, userId } = await requireOrgAccess()
@@ -241,7 +261,7 @@ export async function prefillFromTenant(
         building: { select: { id: true, address: true, documentAddress: true } },
       },
     })
-    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+    if (!tenant) return { ok: false, error: t("actions.docBuilders.tenantNotFoundOrNoAccess") }
 
     const org = await getOrganizationRequisites(orgId)
     const s = defaultState()
@@ -301,6 +321,8 @@ export async function prefillFromTenant(
     s.premises.buildingAddress = building?.documentAddress || building?.address || ""
     // Объект на крыше/территории — без «этаж/помещение» и без площади:
     // «Антенно-мачтовое место, Крыша». Обычное помещение — «2 этаж, помещение 205».
+    // Эти строки печатаются в предмете договора и в Акте, поэтому остаются
+    // русскими — в документ их переводит юрист (docs/i18n-documents-plan.md).
     const placementForSpace = (sp: { number: string; kind?: string | null; floor: { number: number; name?: string | null; kind?: string | null } }) => {
       if (isObjectSpace(sp.kind) || isZoneFloor(sp.floor.kind)) {
         return sp.floor.name ? `${sp.number}, ${sp.floor.name}` : sp.number
@@ -397,7 +419,7 @@ export async function prefillFromTenant(
 
     return { ok: true, state: s, landlordContacts: { owner: ownerContacts, admin: adminContacts }, availableTypes }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось загрузить арендатора" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.tenantLoadFailed") }
   }
 }
 
@@ -409,12 +431,13 @@ export async function prefillFromTenant(
 
 /** Возвращает следующий свободный номер договора (для предпросмотра автонумерации). */
 export async function getNextContractNumber(): Promise<{ ok: boolean; number?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
     return { ok: true, number: await nextContractNumber(orgId) }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось получить номер" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.docBuilders.numberFailed") }
   }
 }
 
@@ -430,10 +453,11 @@ export async function createContractFromBuilder(
   builderState: ContractState,
   opts?: { send?: boolean; landlordSign?: boolean; autoNumber?: boolean },
 ): Promise<{ ok: boolean; error?: string; contractId?: string; sent?: boolean; landlordSigned?: boolean; signUrl?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
-    if (!tenantId) return { ok: false, error: "Сначала выберите арендатора" }
+    if (!tenantId) return { ok: false, error: t("actions.docBuilders.pickTenantFirst") }
 
     const tenant = await db.tenant.findFirst({
       where: { AND: [tenantScope(orgId), { id: tenantId }] },
@@ -444,7 +468,7 @@ export async function createContractFromBuilder(
         fullFloors: { select: { kind: true } },
       },
     })
-    if (!tenant) return { ok: false, error: "Арендатор не найден или нет доступа" }
+    if (!tenant) return { ok: false, error: t("actions.docBuilders.tenantNotFoundOrNoAccess") }
 
     // Тип договора: из конструктора (если выбран) либо авто по размещению.
     const placementType: ContractPlacementType = isContractPlacementType(builderState.meta.placementType)
@@ -458,12 +482,12 @@ export async function createContractFromBuilder(
       select: { number: true },
     })
     if (existing) {
-      return { ok: false, error: `У этого арендатора уже есть договор № ${existing.number}. Новый создать нельзя — измените условия через ДС или расторгните старый, затем создайте заново.` }
+      return { ok: false, error: t("actions.contractBuilder.duplicate", { number: existing.number }) }
     }
 
     const a = assemble(builderState)
     if (a.validation.hard.length) {
-      return { ok: false, error: "Договор содержит ошибки: " + a.validation.hard.join("; ") }
+      return { ok: false, error: t("actions.contractBuilder.hasErrors") + issuesText(t, a.validation.hard) }
     }
 
     // Автонумерация считается на момент создания (атомарнее, чем клиентский предпросмотр).
@@ -472,6 +496,7 @@ export async function createContractFromBuilder(
       number = await nextContractNumber(orgId)
     } else {
       const rawNum = (builderState.meta.contractNumber || "").trim()
+      // «Б/Н» печатается в шапке договора — это документ, а не интерфейс.
       number = rawNum && rawNum !== "___" ? rawNum : "Б/Н"
     }
     const contract = await db.contract.create({
@@ -499,7 +524,7 @@ export async function createContractFromBuilder(
       if (r.ok) landlordSigned = true
       else {
         revalidatePath(`/admin/tenants/${tenantId}`)
-        return { ok: true, contractId: contract.id, sent: false, landlordSigned: false, error: "Договор создан, но подпись арендодателя не удалась: " + r.error }
+        return { ok: true, contractId: contract.id, sent: false, landlordSigned: false, error: t("actions.contractBuilder.createdSignFailed") + r.error }
       }
     }
 
@@ -512,7 +537,7 @@ export async function createContractFromBuilder(
         signUrl = r.signUrl
       } else {
         revalidatePath(`/admin/tenants/${tenantId}`)
-        return { ok: true, contractId: contract.id, sent: false, landlordSigned, error: "Договор создан, но отправка не удалась: " + r.error }
+        return { ok: true, contractId: contract.id, sent: false, landlordSigned, error: t("actions.contractBuilder.createdSendFailed") + r.error }
       }
     }
 
@@ -520,27 +545,30 @@ export async function createContractFromBuilder(
     revalidatePath("/admin/contracts")
     return { ok: true, contractId: contract.id, sent, landlordSigned, signUrl }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось создать договор" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.createFailed") }
   }
 }
 
 export async function generateContractDocx(
   builderState: ContractState,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     await requireOrgAccess()
 
     const a = assemble(builderState)
     if (a.validation.hard.length) {
-      return { ok: false, error: "Договор содержит ошибки: " + a.validation.hard.join("; ") }
+      return { ok: false, error: t("actions.contractBuilder.hasErrors") + issuesText(t, a.validation.hard) }
     }
 
     const buf = await renderContractDocx(builderState)
     const num = (builderState.meta.contractNumber || "draft").replace(/[^\w.-]+/g, "_")
+    // Имя файла — реквизит самого документа (его так подшивают и пересылают):
+    // остаётся русским вместе с текстом договора (docs/i18n-documents-plan.md).
     return { ok: true, fileName: `Договор_${num}.docx`, base64: buf.toString("base64") }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.generateFailed") }
   }
 }
 
@@ -552,6 +580,7 @@ export async function generateContractDocx(
 export async function generateSignedContractDocx(
   contractId: string,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
@@ -559,17 +588,18 @@ export async function generateSignedContractDocx(
       where: { id: contractId, ...contractScope(orgId) },
       select: { id: true, number: true, status: true, signedByLandlordAt: true, signedByTenantAt: true, builderState: true },
     })
-    if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
-    if (!contract.builderState) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    if (!contract) return { ok: false, error: t("actions.contractBuilder.contractNotFoundOrNoAccess") }
+    if (!contract.builderState) return { ok: false, error: t("actions.contractBuilder.noBuilderState") }
     const signedAny = !!contract.signedByLandlordAt || !!contract.signedByTenantAt || contract.status === "SIGNED"
-    if (!signedAny) return { ok: false, error: "DOCX с QR доступен после подписания" }
+    if (!signedAny) return { ok: false, error: t("actions.contractBuilder.docxAfterSign") }
 
     const buf = await buildSignedContractDocxBuffer(contract)
-    if (!buf) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    if (!buf) return { ok: false, error: t("actions.contractBuilder.noBuilderState") }
+    // Имя подписанного файла — тоже реквизит документа, остаётся русским.
     const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
     return { ok: true, fileName: `Договор_${num}_подписан.docx`, base64: buf.toString("base64") }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сгенерировать" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.generateFailed") }
   }
 }
 
@@ -577,6 +607,7 @@ export async function generateSignedContractDocx(
 export async function generateSignedContractPdf(
   contractId: string,
 ): Promise<{ ok: boolean; fileName?: string; base64?: string; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("documents.create")
     const { orgId } = await requireOrgAccess()
@@ -588,24 +619,26 @@ export async function generateSignedContractPdf(
         tenant: { select: { companyName: true } },
       },
     })
-    if (!contract) return { ok: false, error: "Договор не найден или нет доступа" }
-    if (!contract.builderState) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    if (!contract) return { ok: false, error: t("actions.contractBuilder.contractNotFoundOrNoAccess") }
+    if (!contract.builderState) return { ok: false, error: t("actions.contractBuilder.noBuilderState") }
     if (!pdfConvertConfigured()) {
-      return { ok: false, error: "PDF-конвертер не настроен. Задайте PDF_CONVERT_URL и PDF_CONVERT_SECRET в окружении." }
+      return { ok: false, error: t("actions.contractBuilder.pdfConverterNotConfigured") }
     }
 
     const docx = await buildSignedContractDocxBuffer(contract)
-    if (!docx) return { ok: false, error: "Нет снимка конструктора (договор создан вне конструктора)" }
+    if (!docx) return { ok: false, error: t("actions.contractBuilder.noBuilderState") }
     const num = (contract.number || "договор").replace(/[^\w.-]+/g, "_")
     const pdf = await convertDocxToPdf(docx, `${num}.docx`)
 
+    // Имя файла = как документ называется в делопроизводстве, и дата в русском
+    // формате: это документ, а не интерфейс (docs/i18n-documents-plan.md).
     const dateStr = contract.startDate ? new Date(contract.startDate).toLocaleDateString("ru-RU") : ""
     const docLabel = contract.type === "ADDENDUM" ? "Доп. соглашение" : "Договор аренды"
     const fileName = `${docLabel} № ${contract.number} — ${contract.tenant.companyName}${dateStr ? ` от ${dateStr}` : ""}.pdf`
       .replace(/[\\/:*?"<>|]+/g, "·")
     return { ok: true, fileName, base64: pdf.toString("base64") }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сформировать PDF" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.pdfFailed") }
   }
 }
 
@@ -623,6 +656,7 @@ export async function getContractDefaults(): Promise<unknown> {
  * на изменение организации.
  */
 export async function saveContractDefaults(state: ContractState): Promise<{ ok: boolean; error?: string }> {
+  const { t } = await getT()
   try {
     await requireCapabilityAndFeature("settings.updateOrganization")
     const { orgId } = await requireOrgAccess()
@@ -633,6 +667,6 @@ export async function saveContractDefaults(state: ContractState): Promise<{ ok: 
     })
     return { ok: true }
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Не удалось сохранить" }
+    return { ok: false, error: e instanceof Error ? e.message : t("actions.contractBuilder.saveFailed") }
   }
 }

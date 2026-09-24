@@ -55,9 +55,11 @@ export async function signup(_prev: SignupResult | undefined, formData: FormData
   try {
     ownerEmail = normalizeEmail(formData.get("ownerEmail"), {
       fieldName: t("actions.organizations.ownerEmailField"),
+      t,
     })
     ownerPhone = normalizeKzPhone(formData.get("ownerPhone"), {
       fieldName: t("actions.organizations.ownerPhoneField"),
+      t,
     })
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : t("actions.common.invalidContactData"), details }

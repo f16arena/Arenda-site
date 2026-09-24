@@ -45,7 +45,7 @@ export async function changeOwnPassword(formData: FormData): Promise<Result> {
     confirmPassword: formData.get("confirmPassword") ?? "",
   })
   if (!parsed.success) {
-    return { ok: false, error: firstZodError(parsed.error) }
+    return { ok: false, error: firstZodError(parsed.error, t) }
   }
   const { currentPassword, newPassword } = parsed.data
 

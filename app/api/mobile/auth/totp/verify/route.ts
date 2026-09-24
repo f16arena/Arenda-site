@@ -5,6 +5,7 @@ import * as OTPAuth from "otpauth"
 import { db } from "@/lib/db"
 import { getMobileContext, mobileError } from "@/lib/mobile-context"
 import { encryptTotpSecret } from "@/lib/totp-secret"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -14,6 +15,7 @@ export async function POST(req: Request) {
   const result = await getMobileContext(req)
   if (!result.ok) return result.response
 
+  const { t } = await getTForUser(result.ctx.user.id)
   const body = (await req.json().catch(() => null)) as {
     secret?: string
     code?: string
@@ -21,8 +23,8 @@ export async function POST(req: Request) {
 
   const secretBase32 = String(body?.secret ?? "").trim()
   const code = String(body?.code ?? "").replace(/\s+/g, "")
-  if (!secretBase32) return mobileError("Секрет 2FA отсутствует")
-  if (!/^[0-9]{6}$/.test(code)) return mobileError("Введите 6-значный код")
+  if (!secretBase32) return mobileError(t("adminDocs.api.auth.totpNoSecret"))
+  if (!/^[0-9]{6}$/.test(code)) return mobileError(t("adminDocs.api.auth.totpCodeFormat"))
 
   const totp = new OTPAuth.TOTP({
     issuer: APP_NAME,
@@ -32,7 +34,7 @@ export async function POST(req: Request) {
     secret: OTPAuth.Secret.fromBase32(secretBase32),
   })
   if (totp.validate({ token: code, window: 1 }) === null) {
-    return mobileError("Код неверный или просрочен")
+    return mobileError(t("adminDocs.api.auth.totpCodeWrong"))
   }
 
   const rawCodes: string[] = []

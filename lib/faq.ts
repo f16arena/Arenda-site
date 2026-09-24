@@ -3,11 +3,6 @@ import { extraFaqItems } from "@/lib/faq-extra"
 
 export type { FaqAudience, FaqItem } from "@/lib/faq-types"
 
-export const faqAudienceLabels: Record<FaqAudience, string> = {
-  owner: "Владелец",
-  admin: "Администратор",
-  tenant: "Арендатор",
-}
 
 export const faqItems: FaqItem[] = [
   ...extraFaqItems,

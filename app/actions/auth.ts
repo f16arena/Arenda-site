@@ -7,6 +7,7 @@ import { headers, cookies } from "next/headers"
 import { db } from "@/lib/db"
 import { parseHost, ROOT_HOST } from "@/lib/host"
 import { checkRateLimit, getClientKey } from "@/lib/rate-limit"
+import { getT } from "@/lib/i18n/server"
 import { getLoginIdentifiers } from "@/lib/contact-validation"
 import { loginBlockReason } from "@/lib/approval"
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, isLocale } from "@/lib/i18n/config"
@@ -19,13 +20,14 @@ export interface LoginState {
 }
 
 export async function login(_prevState: LoginState | undefined, formData: FormData): Promise<LoginState> {
+  const { t } = await getT()
   const loginValue = String(formData.get("login") ?? "").trim()
   const loginIdentifiers = getLoginIdentifiers(loginValue)
   const password = String(formData.get("password") ?? "")
   const totp = String(formData.get("totp") ?? "").trim()
   const details: NonNullable<LoginState["details"]> = []
   const showLoginDiagnostics = process.env.NODE_ENV !== "production"
-  const genericAuthError = "Неверный телефон/email или пароль"
+  const genericAuthError = t("actions.auth.badCredentials")
 
   function step(label: string, t0: number, ok: boolean, note?: string) {
     if (!showLoginDiagnostics) return
@@ -33,7 +35,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   }
 
   if (!loginValue || !password) {
-    return { error: "Введите телефон/email и пароль", details }
+    return { error: t("actions.auth.credentialsRequired"), details }
   }
 
   // ── 0. Rate limiting: max 10 попыток за 15 минут с одного IP ─
@@ -41,7 +43,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
   const rl = checkRateLimit(getClientKey(h, "login"), { max: 10, window: 15 * 60_000 })
   if (!rl.ok) {
     return {
-      error: `Слишком много попыток входа. Попробуйте через ${Math.ceil(rl.retryAfterSec / 60)} мин.`,
+      error: t("actions.auth.tooManyAttempts", { minutes: Math.ceil(rl.retryAfterSec / 60) }),
       details,
     }
   }
@@ -55,7 +57,9 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     const msg = e instanceof Error ? e.message : String(e)
     step("db.ping", t0, false, msg)
     return {
-      error: showLoginDiagnostics ? `Сервер БД недоступен. ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
+      error: showLoginDiagnostics
+        ? t("actions.auth.dbUnavailable", { message: msg })
+        : t("actions.auth.serviceUnavailable"),
       details,
     }
   }
@@ -112,7 +116,9 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     const msg = e instanceof Error ? e.message : String(e)
     step("db.findUser", t0, false, msg)
     return {
-      error: showLoginDiagnostics ? `Ошибка поиска пользователя: ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
+      error: showLoginDiagnostics
+        ? t("actions.auth.lookupFailed", { message: msg })
+        : t("actions.auth.serviceUnavailable"),
       details,
     }
   }
@@ -131,7 +137,7 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
       return { error: blockReason, details }
     }
     if (!user.organization?.isActive || user.organization.isSuspended) {
-      return { error: "Организация не активна или приостановлена. Обратитесь к владельцу или поддержке.", details }
+      return { error: t("actions.auth.orgInactive"), details }
     }
   }
   if (!user.isActive) {
@@ -173,7 +179,9 @@ export async function login(_prevState: LoginState | undefined, formData: FormDa
     const msg = error instanceof Error ? error.message : String(error)
     step("auth.signIn", t0, false, msg)
     return {
-      error: showLoginDiagnostics ? `Ошибка входа: ${msg}` : "Сервис временно недоступен. Попробуйте позже.",
+      error: showLoginDiagnostics
+        ? t("actions.auth.signInFailed", { message: msg })
+        : t("actions.auth.serviceUnavailable"),
       details,
     }
   }

@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { resolveMeterTariff } from "@/lib/meter-tariff"
 import { mobileError } from "@/lib/mobile-context"
 import { currentPeriod, getMobileTenantRequest, getMobileTenantScope } from "@/lib/mobile-tenant"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -75,7 +76,9 @@ export async function POST(req: Request) {
   const result = await getMobileTenantRequest(req)
   if (!result.ok) return result.response
 
-  const { tenant } = result
+  const { ctx, tenant } = result
+  // Ошибки читает арендатор — язык из его профиля (bearer-запрос без cookie).
+  const { t } = await getTForUser(ctx.user.id)
   const scope = await getMobileTenantScope(tenant)
   const body = await req.json().catch(() => null) as {
     meterId?: string
@@ -88,8 +91,8 @@ export async function POST(req: Request) {
   const period = String(body?.period ?? currentPeriod()).trim()
 
   if (!meterId) return mobileError("meterId is required")
-  if (!Number.isFinite(value) || value < 0) return mobileError("Введите корректное показание счетчика")
-  if (!/^\d{4}-\d{2}$/.test(period)) return mobileError("Некорректный период")
+  if (!Number.isFinite(value) || value < 0) return mobileError(t("adminDocs.api.meters.badReading"))
+  if (!/^\d{4}-\d{2}$/.test(period)) return mobileError(t("adminDocs.api.meters.badPeriod"))
 
   const meter = await db.meter.findFirst({
     where: {
@@ -117,11 +120,11 @@ export async function POST(req: Request) {
     },
   })
 
-  if (!meter) return mobileError("Счетчик не найден или не принадлежит вам", 404)
+  if (!meter) return mobileError(t("adminDocs.api.meters.notYours"), 404)
 
   const previous = meter.readings[0]?.value ?? 0
   if (value < previous) {
-    return mobileError(`Текущее показание не может быть меньше предыдущего (${previous})`)
+    return mobileError(t("adminDocs.api.meters.lessThanPrevious", { previous }))
   }
 
   const reading = await db.meterReading.create({

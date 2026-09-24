@@ -1042,7 +1042,9 @@ function TenantHealthPanel({
     <Card className="block p-4">
       <p className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
         <AlertTriangle className="h-4 w-4 text-amber-500" />
-        {issues.length > 0 ? `Требует внимания: ${issues.length}` : "Следующий шаг"}
+        {issues.length > 0
+          ? t("adminTenants.card.health.needsAttention", { count: issues.length })
+          : t("adminTenants.card.health.nextStep")}
       </p>
       {primaryAction?.description && (
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{primaryAction.description}</p>

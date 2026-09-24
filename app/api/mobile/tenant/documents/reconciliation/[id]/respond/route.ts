@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { mobileError } from "@/lib/mobile-context"
 import { getMobileTenantRequest } from "@/lib/mobile-tenant"
 import { respondReconciliationByUser } from "@/lib/reconciliation-response"
+import { getTForUser } from "@/lib/i18n/server"
 
 export const dynamic = "force-dynamic"
 
@@ -11,10 +12,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const result = await getMobileTenantRequest(req)
   if (!result.ok) return result.response
 
+  // Ошибку читает арендатор — язык из его профиля (bearer-запрос без cookie).
+  const { t } = await getTForUser(result.ctx.user.id)
   const { id } = await params
   const body = (await req.json().catch(() => null)) as { agree?: boolean; note?: string } | null
   if (!body || typeof body.agree !== "boolean") {
-    return mobileError("Укажите agree: true|false")
+    return mobileError(t("adminDocs.api.tenantDocs.agreeRequired"))
   }
 
   const res = await respondReconciliationByUser(result.ctx.user.id, id, body.agree, body.note)
