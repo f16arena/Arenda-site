@@ -10,13 +10,14 @@ import { getAllowedCapabilityKeysForUser } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import { FaqManager } from "./faq-manager"
 import { PageHeader } from "@/components/ui/page"
-import { getT } from "@/lib/i18n/server"
+import { getLocale, getT } from "@/lib/i18n/server"
 
 export default async function AdminFaqPage() {
   const session = await auth()
   if (!session) redirect("/login")
   const { orgId } = await requireOrgAccess()
-  const { t } = await getT()
+  const locale = await getLocale()
+  const { t } = await getT(locale)
 
   const caps = new Set(
     await getAllowedCapabilityKeysForUser({
@@ -32,9 +33,10 @@ export default async function AdminFaqPage() {
   const canManageFaq = session.user.role === "OWNER" || session.user.role === "ADMIN" || session.user.isPlatformOwner
   const audiences: FaqAudience[] = canSeeOwnerFaq ? ["owner", "admin"] : ["admin"]
   const defaultAudience: FaqAudience = canSeeOwnerFaq ? "owner" : "admin"
+  // Редактор показывает язык интерфейса: правят тот вариант, который читают.
   const [items, adminArticles] = await Promise.all([
-    getFaqItemsFromDb(orgId, audiences),
-    canManageFaq ? getFaqArticlesForAdmin(orgId) : Promise.resolve([]),
+    getFaqItemsFromDb(orgId, audiences, locale),
+    canManageFaq ? getFaqArticlesForAdmin(orgId, locale) : Promise.resolve([]),
   ])
 
   return (

@@ -86,8 +86,8 @@ export const adminRefs: typeof ru = {
         description: "Байланыстарды, рөлді және ғимараттарға байланысты өзгерту.",
       },
       resetPassword: {
-        label: "Құпиясөзді қалпына келтіру",
-        description: "Қызметкерге немесе әкімшіге жаңа құпиясөз беру.",
+        label: "Құпия сөзді қалпына келтіру",
+        description: "Қызметкерге немесе әкімшіге жаңа құпия сөз беру.",
       },
       deactivate: {
         label: "Пайдаланушыны өшіру",
@@ -370,7 +370,7 @@ export const adminRefs: typeof ru = {
     },
     systemHealth: {
       view: {
-        label: "Жүйе тексерісін көру",
+        label: "Жүйені тексеруді көру",
         description: "Жүйе жағдайы, қорғаныстар, қателер және деректер сапасы.",
       },
     },
@@ -670,7 +670,7 @@ export const adminRefs: typeof ru = {
     health: {
       onboarding: "Платформа жағдайы",
       dataQuality: "Деректер сапасы",
-      systemHealth: "Жүйе тексерісі",
+      systemHealth: "Жүйені тексеру",
     },
     documents: {
       all: "Барлық құжаттар",

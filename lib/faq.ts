@@ -1,5 +1,7 @@
 import type { FaqAudience, FaqItem } from "@/lib/faq-types"
 import { extraFaqItems } from "@/lib/faq-extra"
+import { faqItemsKk } from "@/lib/faq-kk"
+import type { Locale } from "@/lib/i18n/config"
 
 export type { FaqAudience, FaqItem } from "@/lib/faq-types"
 
@@ -52,7 +54,7 @@ export const faqItems: FaqItem[] = [
     ],
     tags: ["все здания", "точка", "дашборд", "разделение", "филиалы"],
     href: "/admin",
-    hrefLabel: "Дашборд",
+    hrefLabel: "Обзор",
   },
   {
     id: "owner-staff-access",
@@ -61,7 +63,7 @@ export const faqItems: FaqItem[] = [
     question: "Как назначить администратора на одно или несколько зданий?",
     answer: "Владелец создает пользователя или сотрудника, выбирает роль и сразу прикрепляет здания. Администратор увидит только назначенные здания, их помещения, арендаторов, заявки, документы и финансы.",
     steps: [
-      "Откройте профиль и управление пользователями или раздел сотрудников.",
+      "Откройте «Команда» в настройках или управление пользователями в профиле.",
       "Создайте пользователя либо откройте существующего.",
       "Выберите роль администратора.",
       "Отметьте здания, к которым человек должен иметь доступ.",
@@ -69,7 +71,7 @@ export const faqItems: FaqItem[] = [
     ],
     tags: ["админ", "доступ", "роль", "здание", "сотрудник"],
     href: "/admin/staff",
-    hrefLabel: "Сотрудники",
+    hrefLabel: "Команда",
   },
   {
     id: "owner-finance-overview",
@@ -166,7 +168,7 @@ export const faqItems: FaqItem[] = [
     ],
     tags: ["администратор", "день", "заявки", "задачи", "сообщения"],
     href: "/admin",
-    hrefLabel: "Дашборд",
+    hrefLabel: "Обзор",
   },
   {
     id: "admin-create-tenant",
@@ -441,7 +443,7 @@ export const faqItems: FaqItem[] = [
     question: "Что смотреть владельцу в первую очередь после входа?",
     answer: "Главный экран владельца показывает общую картину по всем зданиям: доход, расход, прибыль, долг, заполняемость, свободную площадь и точки, которые требуют внимания. Если нужно посмотреть отдельное здание, выберите его в верхнем переключателе.",
     steps: [
-      "Откройте «Дашборд».",
+      "Откройте «Обзор».",
       "Сначала проверьте блок «Что требует внимания сегодня».",
       "Посмотрите сводку по портфелю зданий.",
       "Откройте здание с долгом, низкой заполняемостью или свободной площадью.",
@@ -488,10 +490,10 @@ export const faqItems: FaqItem[] = [
     id: "admin-workday-ops",
     audience: "admin",
     category: "Рабочий день",
-    question: "С чего администратору начинать рабочий день?",
+    question: "Где собран операционный список дел администратора?",
     answer: "На дашборде есть блок рабочего дня администратора: долги, оплаты на проверке, заявки, задачи и документы на подпись. Это операционный список того, что нужно обработать в первую очередь.",
     steps: [
-      "Откройте «Дашборд».",
+      "Откройте «Обзор».",
       "Проверьте оплаты на проверке и спорные оплаты.",
       "Посмотрите заявки и задачи.",
       "Проверьте документы, ожидающие подписи.",
@@ -685,7 +687,16 @@ export const faqItems: FaqItem[] = [
   },
 ]
 
-export function getFaqItems(audiences: FaqAudience[]) {
+/**
+ * Заготовка справки на нужном языке. Казахская версия переводится постепенно,
+ * поэтому её массив может быть короче русского: недостающую статью читатель
+ * увидит по-русски (pickByLocale в lib/faq-db.ts).
+ */
+export function faqItemsFor(locale: Locale): FaqItem[] {
+  return locale === "kk" ? faqItemsKk : faqItems
+}
+
+export function getFaqItems(audiences: FaqAudience[], locale: Locale = "ru") {
   const allowed = new Set(audiences)
-  return faqItems.filter((item) => allowed.has(item.audience))
+  return faqItemsFor(locale).filter((item) => allowed.has(item.audience))
 }

@@ -301,6 +301,9 @@ model FaqArticle {
   id             String   @id @default(cuid())
   organizationId String   @map("organization_id")
   slug           String
+  /// Язык статьи ("ru" | "kk"). Одна статья — до двух строк: текст правит
+  /// администратор организации, поэтому переводом строки быть не могут.
+  locale         String   @default("ru")
   audience       String
   category       String
   question       String
@@ -316,8 +319,8 @@ model FaqArticle {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([organizationId, slug])
-  @@index([organizationId, audience, isActive, sortOrder])
+  @@unique([organizationId, slug, locale])
+  @@index([organizationId, locale, audience, isActive, sortOrder], map: "faq_articles_org_locale_audience_active_sort_idx")
   @@map("faq_articles")
 }
 

@@ -7,15 +7,16 @@ import { FaqSearch } from "@/components/faq/faq-search"
 import { getFaqItemsFromDb } from "@/lib/faq-db"
 import { requireOrgAccess } from "@/lib/org"
 import { PageHeader } from "@/components/ui/page"
-import { getT } from "@/lib/i18n/server"
+import { getLocale, getT } from "@/lib/i18n/server"
 
 export default async function TenantFaqPage() {
   const session = await auth()
   if (!session) redirect("/login")
   if (session.user.role !== "TENANT") redirect("/admin")
   const { orgId } = await requireOrgAccess()
-  const items = await getFaqItemsFromDb(orgId, ["tenant"])
-  const { t } = await getT()
+  const locale = await getLocale()
+  const items = await getFaqItemsFromDb(orgId, ["tenant"], locale)
+  const { t } = await getT(locale)
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">

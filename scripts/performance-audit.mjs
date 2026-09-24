@@ -82,6 +82,13 @@ const WATCHED_FILE_BUDGETS = [
     reason: "FAQ content should not become a large always-imported server module; move oversized content to DB/seeded rows.",
   },
   {
+    // Казахская половина справки лежит в отдельных файлах, но уезжает по той же
+    // цепочке импорта, что и lib/faq.ts. Без своего лимита она обходила бюджет.
+    file: path.join("lib", "faq-kk-admin.ts"),
+    maxKb: readKbEnv("PERF_AUDIT_WATCH_FAQ_KK_ADMIN_KB", 48),
+    reason: "Kazakh FAQ for admins is the largest content file; split it by topic before it grows past the budget.",
+  },
+  {
     file: path.join("lib", "relationship-integrity.ts"),
     maxKb: readKbEnv("PERF_AUDIT_WATCH_RELATIONSHIP_INTEGRITY_KB", 60),
     reason: "Relationship checks must stay as an aggregate diagnostic layer; split contour checkers if this file keeps growing.",

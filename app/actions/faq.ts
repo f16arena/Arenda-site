@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { requireCapabilityAndFeature } from "@/lib/capabilities"
 import { requireOrgAccess } from "@/lib/org"
 import {
+  faqLocaleFromInput,
   isFaqAudience,
   restoreMissingFaqDefaults,
   serializeFaqList,
@@ -25,6 +26,9 @@ export async function saveFaqArticle(formData: FormData) {
   const href = readString(formData, "href")
   const hrefLabel = readString(formData, "hrefLabel")
   const sortOrder = Number(readString(formData, "sortOrder") || "0")
+  // Язык статьи приходит из редактора: у справки по строке на язык, и правка
+  // казахского варианта не должна затирать русский.
+  const locale = faqLocaleFromInput(readString(formData, "locale"))
   const isActive = formData.get("isActive") === "on"
 
   if (!isFaqAudience(audience)) throw new Error(t("actions.faq.badAudience"))
@@ -55,6 +59,7 @@ export async function saveFaqArticle(formData: FormData) {
       data: {
         ...data,
         organizationId: orgId,
+        locale,
         slug: makeFaqSlug(question),
       },
     })
@@ -91,9 +96,11 @@ function readString(formData: FormData, key: string) {
 }
 
 function makeFaqSlug(question: string) {
+  // Казахские буквы в наборе обязательны: без них заголовок «Шарт қалай
+  // жасалады?» терял бы половину символов и slug выходил бы из обрубков.
   const base = question
     .toLowerCase()
-    .replace(/[^a-z0-9а-яё]+/gi, "-")
+    .replace(/[^a-z0-9а-яёәіүұқғңөһ]+/gi, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48)
   const suffix = Date.now().toString(36)

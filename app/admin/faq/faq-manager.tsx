@@ -6,6 +6,7 @@ import { archiveFaqArticle, restoreDefaultFaqArticles, saveFaqArticle } from "@/
 import { type FaqAudience } from "@/lib/faq"
 import type { FaqArticleForAdmin } from "@/lib/faq-db"
 import { useT } from "@/lib/i18n/client"
+import { LOCALE_NAMES } from "@/lib/i18n/config"
 import { formatDateShortL } from "@/lib/i18n/format"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -28,7 +29,7 @@ const NEW_ID = "__new__"
 const AUDIENCE_ROLE = { owner: "OWNER", admin: "ADMIN", tenant: "TENANT" } as const
 
 export function FaqManager({ articles, audiences, defaultAudience, canManage }: FaqManagerProps) {
-  const { t } = useT()
+  const { t, locale } = useT()
   const [activeAudience, setActiveAudience] = useState<FaqAudience>(defaultAudience)
   const [selectedId, setSelectedId] = useState(articles.find((item) => item.audience === defaultAudience)?.id ?? NEW_ID)
 
@@ -45,9 +46,19 @@ export function FaqManager({ articles, audiences, defaultAudience, canManage }: 
     <Card className="block p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t("adminService.faq.manager.title")}</h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{t("adminService.faq.manager.title")}</h2>
+            {/* Какой язык правится — иначе администратор не поймёт, почему его
+                правка не видна во второй языковой версии. */}
+            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              {t("adminService.faq.manager.localeBadge", { name: LOCALE_NAMES[locale] })}
+            </span>
+          </div>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {t("adminService.faq.manager.hint")}
+          </p>
+          <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+            {t("adminService.faq.manager.localeHint")}
           </p>
         </div>
         {canManage && (
@@ -147,6 +158,10 @@ function FaqArticleForm({
     <div className="rounded-lg border border-slate-200 p-4 dark:border-slate-800">
       <form action={saveFaqArticle} className="space-y-4">
         <input type="hidden" name="id" value={article?.id ?? ""} />
+        {/* Язык правимой статьи: у справки по строке на язык, и правка
+            казахского варианта не должна затирать русский. Редактор всегда
+            показывает язык интерфейса — переключается он в шапке. */}
+        <input type="hidden" name="locale" value={article?.locale ?? locale} />
 
         <div className="grid gap-3 lg:grid-cols-[180px_1fr_120px]">
           <label className="space-y-1 text-sm">
