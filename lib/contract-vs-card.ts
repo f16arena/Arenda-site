@@ -139,15 +139,12 @@ export function contractVsCard(builderState: unknown, card: CardTerms): Contract
     push("cleaning", "money", 0, card.cleaningFee)
   }
 
-  // Эксплуатационные расходы — ТОЛЬКО для договора на помещение. У договора на
-  // размещение ставка живёт в placement.serviceFeePerSqm, и пустой
-  // operatingCosts там штатный.
-  if (!isPlacementFamily(builderState)) {
-    const method = record(financials.operatingCosts)?.method
-    if (method === "none" && card.serviceFeeExempt !== true) {
-      push("operatingCosts", "flag", "не начисляются", "начисляются по ставке здания")
-    }
-  }
+  // Эксплуатационные расходы здесь НЕ сверяем намеренно. Начисление читает их
+  // прямо из договора (contractServiceFeeTerms в lib/service-fee.ts), поэтому
+  // «в договоре не начисляются, а в карточке нет освобождения» деньгам больше
+  // не вредит — и жаловаться на это значит кричать «волки» на здоровое место.
+  // Флаг serviceFeeExempt в карточке остался ручным исключением: он способен
+  // только снять сбор, но не добавить.
 
   return out
 }

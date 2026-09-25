@@ -57,22 +57,18 @@ describe("сверка договора с карточкой", () => {
     expect(d).toEqual([{ field: "termEnd", kind: "date", contract: "2027-09-21", card: "2027-01-01" }])
   })
 
-  it("«расходы не начисляются», а арендатор не освобождён", () => {
-    const d = contractVsCard(premises({ operatingCosts: { method: "none" } }), CARD)
-    expect(d).toEqual([
-      { field: "operatingCosts", kind: "flag", contract: "не начисляются", card: "начисляются по ставке здания" },
-    ])
-  })
-
-  it("освобождение проставлено — расхождения нет", () => {
-    const d = contractVsCard(premises({ operatingCosts: { method: "none" } }), { ...CARD, serviceFeeExempt: true })
-    expect(d).toEqual([])
+  it("эксплуатационные расходы в сверку не входят — их читает само начисление", () => {
+    // Раньше «в договоре не начисляются, в карточке нет освобождения» считалось
+    // расхождением. После того как начисление стало читать условие из договора
+    // (contractServiceFeeTerms), это перестало влиять на деньги — и жаловаться
+    // на него значит кричать «волки» на здоровое место.
+    expect(contractVsCard(premises({ operatingCosts: { method: "none" } }), CARD)).toEqual([])
   })
 
   /**
-   * Регрессия на мою собственную ошибку: у договора на место (киоск на
-   * территории) расходы записаны в placement.serviceFeePerSqm, а
-   * operatingCosts.method там штатно "none". Сверка «в лоб» объявляла такой
+   * Регрессия на ошибку в разборе: у договора на место (киоск на территории)
+   * расходы записаны в placement.serviceFeePerSqm, а operatingCosts.method там
+   * штатно "none". Сверка «в лоб», без учёта типа договора, объявляла такой
    * договор переплатой, хотя ставка 270 ₸/м² прямо в его условиях.
    */
   it("договор на размещение: пустой operatingCosts — не расхождение", () => {
