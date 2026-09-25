@@ -25,6 +25,7 @@ import {
   capabilityPermissionKey,
 } from "@/lib/capabilities"
 import { normalizeEmail, normalizeKzPhone } from "@/lib/contact-validation"
+import { contractVsCard, type ContractDivergence } from "@/lib/contract-vs-card"
 import { userCapabilityRole } from "@/lib/capability-keys"
 import { canManageRoleInOrg, displayRoleLabel, isStaffLikeRole } from "@/lib/role-capabilities"
 import { getRelationshipIntegrityOverview } from "@/lib/relationship-integrity"
@@ -491,9 +492,87 @@ export default async function DataQualityPage() {
     }))
     .filter(({ user, capability }) => !!user && !!capability)
 
+  // Сверка подписанного договора с карточкой: договор — источник правды по
+  // условиям сделки, а начисления считаются по карточке. Условия переносятся в
+  // карточку при подписании, поэтому договоры, подписанные раньше появления
+  // переноса, и поля вне его охвата (день оплаты, пеня) расходятся молча.
+  const tenantsWithSignedContract = await db.tenant.findMany({
+    where: {
+      ...tenantScope,
+      contracts: { some: { status: "SIGNED", type: { not: "ADDENDUM" }, deletedAt: null } },
+    },
+    select: {
+      id: true,
+      companyName: true,
+      contractStart: true,
+      contractEnd: true,
+      fixedMonthlyRent: true,
+      paymentDueDay: true,
+      penaltyPercent: true,
+      depositAmount: true,
+      cleaningFee: true,
+      needsCleaning: true,
+      serviceFeeExempt: true,
+      customRate: true,
+      space: { select: { number: true } },
+      tenantSpaces: { select: { space: { select: { number: true } } }, take: 3 },
+      fullFloors: { select: { name: true } },
+      contracts: {
+        where: { status: "SIGNED", type: { not: "ADDENDUM" }, deletedAt: null },
+        orderBy: [{ signedAt: "desc" }, { createdAt: "desc" }],
+        take: 1,
+        select: { number: true, builderState: true },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  })
+
+  const fieldName = (field: string) =>
+    t(`adminSettings.dataQuality.contractFields.${field}` as "adminSettings.dataQuality.contractFields.rent")
+  const shownValue = (value: number | string | null, kind: string) => {
+    if (value === null || value === "") return t("adminSettings.dataQuality.contractFields.empty")
+    if (typeof value === "number") return kind === "money" ? money(value) : String(value)
+    return value
+  }
+  const contractMismatchItems = tenantsWithSignedContract
+    .map((tenant) => {
+      const contract = tenant.contracts[0]
+      const divergences = contractVsCard(contract?.builderState, tenant)
+      return { tenant, contract, divergences }
+    })
+    .filter(({ divergences }) => divergences.length > 0)
+
   // Проверки качества: тексты — в словаре (adminSettings.dataQuality.issues),
   // здесь только условия, счётчики и примеры записей.
   const issues: QualityIssue[] = [
+    {
+      key: "contract-mismatch",
+      title: t("adminSettings.dataQuality.issues.contractMismatch.title"),
+      description: t("adminSettings.dataQuality.issues.contractMismatch.description"),
+      severity: "critical",
+      severityLabel: t("adminSettings.dataQuality.severity.critical"),
+      count: contractMismatchItems.length,
+      actionLabel: t("adminSettings.dataQuality.issues.contractMismatch.action"),
+      href: "/admin/tenants",
+      items: contractMismatchItems.slice(0, SAMPLE_LIMIT).map(({ tenant, contract, divergences }) => ({
+        id: tenant.id,
+        label: tenant.companyName,
+        meta: t("adminSettings.dataQuality.issues.contractMismatch.meta", {
+          place: tenantPlace(tenant),
+          number: contract?.number ?? "—",
+          fields: divergences
+            .map((d: ContractDivergence) =>
+              t("adminSettings.dataQuality.contractFields.pair", {
+                name: fieldName(d.field),
+                contract: shownValue(d.contract, d.kind),
+                card: shownValue(d.card, d.kind),
+              }),
+            )
+            .join(" · "),
+        }),
+        href: tenantHref(tenant.id),
+      })),
+    },
     {
       key: "double-rent",
       title: t("adminSettings.dataQuality.issues.doubleRent.title"),
