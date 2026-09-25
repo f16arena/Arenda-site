@@ -29,6 +29,59 @@ export type BuildingForServiceFee = {
   serviceFeeIndexationPct: number | null
 }
 
+/**
+ * Эксплуатационные расходы по условиям ДОГОВОРА, а не только по карточке.
+ *
+ * Конструктор пишет их в builderState (`financials.operatingCosts`), но биллинг
+ * раньше смотрел только на ставку здания и флаг «освобождён» в карточке
+ * арендатора. Из-за этого договор, где расходы включены в аренду
+ * (`method: "none"`), всё равно давал строку «Эксплуатационные расходы» в счёте:
+ * в документе одно, в счёте другое.
+ *
+ * Возвращает:
+ *   "none"     — по договору не начисляются, ставку здания не применять;
+ *   building   — договор про них молчит (старые договоры без конструктора);
+ *   {winter, summer} — договор задал свои ставки, они и есть условие сделки.
+ */
+export type ContractServiceFeeTerms =
+  | { kind: "none" }
+  | { kind: "building" }
+  | { kind: "fixed"; winterRate: number; summerRate: number }
+
+export function contractServiceFeeTerms(builderState: unknown): ContractServiceFeeTerms {
+  const op = (builderState as {
+    financials?: {
+      operatingCosts?: { method?: string; fixed?: { winterRate?: number; summerRate?: number } }
+    }
+  } | null)?.financials?.operatingCosts
+  if (!op?.method) return { kind: "building" }
+  if (op.method === "none") return { kind: "none" }
+  if (op.method === "fixed_per_sqm") {
+    const winterRate = Number(op.fixed?.winterRate ?? 0)
+    const summerRate = Number(op.fixed?.summerRate ?? 0)
+    if (winterRate > 0 || summerRate > 0) return { kind: "fixed", winterRate, summerRate }
+  }
+  // pooled_prorata считается по фактическим расходам, а не ставкой за м² —
+  // отдельный поток, здесь остаётся прежнее поведение.
+  return { kind: "building" }
+}
+
+/** Ставки договора в виде «здания» — чтобы переиспользовать весь расчёт с про-рейтом. */
+export function buildingWithContractRates(
+  building: BuildingForServiceFee,
+  terms: ContractServiceFeeTerms,
+): BuildingForServiceFee {
+  if (terms.kind !== "fixed") return building
+  return {
+    ...building,
+    serviceFeeWinterRate: terms.winterRate,
+    serviceFeeSummerRate: terms.summerRate,
+    // Индексацию ставки здания к договорной ставке не применяем: в договоре
+    // записана конкретная цифра, менять её можно только допсоглашением.
+    serviceFeeIndexationPct: null,
+  }
+}
+
 export type ServiceFeeResult = {
   shouldCreate: boolean
   buildingId: string | null

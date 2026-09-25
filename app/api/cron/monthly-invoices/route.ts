@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { authorizeCronRequest } from "@/lib/cron-auth"
 import { calculateTenantRentChargeForPeriod, getTenantRentChargeDescription } from "@/lib/rent"
-import { calculateServiceFeeForPeriod } from "@/lib/service-fee"
+import {
+  buildingWithContractRates,
+  calculateServiceFeeForPeriod,
+  contractServiceFeeTerms,
+} from "@/lib/service-fee"
 import { placementServiceFeeForPeriod, isPlacementContract } from "@/lib/placement-billing"
 import { applyTenantCreditToCharges } from "@/lib/tenant-credit"
 import { notifyUser } from "@/lib/notify"
@@ -191,12 +195,21 @@ export async function GET(req: Request) {
             }
           }
         }
-        if (buildingForFee && !tenant.serviceFeeExempt && !isPlacementContract(contractState)) {
+        // Условия договора первичны: «включено в аренду» (method: "none") снимает
+        // ставку здания, своя ставка в договоре — заменяет её.
+        const feeTerms = contractServiceFeeTerms(contractState)
+        if (
+          buildingForFee
+          && !tenant.serviceFeeExempt
+          && feeTerms.kind !== "none"
+          && !isPlacementContract(contractState)
+        ) {
           const existingServiceFeeForPeriod = tenant.charges.some(
             (c) => c.period === chargePeriod && c.type === "SERVICE_FEE",
           )
           if (!existingServiceFeeForPeriod) {
-            const fee = calculateServiceFeeForPeriod(tenant, buildingForFee, chargePeriod, tenant.paymentDueDay ?? 10)
+            const feeSource = buildingWithContractRates(buildingForFee, feeTerms)
+            const fee = calculateServiceFeeForPeriod(tenant, feeSource, chargePeriod, tenant.paymentDueDay ?? 10)
             if (fee.shouldCreate && fee.amount > 0) {
               try {
                 await db.charge.create({

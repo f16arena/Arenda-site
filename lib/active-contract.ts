@@ -1,7 +1,12 @@
 import "server-only"
 import { db } from "@/lib/db"
 import { resolveMonthlyRentForPeriod } from "@/lib/rent"
-import { calculateServiceFeeForPeriod, getTenantBuildingId } from "@/lib/service-fee"
+import {
+  buildingWithContractRates,
+  calculateServiceFeeForPeriod,
+  contractServiceFeeTerms,
+  getTenantBuildingId,
+} from "@/lib/service-fee"
 import { rentItemName, isPremisesLikeType } from "@/lib/contract-placement-types"
 import { placementServiceFeeForPeriod } from "@/lib/placement-billing"
 
@@ -97,8 +102,17 @@ export async function buildContractPositions(
   if (placementFee && placementFee.amount > 0) {
     positions.push({ name: `Эксплуатационные расходы за ${period}`, amount: placementFee.amount, type: "SERVICE_FEE" })
   }
+  // Условия договора первичны: если в нём расходы включены в аренду, ставка
+  // здания не применяется, а если в договоре записана своя ставка — считаем по ней.
+  const feeTerms = contractServiceFeeTerms(contract.builderState)
   const buildingId = getTenantBuildingId(tenant)
-  if (!placementFee && buildingId && !tenant.serviceFeeExempt && isPremisesLikeType(placementType)) {
+  if (
+    !placementFee
+    && buildingId
+    && !tenant.serviceFeeExempt
+    && feeTerms.kind !== "none"
+    && isPremisesLikeType(placementType)
+  ) {
     const building = await db.building.findUnique({
       where: { id: buildingId },
       select: {
@@ -110,7 +124,8 @@ export async function buildContractPositions(
       },
     })
     if (building) {
-      const fee = calculateServiceFeeForPeriod({ ...tenant, id: tenantId }, building, period, tenant.paymentDueDay ?? 10)
+      const source = buildingWithContractRates(building, feeTerms)
+      const fee = calculateServiceFeeForPeriod({ ...tenant, id: tenantId }, source, period, tenant.paymentDueDay ?? 10)
       if (fee.shouldCreate && fee.amount > 0) {
         positions.push({ name: `Эксплуатационные расходы за ${period}`, amount: fee.amount, type: "SERVICE_FEE" })
       }
