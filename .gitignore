@@ -73,3 +73,6 @@ public/pdf.worker.min.mjs
 
 # локальный стенд конструктора (scripts/builder-harness)
 .tmp-harness/
+
+# promo video renders
+brag-output*/

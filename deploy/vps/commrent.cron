@@ -1,0 +1,14 @@
+# Commrent: задачи по расписанию (перенос из vercel.json). Время — UTC (сервер в Etc/UTC), как у Vercel.
+# /api/cron/warm не переносим: на постоянном процессе нет холодных стартов.
+# Ставится в /etc/cron.d/commrent ТОЛЬКО при переключении (иначе задачи пойдут дважды — и с Vercel).
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+0 5 * * *      root /opt/commrent/cron-call.sh /api/cron/check-deadlines
+0 3 1 * *      root /opt/commrent/cron-call.sh /api/cron/recurring-expenses
+0 4 1 * *      root /opt/commrent/cron-call.sh /api/cron/monthly-invoices
+0 5 1 * *      root /opt/commrent/cron-call.sh /api/cron/monthly-documents
+0 2 * * *      root /opt/commrent/cron-call.sh /api/cron/check-subscriptions
+0 9 * * *      root /opt/commrent/cron-call.sh /api/cron/payment-reminders
+0 22 * * *     root /opt/commrent/cron-call.sh /api/cron/demo-reset
+0 12 28-31 * * root /opt/commrent/cron-call.sh /api/cron/monthly-acts

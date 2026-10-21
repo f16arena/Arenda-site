@@ -1,0 +1,44 @@
+name: Deploy VPS
+
+# Автодеплой на cloud-001 (185.113.132.3) при пуше в main — как раньше делал Vercel.
+# Сервер сам собирает образ, гоняет миграции, перезапускает сайт и откатывается,
+# если новая версия не поднялась (deploy/vps/deploy-server.sh).
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "mobile/**"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Деплои идут строго по очереди и не отменяют друг друга посреди миграций.
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and restart on VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy
+        env:
+          # Ключ умеет только деплоить: на сервере он привязан к forced command deploy-server.sh.
+          VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          git archive --format=tar HEAD \
+            | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+                  -o ServerAliveInterval=30 root@185.113.132.3 "${GITHUB_SHA::8}"

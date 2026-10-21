@@ -1,0 +1,9 @@
+# Файлы, которые исполняются на Linux-сервере: только LF, иначе bash/cron/caddy на CRLF ломаются
+# (core.autocrlf=true на Windows иначе превратит их в CRLF при checkout).
+deploy/vps/*.sh      text eol=lf
+deploy/vps/*.cron    text eol=lf
+deploy/vps/*.caddy   text eol=lf
+deploy/vps/*.yml     text eol=lf
+deploy/vps/Dockerfile text eol=lf
+# PowerShell 5.1 на Windows читает .ps1 без BOM как ANSI — файл хранится в UTF-8 с BOM, не трогаем.
+deploy/vps/*.ps1     -text

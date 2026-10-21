@@ -1,0 +1,31 @@
+# Commrent на cloud-001. Лежит в /etc/caddy/sites/commrent.caddy.
+# Нужен глобальный блок в начале /etc/caddy/Caddyfile:
+#   { on_demand_tls { ask http://127.0.0.1:5555/ } }
+#
+# Сертификаты выпускаются при первом запросе к хосту (on-demand), поэтому до переключения DNS
+# этот блок ничего не делает, а после — не нужен wildcard через DNS-01.
+#
+# ВАЖНО: не писать адрес `*.commrent.kz` с on_demand — так Caddy 2.11 ломает TLS у соседних
+# точных хостов (jiyn/ecp/pdf), проверено 22.10.2026. Поэтому on-demand висит на catch-all `https://`:
+# точные хосты обслуживаются своими блоками, всё остальное — сюда, а чужое отсекает ask.
+
+# Проверка «можно ли выпускать сертификат» — спрашиваем само приложение (/api/tls/ask):
+# пускает только корень, www и поддомены существующих организаций.
+http://127.0.0.1:5555 {
+	rewrite * /api/tls/ask?{query}
+	reverse_proxy 127.0.0.1:3300 {
+		header_up Host commrent.kz
+	}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3300
+}
+
+http://commrent.kz, http://www.commrent.kz, http://*.commrent.kz {
+	redir https://{host}{uri} 308
+}

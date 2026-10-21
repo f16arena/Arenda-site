@@ -1,0 +1,67 @@
+# Commrent на cloud-001. Лежит на сервере в /opt/commrent/compose.yml.
+# Секреты — в /opt/commrent/.env (не в git).
+name: commrent
+
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: commrent
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: commrent
+      TZ: UTC
+    # lib/db.ts всегда подключается с ssl: { rejectUnauthorized: false } —
+    # поэтому SSL включён и здесь (самоподписанный сертификат из /opt/commrent/pg-ssl).
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/ssl/server.crt
+      - -c
+      - ssl_key_file=/ssl/server.key
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./pg-ssl:/ssl:ro
+    ports:
+      - "127.0.0.1:5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commrent -d commrent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 256mb
+
+  web:
+    image: commrent-web:${WEB_TAG:-latest}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3300:3000"
+    healthcheck:
+      # Лёгкая проверка «процесс отвечает»; /api/health гоняет все системные проверки — не для каждых 30 с.
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/login',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    mem_limit: 3g
+
+volumes:
+  pgdata:

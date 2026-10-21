@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+mobile
+docs
+brag-output
+playwright-report
+test-results
+tests
+*.log
+dev.db
+tsconfig.tsbuildinfo
+deploy
