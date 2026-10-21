@@ -50,6 +50,11 @@ export function parseHost(rawHost: string | null | undefined): HostInfo {
 
     if (isReservedSlug(slug)) return { kind: "reserved", slug }
 
+    // Демо-организация (lib/demo.ts DEMO_SLUG) — единственный slug короче формата: без этого
+    // вход в демо уводил на demo.commrent.kz/admin, тот считался invalid и выкидывал на главную.
+    // Константу не импортируем: lib/demo тянет БД, а этот файл работает в proxy.
+    if (slug === "demo") return { kind: "subdomain", slug }
+
     // Минимальные требования формата (валидация полная — на регистрации)
     if (!/^[a-z0-9][a-z0-9-]{3,18}[a-z0-9]$/.test(slug)) {
       return { kind: "invalid", raw: host }
