@@ -134,6 +134,17 @@ export function ChangePasswordForm({
           </Button>
         </form>
       </Card>
+
+      {/* Без этого выхода нет: текущий (стартовый) пароль забыт, а admin/cabinet возвращают сюда,
+          пока флаг mustChangePassword не снят. Выход ведёт на /login, где есть «Забыли пароль?». */}
+      {!state?.ok && (
+        <form action="/api/logout" method="post" className="mt-4 text-center text-sm text-slate-500">
+          {t("auth.changePassword.forgotCurrent")}{" "}
+          <button type="submit" className="font-medium text-blue-600 hover:underline">
+            {t("auth.changePassword.logoutToReset")}
+          </button>
+        </form>
+      )}
     </div>
   )
 }

@@ -116,6 +116,8 @@ export const auth: typeof ru = {
     confirmNewPassword: "Жаңа құпия сөзді растаңыз",
     submitting: "Сақталып жатыр…",
     submit: "Құпия сөзді ауыстыру",
+    forgotCurrent: "Ағымдағы құпия сөзді ұмыттыңыз ба?",
+    logoutToReset: "Шығып, «Құпия сөзді ұмыттыңыз ба?» арқылы қалпына келтіру",
   },
   verifyEmail: {
     noTokenTitle: "Токен жоқ",

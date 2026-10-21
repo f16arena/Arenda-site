@@ -117,6 +117,8 @@ export const auth = {
     confirmNewPassword: "Подтвердите новый пароль",
     submitting: "Сохранение…",
     submit: "Сменить пароль",
+    forgotCurrent: "Не помните текущий пароль?",
+    logoutToReset: "Выйти и восстановить через «Забыли пароль?»",
   },
   verifyEmail: {
     noTokenTitle: "Нет токена",
