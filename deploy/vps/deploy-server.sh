@@ -29,6 +29,9 @@ set -a; . ./.env; set +a
 if ! docker build -t "commrent-web:$TAG" \
     --build-arg NEXT_PUBLIC_SENTRY_DSN="$NEXT_PUBLIC_SENTRY_DSN" \
     --build-arg NEXT_PUBLIC_TELEGRAM_BOT_NAME="$NEXT_PUBLIC_TELEGRAM_BOT_NAME" \
+    --build-arg NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="$NEXT_SERVER_ACTIONS_ENCRYPTION_KEY" \
+    --build-arg DEPLOYMENT_VERSION="$TAG" \
+    --build-arg GIT_COMMIT_SHA="${TAG%%-*}" \
     src.new > build.log 2>&1; then
   tail -60 build.log; log "СБОРКА УПАЛА — работающая версия не тронута"; exit 1
 fi

@@ -7,6 +7,9 @@ const withBundleAnalyzer = bundleAnalyzer({
 });
 
 const nextConfig: NextConfig = {
+  // Защита от version skew на VPS (на Vercel это делала платформа): вкладка, открытая до деплоя,
+  // при переходе перезагрузится целиком. Значение задаёт deploy/vps/deploy-server.sh.
+  deploymentId: process.env.DEPLOYMENT_VERSION,
   experimental: {
     optimizePackageImports: ["lucide-react", "date-fns"],
     // Server Actions с загрузкой файлов: скрин лендинга и внешний договор (PDF до 10 МБ).

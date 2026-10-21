@@ -62,6 +62,9 @@ services:
       retries: 3
       start_period: 40s
     mem_limit: 3g
+    # Мягкая остановка при деплое: Next дорабатывает начатые запросы и after().
+    init: true
+    stop_grace_period: 30s
 
 volumes:
   pgdata:

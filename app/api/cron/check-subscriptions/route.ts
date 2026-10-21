@@ -240,9 +240,9 @@ export async function GET(req: Request) {
   //    — клиенту админка не должна показывать устаревшее ещё 60 сек.
   //    revalidateTag из cron не работает в serverless, поэтому дёргаем endpoint.
   if (result.suspended > 0 || result.foundersReleased > 0 || (result as Record<string, unknown>).serviceFeeIndexed) {
-    const base = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL
-      ? `https://${process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL}`
-      : null
+    // На VPS нет VERCEL_URL — берём ROOT_HOST, иначе сброс кеша молча пропускался.
+    const baseHost = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL || process.env.ROOT_HOST
+    const base = baseHost ? `https://${baseHost}` : null
     if (base && process.env.CRON_SECRET) {
       await fetch(`${base}/api/admin/cache/invalidate`, {
         method: "POST",
