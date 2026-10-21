@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileStaffRequest, tenantInBuildingsWhere } from "@/lib/mobile-admin"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -11,7 +12,7 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, buildingIds } = result
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const now = new Date()
   const soon = new Date(now.getTime() + 45 * DAY_MS)
 

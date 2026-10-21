@@ -9,6 +9,7 @@ import {
   storeUploadedFile,
 } from "@/lib/storage"
 import { getTForUser } from "@/lib/i18n/server"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -19,7 +20,7 @@ export async function GET(req: Request) {
   const { ctx, tenant } = result
   // Названия документов читает арендатор — язык из его профиля.
   const { t } = await getTForUser(ctx.user.id)
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const now = new Date()
 
   const [generated, tenantDocuments, signatureRequests, contracts] = await Promise.all([
@@ -152,7 +153,7 @@ export async function POST(req: Request) {
 
   const { ctx, tenant } = result
   const { t } = await getTForUser(ctx.user.id)
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
 
   const contentType = req.headers.get("content-type") ?? ""
   if (!contentType.includes("multipart/form-data")) {

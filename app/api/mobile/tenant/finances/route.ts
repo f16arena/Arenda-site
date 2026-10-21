@@ -13,6 +13,7 @@ import {
   getTenantStorageScope,
   storeUploadedFile,
 } from "@/lib/storage"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
   const { t, locale } = await getTForUser(ctx.user.id)
   const period = currentPeriod()
   const paymentPurpose = getMobilePaymentPurpose(tenant, period)
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
 
   const [totalDebt, charges, payments, reports, landlord, installmentPlans] = await Promise.all([
     // deletedAt:null обязателен — иначе мобилка покажет другую сумму, чем /cabinet/finances.

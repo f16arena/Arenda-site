@@ -9,6 +9,7 @@ export const auth: typeof ru = {
     loginField: "Телефон немесе Email",
     password: "Құпия сөз",
     forgot: "Құпия сөзді ұмыттыңыз ба?",
+    toHome: "Басты бетке",
     twoFactor: "Екі факторлы аутентификация",
     twoFactorHint: "Қолданбадағы 6 таңбалы кодты немесе XXXX-XXXX қосалқы кодын енгізіңіз.",
     twoFactorPlaceholder: "000000 немесе XXXX-XXXX",

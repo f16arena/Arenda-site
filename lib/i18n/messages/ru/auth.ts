@@ -10,6 +10,7 @@ export const auth = {
     loginField: "Телефон или Email",
     password: "Пароль",
     forgot: "Забыли пароль?",
+    toHome: "На главную",
     twoFactor: "Двухфакторная аутентификация",
     twoFactorHint: "Введите 6-значный код из приложения или резервный код XXXX-XXXX.",
     twoFactorPlaceholder: "000000 или XXXX-XXXX",

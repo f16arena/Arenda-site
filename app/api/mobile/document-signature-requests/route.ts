@@ -10,6 +10,7 @@ import {
 } from "@/lib/mobile-document-signatures"
 import { notifyUser } from "@/lib/notify"
 import { getT, getTForUser } from "@/lib/i18n/server"
+import { requestOrigin } from "@/lib/host"
 
 type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
@@ -171,7 +172,7 @@ export async function POST(req: Request) {
 
 // Чистый помощник переводчик сам не добывает — принимает его параметром.
 async function getTenantContractSignatureLinks(req: Request, userId: string, orgId: string, t: Tr) {
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const contracts = await db.contract.findMany({
     where: {
       tenant: { userId, user: { organizationId: orgId } },

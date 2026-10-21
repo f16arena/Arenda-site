@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { ROOT_HOST } from "@/lib/host"
+import { ROOT_HOST, requestOrigin } from "@/lib/host"
 
 /**
  * Logout через API route — обходим NextResponse.cookies.set, который
@@ -28,10 +28,12 @@ function buildLogoutResponse(req: Request): NextResponse {
     ? "__Secure-commrent.session-token"
     : "commrent.session-token"
 
-  const url = new URL(req.url)
-  const currentHost = url.hostname
+  // Хост — из заголовков прокси, не из req.url: на VPS `next start` за Caddy отдаёт в req.url
+  // свой адрес (localhost:3000), и выход на корне зацикливался сам на себя.
+  const origin = new URL(requestOrigin(req))
+  const currentHost = origin.hostname
   const rootHost = ROOT_HOST || "commrent.kz"
-  const proto = req.headers.get("x-forwarded-proto") ?? url.protocol.replace(":", "") ?? "https"
+  const proto = origin.protocol.replace(":", "") || "https"
 
   // Если мы на slug-поддомене — сначала чистим cookie для bcf16,
   // потом редиректим на commrent.kz/api/logout — там почистится для root.

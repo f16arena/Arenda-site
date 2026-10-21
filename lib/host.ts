@@ -61,3 +61,17 @@ export function parseHost(rawHost: string | null | undefined): HostInfo {
   // Чужой домен (vercel preview, ngrok)
   return { kind: "external" }
 }
+
+/**
+ * Настоящий origin запроса в route handler'е (https://commrent.kz, https://bcf16.commrent.kz).
+ *
+ * `new URL(req.url).origin` для этого не годится вне Vercel: `next start` за прокси (Caddy на VPS)
+ * собирает req.url из собственного адреса процесса (https://localhost:3000/...), а не из Host.
+ * Берём хост из заголовков, которые проставляет прокси.
+ */
+export function requestOrigin(req: Request): string {
+  const url = new URL(req.url)
+  const host = req.headers.get("x-forwarded-host")?.split(",")[0].trim() || req.headers.get("host") || url.host
+  const proto = req.headers.get("x-forwarded-proto")?.split(",")[0].trim() || url.protocol.replace(":", "")
+  return `${proto}://${host}`
+}

@@ -5,6 +5,7 @@ import { mobileError } from "@/lib/mobile-context"
 import { calculateTenantMonthlyRent } from "@/lib/rent"
 import { getTenantAreaTotal } from "@/lib/tenant-placement"
 import { getT, getTForUser } from "@/lib/i18n/server"
+import { requestOrigin } from "@/lib/host"
 
 type Tr = Awaited<ReturnType<typeof getT>>["t"]
 
@@ -21,7 +22,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ tenantId
   // Подписи карточки читает админ в приложении — язык из его профиля.
   const { t } = await getTForUser(result.ctx.user.id)
   const { tenantId } = await params
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const now = new Date()
   const soon = new Date(now.getTime() + 45 * DAY_MS)
 

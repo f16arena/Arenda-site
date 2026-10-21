@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
 import { getMobileStaffRequest, tenantInBuildingsWhere } from "@/lib/mobile-admin"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { ctx, buildingIds } = result
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const url = new URL(req.url)
   const q = (url.searchParams.get("q") ?? "").trim().slice(0, 80)
   const tenantId = (url.searchParams.get("tenantId") ?? "").trim() || null

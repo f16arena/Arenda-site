@@ -8,6 +8,7 @@ import {
   getMobileTenantSummary,
 } from "@/lib/mobile-tenant"
 import { getTForUser } from "@/lib/i18n/server"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
   const scope = await getMobileTenantScope(tenant)
   const now = new Date()
   const period = currentPeriod()
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
 
   const [
     totalDebt,

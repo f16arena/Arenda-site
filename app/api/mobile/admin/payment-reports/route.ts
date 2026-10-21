@@ -6,6 +6,7 @@ import { notifyUser } from "@/lib/notify"
 import { applyConfirmedPaymentReport } from "@/lib/payment-report-workflow"
 import { getTForUser } from "@/lib/i18n/server"
 import { formatMoneyL } from "@/lib/i18n/format"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
   const result = await getMobilePaymentStaffRequest(req)
   if (!result.ok) return result.response
 
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const url = new URL(req.url)
   const buildingId = (url.searchParams.get("buildingId") ?? "").trim() || null
   const scopedBuildingIds = buildingId

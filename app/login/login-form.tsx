@@ -4,7 +4,7 @@ import { useActionState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { login } from "@/app/actions/auth"
-import { AlertCircle, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
+import { AlertCircle, ArrowLeft, CheckCircle2, XCircle, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,14 @@ export function LoginForm() {
 
   return (
     <div className="w-full max-w-md">
+      {/* Явный путь назад: логотип тоже ведёт на главную, но это не очевидно. */}
+      <Link
+        href="/"
+        className="absolute left-4 top-4 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        {t("auth.login.toHome")}
+      </Link>
       {/* Logo — тот же PNG, что на лендинге, чтобы пользователь видел
           целостный бренд при переходах /signup → /login → /admin */}
       <Link href="/" className="block text-center mb-8" aria-label="Commrent.kz">

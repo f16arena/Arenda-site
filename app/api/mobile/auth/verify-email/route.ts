@@ -5,6 +5,7 @@ import { getMobileContext, mobileError } from "@/lib/mobile-context"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { sendEmail, basicEmailTemplate, htmlEscape } from "@/lib/email"
 import { getTForUser } from "@/lib/i18n/server"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
     },
   })
 
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const verifyUrl = `${origin}/verify-email?token=${encodeURIComponent(token)}`
 
   const html = basicEmailTemplate({

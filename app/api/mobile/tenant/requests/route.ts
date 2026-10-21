@@ -11,6 +11,7 @@ import {
   getTenantStorageScope,
   storeUploadedFile,
 } from "@/lib/storage"
+import { requestOrigin } from "@/lib/host"
 
 export const dynamic = "force-dynamic"
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   if (!result.ok) return result.response
 
   const { tenant } = result
-  const origin = new URL(req.url).origin
+  const origin = requestOrigin(req)
   const requests = await db.request.findMany({
     where: { tenantId: tenant.id },
     select: {
