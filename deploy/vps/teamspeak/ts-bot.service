@@ -1,0 +1,21 @@
+[Unit]
+Description=F16 Bot для TeamSpeak (AFK, приветствие, состояние для панели)
+After=docker.service
+Wants=docker.service
+
+[Service]
+EnvironmentFile=/opt/teamspeak/query.env
+ExecStart=/usr/bin/python3 /opt/teamspeak/tools/bot.py
+Restart=always
+RestartSec=10
+DynamicUser=no
+ProtectSystem=strict
+ReadWritePaths=/opt/teamspeak
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+MemoryMax=64M
+CPUQuota=10%
+
+[Install]
+WantedBy=multi-user.target

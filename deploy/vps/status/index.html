@@ -455,6 +455,7 @@ const LOOK = {
   orda: { grad: "linear-gradient(135deg,#f97316,#ec4899)", tint: "#f97316", letter: "O" },
   jiyn: { grad: "linear-gradient(135deg,#10b981,#06b6d4)", tint: "#10b981", letter: "J" },
   shared: { grad: "linear-gradient(135deg,#52525b,#a1a1aa)", tint: "#a1a1aa", letter: "S" },
+  teamspeak: { grad: "linear-gradient(135deg,#c8f514,#5d9e00)", tint: "#a3e635", letter: "T" },
   other: { grad: "linear-gradient(135deg,#3f3f46,#71717a)", tint: "#71717a", letter: "·" },
 }
 const look = (id) => LOOK[id] || LOOK.other
@@ -493,6 +494,7 @@ function projectStatus(p, now) {
   if (d?.status === "running") bump("run", "идёт деплой")
   else if (d && d.status !== "ok") bump("warn", "последний деплой не прошёл, работает прежняя версия")
   if (p.backup && now - p.backup.time > 26 * 3600) bump("warn", "бэкап старше суток")
+  if (p.id === "teamspeak" && (!p.voice || now - p.voice.at > 90)) bump("warn", "бот не присылает состояние сервера")
   return { lv, issues }
 }
 const PILL = { ok: "Работает", run: "Деплой", warn: "Внимание", bad: "Сбой" }
@@ -656,8 +658,12 @@ function renderCard(p, now) {
   const d = p.deploys[0]
   const cpu = p.containers.reduce((a, c) => a + (c.cpu || 0), 0), mem = p.containers.reduce((a, c) => a + (c.mem || 0), 0)
   const ms = p.checks.filter((c) => c.ms != null).map((c) => c.ms)
-  const domain = (p.links[0] || "").replace("https://", "")
-  const dep = d ? `<div class="dep"><span class="ic">${stIcon(d.status)}</span><div class="m">
+  const domain = (p.links[0] || "").replace("https://", "").replace("ts3server://", "")
+  const v = p.voice
+  const dep = v ? `<div class="dep"><span class="ic" style="color:${v.online ? "var(--ok)" : "var(--mut)"}">●</span><div class="m">
+      <div class="msg">${v.online ? "Онлайн: " + v.clients.map((c) => esc(c.nick) + (c.channel ? ` <span style="color:var(--mut);font-weight:400">· ${esc(c.channel)}</span>` : "")).join(", ") : "Сейчас никого нет"}</div>
+      <div class="meta"><span>${esc(v.name || "")} · ${esc(v.version || "")}</span><span>· ${v.channels} ${plural(v.channels, "канал", "канала", "каналов")}</span><span>· работает ${dur(v.uptime)}</span></div></div></div>`
+    : d ? `<div class="dep"><span class="ic">${stIcon(d.status)}</span><div class="m">
       <div class="msg">${esc(d.subject || "без описания")}</div>
       <div class="meta">${shaLink(p, d)}<span>${d.status === "running" ? "собирается " + dur(now - d.start) : ago(d.end || d.start, now)}</span>${d.duration ? `<span>· ${dur(d.duration)}</span>` : ""}${d.inferred ? "<span>· по запуску контейнера</span>" : ""}</div></div></div>`
     : `<div class="dep"><span class="ic" style="color:var(--mut)">—</span><div class="m"><div class="msg" style="color:var(--mut);font-weight:400">${p.units?.length ? p.units.length + " " + plural(p.units.length, "служба", "службы", "служб") + " и " + p.containers.length + " " + plural(p.containers.length, "контейнер", "контейнера", "контейнеров") : "Деплоев нет"}</div>
@@ -674,6 +680,7 @@ function renderCard(p, now) {
       <span><b class="num">${cpu.toFixed(1)}%</b> CPU</span><span><b class="num">${mb(mem)}</b> памяти</span>
       ${ms.length ? `<span><b class="num">${Math.round(ms.reduce((a, b) => a + b, 0) / ms.length)} мс</b> отклик</span>` : ""}
       ${p.backup ? `<span>бэкап <b>${ago(p.backup.time, now)}</b></span>` : ""}
+      ${v ? `<span><b class="num">${v.online}/${v.max}</b> онлайн</span><span><b class="num">${v.ping} мс</b> пинг</span>` : ""}
     </div>
   </div>`
 }

@@ -1,0 +1,11 @@
+# TeamSpeak F16 Arena: баннер и иконки для шапки сервера, status.json (онлайн, без ников) для сайта f16-arena.kz
+ts.f16-arena.kz {
+	root * /opt/teamspeak/www
+	file_server
+	@status path /status.json
+	header @status {
+		Access-Control-Allow-Origin "*"
+		Cache-Control "no-store"
+	}
+	header /banner.png Cache-Control "public, max-age=3600"
+}

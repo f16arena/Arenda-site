@@ -1,0 +1,17 @@
+# TeamSpeak 3 (f16-arena). Голос 9987/udp, файлы 30033/tcp; ServerQuery — только с самого сервера.
+services:
+  teamspeak:
+    image: teamspeak:3.13
+    restart: unless-stopped
+    environment:
+      TS3SERVER_LICENSE: accept
+    ports:
+      - "9987:9987/udp"
+      - "30033:30033/tcp"
+      - "127.0.0.1:10011:10011/tcp"
+    volumes:
+      - ./data:/var/ts3server
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

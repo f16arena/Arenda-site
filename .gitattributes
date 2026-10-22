@@ -8,3 +8,5 @@ deploy/vps/Dockerfile text eol=lf
 deploy/vps/status/* text eol=lf
 # PowerShell 5.1 на Windows читает .ps1 без BOM как ANSI — файл хранится в UTF-8 с BOM, не трогаем.
 deploy/vps/*.ps1     -text
+deploy/vps/teamspeak/** text eol=lf
+deploy/vps/teamspeak/**/*.png binary

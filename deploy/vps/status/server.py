@@ -79,6 +79,14 @@ PROJECTS = [
         "units": ["caddy", "docker", "esf-sign", "esf-sign-proxy", "fail2ban"],
         "logs": {},
     },
+    {
+        "id": "teamspeak", "name": "TeamSpeak", "url": None,
+        "links": ["ts3server://f16"],
+        "match_dirs": ["/opt/teamspeak"], "names": [],
+        "units": ["ts-bot"],
+        "voice_state": "/opt/teamspeak/state.json",  # пишет F16 Bot раз в 15 с
+        "logs": {},
+    },
 ]
 
 # Сайты для проверки доступности. Ответ < 500 — сайт жив (ecp/pdf отвечают 403 без секрета, db — 401).
@@ -566,6 +574,16 @@ def project_of(c):
     return "other"
 
 
+def read_json(path):
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
 def build_state():
     with LOCK:
         hist = list(SYS_HISTORY)
@@ -605,6 +623,7 @@ def build_state():
             "logs": sorted(p.get("logs", {})),
             "checks": [dict(url=u, **checks[u]) for _, u in CHECKS if u in checks and checks[u]["project"] == p["id"]],
             "containers": [c for c in containers if project_of(c) == p["id"]],
+            "voice": read_json(p.get("voice_state")),
         })
     other = [c for c in containers if project_of(c) == "other"]
     if other:
