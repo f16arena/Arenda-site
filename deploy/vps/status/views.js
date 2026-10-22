@@ -217,6 +217,27 @@ const Cron = {
 function fmtIn(s) { return s < 3600 ? Math.max(1, Math.round(s / 60)) + " мин" : s < 86400 ? Math.floor(s / 3600) + " ч " + Math.round((s % 3600) / 60) + " мин" : Math.floor(s / 86400) + " дн" }
 $("#cron-refresh").onclick = () => Cron.show()
 
+// ── Скачать ───────────────────────────────────────────────────────────────────
+// Файлы собирает сервер (/api/export/…): CSV с «;» и BOM — открывается в Excel без кракозябр.
+function fetchFile(url, btn) {
+  const a = document.createElement("a"); a.href = url; a.download = ""; document.body.appendChild(a); a.click(); a.remove()
+  if (btn) { const t = btn.innerHTML; btn.innerHTML = "⏳ готовлю…"; btn.disabled = true; setTimeout(() => { btn.innerHTML = t; btn.disabled = false }, 4000) }
+}
+$("#err-dl").onclick = (e) => { e.stopPropagation(); $("#err-dlm").hidden = !$("#err-dlm").hidden }
+$("#err-dlm").onclick = (e) => {
+  const a = e.target.closest("a[data-what]"); if (!a) return
+  $("#err-dlm").hidden = true
+  const p = new URLSearchParams({ hours: Errors.hours, project: Errors.project, q: Errors.q, what: a.dataset.what, format: a.dataset.fmt || "csv" })
+  fetchFile("api/export/errors?" + p, $("#err-dl"))
+}
+document.addEventListener("click", (e) => { if (!e.target.closest(".dl")) $("#err-dlm").hidden = true })
+$("#lg-dl").onclick = () => {
+  if (!Logs.sel.size) return
+  const p = new URLSearchParams({ src: [...Logs.sel].join(","), q: Logs.q, level: Logs.level, minutes: Logs.minutes })
+  fetchFile("api/export/logs?" + p, $("#lg-dl"))
+}
+$("#cron-dl").onclick = () => fetchFile("api/export/cron", $("#cron-dl"))
+
 // ── База данных — в db.js ─────────────────────────────────────────────────────
 
 // счётчик ошибок за последний час в навигации

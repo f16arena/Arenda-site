@@ -13,6 +13,8 @@
 import calendar
 import collections
 import concurrent.futures
+import csv
+import io
 import hashlib
 import hmac
 import http.client
@@ -1129,6 +1131,7 @@ ERR_CACHE = {}
 
 
 ERR_BUSY = set()
+ERR_ROWS = {}  # период -> каждый случай ошибки из последней сборки
 
 
 def errors_report(hours):
@@ -1215,7 +1218,7 @@ def _errors_collect(hours):
     bucket = max(300, since // 48)
     start = int((now - since) // bucket * bucket)
     buckets = list(range(start, int(now) + 1, bucket))
-    groups, timeline = {}, collections.Counter()
+    groups, timeline, occ = {}, collections.Counter(), []
 
     def scan(src):
         try:
@@ -1236,6 +1239,7 @@ def _errors_collect(hours):
                                        "fp": fingerprint(msg), "message": "", "count": 0, "first": t, "last": None,
                                        "spark": collections.Counter()}
                 g["count"] += 1
+                occ.append((t, src["project"], src["name"], ANSI.sub("", msg).strip()[:8000]))
                 if t:
                     g["first"] = min(g["first"] or t, t)
                     b = int(t // bucket * bucket)
@@ -1250,6 +1254,8 @@ def _errors_collect(hours):
     data = {"hours": hours, "bucket": bucket, "buckets": buckets, "timeline": [timeline.get(b, 0) for b in buckets],
             "groups": items[:300], "total": sum(g["count"] for g in items), "sources": len(srcs)}
     ERR_CACHE[hours] = (time.time(), data)
+    occ.sort(key=lambda r: r[0] or 0)
+    ERR_ROWS[hours] = occ[-EXPORT_MAX:]  # для «Скачать → все случаи», только в памяти
     try:
         tmp = _errors_file(hours) + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -1260,7 +1266,7 @@ def _errors_collect(hours):
     return data
 
 
-def logs_query(sids, q, level, minutes, limit):
+def logs_query(sids, q, level, minutes, limit, tail=5000):
     rx = None
     if q:
         try:
@@ -1270,7 +1276,7 @@ def logs_query(sids, q, level, minutes, limit):
 
     def one(sid):
         try:
-            return sid, read_source(sid, since_s=minutes * 60 if minutes else None, tail=5000)
+            return sid, read_source(sid, since_s=minutes * 60 if minutes else None, tail=tail)
         except Exception as e:  # noqa: BLE001
             return sid, [(None, f"[не удалось прочитать: {e}]")]
 
@@ -1286,6 +1292,72 @@ def logs_query(sids, q, level, minutes, limit):
                 out.append({"t": t, "src": sid, "lv": lv, "msg": ANSI.sub("", msg)[:4000]})
     out.sort(key=lambda r: r["t"] or 0)
     return {"lines": out[-limit:], "matched": len(out)}
+
+
+# ── Выгрузка в файлы (кнопки «Скачать») ──────────────────────────────────────
+EXPORT_MAX = 100_000
+
+
+def to_csv(header, rows):
+    """CSV для Excel: «;» и BOM — иначе русская Excel склеит колонки и покажет кракозябры."""
+    buf = io.StringIO()
+    w = csv.writer(buf, delimiter=";", lineterminator="\r\n")
+    w.writerow(header)
+    w.writerows(rows)
+    return "﻿" + buf.getvalue()
+
+
+def fmt_t(t):
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(t)) + " UTC" if t else ""
+
+
+def errors_occurrences(hours, project="all", q=""):
+    """Каждый случай ошибки отдельно: [(t, проект, источник, текст)], старые сверху.
+    Берётся из последней фоновой сборки отчёта; если её нет или она старше 2 минут — пересобираем."""
+    hit = ERR_CACHE.get(hours)
+    if hours not in ERR_ROWS:  # после рестарта отчёт поднят с диска, а случаев в памяти нет
+        with ERR_BUILD:
+            if hours not in ERR_ROWS:
+                _errors_collect(hours)
+    elif not hit or time.time() - hit[0] > 120:
+        _errors_build(hours)
+    rows = ERR_ROWS.get(hours, [])
+    if project != "all":
+        rows = [r for r in rows if r[1] == project]
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows if ql in (r[3] + " " + r[2]).lower()]
+    return rows
+
+
+def export_file(kind, arg):
+    """-> (имя файла, тело, content-type)"""
+    stamp = time.strftime("%Y%m%d-%H%M", time.gmtime())
+    if kind == "errors":
+        hours = max(1, min(int(arg("hours", "24") or 24), 24 * 14))
+        project, q, fmt = arg("project") or "all", arg("q"), arg("format") or "csv"
+        base = "errors-%dh%s-%s" % (hours, "" if project == "all" else "-" + re.sub(r"[^\w-]", "", project), stamp)
+        if arg("what") == "summary":
+            groups = [g for g in errors_report(hours)["groups"] if project in ("all", g["project"])
+                      and (not q or q.lower() in (g["message"] + " " + g["source"]).lower())]
+            return base + "-summary.csv", to_csv(
+                ["Проект", "Источник", "Сколько раз", "Первый раз", "Последний раз", "Текст (последний случай)"],
+                [(g["project"], g["source"], g["count"], fmt_t(g["first"]), fmt_t(g["last"]), g["message"]) for g in groups]), "text/csv"
+        rows = errors_occurrences(hours, project, q)
+        if fmt == "txt":
+            return base + ".log", "\n".join("%s  [%s] %s  %s" % (fmt_t(t), p, src, m) for t, p, src, m in rows) + "\n", "text/plain"
+        return base + ".csv", to_csv(["Время", "Проект", "Источник", "Текст"], [(fmt_t(t), p, src, m) for t, p, src, m in rows]), "text/csv"
+    if kind == "logs":
+        sids = [x for x in arg("src").split(",") if x]
+        d = logs_query(sids, arg("q"), arg("level"), int(arg("minutes", "60") or 0), EXPORT_MAX, tail=50000)
+        names = {x["id"]: x["name"] for x in log_sources()}
+        body = "\n".join("%s  %-5s %s  %s" % (fmt_t(r["t"]), r["lv"], names.get(r["src"], r["src"]), r["msg"]) for r in d["lines"])
+        return "logs-%s.log" % stamp, body + "\n", "text/plain"
+    if kind == "cron":
+        jobs = cron_report()["jobs"]
+        return "cron-%s.csv" % stamp, to_csv(["Проект", "Задача", "Расписание (UTC)", "Файл", "Последний результат"],
+                                             [(j.get("project") or "", j["name"], j["schedule"], j["file"], j.get("last") or "") for j in jobs]), "text/csv"
+    raise LogError("Неизвестная выгрузка")
 
 
 def cron_report():
@@ -1549,6 +1621,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 minutes = int(arg("minutes", "60") or 0)
                 limit = max(50, min(int(arg("limit", "1000") or 1000), 5000))
                 return self.send(200, json.dumps(logs_query(sids, arg("q"), arg("level"), minutes, limit), ensure_ascii=False))
+            if u.path.startswith("/api/export/"):
+                name, body, ctype = export_file(u.path.rsplit("/", 1)[1], arg)
+                return self.send(200, body, ctype + "; charset=utf-8",
+                                 [("Content-Disposition", 'attachment; filename="%s"' % name)])
             if u.path == "/api/cron":
                 return self.send(200, json.dumps(cron_report(), ensure_ascii=False))
             if u.path.startswith("/api/db/"):
@@ -1582,8 +1658,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 rng = max(3600, min(int(arg("range", "86400") or 86400), 8 * 86400))
                 return self.send(200, json.dumps(container_history([n for n in arg("names").split(",") if n], rng)))
             if u.path == "/api/deploy-log":
-                return self.send(200, deploy_log(arg("project"), int(arg("start", "0") or 0), arg("sha")),
-                                 "text/plain; charset=utf-8")
+                start = int(arg("start", "0") or 0)
+                hdr = []
+                if arg("download"):
+                    name = "deploy-%s-%s-%s.log" % (re.sub(r"[^\w-]", "", arg("project")),
+                                                     time.strftime("%Y%m%d-%H%M", time.gmtime(start)),
+                                                     re.sub(r"[^\w]", "", arg("sha"))[:7])
+                    hdr = [("Content-Disposition", 'attachment; filename="%s"' % name)]
+                return self.send(200, deploy_log(arg("project"), start, arg("sha")), "text/plain; charset=utf-8", hdr)
             if u.path == "/api/state":
                 LAST_VIEW[0] = time.time()
                 return self.send(200, json.dumps(build_state(), ensure_ascii=False))

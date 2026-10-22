@@ -330,6 +330,12 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
 <main class="wrap" id="v-errors" hidden>
   <div class="vh"><div><h1>Ошибки</h1><p>Все журналы сервера, одинаковые ошибки собраны в одну строку</p></div>
     <div class="r"><div class="seg" id="err-range"><button data-h="1">1 час</button><button data-h="24">24 часа</button><button data-h="168">7 дней</button></div>
+      <div class="dl"><button class="btn2" id="err-dl">⬇ Скачать</button>
+        <div class="dlm card" id="err-dlm" hidden>
+          <a data-what="all" data-fmt="csv">Все случаи <span>CSV для Excel · каждая ошибка отдельной строкой</span></a>
+          <a data-what="all" data-fmt="txt">Все случаи <span>.log · как в журнале</span></a>
+          <a data-what="summary">Сводка <span>CSV · одинаковые ошибки одной строкой, сколько раз</span></a>
+        </div></div>
       <button class="btn2" id="err-refresh">↻ Обновить</button></div></div>
   <div class="kpis" id="err-kpi"></div>
   <div class="card tlchart" id="err-chart"></div>
@@ -346,7 +352,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
         <input class="inp" id="lg-q" placeholder="Поиск (можно регулярное выражение)…">
         <div class="seg" id="lg-level"><button data-l="">Все</button><button data-l="warn">Предупр.</button><button data-l="error">Ошибки</button></div>
         <div class="seg" id="lg-range"><button data-m="15">15 мин</button><button data-m="60">1 ч</button><button data-m="360">6 ч</button><button data-m="1440">24 ч</button><button data-m="0">Всё</button></div>
-        <button class="btn2" id="lg-live">○ Live</button><button class="btn2" id="lg-refresh">↻</button>
+        <button class="btn2" id="lg-live">○ Live</button><button class="btn2" id="lg-refresh">↻</button><button class="btn2" id="lg-dl" title="Скачать выбранные журналы с текущими фильтрами (.log)">⬇</button>
       </div>
       <div class="lstat" id="lg-stat"></div>
       <div class="lines" id="lg-lines"></div>
@@ -356,7 +362,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
 
 <main class="wrap" id="v-cron" hidden>
   <div class="vh"><div><h1>Задачи по расписанию</h1><p>Всё, что сервер запускает сам: рассылки, счета, бэкапы, проверки</p></div>
-    <div class="r"><button class="btn2" id="cron-refresh">↻ Обновить</button></div></div>
+    <div class="r"><button class="btn2" id="cron-dl">⬇ CSV</button><button class="btn2" id="cron-refresh">↻ Обновить</button></div></div>
   <div class="card" id="cron-list"></div>
 </main>
 
@@ -781,7 +787,7 @@ function renderDrawer(full) {
         const key = p.id + ":" + d.start, open = openDeps.has(key)
         return `<div class="row dep-row" data-dep="${esc(key)}" data-sha="${esc(d.sha || "")}" style="cursor:${d.inferred ? "default" : "pointer"}">${stIcon(d.status)}<div style="min-width:0">
         <div class="msg">${esc(d.subject || "без описания")}</div>
-        <div class="sha" style="margin-top:2px">${shaLink(p, d)}${d.from ? `<span style="color:var(--mut2)">← ${esc(d.from)}</span>` : ""}${d.inferred ? "" : `<span style="color:var(--mut2);margin-left:8px">${open ? "▾ скрыть лог" : "▸ лог сборки"}</span>`}</div>
+        <div class="sha" style="margin-top:2px">${shaLink(p, d)}${d.from ? `<span style="color:var(--mut2)">← ${esc(d.from)}</span>` : ""}${d.inferred ? "" : `<span style="color:var(--mut2);margin-left:8px">${open ? "▾ скрыть лог" : "▸ лог сборки"}</span>`}${open ? `<a class="dl-link" href="api/deploy-log?project=${p.id}&start=${d.start}&sha=${encodeURIComponent(d.sha || "")}&download=1" download>⬇ скачать</a>` : ""}</div>
         ${d.error ? `<div class="err">${esc(d.error)}</div>` : ""}</div>
         <div class="when num">${dt(d.start)}<br>${d.status === "running" ? "идёт " + dur(now - d.start) : dur(d.duration)}</div></div>
         ${open ? `<pre class="log deplog">${depLogs.has(key) ? colorLog(depLogs.get(key)) : "загрузка…"}</pre>` : ""}`
