@@ -76,7 +76,7 @@ const Errors = {
         <div class="m"><div class="msg">${esc(g.message.split("\n")[0])}</div>
           <div class="src">${av({ id: g.project })}<span>${esc(g.source)}</span><span>· впервые ${g.first ? ago(g.first, nowS()) : "—"}</span></div></div>
         ${sparkSvg(g.spark)}<div class="n">${g.count}<small>${plural(g.count, "раз", "раза", "раз")}</small></div>
-        <div class="w">${g.last ? ago(g.last, nowS()) : "—"}</div></div>
+        <div class="w">${g.last ? `<span data-ago="${g.last}">${ago(g.last, nowS())}</span>` : "—"}</div></div>
         ${open ? `<div class="ib"><pre>${esc(g.message)}</pre><div class="acts">
           <button class="btn2" data-logs="${esc(g.sid)}" data-q="${esc(g.fp.replace(/<\w+>|N/g, " ").trim().split(/\s+/).filter((w) => w.length > 3).slice(0, 3).join(" ").replace(/[.*+?^${}()|[\]\\]/g, ""))}">Открыть в журналах →</button>
           <span>последний раз ${g.last ? dt(g.last) : "—"}</span></div></div>` : ""}</div>`
@@ -99,16 +99,17 @@ $("#err-list").onclick = (e) => {
 // ── Журналы ───────────────────────────────────────────────────────────────────
 const Logs = {
   sources: null, sel: new Set(JSON.parse(safeGet("logs:sel") || '["c:commrent-web-1"]')), q: "", level: "", minutes: 60,
-  live: false, timer: null, lines: [],
+  live: safeGet("logs:live") !== "0", timer: null, lines: [],
   preset(sids, q) { this.sel = new Set(sids); this.q = q || ""; this.level = ""; this.minutes = 1440; $("#lg-q").value = this.q; this.saveSel() },
   saveSel() { safeSet("logs:sel", JSON.stringify([...this.sel])) },
   async show() {
     if (!this.sources) {
       try { this.sources = await getJSON("api/log-sources") } catch (e) { $("#lg-src").innerHTML = esc(e.message); return }
     }
-    this.renderSources(); this.renderBar(); this.load()
+    this.renderSources(); this.renderBar(); this.load(); this.startLive()
   },
   stop() { clearInterval(this.timer); this.timer = null },
+  startLive() { this.stop(); if (this.live) this.timer = setInterval(() => !$("#v-logs").hidden && this.load(), 3000) },
   renderSources() {
     const by = {}
     for (const s of this.sources) (by[s.project] ||= []).push(s)
@@ -152,10 +153,7 @@ let lgT
 $("#lg-q").oninput = (e) => { clearTimeout(lgT); lgT = setTimeout(() => { Logs.q = e.target.value; Logs.load() }, 350) }
 $("#lg-level").onclick = (e) => { const b = e.target.closest("button"); if (b) { Logs.level = b.dataset.l; Logs.renderBar(); Logs.load() } }
 $("#lg-range").onclick = (e) => { const b = e.target.closest("button"); if (b) { Logs.minutes = Number(b.dataset.m); Logs.renderBar(); Logs.loadedOnce = false; Logs.load() } }
-$("#lg-live").onclick = () => {
-  Logs.live = !Logs.live; Logs.renderBar(); Logs.stop()
-  if (Logs.live) Logs.timer = setInterval(() => !$("#v-logs").hidden && Logs.load(), 3000)
-}
+$("#lg-live").onclick = () => { Logs.live = !Logs.live; safeSet("logs:live", Logs.live ? "1" : "0"); Logs.renderBar(); Logs.startLive() }
 $("#lg-refresh").onclick = () => Logs.load()
 $("#lg-lines").onclick = (e) => { const l = e.target.closest(".ln"); if (l && !getSelection().toString()) l.classList.toggle("open") }
 
@@ -200,7 +198,7 @@ function cronHuman(expr) {
 }
 const Cron = {
   async show() {
-    $("#cron-list").innerHTML = '<div class="loading">Загрузка…</div>'
+    if (!$("#cron-list").innerHTML) $("#cron-list").innerHTML = '<div class="loading">Загрузка…</div>'
     let d
     try { d = await getJSON("api/cron") } catch (e) { $("#cron-list").innerHTML = `<div class="loading">${esc(e.message)}</div>`; return }
     const now = nowS()
@@ -210,7 +208,7 @@ const Cron = {
       return `<tr><td>${j.project ? av({ id: j.project }) : ""}</td>
         <td><div class="nm">${esc(j.name)}</div><div class="sch">${esc(j.file)} · ${esc(j.schedule)}</div></td>
         <td>${esc(cronHuman(j.schedule))}</td>
-        <td class="num">${j.next ? `${dt(j.next)}<div class="sch">через ${fmtIn(j.next - now)}</div>` : "—"}</td>
+        <td class="num">${j.next ? `${dt(j.next)}<div class="sch">через <span data-in="${j.next}">${fmtIn(j.next - now)}</span></div>` : "—"}</td>
         <td>${j.last ? `<div class="last ${st}" title="${esc(j.last)}">${st === "ok" ? "✓ " : st === "bad" ? "✕ " : ""}${esc(j.last)}</div>` : '<span class="mut">журнала нет</span>'}</td></tr>`
     }).join("")}</tbody></table></div>`
   },
@@ -228,5 +226,16 @@ async function errBadge() {
     const c = $("#nav-err-cnt"); c.textContent = d.total; c.hidden = !d.total
   } catch {}
 }
-errBadge(); setInterval(errBadge, 120000)
+errBadge(); setInterval(errBadge, 60000)
+
+// Открытые разделы обновляются сами (как в Vercel): крон — раз в 30 с, ошибки — раз в минуту
+// (разбор всех журналов дорогой, сервер кэширует его на минуту), журналы — Live каждые 3 с.
+setInterval(() => { if (!document.hidden && !$("#v-cron").hidden) Cron.show() }, 30000)
+setInterval(() => { if (!document.hidden && !$("#v-errors").hidden) Errors.show(true) }, 60000)
+// «5 мин назад» / «через 3 ч» — пересчитываются каждую секунду без запросов к серверу.
+setInterval(() => {
+  const n = nowS()
+  document.querySelectorAll("[data-ago]").forEach((e) => (e.textContent = ago(Number(e.dataset.ago), n)))
+  document.querySelectorAll("[data-in]").forEach((e) => (e.textContent = fmtIn(Math.max(0, Number(e.dataset.in) - n))))
+}, 1000)
 route()

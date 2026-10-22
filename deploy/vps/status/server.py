@@ -23,6 +23,7 @@ import re
 import secrets
 import socket
 import socketserver
+import sqlite3
 import ssl
 import subprocess
 import threading
@@ -205,8 +206,98 @@ def read_disk_io():
     return rd, wr
 
 
+# ── История (SQLite в /var/lib/server-status) — графики за сутки/неделю/месяц и аптайм ─────────
+# В памяти держится последний час по 5 с; сюда раз в минуту пишется среднее, проверки сайтов —
+# каждая, контейнеры — раз в минуту. Сервер — 30 дней, контейнеры — 8 дней.
+HIST_PATH = os.path.join(os.environ.get("STATE_DIRECTORY", "/var/lib/server-status"), "history.db")
+HLOCK = threading.Lock()
+_hdb = []
+
+
+def hq(sql, args=()):
+    with HLOCK:
+        if not _hdb:
+            os.makedirs(os.path.dirname(HIST_PATH), exist_ok=True)
+            con = sqlite3.connect(HIST_PATH, check_same_thread=False, isolation_level=None)
+            con.executescript("""
+                pragma journal_mode = wal;
+                create table if not exists sys (t integer primary key, cpu real, mem integer, swap integer,
+                    rx real, tx real, rd real, wr real, load real);
+                create table if not exists chk (t integer, url text, ok integer, ms integer);
+                create index if not exists chk_url_t on chk (url, t);
+                create table if not exists ctr (t integer, name text, cpu real, mem integer);
+                create index if not exists ctr_name_t on ctr (name, t);""")
+            _hdb.append(con)
+        return _hdb[0].execute(sql, args).fetchall()
+
+
+def hist_cleanup():
+    now = int(time.time())
+    hq("delete from sys where t < ?", (now - 31 * 86400,))
+    hq("delete from chk where t < ?", (now - 31 * 86400,))
+    hq("delete from ctr where t < ?", (now - 8 * 86400,))
+
+
+SYS_KEYS = ("cpu", "mem", "swap", "rx", "tx", "rd", "wr", "load")
+
+
+def sys_history(rng):
+    """Точки за период, не больше ~360: усреднение по корзинам (cpu — ещё и максимум)."""
+    if rng <= 3600:
+        with LOCK:
+            return list(SYS_HISTORY)
+    b = max(60, rng // 360)
+    rows = hq(f"""select (t / {b}) * {b} as tt, avg(cpu), avg(mem), avg(swap), avg(rx), avg(tx), avg(rd), avg(wr),
+                  avg(load), max(cpu) from sys where t >= ? group by tt order by tt""", (int(time.time()) - rng,))
+    return [{"t": r[0], **{k: (r[i + 1] or 0) for i, k in enumerate(SYS_KEYS)}, "cpu_max": r[9]} for r in rows]
+
+
+def uptime_report():
+    now = int(time.time())
+    out = {}
+    for pid, url in CHECKS:
+        def agg(sec):
+            r = hq("select count(*), sum(ok), avg(case when ok then ms end) from chk where url = ? and t >= ?",
+                   (url, now - sec))[0]
+            return {"n": r[0], "pct": round(100 * (r[1] or 0) / r[0], 3) if r[0] else None,
+                    "ms": round(r[2]) if r[2] is not None else None}
+        days = hq("""select t / 86400 as d, count(*), sum(ok), avg(case when ok then ms end) from chk
+                     where url = ? and t >= ? group by d order by d""", (url, (now // 86400 - 29) * 86400))
+        msr = [r[0] for r in hq("select ms from chk where url = ? and t >= ? and ok and ms is not null order by ms",
+                                (url, now - 86400))]
+        out[url] = {"project": pid, "h24": agg(86400), "d7": agg(7 * 86400), "d30": agg(30 * 86400),
+                    "p95": msr[int(len(msr) * 0.95)] if msr else None,
+                    "days": [{"d": r[0] * 86400, "n": r[1], "pct": round(100 * (r[2] or 0) / r[1], 2),
+                              "ms": round(r[3]) if r[3] is not None else None} for r in days]}
+    return out
+
+
+def container_history(names, rng):
+    b = max(60, rng // 120)
+    res = {}
+    for n in names[:40]:
+        rows = hq(f"""select (t / {b}) * {b} as tt, avg(cpu), avg(mem) from ctr where name = ? and t >= ?
+                      group by tt order by tt""", (n, int(time.time()) - rng))
+        res[n] = [[r[0], round(r[1] or 0, 2), int(r[2] or 0)] for r in rows]
+    return res
+
+
+def hist_preload():
+    """После перезапуска: последний час и последние проверки — из базы, чтобы графики не начинались с нуля."""
+    now = int(time.time())
+    for r in hq("select t, cpu, mem, swap, rx, tx, rd, wr, load from sys where t >= ? order by t", (now - 3600,)):
+        SYS_HISTORY.append({"t": r[0], **{k: r[i + 1] or 0 for i, k in enumerate(SYS_KEYS)}})
+    for pid, url in CHECKS:
+        rows = hq("select t, ok, ms from chk where url = ? order by t desc limit 120", (url,))
+        if rows:
+            st = CHECK_STATE.setdefault(url, {"project": pid, "history": collections.deque(maxlen=120)})
+            st["history"].extend({"t": t, "ok": bool(ok), "ms": ms} for t, ok, ms in reversed(rows))
+            st.update(code=200 if rows[0][1] else 0, ms=rows[0][2], at=rows[0][0])
+
+
 def sampler():
     prev = None
+    last_write = time.time()
     while True:
         try:
             t = time.time()
@@ -228,6 +319,14 @@ def sampler():
                 }
                 with LOCK:
                     SYS_HISTORY.append(pt)
+                    recent = [p for p in SYS_HISTORY if p["t"] > last_write]
+                if t - last_write >= 60 and recent:
+                    avg = {k: sum(p[k] for p in recent) / len(recent) for k in SYS_KEYS}
+                    hq("insert or replace into sys values (?,?,?,?,?,?,?,?,?)",
+                       (int(t), *(avg[k] for k in SYS_KEYS)))
+                    last_write = t
+                    if int(t) % 86400 < 60:
+                        hist_cleanup()
             prev = {"t": t, "total": total, "idle": idle, "rx": rx, "tx": tx, "rd": rd, "wr": wr}
         except Exception as e:  # noqa: BLE001 — сэмплер не должен умирать
             print("sampler:", e, flush=True)
@@ -255,10 +354,13 @@ def container_stats(cid):
 
 
 def container_sampler():
+    # Пока панель открыта — каждые 10 с (живые цифры), иначе раз в минуту — только для истории.
     pool = concurrent.futures.ThreadPoolExecutor(8)
+    last_write = 0.0
     while True:
         try:
-            if time.time() - LAST_VIEW[0] < 120:
+            viewed = time.time() - LAST_VIEW[0] < 120
+            if viewed or time.time() - last_write >= 60:
                 lst = docker_get("/containers/json?all=1")
                 running = [c for c in lst if c["State"] == "running"]
                 stats = dict(zip([c["Id"] for c in running],
@@ -276,6 +378,13 @@ def container_sampler():
                     })
                 with LOCK:
                     CONTAINERS.update(at=int(time.time()), items=items)
+                if time.time() - last_write >= 60:
+                    now = int(time.time())
+                    rows = [(now, c["name"], c.get("cpu"), c.get("mem")) for c in items
+                            if c["state"] == "running" and c.get("mem") is not None]
+                    for r in rows:
+                        hq("insert into ctr values (?,?,?,?)", r)
+                    last_write = time.time()
         except Exception as e:  # noqa: BLE001
             print("containers:", e, flush=True)
         time.sleep(10)
@@ -320,6 +429,11 @@ def checker():
                 st = CHECK_STATE.setdefault(url, {"project": pid, "history": collections.deque(maxlen=120)})
                 st.update(r, at=now)
                 st["history"].append({"t": now, "ok": 0 < r["code"] < 500, "ms": r["ms"]})
+        for (pid, url), r in zip(CHECKS, res):
+            try:
+                hq("insert into chk values (?,?,?,?)", (now, url, int(0 < r["code"] < 500), r["ms"]))
+            except Exception as e:  # noqa: BLE001
+                print("history:", e, flush=True)
         time.sleep(30)
 
 
@@ -393,6 +507,37 @@ def parse_deploys(path, subjects):
             d["subject"] = subjects[full][0]
             d["sha_full"] = full
     return deploys[-30:][::-1]
+
+
+BUILD_LOGS = "/var/log/commrent-builds"
+
+
+def deploy_log(project, start, sha):
+    """Лог одной выкатки, как «Build Logs» в Vercel."""
+    if project == "orda":
+        # В /var/log/orda-deploy.log вывод сборки идёт между строкой «… deploy A -> B» и итогом.
+        text = tail_bytes("/var/log/orda-deploy.log", 8_000_000) or ""
+        stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(start)))
+        out, on = [], False
+        for ln in text.splitlines():
+            if not on and ln.startswith(stamp + " deploy"):
+                on = True
+            if on:
+                out.append(ln)
+                m = TS_LINE.match(ln)
+                if m and len(out) > 1 and not m.group(2).startswith("deploy"):
+                    break
+        return "\n".join(out) or "Лог этой выкатки уже вытеснен из журнала"
+    if project == "commrent":
+        tag = re.sub(r"[^A-Za-z0-9._-]", "", sha)
+        path = os.path.join(BUILD_LOGS, tag + ".log")
+        if os.path.exists(path):
+            return tail_bytes(path, 3_000_000)
+        build = tail_bytes("/opt/commrent/build.log", 3_000_000) or ""
+        if tag and tag in build:
+            return build + "\n── миграции ──\n" + (tail_bytes("/opt/commrent/migrate.log", 500_000) or "")
+        return "Лог этой выкатки не сохранился — логи сборок сохраняются начиная с 22.10.2026"
+    return "Для этого проекта лог сборки не ведётся"
 
 
 def latest_backup(d, pattern):
@@ -590,7 +735,7 @@ ERR_CACHE = {}
 
 def errors_report(hours):
     hit = ERR_CACHE.get(hours)
-    if hit and time.time() - hit[0] < 30:
+    if hit and time.time() - hit[0] < 55:
         return hit[1]
     since = int(hours * 3600)
     now = time.time()
@@ -918,6 +1063,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(200, json.dumps(logs_query(sids, arg("q"), arg("level"), minutes, limit), ensure_ascii=False))
             if u.path == "/api/cron":
                 return self.send(200, json.dumps(cron_report(), ensure_ascii=False))
+            if u.path == "/api/history":
+                rng = max(3600, min(int(arg("range", "86400") or 86400), 31 * 86400))
+                return self.send(200, json.dumps(sys_history(rng)))
+            if u.path == "/api/uptime":
+                return self.send(200, json.dumps(uptime_report()))
+            if u.path == "/api/container-history":
+                rng = max(3600, min(int(arg("range", "86400") or 86400), 8 * 86400))
+                return self.send(200, json.dumps(container_history([n for n in arg("names").split(",") if n], rng)))
+            if u.path == "/api/deploy-log":
+                return self.send(200, deploy_log(arg("project"), int(arg("start", "0") or 0), arg("sha")),
+                                 "text/plain; charset=utf-8")
             if u.path == "/api/state":
                 LAST_VIEW[0] = time.time()
                 return self.send(200, json.dumps(build_state(), ensure_ascii=False))
@@ -945,6 +1101,13 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+    def handle_error(self, request, client_address):
+        # Вкладку закрыли посреди ответа — не ошибка, не засоряем журнал трассировками.
+        import sys
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
+
 
 if __name__ == "__main__":
     import sys
@@ -955,6 +1118,10 @@ if __name__ == "__main__":
         print("пароль сохранён:", AUTH_FILE)
         sys.exit(0)
     auth_load()
+    try:
+        hist_preload()
+    except Exception as e:  # noqa: BLE001
+        print("history preload:", e, flush=True)
     for fn in (sampler, container_sampler, checker):
         threading.Thread(target=fn, daemon=True).start()
     print(f"status: http://{LISTEN[0]}:{LISTEN[1]}", flush=True)

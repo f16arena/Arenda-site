@@ -21,8 +21,17 @@ log() { echo "$(date -u +%T) $*"; }
 # или текст ошибки. Тот же формат, что у Orda (/var/log/orda-deploy.log).
 DLOG=/var/log/commrent-deploy.log
 dlog() { echo "$(date -u +%FT%TZ) $*" >> "$DLOG"; }
-trap 'rc=$?; [ $rc -ne 0 ] && [ -z "${DLOG_DONE:-}" ] && dlog "ОШИБКА (код $rc)"' EXIT
+# Лог сборки и миграций каждой выкатки — отдельным файлом (панель показывает его у деплоя), 30 последних.
+BLOGS=/var/log/commrent-builds
+save_logs() {
+  [ -s build.log ] || return 0
+  install -d "$BLOGS"
+  { cat build.log; [ -s migrate.log ] && { echo; echo "── миграции ──"; cat migrate.log; }; } > "$BLOGS/$TAG.log"
+  ls -1t "$BLOGS"/*.log | tail -n +31 | xargs -r rm -f
+}
+trap 'rc=$?; save_logs || true; [ $rc -ne 0 ] && [ -z "${DLOG_DONE:-}" ] && dlog "ОШИБКА (код $rc)"' EXIT
 log "Деплой $TAG"
+: > build.log; : > migrate.log
 
 log "1. Исходники"
 rm -rf src.new && mkdir src.new

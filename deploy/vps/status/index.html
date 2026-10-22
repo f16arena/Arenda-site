@@ -182,6 +182,17 @@ header{position:sticky;top:0;z-index:10;backdrop-filter:saturate(180%) blur(14px
 .x{margin-left:auto}
 .tl .row{display:grid;grid-template-columns:22px 1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
 .tl .row:first-child{border-top:0}
+.tl .dep-row:hover{background:var(--hover)}
+pre.deplog{max-height:420px;min-height:0;margin:0 0 12px 34px;flex:none}
+.upsite{padding:14px 0 18px;border-top:1px solid var(--line)}
+.upsite:first-child{border-top:0;padding-top:0}
+.uph{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-weight:500;margin-bottom:10px}
+.uph .mut{font-weight:400;font-size:12px}
+.upk{display:flex;gap:28px;margin-bottom:10px}
+.upk span{display:block;color:var(--mut);font-size:12px}
+.upk b{font-size:20px;letter-spacing:-.02em}
+.upbars{height:32px}
+.bars i.w{background:var(--warn);opacity:1}
 .tl .msg{font-weight:500}
 .tl .err{color:var(--bad);font-size:12px;margin-top:2px}
 .tl .when{color:var(--mut);font-size:12px;text-align:right;white-space:nowrap}
@@ -299,6 +310,10 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
           <button class="tab on" data-m="cpu">Процессор</button><button class="tab" data-m="mem">Память</button>
           <button class="tab" data-m="net">Сеть</button><button class="tab" data-m="io">Диск</button>
         </div>
+        <div class="tabs" id="rng">
+          <button class="tab" data-r="3600">1 ч</button><button class="tab" data-r="86400">24 ч</button>
+          <button class="tab" data-r="604800">7 д</button><button class="tab" data-r="2592000">30 д</button>
+        </div>
         <div class="ch-val"><div class="v num" id="chv">—</div><div class="s" id="chs"></div></div>
       </div>
       <div class="plot" id="plot"><svg id="psvg"></svg><div class="tip" id="tip"></div></div>
@@ -363,6 +378,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
     <div class="dr-tabs" id="drt">
       <button class="dr-tab on" data-t="deploys">Деплои</button>
       <button class="dr-tab" data-t="containers">Контейнеры</button>
+      <button class="dr-tab" data-t="uptime">Доступность</button>
       <button class="dr-tab" data-t="logs">Журналы</button>
     </div>
   </div>
@@ -511,6 +527,18 @@ function renderGauges(sv) {
 
 // ── график ──
 let metric = safeGet("metric") || "cpu", HIST = [], SV = null
+// Период графика: 1 ч — живые точки по 5 с из /api/state, дольше — история из базы панели (/api/history).
+let RANGE = Number(safeGet("range") || 3600), RHIST = null, rhistAt = 0
+async function loadRange(force) {
+  if (RANGE <= 3600) { RHIST = null; return }
+  if (!force && RHIST && Date.now() - rhistAt < 60000) return
+  try { const r = await fetch("api/history?range=" + RANGE, { cache: "no-store" }); if (r.ok) { RHIST = await r.json(); rhistAt = Date.now() } } catch {}
+}
+let UPTIME = null, uptimeAt = 0
+async function loadUptime() {
+  if (UPTIME && Date.now() - uptimeAt < 60000) return
+  try { const r = await fetch("api/uptime", { cache: "no-store" }); if (r.ok) { UPTIME = await r.json(); uptimeAt = Date.now() } } catch {}
+}
 const METRICS = {
   cpu: { series: [["cpu", "#3291ff", "CPU"]], max: () => 100, fmt: (v) => v.toFixed(0) + "%", axis: (v) => v + "%" },
   mem: { series: [["mem", "#a855f7", "Память"]], max: () => SV.mem_total, fmt: gb, axis: (v) => (v / G).toFixed(0) + " ГБ" },
@@ -522,12 +550,13 @@ function drawChart() {
   const svg = $("#psvg"), box = $("#plot").getBoundingClientRect()
   const W = box.width, H = box.height, L = 52, R = 8, T = 8, B = 22
   const m = METRICS[metric], h = HIST
-  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.m === metric))
+  document.querySelectorAll("#tabs .tab").forEach((t) => t.classList.toggle("on", t.dataset.m === metric))
+  document.querySelectorAll("#rng .tab").forEach((t) => t.classList.toggle("on", Number(t.dataset.r) === RANGE))
   if (h.length < 2 || !W) { svg.innerHTML = ""; return }
   const last = h[h.length - 1]
   $("#chv").innerHTML = m.series.map(([k, c]) => `<span style="color:${m.series.length > 1 ? c : "inherit"}">${m.fmt(last[k])}</span>`).join('<span style="color:var(--mut2)"> / </span>')
   const peak = Math.max(...h.flatMap((x) => m.series.map(([k]) => x[k])))
-  $("#chs").textContent = (m.series.length > 1 ? m.series.map((s) => s[2]).join(" / ") + " · " : "сейчас · ") + "пик за час " + m.fmt(peak)
+  $("#chs").textContent = (m.series.length > 1 ? m.series.map((s) => s[2]).join(" / ") + " · " : "сейчас · ") + "пик за период " + m.fmt(peak)
   const max = m.max ? m.max() : niceMax(peak * 1.15)
   const t0 = h[0].t, t1 = last.t, x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R), y = (v) => T + (1 - Math.min(v, max) / max) * (H - T - B)
   let out = `<defs>${m.series.map(([k, c]) => `<linearGradient id="g-${k}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient>`).join("")}</defs>`
@@ -535,8 +564,11 @@ function drawChart() {
     const v = (max / 4) * i, yy = y(v)
     out += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--line)" ${i ? 'stroke-dasharray="3 4"' : ""}/><text class="axis" x="${L - 8}" y="${yy + 4}" text-anchor="end">${m.axis(v)}</text>`
   }
-  const span = t1 - t0, step = span > 2400 ? 900 : span > 1200 ? 600 : span > 300 ? 300 : 60
-  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) out += `<text class="axis" x="${x(t)}" y="${H - 4}" text-anchor="middle">${hm(t)}</text>`
+  const span = t1 - t0
+  const step = span > 20 * 86400 ? 5 * 86400 : span > 3 * 86400 ? 86400 : span > 43200 ? 3 * 3600 : span > 7200 ? 1800 : span > 2400 ? 900 : span > 1200 ? 600 : span > 300 ? 300 : 60
+  const lbl = (t) => (span > 2 * 86400 ? new Date(t * 1000).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) : hm(t))
+  const first = step >= 86400 ? Math.ceil((t0 + new Date().getTimezoneOffset() * 60) / step) * step - new Date().getTimezoneOffset() * 60 : Math.ceil(t0 / step) * step
+  for (let t = first; t <= t1; t += step) out += `<text class="axis" x="${x(t)}" y="${H - 4}" text-anchor="middle">${lbl(t)}</text>`
   for (const [k, c] of m.series) {
     const d = h.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p[k]).toFixed(1)).join("")
     out += `<path d="${d}L${x(t1)} ${y(0)}L${x(t0)} ${y(0)}Z" fill="url(#g-${k})"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round"/>`
@@ -552,11 +584,17 @@ function drawChart() {
     cur.setAttribute("x1", cx); cur.setAttribute("x2", cx); cur.style.display = ""
     svg.querySelectorAll(".cd").forEach((c) => { c.setAttribute("cx", cx); c.setAttribute("cy", y(best[c.dataset.k])); c.style.display = "" })
     const tip = $("#tip"); tip.style.display = "block"; tip.style.left = cx + "px"; tip.style.top = y(Math.max(...m.series.map(([k]) => best[k]))) + "px"
-    tip.innerHTML = `<span style="color:var(--mut)">${hm(best.t)}:${String(new Date(best.t * 1000).getSeconds()).padStart(2, "0")}</span>` + m.series.map(([k, c, n]) => `<b><span style="color:${c}">●</span> ${m.series.length > 1 ? n + " " : ""}${m.fmt(best[k])}</b>`).join("")
+    tip.innerHTML = `<span style="color:var(--mut)">${span > 7200 ? dt(best.t) : hm(best.t) + ":" + String(new Date(best.t * 1000).getSeconds()).padStart(2, "0")}</span>` + m.series.map(([k, c, n]) => `<b><span style="color:${c}">●</span> ${m.series.length > 1 ? n + " " : ""}${m.fmt(best[k])}</b>`).join("")
   }
   svg.onmouseleave = () => { $("#tip").style.display = "none"; svg.querySelector("#cur").style.display = "none"; svg.querySelectorAll(".cd").forEach((c) => (c.style.display = "none")) }
 }
 $("#tabs").onclick = (e) => { const b = e.target.closest(".tab"); if (b) { metric = b.dataset.m; safeSet("metric", metric); drawChart() } }
+$("#rng").onclick = async (e) => {
+  const b = e.target.closest(".tab"); if (!b) return
+  RANGE = Number(b.dataset.r); safeSet("range", RANGE)
+  await loadRange(true)
+  HIST = RANGE > 3600 && RHIST ? RHIST : SV.history; drawChart()
+}
 addEventListener("resize", () => drawChart())
 
 function renderMinis(sv) {
@@ -579,8 +617,17 @@ function bars(p) {
   const cells = [...byT.entries()].sort((a, b) => a[0] - b[0]).slice(-n)
   const pad = Array(Math.max(0, n - cells.length)).fill('<i class="n"></i>').join("")
   return `<div class="bars">${pad}${cells.map(([t, ok]) => `<i class="${ok ? "" : "x"}" title="${hm(t)} ${ok ? "ок" : "сбой"}"></i>`).join("")}</div>
-    <div class="bars-l"><span>${cells.length ? Math.round((cells.length * 30) / 60) + " мин назад" : ""}</span><span>${p.checks.length} ${plural(p.checks.length, "сайт", "сайта", "сайтов")} · сейчас</span></div>`
+    <div class="bars-l"><span>${cells.length ? Math.round((cells.length * 30) / 60) + " мин назад" : ""}</span><span>${uptimeLine(p)}${p.checks.length} ${plural(p.checks.length, "сайт", "сайта", "сайтов")} · сейчас</span></div>`
 }
+// Доступность проекта за сутки: худший из его сайтов (как на статус-страницах).
+function uptimeLine(p) {
+  if (!UPTIME) return ""
+  const v = p.checks.map((c) => UPTIME[c.url]?.h24?.pct).filter((x) => x != null)
+  if (!v.length) return ""
+  const m = Math.min(...v)
+  return `<b style="color:${m >= 99.9 ? "var(--ok)" : m >= 99 ? "var(--warn)" : "var(--bad)"}">${fmtPct(m)}</b> за 24 ч · `
+}
+const fmtPct = (v) => (v == null ? "—" : v >= 99.995 ? "100%" : v.toFixed(v >= 99 ? 2 : 1).replace(".", ",") + "%")
 function renderCard(p, now) {
   const { lv, issues } = projectStatus(p, now)
   const d = p.deploys[0]
@@ -619,8 +666,62 @@ function renderFeed(s) {
 
 // ── боковая панель проекта ──
 let STATE = null, openId = null, drTab = "deploys", logSrc = null, logTimer = null, rawLog = ""
+const openDeps = new Set(), depLogs = new Map()  // раскрытые деплои и их логи сборки
+function colorLog(text) {
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").split("\n").map((l) => {
+    const s = esc(l)
+    return /error|fail|упал|ошибк|fatal|откат/i.test(l) ? `<span class="e">${s}</span>` : /warn/i.test(l) ? `<span class="w">${s}</span>` : /^#\d+ |^\d{4}-\d\d-\d\dT/.test(l) ? `<span class="t">${s}</span>` : s
+  }).join("\n")
+}
+async function toggleDep(key, sha) {
+  if (openDeps.has(key)) { openDeps.delete(key); return renderDrawer(true) }
+  openDeps.add(key); renderDrawer(true)
+  if (!depLogs.has(key)) {
+    const [proj, start] = key.split(":")
+    try { depLogs.set(key, await (await fetch(`api/deploy-log?project=${proj}&start=${start}&sha=${encodeURIComponent(sha)}`, { cache: "no-store" })).text()) } catch (e) { depLogs.set(key, "Ошибка: " + e.message) }
+    renderDrawer(true)
+    const pre = document.querySelector(".deplog"); if (pre) pre.scrollTop = pre.scrollHeight
+  }
+}
+async function liveDeployLogs(s) {
+  const p = s.projects.find((x) => x.id === openId); if (!p) return
+  const wasRunning = [...openDeps].some((k) => depLogs.has(k + ":live"))
+  for (const d of p.deploys) {
+    const key = p.id + ":" + d.start
+    if (!openDeps.has(key)) continue
+    if (d.status !== "running" && !depLogs.has(key + ":live")) continue
+    try {
+      depLogs.set(key, await (await fetch(`api/deploy-log?project=${p.id}&start=${d.start}&sha=${encodeURIComponent(d.sha || "")}`, { cache: "no-store" })).text())
+      d.status === "running" ? depLogs.set(key + ":live", 1) : depLogs.delete(key + ":live")
+    } catch { continue }
+    const pre = document.querySelector(`.dep-row[data-dep="${key}"] + pre.deplog`)
+    if (!pre) continue
+    const atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30
+    pre.innerHTML = colorLog(depLogs.get(key))
+    if (atEnd) pre.scrollTop = pre.scrollHeight
+  }
+  // сборка закончилась — перерисовать строку (галочка/крестик, длительность)
+  if (wasRunning && ![...openDeps].some((k) => depLogs.has(k + ":live"))) renderDrawer(true)
+}
+// История памяти контейнеров за сутки (из базы панели), обновляется раз в минуту.
+const CHIST = {}
+let chistAt = {}
+async function loadCHist(p) {
+  if (Date.now() - (chistAt[p.id] || 0) < 60000) return
+  chistAt[p.id] = Date.now()
+  try {
+    const r = await fetch("api/container-history?range=86400&names=" + encodeURIComponent(p.containers.map((c) => c.name).join(",")), { cache: "no-store" })
+    if (r.ok) { Object.assign(CHIST, await r.json()); if (openId === p.id && drTab === "containers") renderDrawer(true) }
+  } catch {}
+}
+function cSpark(rows) {
+  if (!rows || rows.length < 2) return '<span class="mut" style="font-size:12px">копится</span>'
+  const W = 120, H = 24, v = rows.map((r) => r[2]), mx = Math.max(...v, 1), mn = Math.min(...v)
+  const pts = v.map((y, i) => `${((i / (v.length - 1)) * W).toFixed(1)},${(H - 2 - ((y - mn) / Math.max(1, mx - mn)) * (H - 4)).toFixed(1)}`).join(" ")
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block" title="мин ${mb(mn)}, макс ${mb(mx)}"><polyline points="${pts}" fill="none" stroke="var(--run)" stroke-width="1.5"/></svg>`
+}
 function openDrawer(id) {
-  openId = id; drTab = "deploys"; logSrc = null
+  openId = id; drTab = "deploys"; logSrc = null; openDeps.clear()
   $("#drawer").classList.add("on"); $("#scrim").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false")
   renderDrawer(true)
 }
@@ -644,19 +745,40 @@ function renderDrawer(full) {
     const units = (p.units || []).map((u) => `<div class="unit ${u.state === "active" ? "" : "b"}"><i></i>${esc(u.name)}</div>`).join("")
     const bk = p.backup ? `<div class="unit ${now - p.backup.time > 26 * 3600 ? "b" : ""}"><i></i>бэкап ${ago(p.backup.time, now)} · ${mb(p.backup.size)} · хранится ${p.backup.count}</div>` : ""
     b.innerHTML = `${checks || units || bk ? `<div class="units" style="margin-bottom:18px">${checks}${units}${bk}</div>` : ""}
-      <div class="tl">${p.deploys.length ? p.deploys.map((d) => `<div class="row">${stIcon(d.status)}<div style="min-width:0">
+      <div class="tl">${p.deploys.length ? p.deploys.map((d) => {
+        const key = p.id + ":" + d.start, open = openDeps.has(key)
+        return `<div class="row dep-row" data-dep="${esc(key)}" data-sha="${esc(d.sha || "")}" style="cursor:${d.inferred ? "default" : "pointer"}">${stIcon(d.status)}<div style="min-width:0">
         <div class="msg">${esc(d.subject || "без описания")}</div>
-        <div class="sha" style="margin-top:2px">${shaLink(p, d)}${d.from ? `<span style="color:var(--mut2)">← ${esc(d.from)}</span>` : ""}</div>
+        <div class="sha" style="margin-top:2px">${shaLink(p, d)}${d.from ? `<span style="color:var(--mut2)">← ${esc(d.from)}</span>` : ""}${d.inferred ? "" : `<span style="color:var(--mut2);margin-left:8px">${open ? "▾ скрыть лог" : "▸ лог сборки"}</span>`}</div>
         ${d.error ? `<div class="err">${esc(d.error)}</div>` : ""}</div>
-        <div class="when num">${dt(d.start)}<br>${d.status === "running" ? "идёт " + dur(now - d.start) : dur(d.duration)}</div></div>`).join("") : '<div class="empty">Журнала деплоев нет</div>'}</div>`
+        <div class="when num">${dt(d.start)}<br>${d.status === "running" ? "идёт " + dur(now - d.start) : dur(d.duration)}</div></div>
+        ${open ? `<pre class="log deplog">${depLogs.has(key) ? colorLog(depLogs.get(key)) : "загрузка…"}</pre>` : ""}`
+      }).join("") : '<div class="empty">Журнала деплоев нет</div>'}</div>`
+  } else if (drTab === "uptime") {
+    if (!UPTIME) { b.innerHTML = '<div class="empty">Загрузка…</div>'; loadUptime().then(() => renderDrawer(true)); return }
+    const sites = p.checks.map((c) => [c.url, UPTIME[c.url]]).filter(([, u]) => u)
+    b.innerHTML = sites.length ? sites.map(([url, u]) => {
+      const byDay = new Map(u.days.map((d) => [d.d, d])), today = Math.floor(now / 86400) * 86400
+      const cells = Array.from({ length: 30 }, (_, i) => {
+        const day = today - (29 - i) * 86400, x = byDay.get(day)
+        const cls = !x ? "n" : x.pct >= 99.9 ? "" : x.pct >= 99 ? "w" : "x"
+        return `<i class="${cls}" title="${new Date(day * 1000).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}: ${x ? fmtPct(x.pct) + (x.ms != null ? " · " + x.ms + " мс" : "") : "нет данных"}"></i>`
+      }).join("")
+      return `<div class="upsite"><div class="uph"><a href="${url}" target="_blank" rel="noopener">${esc(url.replace("https://", ""))} ↗</a>
+          <span class="mut">${u.h24.ms != null ? "в среднем " + u.h24.ms + " мс" : ""}${u.p95 != null ? " · p95 " + u.p95 + " мс" : ""}</span></div>
+        <div class="upk">${[["24 часа", u.h24], ["7 дней", u.d7], ["30 дней", u.d30]].map(([k, v]) => `<div><span>${k}</span><b class="num" style="color:${v.pct == null ? "var(--mut)" : v.pct >= 99.9 ? "var(--ok)" : v.pct >= 99 ? "var(--warn)" : "var(--bad)"}">${fmtPct(v.pct)}</b></div>`).join("")}</div>
+        <div class="bars upbars">${cells}</div><div class="bars-l"><span>30 дней назад</span><span>сегодня</span></div></div>`
+    }).join("") + '<div class="empty" style="text-align:left;padding:4px 0">Проверка каждые 30 секунд. История копится с 22.10.2026.</div>' : '<div class="empty">У этой группы нет проверяемых сайтов</div>'
   } else if (drTab === "containers") {
-    b.innerHTML = `<table class="ct"><thead><tr><th>Контейнер</th><th class="r">CPU</th><th class="r">Память</th><th>Работает</th><th></th></tr></thead><tbody>
+    loadCHist(p)
+    b.innerHTML = `<table class="ct"><thead><tr><th>Контейнер</th><th class="r">CPU</th><th class="r">Память</th><th>Память, 24 ч</th><th>Работает</th><th></th></tr></thead><tbody>
       ${p.containers.map((c) => {
         const st = c.state !== "running" ? "var(--bad)" : c.health === "unhealthy" ? "var(--bad)" : c.health === "starting" ? "var(--warn)" : "var(--ok)"
         const mp = c.mem_limit && c.mem_limit < 15 * G ? pct(c.mem, c.mem_limit) : null
         return `<tr><td class="n"><span style="color:${st}">●</span> ${esc(c.name)}<div style="color:var(--mut2);font-size:11px">${esc(c.image)}</div></td>
           <td class="r num">${c.cpu == null ? "—" : c.cpu.toFixed(1) + "%"}</td>
           <td class="r num">${c.mem ? mb(c.mem) : "—"}${mp != null ? `<span class="meter"><i class="${mp > 90 ? "b" : mp > 75 ? "w" : ""}" style="width:${mp}%"></i></span>` : ""}</td>
+          <td>${cSpark(CHIST[c.name])}</td>
           <td style="color:var(--mut)">${esc(c.status.replace(/^Up /, "").replace(/\s*\(.*\)/, "").replace("About a minute", "~1 minute"))}</td>
           <td class="r"><button class="lk" data-c="${esc(c.name)}">Логи</button></td></tr>` }).join("")}</tbody></table>`
   } else if (full || !b.querySelector("pre.log")) {
@@ -688,6 +810,8 @@ async function loadLog(jump) {
 }
 $("#drt").onclick = (e) => { const t = e.target.closest(".dr-tab"); if (t) { drTab = t.dataset.t; clearInterval(logTimer); renderDrawer(true) } }
 $("#drb").onclick = (e) => {
+  const dr = e.target.closest(".dep-row")
+  if (dr && !e.target.closest("a") && !STATE.projects.find((x) => x.id === openId)?.deploys.find((d) => openId + ":" + d.start === dr.dataset.dep)?.inferred) return toggleDep(dr.dataset.dep, dr.dataset.sha)
   const ch = e.target.closest(".chip"), lk = e.target.closest(".lk")
   if (ch) { const [t, ...n] = ch.dataset.s.split(":"); logSrc = [t, n.join(":")]; renderDrawer(true) }
   if (lk) { drTab = "logs"; logSrc = ["c", lk.dataset.c]; renderDrawer(true) }
@@ -704,14 +828,18 @@ async function tick() {
     if (r.status === 401) return location.replace("/login")
     if (!r.ok) throw new Error("HTTP " + r.status)
     const s = await r.json()
-    STATE = s; SV = s.server; HIST = s.server.history
+    await Promise.all([loadRange(), loadUptime()])
+    STATE = s; SV = s.server; HIST = RANGE > 3600 && RHIST ? RHIST : s.server.history
     $("#host").textContent = s.server.host
     renderHero(s); renderGauges(s.server); drawChart(); renderMinis(s.server)
     const html = s.projects.map((p) => renderCard(p, s.now)).join("")
     $("#projects").innerHTML = firstPaint ? html : html.replaceAll(" fade", "")
     $("#psub").textContent = `${s.projects.length} ${plural(s.projects.length, "группа", "группы", "групп")} · нажмите на карточку — подробности и журналы`
     renderFeed(s)
-    if (openId && drTab !== "logs") renderDrawer(false)
+    // Не перерисовываем вкладку, пока открыт лог сборки — иначе сбивается прокрутка; лог идущей
+    // сборки дописываем на месте, как в Vercel.
+    if (openId && drTab !== "logs" && !(drTab === "deploys" && openDeps.size)) renderDrawer(false)
+    else if (openId && drTab === "deploys") liveDeployLogs(s)
     else if (openId) renderDrawerHeaderOnly()
     firstPaint = false; lastOk = Date.now(); $("#err").style.display = "none"
   } catch (e) {
