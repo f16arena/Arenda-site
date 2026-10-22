@@ -670,7 +670,6 @@ model Floor {
   fullFloorTenant Tenant?  @relation("FullFloorTenant", fields: [fullFloorTenantId], references: [id])
 
   updatedAt DateTime @updatedAt @default(now()) @map("updated_at") @db.Timestamptz(3)
-  @@index([buildingId, number])
   @@index([fullFloorTenantId])
   @@index([buildingId, kind])
   @@unique([buildingId, number])
@@ -1015,7 +1014,6 @@ model DebtInstallment {
 
   plan DebtInstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
 
-  @@index([planId, seq])
   @@index([isPaid, dueDate])
   @@unique([planId, seq])
   @@map("debt_installments")
@@ -1111,7 +1109,6 @@ model MeterReading {
 
   meter Meter @relation(fields: [meterId], references: [id], onDelete: Cascade)
 
-  @@index([meterId, period])
   @@index([period, createdAt])
   @@unique([meterId, period])
   @@map("meter_readings")
@@ -1293,7 +1290,6 @@ model TenantDocument {
   storageFile StoredFile? @relation("TenantDocumentStorage", fields: [storageFileId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, createdAt])
-  @@index([storageFileId])
   @@map("tenant_documents")
 }
 
