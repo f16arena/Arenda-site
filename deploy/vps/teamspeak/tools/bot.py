@@ -8,7 +8,7 @@
 
 Работает через ServerQuery, опрос раз в 2 секунды (IP бота в query_ip_allowlist — без флуд-лимитов).
 """
-import json, os, re, sys, time, traceback
+import json, os, re, subprocess, sys, threading, time, traceback, urllib.parse, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tsq import TS, esc, parse  # noqa: E402
@@ -21,6 +21,8 @@ FAST, SLOW = 2, 15
 LOBBY, AFK_NAME, ROOMS, CREATE = "Лобби", "AFK", "Свои комнаты", "+ Создать комнату"
 SKIP_CHANNELS = {"AFK", "Администрация"}
 MUSIC_BOT, MUSIC_CHANNEL = "F16 Music", "Музыка"
+MUSIC_API = "http://127.0.0.1:58913/api/bot/use/0/("
+YTDLP = "/opt/teamspeak/musicbot/bin/yt-dlp.pyz"
 SKIP_NICKS = {MUSIC_BOT}  # музыкальный бот молчит между треками — не трогать
 AWAY_AFTER = 2 * 60          # статус «отошёл» — через 2 минуты
 MUTED_AFTER = 10 * 60        # выключен звук и молчит — через 10 минут
@@ -45,8 +47,9 @@ HELP = (
     "[b]!музыка[/b] — как включить музыку\n"
     "[b]!afk[/b] — уйти в AFK"
 )
-MUSIC = ("Зайди в канал «Музыка» и напиши в чат канала: [b]!play ссылка[/b] (YouTube или радио).\n"
-         "Ещё: !add — в очередь, !next, !pause, !stop, !volume 40, !song — что играет.")
+MUSIC = ("Зайди в канал «Музыка» и напиши в чат канала: [b]!p название[/b] — найду на YouTube и включу,\n"
+         "или [b]!play ссылка[/b] (YouTube или радио).\n"
+         "Ещё: [b]!q название[/b] — в очередь, !next, !pause, !stop, !volume 40, !song — что играет.")
 
 
 def log(*a):
@@ -82,6 +85,42 @@ class Bot:
         for ev in ("textserver", "textprivate"):
             self.ts.cmd("servernotifyregister event=" + ev)
         self.ts.cmd("servernotifyregister event=textchannel id=" + self.cid[LOBBY])
+        # второе query-соединение сидит в «Музыке» и слушает её чат (query видит чат только своего канала)
+        self.dj = TS()
+        self.dj_me = self.dj.cmd("whoami")[0]["client_id"]
+        self.dj.cmd("clientmove clid=%s cid=%s" % (self.dj_me, self.cid[MUSIC_CHANNEL]))
+        self.dj.cmd("servernotifyregister event=textchannel id=" + self.cid[MUSIC_CHANNEL])
+        self.dj_out = []  # ответы из потоков поиска — отправляет основной цикл
+
+    # ── поиск музыки по названию: !p / !q ──
+    def music_search(self, text, nick, queue):
+        try:
+            out = subprocess.run(
+                ["python3", YTDLP, "--no-warnings", "--flat-playlist", "--print", "%(id)s|%(title)s|%(duration)s",
+                 "ytsearch1:" + text], capture_output=True, text=True, timeout=25).stdout.strip()
+            if not out:
+                self.dj_out.append("Ничего не нашёл по запросу «%s»." % text); return
+            vid, title, dur = (out.split("|") + ["", ""])[:3]
+            url = "https://www.youtube.com/watch?v=" + vid
+            api = "%s/%s/%s" % (MUSIC_API, "add" if queue else "play", urllib.parse.quote(url, safe=""))
+            with urllib.request.urlopen(api, timeout=60) as r:
+                r.read()
+            d = int(float(dur)) if dur and dur not in ("NA", "None") else 0
+            ln = " (%d:%02d)" % (d // 60, d % 60) if d else ""
+            self.dj_out.append("%s [b]%s[/b]%s — по просьбе %s" % ("В очередь:" if queue else "Включаю:", title, ln, nick))
+            log("music", "add" if queue else "play", title, "by", nick)
+        except Exception as e:
+            log("music search error", e)
+            self.dj_out.append("Не получилось включить «%s». Попробуй ссылкой: !play ссылка" % text)
+
+    def on_music_text(self, ev):
+        msg = ev.get("msg", "").strip()
+        if ev.get("invokerid") in (self.me, self.dj_me):
+            return
+        m = re.match(r"!(p|q)\s+(.+)", msg, re.I | re.S)
+        if m and not re.match(r"\[?url|https?://", m.group(2), re.I):
+            threading.Thread(target=self.music_search, daemon=True,
+                             args=(m.group(2).strip()[:120], ev.get("invokername", ""), m.group(1).lower() == "q")).start()
 
     # ── данные сервера ──
     def refresh(self):
@@ -233,6 +272,15 @@ class Bot:
                         self.on_text(ev, by_clid)
                     except Exception as e:
                         log("command error", e)
+
+            # чат «Музыки»: !p / !q
+            self.dj.cmd("whoami")  # прокачивает накопившиеся notify-события
+            while self.dj.events:
+                line = self.dj.events.pop(0)
+                if line.startswith("notifytextmessage"):
+                    self.on_music_text(parse(line.partition(" ")[2])[0])
+            while self.dj_out:
+                self.dj.cmd("sendtextmessage targetmode=2 target=%s msg=%s" % (self.cid[MUSIC_CHANNEL], esc(self.dj_out.pop(0))))
 
             # F16 Music живёт только в «Музыке»
             music = self.cid.get(MUSIC_CHANNEL)
