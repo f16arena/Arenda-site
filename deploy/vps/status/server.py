@@ -444,6 +444,7 @@ def check_url(url):
     try:
         r = OPENER.open(urllib.request.Request(url, headers={"User-Agent": "cloud-001-status"}), timeout=15)
         code = r.status
+        r.read(2_000_000)  # дочитываем ответ: иначе Caddy каждые 30 с пишет «aborting with incomplete response»
         r.close()
     except urllib.error.HTTPError as e:
         code = e.code
