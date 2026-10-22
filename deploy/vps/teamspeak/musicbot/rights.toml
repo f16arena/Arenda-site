@@ -1,0 +1,16 @@
+# Права F16 Music: всем — музыка и справка, владельцу (altx_f4) и localhost — всё.
+"+" = [
+	"cmd.help.*", "cmd.pm", "cmd.version", "cmd.song", "cmd.repeat", "cmd.random",
+	"cmd.play", "cmd.pause", "cmd.stop", "cmd.seek", "cmd.volume", "cmd.list.*", "cmd.add",
+	"cmd.clear", "cmd.previous", "cmd.next", "cmd.random.*", "cmd.repeat.*", "cmd.search.*",
+	"cmd.history.add", "cmd.history.from", "cmd.history.id", "cmd.history.last",
+	"cmd.history.play", "cmd.history.till", "cmd.history.title", "cmd.bot.use", "cmd.rights.can",
+]
+
+[[rule]]
+	useruid = [ "pL4ocjVZNtafgTus1B081eNmBX8=" ]
+	"+" = "*"
+
+[[rule]]
+	ip = [ "127.0.0.1", "::1" ]
+	"+" = "*"

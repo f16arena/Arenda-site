@@ -13,6 +13,7 @@ PUBLIC = "/opt/teamspeak/www/status.json"
 TICK = 15
 AFK_NAME = "AFK"
 SKIP_CHANNELS = {"AFK", "Администрация"}
+SKIP_NICKS = {"F16 Music"}  # музыкальный бот молчит между треками — не трогать
 AWAY_AFTER = 2 * 60          # отошёл (статус «away») — через 2 минуты
 MUTED_AFTER = 10 * 60        # выключен звук и молчит — через 10 минут
 IDLE_AFTER = 60 * 60         # просто молчит — через час
@@ -63,7 +64,7 @@ def run():
                 except Exception as e:
                     log("welcome error", e)
             # AFK
-            if afk and cname.get(c["cid"]) not in SKIP_CHANNELS:
+            if afk and cname.get(c["cid"]) not in SKIP_CHANNELS and c["client_nickname"] not in SKIP_NICKS:
                 idle = int(c.get("client_idle_time", "0")) // 1000
                 away = c.get("client_away") == "1"
                 muted = c.get("client_output_muted") == "1"

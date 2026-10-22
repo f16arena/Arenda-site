@@ -74,7 +74,7 @@ setperm("group", guest, {
 })
 
 # ── защита от ботов: уровень безопасности профиля и флуд ──
-ts.cmd("serveredit virtualserver_needed_identity_security_level=15"
+ts.cmd("serveredit virtualserver_needed_identity_security_level=8"
        " virtualserver_antiflood_points_tick_reduce=5"
        " virtualserver_antiflood_points_needed_command_block=150"
        " virtualserver_antiflood_points_needed_ip_block=250"
