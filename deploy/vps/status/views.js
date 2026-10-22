@@ -219,24 +219,22 @@ $("#cron-refresh").onclick = () => Cron.show()
 
 // ── Скачать ───────────────────────────────────────────────────────────────────
 // Файлы собирает сервер (/api/export/…): CSV с «;» и BOM — открывается в Excel без кракозябр.
-function fetchFile(url, btn) {
-  const a = document.createElement("a"); a.href = url; a.download = ""; document.body.appendChild(a); a.click(); a.remove()
-  if (btn) { const t = btn.innerHTML; btn.innerHTML = "⏳ готовлю…"; btn.disabled = true; setTimeout(() => { btn.innerHTML = t; btn.disabled = false }, 4000) }
+// Кнопки — настоящие ссылки <a download>: href выставляется перед переходом. Скачивание по клику
+// пользователя по ссылке браузеры не блокируют (в отличие от a.click() из скрипта).
+function errExportHref(what, fmt) {
+  return "api/export/errors?" + new URLSearchParams({ hours: Errors.hours, project: Errors.project, q: Errors.q, what, format: fmt || "csv" })
 }
-$("#err-dl").onclick = (e) => { e.stopPropagation(); $("#err-dlm").hidden = !$("#err-dlm").hidden }
-$("#err-dlm").onclick = (e) => {
-  const a = e.target.closest("a[data-what]"); if (!a) return
-  $("#err-dlm").hidden = true
-  const p = new URLSearchParams({ hours: Errors.hours, project: Errors.project, q: Errors.q, what: a.dataset.what, format: a.dataset.fmt || "csv" })
-  fetchFile("api/export/errors?" + p, $("#err-dl"))
+$("#err-dl").onclick = (e) => {
+  e.stopPropagation()
+  document.querySelectorAll("#err-dlm a[data-what]").forEach((a) => (a.href = errExportHref(a.dataset.what, a.dataset.fmt)))
+  $("#err-dlm").hidden = !$("#err-dlm").hidden
 }
+$("#err-dlm").onclick = (e) => { if (e.target.closest("a[data-what]")) setTimeout(() => ($("#err-dlm").hidden = true), 0) }
 document.addEventListener("click", (e) => { if (!e.target.closest(".dl")) $("#err-dlm").hidden = true })
-$("#lg-dl").onclick = () => {
-  if (!Logs.sel.size) return
-  const p = new URLSearchParams({ src: [...Logs.sel].join(","), q: Logs.q, level: Logs.level, minutes: Logs.minutes })
-  fetchFile("api/export/logs?" + p, $("#lg-dl"))
+$("#lg-dl").onclick = (e) => {
+  if (!Logs.sel.size) return e.preventDefault()
+  e.currentTarget.href = "api/export/logs?" + new URLSearchParams({ src: [...Logs.sel].join(","), q: Logs.q, level: Logs.level, minutes: Logs.minutes })
 }
-$("#cron-dl").onclick = () => fetchFile("api/export/cron", $("#cron-dl"))
 
 // ── База данных — в db.js ─────────────────────────────────────────────────────
 

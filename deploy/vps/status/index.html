@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="views.css">
+<link rel="stylesheet" href="views.css?v=1792693278">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1.5 15 14H1z' fill='%23fff'/></svg>">
 <style>
 :root{
@@ -332,9 +332,9 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
     <div class="r"><div class="seg" id="err-range"><button data-h="1">1 час</button><button data-h="24">24 часа</button><button data-h="168">7 дней</button></div>
       <div class="dl"><button class="btn2" id="err-dl">⬇ Скачать</button>
         <div class="dlm card" id="err-dlm" hidden>
-          <a data-what="all" data-fmt="csv">Все случаи <span>CSV для Excel · каждая ошибка отдельной строкой</span></a>
-          <a data-what="all" data-fmt="txt">Все случаи <span>.log · как в журнале</span></a>
-          <a data-what="summary">Сводка <span>CSV · одинаковые ошибки одной строкой, сколько раз</span></a>
+          <a download data-what="all" data-fmt="csv">Все случаи <span>CSV для Excel · каждая ошибка отдельной строкой</span></a>
+          <a download data-what="all" data-fmt="txt">Все случаи <span>.log · как в журнале</span></a>
+          <a download data-what="summary">Сводка <span>CSV · одинаковые ошибки одной строкой, сколько раз</span></a>
         </div></div>
       <button class="btn2" id="err-refresh">↻ Обновить</button></div></div>
   <div class="kpis" id="err-kpi"></div>
@@ -352,7 +352,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
         <input class="inp" id="lg-q" placeholder="Поиск (можно регулярное выражение)…">
         <div class="seg" id="lg-level"><button data-l="">Все</button><button data-l="warn">Предупр.</button><button data-l="error">Ошибки</button></div>
         <div class="seg" id="lg-range"><button data-m="15">15 мин</button><button data-m="60">1 ч</button><button data-m="360">6 ч</button><button data-m="1440">24 ч</button><button data-m="0">Всё</button></div>
-        <button class="btn2" id="lg-live">○ Live</button><button class="btn2" id="lg-refresh">↻</button><button class="btn2" id="lg-dl" title="Скачать выбранные журналы с текущими фильтрами (.log)">⬇</button>
+        <button class="btn2" id="lg-live">○ Live</button><button class="btn2" id="lg-refresh">↻</button><a class="btn2" id="lg-dl" download href="#" title="Скачать выбранные журналы с текущими фильтрами (.log)">⬇</a>
       </div>
       <div class="lstat" id="lg-stat"></div>
       <div class="lines" id="lg-lines"></div>
@@ -362,7 +362,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
 
 <main class="wrap" id="v-cron" hidden>
   <div class="vh"><div><h1>Задачи по расписанию</h1><p>Всё, что сервер запускает сам: рассылки, счета, бэкапы, проверки</p></div>
-    <div class="r"><button class="btn2" id="cron-dl">⬇ CSV</button><button class="btn2" id="cron-refresh">↻ Обновить</button></div></div>
+    <div class="r"><a class="btn2" id="cron-dl" download href="api/export/cron">⬇ CSV</a><button class="btn2" id="cron-refresh">↻ Обновить</button></div></div>
   <div class="card" id="cron-list"></div>
 </main>
 
@@ -977,7 +977,7 @@ $("#crf").onsubmit = async (e) => {
   $("#c-save").disabled = false
 }
 </script>
-<script src="db.js"></script>
-<script src="views.js"></script>
+<script src="db.js?v=1792693278"></script>
+<script src="views.js?v=1792693278"></script>
 </body>
 </html>
