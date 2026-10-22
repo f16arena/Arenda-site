@@ -360,14 +360,37 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
   <div class="card" id="cron-list"></div>
 </main>
 
-<main class="wrap" id="v-db" hidden>
-  <div class="card lock">
-    <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div>
-    <h2>Таблицы баз данных</h2>
-    <p>Просмотр таблиц Commrent, Orda и Jiyn, как в Supabase: строки, фильтры, структура, SQL-редактор, активные запросы.</p>
-    <p>Раздел ждёт подтверждения владельца: панели нужен доступ на чтение ко всем данным в базах.</p>
+<main class="wrap wide" id="v-db" hidden>
+  <div class="vh"><div><h1>База данных</h1><p>Таблицы, SQL и советы по скорости — как в Supabase. Только чтение: изменить данные отсюда нельзя.</p></div></div>
+  <div class="dbbar"><div class="dbcs" id="db-dbs"></div>
+    <div class="seg" id="db-tabs"><button data-t="tables">Таблицы</button><button data-t="sql">SQL</button><button data-t="advisor">Оптимизация</button><button data-t="activity">Активность</button></div></div>
+
+  <div id="db-tables" class="dbx">
+    <div class="card tside"><input class="inp" id="db-tq" placeholder="Найти таблицу…"><div id="db-tlist"></div></div>
+    <div id="db-main" class="dmain"></div>
   </div>
+
+  <div id="db-sql" hidden>
+    <div class="sqlx">
+      <div>
+        <div class="card sqled"><textarea id="sql-ta" spellcheck="false" placeholder="select …"></textarea>
+          <div class="sqlbar"><div id="sql-snips" class="chips2" style="margin:0"><button class="chip2" data-k="big">Большие таблицы</button><button class="chip2" data-k="conn">Подключения</button><button class="chip2" data-k="idx">Индексы</button><button class="chip2" data-k="ext">Расширения</button></div>
+            <span class="mut" style="margin-left:auto;font-size:12px">Ctrl+Enter · только чтение</span><button class="cbtn p" id="sql-run" style="height:34px">▶ Выполнить</button></div></div>
+        <div id="sql-out"></div>
+      </div>
+      <div class="card sqlh"><div class="dsh">История</div><div id="sql-hist"></div></div>
+    </div>
+  </div>
+
+  <div id="db-advisor" hidden>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px"><button class="btn2" id="adv-refresh">↻ Проверить заново</button></div>
+    <div id="adv-out"></div>
+  </div>
+
+  <div id="db-activity" hidden><div id="act-out"></div></div>
 </main>
+
+<div class="cr" id="cellv"><div class="card cellbox"><div class="mh"><b id="cellv-t"></b><div class="sp"><button class="btn2" id="cellv-copy">Копировать</button><button class="btn2" id="cellv-x">Закрыть</button></div></div><pre id="cellv-pre"></pre></div></div>
 
 
 <div class="scrim" id="scrim"></div>
@@ -939,6 +962,7 @@ $("#crf").onsubmit = async (e) => {
   $("#c-save").disabled = false
 }
 </script>
+<script src="db.js"></script>
 <script src="views.js"></script>
 </body>
 </html>

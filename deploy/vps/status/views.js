@@ -16,6 +16,7 @@ function route() {
   if (view === "cron") Cron.show()
   if (view === "db") Db.show()
   if (view !== "logs") Logs.stop()
+  if (view !== "db") clearInterval(Db.actTimer)
   scrollTo(0, 0)
 }
 addEventListener("hashchange", route)
@@ -216,8 +217,7 @@ const Cron = {
 function fmtIn(s) { return s < 3600 ? Math.max(1, Math.round(s / 60)) + " мин" : s < 86400 ? Math.floor(s / 3600) + " ч " + Math.round((s % 3600) / 60) + " мин" : Math.floor(s / 86400) + " дн" }
 $("#cron-refresh").onclick = () => Cron.show()
 
-// ── База данных ───────────────────────────────────────────────────────────────
-const Db = { show() {} }
+// ── База данных — в db.js ─────────────────────────────────────────────────────
 
 // счётчик ошибок за последний час в навигации
 async function errBadge() {

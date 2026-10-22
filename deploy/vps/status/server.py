@@ -613,6 +613,359 @@ def build_state():
     return {"now": int(time.time()), "server": server, "projects": projects, "containers_at": c_at}
 
 
+# ── Базы данных (как Table Editor и Advisors в Supabase), только чтение ───────
+# Запросы идут через docker exec psql под ролью status_ro: pg_read_all_data + BYPASSRLS (видит строки
+# под RLS), default_transaction_read_only и statement_timeout. Писать эта роль не может ничего —
+# даже если в SQL-редакторе выключить read_only, прав на запись у неё нет. Роль создаёт
+# `server.py setup-db` (install.sh).
+DATABASES = [
+    {"id": "commrent", "name": "Commrent", "project": "commrent", "container": "commrent-db-1",
+     "db": "commrent", "admin": "commrent"},
+    {"id": "orda", "name": "Orda", "project": "orda", "container": "supabase-db",
+     "db": "postgres", "admin": "supabase_admin"},
+    {"id": "jiyn", "name": "Jiyn", "project": "jiyn", "container": "deploy-db-1", "db": "jiyn", "admin": "postgres"},
+    {"id": "jiyn_stage", "name": "Jiyn stage", "project": "jiyn", "container": "deploy-db-1",
+     "db": "jiyn_stage", "admin": "postgres"},
+]
+RO_ROLE = "status_ro"
+NULL = "␀"  # так psql печатает NULL в CSV — отличить от пустой строки
+SYSTEM_SCHEMAS = {"pg_catalog", "information_schema", "pg_toast", "auth", "storage", "realtime", "supabase_functions",
+                  "extensions", "graphql", "graphql_public", "net", "pgsodium", "pgsodium_masks", "vault", "cron",
+                  "supabase_migrations", "_realtime", "_analytics", "pgbouncer", "pgtle", "_supavisor"}
+
+
+class DbError(Exception):
+    pass
+
+
+def db_conf(dbid):
+    d = next((d for d in DATABASES if d["id"] == dbid), None)
+    if not d:
+        raise DbError("Нет такой базы")
+    return d
+
+
+def psql(d, sql, csv_mode=False, timeout=30):
+    cmd = ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-h", "127.0.0.1", "-U", RO_ROLE, "-d", d["db"]]
+    cmd += ["--csv", "-P", f"null={NULL}"] if csv_mode else ["-A", "-t"]
+    code, out, err = docker_exec(d["container"], cmd + ["-c", sql], timeout=timeout)
+    if code != 0:
+        msg = re.sub(r"^psql:(<stdin>|):?\d*:?\s*", "", err.strip()).replace("ERROR:  ", "")
+        raise DbError(msg or f"psql завершился с кодом {code}")
+    return out
+
+
+def psql_json(d, sql):
+    out = psql(d, f"select coalesce(json_agg(t), '[]') from ({sql}) t").strip()
+    return json.loads(out or "[]")
+
+
+def qi(name):
+    return '"' + name.replace('"', '""') + '"'
+
+
+def ql(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def db_list():
+    out = []
+    for d in DATABASES:
+        item = {k: d[k] for k in ("id", "name", "project")}
+        try:
+            r = psql_json(d, f"""select pg_database_size(current_database()) as size,
+                (select count(*) from pg_stat_activity where datname = current_database()) as connections,
+                (select setting from pg_settings where name = 'server_version') as version""")[0]
+            item.update(r, ok=True)
+        except Exception as e:  # noqa: BLE001
+            item.update(ok=False, error=str(e)[:200])
+        out.append(item)
+    return out
+
+
+def db_tables(dbid):
+    d = db_conf(dbid)
+    rows = psql_json(d, """
+        select n.nspname as schema, c.relname as name, c.relkind as kind,
+               greatest(c.reltuples, 0)::bigint as rows_est,
+               pg_total_relation_size(c.oid) as size, c.relrowsecurity as rls
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where c.relkind in ('r','p','v','m','f') and n.nspname !~ '^pg_' and n.nspname <> 'information_schema'
+        order by n.nspname, c.relname""")
+    for r in rows:
+        r["system"] = r["schema"] in SYSTEM_SCHEMAS
+    return {"db": dbid, "tables": rows}
+
+
+def table_columns(d, schema, table):
+    cols = psql_json(d, f"""
+        select a.attname as name, format_type(a.atttypid, a.atttypmod) as type, not a.attnotnull as nullable,
+               coalesce(a.attnum = any(i.indkey), false) as pk
+        from pg_attribute a
+        left join pg_index i on i.indrelid = a.attrelid and i.indisprimary
+        where a.attrelid = {ql(qi(schema) + '.' + qi(table))}::regclass and a.attnum > 0 and not a.attisdropped
+        order by a.attnum""")
+    if not cols:
+        raise DbError("Таблица не найдена")
+    return cols
+
+
+OPS = {"eq": "=", "neq": "<>", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+
+
+def db_rows(dbid, schema, table, limit, offset, order, direction, filters):
+    d = db_conf(dbid)
+    cols = table_columns(d, schema, table)
+    names = {c["name"] for c in cols}
+    where = []
+    for f in filters[:10]:
+        col, op, val = f.get("col"), f.get("op"), str(f.get("val", ""))
+        if col not in names:
+            raise DbError(f"Нет колонки {col}")
+        c = qi(col)
+        if op == "null":
+            where.append(f"{c} is null")
+        elif op == "notnull":
+            where.append(f"{c} is not null")
+        elif op == "like":
+            where.append(f"{c}::text ilike {ql('%' + val + '%')}")
+        elif op in ("eq", "neq"):
+            where.append(f"{c}::text {OPS[op]} {ql(val)}")  # как текст — работает для uuid, enum, jsonb
+        elif op in OPS:
+            where.append(f"{c} {OPS[op]} {ql(val)}")
+        else:
+            raise DbError("Неизвестный оператор фильтра")
+    w = (" where " + " and ".join(where)) if where else ""
+    src = f"{qi(schema)}.{qi(table)}"
+    if order in names:
+        ob = f" order by {qi(order)} {'desc' if direction == 'desc' else 'asc'} nulls last"
+    else:
+        pk = [c["name"] for c in cols if c["pk"]]
+        ob = (" order by " + ", ".join(qi(p) for p in pk)) if pk else ""
+    t0 = time.time()
+    rows = psql_json(d, f"select * from {src}{w}{ob} limit {int(limit)} offset {int(offset)}")
+    ms = int((time.time() - t0) * 1000)
+    try:  # точный счёт на большой таблице может быть долгим — тогда оценка из статистики
+        total = int(psql(d, f"set statement_timeout = '3s'; select count(*) from {src}{w}").strip().splitlines()[-1])
+        exact = True
+    except (DbError, ValueError, IndexError):
+        total = int(psql(d, f"select greatest(reltuples,0)::bigint from pg_class where oid = {ql(src)}::regclass").strip() or 0)
+        exact = False
+    return {"columns": cols, "rows": rows, "total": total, "exact": exact, "ms": ms}
+
+
+def db_structure(dbid, schema, table):
+    d = db_conf(dbid)
+    reg = ql(qi(schema) + "." + qi(table))
+    return {
+        "columns": psql_json(d, f"""
+            select a.attname as name, format_type(a.atttypid, a.atttypmod) as type, not a.attnotnull as nullable,
+                   pg_get_expr(ad.adbin, ad.adrelid) as "default", col_description(a.attrelid, a.attnum) as comment
+            from pg_attribute a left join pg_attrdef ad on ad.adrelid = a.attrelid and ad.adnum = a.attnum
+            where a.attrelid = {reg}::regclass and a.attnum > 0 and not a.attisdropped order by a.attnum"""),
+        "constraints": psql_json(d, f"""select conname as name, contype as type, pg_get_constraintdef(oid) as def
+            from pg_constraint where conrelid = {reg}::regclass order by contype, conname"""),
+        "indexes": psql_json(d, f"""select i.relname as name, pg_get_indexdef(i.oid) as def,
+                   pg_relation_size(i.oid) as size, x.indisunique as uniq, coalesce(s.idx_scan, 0) as scans
+            from pg_index x join pg_class i on i.oid = x.indexrelid
+            left join pg_stat_all_indexes s on s.indexrelid = i.oid
+            where x.indrelid = {reg}::regclass order by i.relname"""),
+        "policies": psql_json(d, f"""select policyname as name, cmd, roles::text as roles, qual, with_check
+            from pg_policies where schemaname = {ql(schema)} and tablename = {ql(table)} order by policyname"""),
+        "triggers": psql_json(d, f"""select tgname as name, pg_get_triggerdef(oid) as def from pg_trigger
+            where tgrelid = {reg}::regclass and not tgisinternal order by tgname"""),
+        "info": (psql_json(d, f"""select c.relrowsecurity as rls, pg_total_relation_size(c.oid) as size,
+                   greatest(c.reltuples,0)::bigint as rows_est, obj_description(c.oid) as comment,
+                   s.seq_scan, s.idx_scan, s.n_tup_ins, s.n_tup_upd, s.n_tup_del, s.n_dead_tup,
+                   s.last_autovacuum, s.last_autoanalyze
+            from pg_class c left join pg_stat_all_tables s on s.relid = c.oid
+            where c.oid = {reg}::regclass""") or [{}])[0],
+    }
+
+
+def db_sql(dbid, sql, max_rows=1000):
+    import csv
+    import io
+    d = db_conf(dbid)
+    if not sql.strip():
+        raise DbError("Пустой запрос")
+    t0 = time.time()
+    out = psql(d, sql, csv_mode=True, timeout=40)
+    ms = int((time.time() - t0) * 1000)
+    rd = csv.reader(io.StringIO(out))
+    header = next(rd, None)
+    if header is None:
+        return {"columns": [], "rows": [], "ms": ms, "message": "Выполнено, строк нет"}
+    rows, truncated = [], False
+    for row in rd:
+        if len(rows) >= max_rows:
+            truncated = True
+            break
+        rows.append([None if v == NULL else v for v in row])
+    return {"columns": header, "rows": rows, "ms": ms, "truncated": truncated}
+
+
+def db_activity(dbid):
+    d = db_conf(dbid)
+    return {
+        "activity": psql_json(d, """
+            select pid, usename as "user", application_name as app, client_addr::text as client, state,
+                   extract(epoch from now() - query_start)::int as secs, wait_event_type as wait, left(query, 400) as query
+            from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid()
+            order by state = 'active' desc, query_start nulls last limit 100"""),
+        "locks": psql_json(d, """
+            select l.pid, l.mode, l.locktype, c.relname as rel, left(a.query, 200) as query
+            from pg_locks l left join pg_class c on c.oid = l.relation
+            join pg_stat_activity a on a.pid = l.pid where not l.granted limit 50"""),
+    }
+
+
+def db_advisor(dbid):
+    """Советник производительности (как Performance Advisor в Supabase): находки + готовый SQL для исправления.
+    Панель ничего не исправляет сама — только показывает."""
+    d = db_conf(dbid)
+    stats = (psql_json(d, """
+        select round(100.0 * blks_hit / nullif(blks_hit + blks_read, 0), 2) as cache_hit,
+               (select round(100.0 * sum(idx_blks_hit) / nullif(sum(idx_blks_hit + idx_blks_read), 0), 2)
+                  from pg_statio_user_indexes) as index_hit,
+               numbackends as connections, deadlocks, temp_files, temp_bytes, xact_commit, xact_rollback,
+               (select setting::int from pg_settings where name = 'max_connections') as max_connections,
+               pg_database_size(datname) as size, stats_reset
+        from pg_stat_database where datname = current_database()""") or [{}])[0]
+    findings = []
+    # 1. Внешние ключи без индекса — медленные join и удаления в родительской таблице
+    for r in psql_json(d, """
+        select c.conrelid::regclass::text as tbl, c.conname, pg_get_constraintdef(c.oid) as def,
+               string_agg(a.attname, ', ' order by k.n) as cols,
+               (select n_live_tup from pg_stat_user_tables s where s.relid = c.conrelid) as live
+        from pg_constraint c
+        cross join lateral unnest(c.conkey) with ordinality k(attnum, n)
+        join pg_attribute a on a.attrelid = c.conrelid and a.attnum = k.attnum
+        join pg_namespace ns on ns.oid = (select relnamespace from pg_class where oid = c.conrelid)
+        where c.contype = 'f' and ns.nspname not in ('pg_catalog','information_schema','auth','storage','realtime','supabase_functions','extensions','net','vault','cron','pgsodium','graphql')
+          and not exists (select 1 from pg_index i where i.indrelid = c.conrelid
+                          and (i.indkey::int2[])[0:array_length(c.conkey,1)-1] @> c.conkey
+                          and (i.indkey::int2[])[0:array_length(c.conkey,1)-1] <@ c.conkey)
+        group by c.oid, c.conrelid, c.conname order by live desc nulls last limit 40"""):
+        findings.append({"kind": "fk_no_index", "level": "warn" if (r["live"] or 0) > 1000 else "info",
+                         "title": f"Внешний ключ без индекса: {r['tbl']} ({r['cols']})",
+                         "detail": f"{r['def']}. Join по этой связи и удаление строк в родительской таблице читают {r['tbl']} целиком. Строк: {r['live'] or 0}.",
+                         "sql": f"create index concurrently on {r['tbl']} ({r['cols']});"})
+    # 2. Таблицы, которые чаще читаются целиком, чем по индексу
+    for r in psql_json(d, """
+        select schemaname || '.' || relname as tbl, seq_scan, seq_tup_read, idx_scan, n_live_tup as live
+        from pg_stat_user_tables
+        where n_live_tup > 5000 and seq_scan > 50 and seq_scan > coalesce(idx_scan, 0)
+        order by seq_tup_read desc limit 15"""):
+        findings.append({"kind": "seq_scan", "level": "warn",
+                         "title": f"Чтение целиком: {r['tbl']}",
+                         "detail": f"{r['seq_scan']} полных просмотров против {r['idx_scan'] or 0} по индексу, прочитано {r['seq_tup_read']} строк, в таблице {r['live']}. Найдите запросы к ней в «Медленных запросах» и добавьте индекс по их условиям.",
+                         "sql": None})
+    # 3. Индексы, которые ни разу не использовались (кроме первичных и уникальных — они держат ограничения)
+    for r in psql_json(d, """
+        select s.schemaname || '.' || s.indexrelname as idx, s.schemaname || '.' || s.relname as tbl,
+               pg_relation_size(s.indexrelid) as size, s.idx_scan
+        from pg_stat_user_indexes s join pg_index i on i.indexrelid = s.indexrelid
+        where s.idx_scan = 0 and not i.indisprimary and not i.indisunique
+          and pg_relation_size(s.indexrelid) > 64 * 1024
+        order by pg_relation_size(s.indexrelid) desc limit 20"""):
+        findings.append({"kind": "unused_index", "level": "info",
+                         "title": f"Индекс не используется: {r['idx']}",
+                         "detail": f"На {r['tbl']}, занимает {r['size']} байт и замедляет каждую запись. 0 обращений с момента сброса статистики ({stats.get('stats_reset') or 'с запуска'}) — если база работает недавно, подождите.",
+                         "sql": f"drop index concurrently {r['idx']};", "size": r["size"]})
+    # 4. Мёртвые строки — autovacuum не успевает
+    for r in psql_json(d, """
+        select schemaname || '.' || relname as tbl, n_live_tup as live, n_dead_tup as dead, last_autovacuum
+        from pg_stat_user_tables where n_dead_tup > 1000 and n_dead_tup > n_live_tup * 0.2
+        order by n_dead_tup desc limit 15"""):
+        findings.append({"kind": "dead_tuples", "level": "warn",
+                         "title": f"Много мёртвых строк: {r['tbl']}",
+                         "detail": f"{r['dead']} мёртвых на {r['live']} живых, последний autovacuum: {r['last_autovacuum'] or 'никогда'}.",
+                         "sql": f"vacuum (analyze) {r['tbl']};"})
+    # 5. Дубликаты индексов
+    # Удалять предлагаем только индекс, который не держит ограничение (первичный ключ, unique, exclude):
+    # такие удаляются вместе с ограничением, и «лишний» может оказаться единственной защитой уникальности.
+    for r in psql_json(d, """
+        select indrelid::regclass::text as tbl,
+               json_agg(json_build_object('name', indexrelid::regclass::text, 'pk', indisprimary,
+                        'uniq', indisunique,
+                        'con', exists (select 1 from pg_constraint c where c.conindid = x.indexrelid))
+                        order by indisprimary desc, indisunique desc) as idx
+        from pg_index x join pg_class t on t.oid = x.indrelid join pg_namespace n on n.oid = t.relnamespace
+        where n.nspname !~ '^pg_'
+        group by indrelid, indkey, indclass, indexprs::text, indpred::text
+        having count(*) > 1 limit 20"""):
+        idx = r["idx"]
+        removable = [i for i in idx if not i["con"] and not i["pk"]]
+        # если все — ограничения, ничего не предлагаем; если нет ни одного ограничения — оставляем первый
+        if len(removable) == len(idx):
+            removable = removable[1:]
+        names = ", ".join(i["name"] for i in idx)
+        findings.append({"kind": "dup_index", "level": "warn" if removable else "info",
+                         "title": f"Одинаковые индексы на {r['tbl']}",
+                         "detail": f"{names} — индексы по одним и тем же колонкам. "
+                                   + ("Лишний только тратит место и замедляет каждую запись."
+                                      if removable else "Все они держат ограничения — удалять их надо через само ограничение, вручную."),
+                         "sql": "\n".join(f"drop index concurrently {i['name']};" for i in removable) or None})
+    # 6. Таблицы без первичного ключа
+    for r in psql_json(d, """
+        select n.nspname || '.' || c.relname as tbl, greatest(c.reltuples,0)::bigint as rows
+        from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where c.relkind = 'r' and n.nspname not in ('pg_catalog','information_schema','auth','storage','realtime','supabase_functions','extensions','net','vault','cron','pgsodium','graphql','_realtime','supabase_migrations')
+          and n.nspname !~ '^pg_' and not exists (select 1 from pg_index i where i.indrelid = c.oid and i.indisprimary)
+        limit 20"""):
+        findings.append({"kind": "no_pk", "level": "info", "title": f"Нет первичного ключа: {r['tbl']}",
+                         "detail": f"Строк: {r['rows']}. Без него нельзя надёжно адресовать строку, а репликация и некоторые инструменты отказываются работать.",
+                         "sql": None})
+    if stats.get("cache_hit") is not None and stats["cache_hit"] < 99 and (stats.get("size") or 0) > 50 * 1024 * 1024:
+        findings.insert(0, {"kind": "cache", "level": "warn", "title": f"Попадание в кэш {stats['cache_hit']}%",
+                            "detail": "Меньше 99% — база часто читает с диска. Обычно лечится индексами или увеличением shared_buffers.",
+                            "sql": "show shared_buffers;"})
+    if stats.get("max_connections") and stats.get("connections", 0) > 0.8 * stats["max_connections"]:
+        findings.insert(0, {"kind": "conn", "level": "warn", "title": "Подключений почти под лимит",
+                            "detail": f"{stats['connections']} из {stats['max_connections']}.", "sql": None})
+    # Медленные запросы: pg_stat_statements лежит в public (обычный Postgres) или в extensions (Supabase).
+    top = None  # None — расширение в этой базе не подключено
+    ext = psql(d, "select n.nspname from pg_extension e join pg_namespace n on n.oid = e.extnamespace "
+                  "where e.extname = 'pg_stat_statements'").strip()
+    if ext:
+        top = psql_json(d, f"""
+            select calls, round(total_exec_time)::bigint as total_ms, round(mean_exec_time::numeric, 1) as mean_ms,
+                   round(max_exec_time::numeric, 1) as max_ms, rows,
+                   round(100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0), 1) as hit,
+                   left(query, 1500) as query
+            from {qi(ext)}.pg_stat_statements where dbid = (select oid from pg_database where datname = current_database())
+              and query not ilike '%pg_stat_statements%'
+            order by total_exec_time desc limit 30""")
+    rank = {"warn": 0, "info": 1}
+    findings.sort(key=lambda f: rank.get(f["level"], 2))
+    return {"stats": stats, "findings": findings, "top": top}
+
+
+def setup_db_roles():
+    """Роль только для чтения во всех кластерах (запускается из install.sh: server.py setup-db)."""
+    sql = f"""
+do $$ begin
+  if not exists (select from pg_roles where rolname = '{RO_ROLE}') then
+    create role {RO_ROLE} login bypassrls;
+  end if;
+end $$;
+alter role {RO_ROLE} login bypassrls nosuperuser nocreatedb nocreaterole noreplication connection limit 8;
+grant pg_read_all_data to {RO_ROLE};
+grant pg_read_all_stats to {RO_ROLE};
+alter role {RO_ROLE} set default_transaction_read_only = on;
+alter role {RO_ROLE} set statement_timeout = '20s';
+alter role {RO_ROLE} set idle_in_transaction_session_timeout = '30s';"""
+    done = set()
+    for d in DATABASES:
+        if d["container"] in done:
+            continue
+        done.add(d["container"])
+        code, out, err = docker_exec(d["container"], ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1",
+                                                      "-U", d["admin"], "-d", d["db"], "-c", sql])
+        print(d["container"], "ok" if code == 0 else "ОШИБКА: " + err.strip())
+
+
 # ── Ошибки и журналы (как Logs в Vercel/Supabase) ──────────────────────────────
 # Источники: журналы контейнеров, systemd-службы, файлы. Ошибки группируются по «отпечатку»
 # (сообщение без чисел, id, времени) — как Issues в Sentry: сколько раз, когда первый/последний.
@@ -1014,6 +1367,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send(401, json.dumps({"error": msg}, ensure_ascii=False))
         if not self.session_ok():
             return self.send(401, json.dumps({"error": "Сессия истекла, войдите снова"}, ensure_ascii=False))
+        if u.path == "/api/db/sql":
+            try:
+                res = db_sql(str(data.get("db", "")), str(data.get("sql", ""))[:100_000])
+            except DbError as e:
+                return self.send(400, json.dumps({"error": str(e)}, ensure_ascii=False))
+            print(f"db: sql в {data.get('db')} с {ip}", flush=True)
+            return self.send(200, json.dumps(res, ensure_ascii=False))
         if u.path == "/api/logout":
             return self.send(200, '{"ok":true}', headers=[("Set-Cookie", f"{COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict")])
         if u.path == "/api/password":
@@ -1044,7 +1404,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(302, "", headers=[("Location", "/login")])
             if u.path == "/":
                 return self.page("index.html")
-            if u.path in ("/views.js", "/views.css"):
+            if u.path in ("/views.js", "/views.css", "/db.js"):
                 with open(os.path.join(HERE, u.path[1:]), "rb") as f:
                     ctype = "text/javascript" if u.path.endswith(".js") else "text/css"
                     return self.send(200, f.read(), ctype + "; charset=utf-8")
@@ -1063,6 +1423,28 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(200, json.dumps(logs_query(sids, arg("q"), arg("level"), minutes, limit), ensure_ascii=False))
             if u.path == "/api/cron":
                 return self.send(200, json.dumps(cron_report(), ensure_ascii=False))
+            if u.path.startswith("/api/db/"):
+                try:
+                    what = u.path[len("/api/db/"):]
+                    if what == "list":
+                        res = db_list()
+                    elif what == "tables":
+                        res = db_tables(arg("db"))
+                    elif what == "rows":
+                        res = db_rows(arg("db"), arg("schema"), arg("table"),
+                                      max(1, min(int(arg("limit", "50") or 50), 500)), max(0, int(arg("offset", "0") or 0)),
+                                      arg("order"), arg("dir"), json.loads(arg("f", "[]") or "[]"))
+                    elif what == "structure":
+                        res = db_structure(arg("db"), arg("schema"), arg("table"))
+                    elif what == "activity":
+                        res = db_activity(arg("db"))
+                    elif what == "advisor":
+                        res = db_advisor(arg("db"))
+                    else:
+                        return self.send(404, "{}")
+                except DbError as e:
+                    return self.send(400, json.dumps({"error": str(e)}, ensure_ascii=False))
+                return self.send(200, json.dumps(res, ensure_ascii=False, default=str))
             if u.path == "/api/history":
                 rng = max(3600, min(int(arg("range", "86400") or 86400), 31 * 86400))
                 return self.send(200, json.dumps(sys_history(rng)))
@@ -1111,6 +1493,9 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 if __name__ == "__main__":
     import sys
+    if sys.argv[1:2] == ["setup-db"]:
+        setup_db_roles()
+        sys.exit(0)
     if sys.argv[1:2] == ["set-password"]:
         # Первая установка или сброс забытого пароля (на сервере):
         #   STATUS_PASSWORD=... python3 server.py set-password [логин]
