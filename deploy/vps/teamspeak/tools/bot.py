@@ -20,7 +20,8 @@ FAST, SLOW = 2, 15
 
 LOBBY, AFK_NAME, ROOMS, CREATE = "Лобби", "AFK", "Свои комнаты", "+ Создать комнату"
 SKIP_CHANNELS = {"AFK", "Администрация"}
-SKIP_NICKS = {"F16 Music"}  # музыкальный бот молчит между треками — не трогать
+MUSIC_BOT, MUSIC_CHANNEL = "F16 Music", "Музыка"
+SKIP_NICKS = {MUSIC_BOT}  # музыкальный бот молчит между треками — не трогать
 AWAY_AFTER = 2 * 60          # статус «отошёл» — через 2 минуты
 MUTED_AFTER = 10 * 60        # выключен звук и молчит — через 10 минут
 IDLE_AFTER = 60 * 60         # просто молчит — через час
@@ -233,10 +234,20 @@ class Bot:
                     except Exception as e:
                         log("command error", e)
 
+            # F16 Music живёт только в «Музыке»
+            music = self.cid.get(MUSIC_CHANNEL)
+            for c in clients:
+                if c["client_nickname"] == MUSIC_BOT and music and c["cid"] != music:
+                    try:
+                        self.ts.cmd("clientmove clid=%s cid=%s" % (c["clid"], music))
+                        log("music bot returned from", self.cname.get(c["cid"]))
+                    except Exception as e:
+                        log("music bot move", e)
+
             # «+ Создать комнату»
             create = self.cid.get(CREATE)
             for c in clients:
-                if create and c["cid"] == create:
+                if create and c["cid"] == create and c["client_nickname"] != MUSIC_BOT:
                     try:
                         self.make_room(c, "Комната " + c["client_nickname"])
                     except Exception as e:
