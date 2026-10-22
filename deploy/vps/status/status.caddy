@@ -1,14 +1,13 @@
-# Панель состояния сервера. Ставится install.sh в /etc/caddy/sites/status.caddy,
-# PASSWORD_HASH заменяется bcrypt-хешем (caddy hash-password). Пароль — у владельца в server.txt.
+# Панель состояния сервера. Ставится install.sh в /etc/caddy/sites/status.caddy.
+# Вход — своя страница в server.py (пароль меняется из панели), не basic_auth Caddy.
 status.commrent.kz {
-	basic_auth {
-		admin PASSWORD_HASH
-	}
 	encode zstd gzip
 	header {
 		X-Robots-Tag "noindex, nofollow"
 		X-Frame-Options DENY
 		Referrer-Policy no-referrer
+		Strict-Transport-Security "max-age=31536000"
+		-Server
 	}
 	reverse_proxy 127.0.0.1:3400
 }

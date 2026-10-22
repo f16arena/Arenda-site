@@ -13,11 +13,14 @@
 import calendar
 import collections
 import concurrent.futures
+import hashlib
+import hmac
 import http.client
 import http.server
 import json
 import os
 import re
+import secrets
 import socket
 import socketserver
 import ssl
@@ -432,28 +435,198 @@ def build_state():
     return {"now": int(time.time()), "server": server, "projects": projects, "containers_at": c_at}
 
 
+# ── Вход ───────────────────────────────────────────────────────────────────────
+# Пароль хранится только как scrypt-хеш в /var/lib/server-status/auth.json. Сессия — подписанная
+# кука (HMAC ключом из того же файла); смена пароля меняет ключ, и все остальные сессии гаснут.
+STATE_DIR = os.environ.get("STATE_DIRECTORY", "/var/lib/server-status")
+AUTH_FILE = os.path.join(STATE_DIR, "auth.json")
+COOKIE = "cs_session"
+SESSION_DAYS = 30
+MAX_FAILS, LOCK_MINUTES = 5, 15
+AUTH = {}
+FAILS = {}  # ip -> [время неудачных попыток]
+
+
+def _hash(password, salt):
+    return hashlib.scrypt(password.encode(), salt=salt, n=2 ** 14, r=8, p=1, maxmem=64 * 1024 * 1024).hex()
+
+
+def auth_set(user, password):
+    salt = secrets.token_bytes(16)
+    data = {"user": user, "salt": salt.hex(), "hash": _hash(password, salt),
+            "key": secrets.token_hex(32), "changed": int(time.time())}
+    os.makedirs(STATE_DIR, exist_ok=True)
+    tmp = AUTH_FILE + ".tmp"
+    with open(os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w") as f:
+        json.dump(data, f)
+    os.replace(tmp, AUTH_FILE)
+    AUTH.clear()
+    AUTH.update(data)
+
+
+def auth_load():
+    try:
+        with open(AUTH_FILE) as f:
+            AUTH.update(json.load(f))
+    except FileNotFoundError:
+        print("auth: пароль не задан — войти нельзя. Задать: STATUS_PASSWORD=... python3 server.py set-password", flush=True)
+
+
+def auth_verify(user, password):
+    if not AUTH or not password:
+        return False
+    ok_user = hmac.compare_digest(user.strip().lower(), AUTH["user"].lower())
+    ok_pass = hmac.compare_digest(_hash(password, bytes.fromhex(AUTH["salt"])), AUTH["hash"])
+    return ok_user and ok_pass
+
+
+def _sign(payload):
+    return hmac.new(bytes.fromhex(AUTH["key"]), payload.encode(), hashlib.sha256).hexdigest()
+
+
+def auth_cookie(remember):
+    exp = int(time.time()) + SESSION_DAYS * 86400
+    payload = f"{exp}.{secrets.token_hex(8)}"
+    age = f"; Max-Age={SESSION_DAYS * 86400}" if remember else ""
+    return f"{COOKIE}={payload}.{_sign(payload)}; Path=/; HttpOnly; Secure; SameSite=Strict{age}"
+
+
+def auth_check_cookie(header):
+    if not AUTH:
+        return False
+    for part in header.split(";"):
+        k, _, v = part.strip().partition("=")
+        if k == COOKIE:
+            payload, _, sig = v.rpartition(".")
+            try:
+                exp = int(payload.split(".")[0])
+            except ValueError:
+                return False
+            return exp > time.time() and hmac.compare_digest(_sign(payload), sig)
+    return False
+
+
+def auth_locked(ip):
+    now = time.time()
+    with LOCK:
+        recent = [t for t in FAILS.get(ip, []) if now - t < LOCK_MINUTES * 60]
+        FAILS[ip] = recent
+    return int(LOCK_MINUTES * 60 - (now - recent[0])) if len(recent) >= MAX_FAILS else 0
+
+
+def auth_fail(ip):
+    with LOCK:
+        FAILS.setdefault(ip, []).append(time.time())
+        return MAX_FAILS - len(FAILS[ip])
+
+
+def auth_reset_fails(ip):
+    with LOCK:
+        FAILS.pop(ip, None)
+
+
+def password_problem(pw, login):
+    if len(pw) < 10:
+        return "Минимум 10 символов"
+    if len(pw) > 200:
+        return "Слишком длинный пароль"
+    if pw.lower() == login.lower() or pw.lower() in ("password123", "qwerty12345", "1234567890"):
+        return "Слишком простой пароль"
+    if len(set(pw)) < 5:
+        return "Слишком однообразный пароль"
+    return None
+
+
 # ── HTTP ───────────────────────────────────────────────────────────────────────
 class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
-    def send(self, code, body, ctype="application/json; charset=utf-8"):
+    def send(self, code, body, ctype="application/json; charset=utf-8", headers=()):
         if isinstance(body, str):
             body = body.encode()
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
+        for k, v in headers:
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def page(self, name):
+        with open(os.path.join(HERE, name), "rb") as f:
+            return self.send(200, f.read(), "text/html; charset=utf-8")
+
+    def client_ip(self):
+        # Сюда ходит только Caddy, он кладёт адрес клиента в X-Forwarded-For.
+        return (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+
+    def session_ok(self):
+        return auth_check_cookie(self.headers.get("Cookie", ""))
+
+    def do_POST(self):
+        u = urllib.parse.urlparse(self.path)
+        # Защита от подделки запроса с чужого сайта: кука SameSite=Strict + только JSON + свой Origin.
+        origin = self.headers.get("Origin")
+        if origin and urllib.parse.urlparse(origin).netloc != self.headers.get("Host"):
+            return self.send(403, json.dumps({"error": "Чужой источник запроса"}))
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return self.send(415, "{}")
+        try:
+            data = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 10_000)) or b"{}")
+        except ValueError:
+            return self.send(400, "{}")
+        ip = self.client_ip()
+        if u.path == "/api/login":
+            wait = auth_locked(ip)
+            if wait:
+                return self.send(429, json.dumps({"error": f"Слишком много попыток. Попробуйте через {wait // 60 + 1} мин."},
+                                                 ensure_ascii=False))
+            if auth_verify(str(data.get("login", "")), str(data.get("password", ""))):
+                auth_reset_fails(ip)
+                print(f"auth: вход {ip}", flush=True)
+                return self.send(200, '{"ok":true}', headers=[("Set-Cookie", auth_cookie(data.get("remember", True)))])
+            left = auth_fail(ip)
+            print(f"auth: неверный пароль {ip}", flush=True)
+            msg = "Неверный логин или пароль" + (f". Осталось попыток: {left}" if 0 < left < 3 else "")
+            if left <= 0:
+                msg = f"Вход заблокирован на {LOCK_MINUTES} минут — слишком много неверных попыток"
+            return self.send(401, json.dumps({"error": msg}, ensure_ascii=False))
+        if not self.session_ok():
+            return self.send(401, json.dumps({"error": "Сессия истекла, войдите снова"}, ensure_ascii=False))
+        if u.path == "/api/logout":
+            return self.send(200, '{"ok":true}', headers=[("Set-Cookie", f"{COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict")])
+        if u.path == "/api/password":
+            cur, new = str(data.get("current", "")), str(data.get("new", ""))
+            login = str(data.get("login") or AUTH["user"]).strip()
+            if not auth_verify(AUTH["user"], cur):
+                return self.send(400, json.dumps({"error": "Текущий пароль неверный", "field": "current"}, ensure_ascii=False))
+            problem = password_problem(new, login)
+            if problem:
+                return self.send(400, json.dumps({"error": problem, "field": "new"}, ensure_ascii=False))
+            if not re.fullmatch(r"[A-Za-z0-9._@-]{3,40}", login):
+                return self.send(400, json.dumps({"error": "Логин: 3–40 символов, латиница, цифры, . _ @ -",
+                                                  "field": "login"}, ensure_ascii=False))
+            auth_set(login, new)  # меняет и ключ сессий — все остальные устройства выйдут
+            print(f"auth: пароль изменён с {ip}", flush=True)
+            return self.send(200, json.dumps({"ok": True, "user": login}), headers=[("Set-Cookie", auth_cookie(True))])
+        return self.send(404, "{}")
 
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         q = urllib.parse.parse_qs(u.query)
         try:
+            if u.path == "/login":
+                return self.page("login.html")
+            if not self.session_ok():
+                if u.path.startswith("/api/"):
+                    return self.send(401, json.dumps({"error": "unauthorized"}))
+                return self.send(302, "", headers=[("Location", "/login")])
             if u.path == "/":
-                with open(os.path.join(HERE, "index.html"), "rb") as f:
-                    return self.send(200, f.read(), "text/html; charset=utf-8")
+                return self.page("index.html")
+            if u.path == "/api/me":
+                return self.send(200, json.dumps({"user": AUTH["user"], "changed": AUTH.get("changed")}))
             if u.path == "/api/state":
                 LAST_VIEW[0] = time.time()
                 return self.send(200, json.dumps(build_state(), ensure_ascii=False))
@@ -483,6 +656,14 @@ class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
 
 
 if __name__ == "__main__":
+    import sys
+    if sys.argv[1:2] == ["set-password"]:
+        # Первая установка или сброс забытого пароля (на сервере):
+        #   STATUS_PASSWORD=... python3 server.py set-password [логин]
+        auth_set(sys.argv[2] if len(sys.argv) > 2 else "admin", os.environ["STATUS_PASSWORD"])
+        print("пароль сохранён:", AUTH_FILE)
+        sys.exit(0)
+    auth_load()
     for fn in (sampler, container_sampler, checker):
         threading.Thread(target=fn, daemon=True).start()
     print(f"status: http://{LISTEN[0]}:{LISTEN[1]}", flush=True)
