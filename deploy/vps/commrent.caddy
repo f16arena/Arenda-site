@@ -8,13 +8,25 @@
 # ВАЖНО: не писать адрес `*.commrent.kz` с on_demand — так Caddy 2.11 ломает TLS у соседних
 # точных хостов (jiyn/ecp/pdf), проверено 22.10.2026. Поэтому on-demand висит на catch-all `https://`:
 # точные хосты обслуживаются своими блоками, всё остальное — сюда, а чужое отсекает ask.
+#
+# Catch-all общий с Orda (orda.caddy): поддомены *.ordaops.kz уходят в orda-web (127.0.0.1:3200),
+# и сертификат для них разрешает само Orda (/api/tls/ask). Остальное — как было, в Commrent.
 
 # Проверка «можно ли выпускать сертификат» — спрашиваем само приложение (/api/tls/ask):
 # пускает только корень, www и поддомены существующих организаций.
 http://127.0.0.1:5555 {
-	rewrite * /api/tls/ask?{query}
-	reverse_proxy 127.0.0.1:3300 {
-		header_up Host commrent.kz
+	@orda expression `{query.domain}.endsWith(".ordaops.kz") || {query.domain} == "ordaops.kz"`
+	handle @orda {
+		rewrite * /api/tls/ask?{query}
+		reverse_proxy 127.0.0.1:3200 {
+			header_up Host www.ordaops.kz
+		}
+	}
+	handle {
+		rewrite * /api/tls/ask?{query}
+		reverse_proxy 127.0.0.1:3300 {
+			header_up Host commrent.kz
+		}
 	}
 }
 
@@ -23,7 +35,13 @@ https:// {
 		on_demand
 	}
 	encode zstd gzip
-	reverse_proxy 127.0.0.1:3300
+	@orda host *.ordaops.kz
+	handle @orda {
+		reverse_proxy 127.0.0.1:3200
+	}
+	handle {
+		reverse_proxy 127.0.0.1:3300
+	}
 }
 
 http://commrent.kz, http://www.commrent.kz, http://*.commrent.kz {
