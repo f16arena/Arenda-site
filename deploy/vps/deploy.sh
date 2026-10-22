@@ -14,4 +14,9 @@ SSH=(ssh -F "$K/config" -o UserKnownHostsFile="$K/known_hosts" -i "$K/id_ed25519
 TREE=$(git stash create)
 TREE=${TREE:-HEAD}
 TAG="$(git rev-parse --short HEAD)$([ "$TREE" = HEAD ] || echo -local)"
-git archive --format=tar "$TREE" | "${SSH[@]}" /opt/commrent/deploy-server.sh "$TAG"
+# Заголовок коммита — для журнала выкаток на панели status.commrent.kz.
+SUBJ_FILE=.deploy-subject
+git log -1 --format=%s > "$SUBJ_FILE"
+[ "$TREE" = HEAD ] || sed -i 's/$/ (+ локальные правки)/' "$SUBJ_FILE"
+trap 'rm -f "$SUBJ_FILE"' EXIT
+git archive --format=tar --add-file="$SUBJ_FILE" "$TREE" | "${SSH[@]}" /opt/commrent/deploy-server.sh "$TAG"

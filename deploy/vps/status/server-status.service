@@ -1,0 +1,19 @@
+# Панель состояния cloud-001 (status.commrent.kz). Ставится install.sh в /etc/systemd/system/.
+[Unit]
+Description=cloud-001 status page
+After=network-online.target docker.service
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/server-status/server.py
+Restart=always
+RestartSec=3
+# Только читает: /proc, docker.sock, журналы. Писать ему некуда.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+MemoryMax=200M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target

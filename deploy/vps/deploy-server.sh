@@ -17,12 +17,20 @@ RAW="${1:-${SSH_ORIGINAL_COMMAND:-}}"
 TAG=$(printf '%s' "$RAW" | tr -cd 'a-zA-Z0-9._-' | cut -c1-60)
 TAG="${TAG:-manual}-$(date -u +%m%d%H%M)"
 log() { echo "$(date -u +%T) $*"; }
+# Журнал выкаток для панели состояния (status.commrent.kz): «время deploy <метка>», затем «время ok»
+# или текст ошибки. Тот же формат, что у Orda (/var/log/orda-deploy.log).
+DLOG=/var/log/commrent-deploy.log
+dlog() { echo "$(date -u +%FT%TZ) $*" >> "$DLOG"; }
+trap 'rc=$?; [ $rc -ne 0 ] && [ -z "${DLOG_DONE:-}" ] && dlog "ОШИБКА (код $rc)"' EXIT
 log "Деплой $TAG"
 
 log "1. Исходники"
 rm -rf src.new && mkdir src.new
 tar -x -C src.new
 cp src.new/deploy/vps/Dockerfile src.new/Dockerfile
+# Заголовок коммита кладёт в архив отправляющая сторона (git archive --add-file=.deploy-subject).
+SUBJ=$(head -c 300 src.new/.deploy-subject 2>/dev/null | tr -d '\r\n' || true)
+dlog "deploy $TAG $SUBJ"
 
 log "2. Сборка образа"
 set -a; . ./.env; set +a
@@ -33,13 +41,13 @@ if ! docker build -t "commrent-web:$TAG" \
     --build-arg DEPLOYMENT_VERSION="$TAG" \
     --build-arg GIT_COMMIT_SHA="${TAG%%-*}" \
     src.new > build.log 2>&1; then
-  tail -60 build.log; log "СБОРКА УПАЛА — работающая версия не тронута"; exit 1
+  tail -60 build.log; log "СБОРКА УПАЛА — работающая версия не тронута"; dlog "СБОРКА УПАЛА, работает прежняя версия"; DLOG_DONE=1; exit 1
 fi
 
 log "3. Миграции"
 if ! WEB_TAG="$TAG" docker compose run --rm -T --no-deps web node scripts/deploy-migrations.mjs \
     < /dev/null > migrate.log 2>&1; then
-  tail -30 migrate.log; log "МИГРАЦИИ УПАЛИ — работающая версия не тронута"; exit 1
+  tail -30 migrate.log; log "МИГРАЦИИ УПАЛИ — работающая версия не тронута"; dlog "МИГРАЦИИ УПАЛИ, работает прежняя версия"; DLOG_DONE=1; exit 1
 fi
 tail -3 migrate.log
 
@@ -62,6 +70,7 @@ if ! health; then
     docker compose up -d web < /dev/null 2>&1 | tail -1
     health && log "Откат выполнен, сайт работает на прежней версии"
   fi
+  dlog "ОТКАТ: новая версия не поднялась"; DLOG_DONE=1
   exit 1
 fi
 
@@ -79,6 +88,7 @@ docker images commrent-web --format '{{.Tag}}' | grep -v '^latest$' | tail -n +5
   | xargs -r -I{} docker rmi "commrent-web:{}" > /dev/null 2>&1 || true
 docker image prune -f > /dev/null
 log "Готово: $TAG, health: healthy"
+dlog "ok"; DLOG_DONE=1
 # Сам себя обновляем последним действием: rename атомарен, а bash дочитывает старый файл
 # по уже открытому дескриптору — запущенный экземпляр это не ломает.
 mv -f deploy-server.sh.next deploy-server.sh

@@ -5,5 +5,6 @@ deploy/vps/*.cron    text eol=lf
 deploy/vps/*.caddy   text eol=lf
 deploy/vps/*.yml     text eol=lf
 deploy/vps/Dockerfile text eol=lf
+deploy/vps/status/* text eol=lf
 # PowerShell 5.1 на Windows читает .ps1 без BOM как ANSI — файл хранится в UTF-8 с BOM, не трогаем.
 deploy/vps/*.ps1     -text

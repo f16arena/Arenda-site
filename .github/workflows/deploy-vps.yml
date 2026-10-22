@@ -39,6 +39,8 @@ jobs:
           printf '%s\n' "$VPS_DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          git archive --format=tar HEAD \
+          # Заголовок коммита — для журнала выкаток на панели status.commrent.kz.
+          git log -1 --format=%s > .deploy-subject
+          git archive --format=tar --add-file=.deploy-subject HEAD \
             | ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
                   -o ServerAliveInterval=30 root@185.113.132.3 "${GITHUB_SHA::8}"

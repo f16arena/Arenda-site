@@ -76,3 +76,6 @@ public/pdf.worker.min.mjs
 
 # promo video renders
 brag-output*/
+
+# Временный файл ручного деплоя (deploy/vps/deploy.sh)
+.deploy-subject
