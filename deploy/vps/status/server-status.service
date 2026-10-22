@@ -15,7 +15,10 @@ PrivateTmp=yes
 # Пароль (scrypt-хеш) и ключ сессий — /var/lib/server-status/auth.json, единственное, куда служба пишет.
 StateDirectory=server-status
 StateDirectoryMode=0700
-MemoryMax=300M
+# Чтение journald (3,5 ГБ) засчитывается в память службы как кэш файлов: на MemoryHigh ядро его
+# вытесняет, а не убивает процесс (при MemoryMax=300M без High отчёт за 7 дней ловил OOM).
+MemoryHigh=400M
+MemoryMax=1G
 CPUQuota=50%
 
 [Install]

@@ -1091,8 +1091,38 @@ NOT_ERRORS = re.compile(r"Failed to find Server Action|aborting with incomplete 
 ACCESS_LOG = re.compile(r'"(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) [^"]*HTTP/[\d.]+" (\d{3}) ')
 
 
+# Известный шум cloud-001 — разобран по выгрузке ошибок за 7 дней (22.10.2026). Не ломает сайты,
+# поэтому «предупреждение», а не «ошибка»:
+NOISE_WARN = re.compile(
+    # Supabase ищет соседей по коротким именам (rest, auth…), Docker дописывает домен провайдера
+    # h-157207.kz (его вписывает OpenNebula) — DNS провайдера на такие имена молчит, ответ всё равно находится
+    r"\[resolver\] failed to query external DNS server|"
+    # buildkit: сессии параллельных сборок (Orda/сайты) — «only one connection allowed», сборки проходят
+    r"healthcheck failed fatally|"
+    r"failed to validate image signature|"
+    # боты шлют выдуманные id серверных действий Next.js (Received "x"/"y")
+    r"Server Reference ID did not match the expected format|"
+    # coturn (Jiyn): сканеры рвут соединения; устаревшие ключи запуска
+    r"socket error: Connection reset by peer|no-cli option is deprecated|CONFIG: Unknown argument", re.I)
+NOISE_INFO = re.compile(r"http2: server: error reading preface from client|"
+                        r"Trying to reconnect because of Error", re.I)
+
+
 def level_of(msg):
     m = msg.lower()
+    if NOISE_INFO.search(msg):
+        return "info"
+    if NOISE_WARN.search(msg):
+        return "warn"
+    # TS3AudioBot: «17:12:40.7830| INFO|0| …»
+    lv = re.search(r"^\S*\|\s*(INFO|DEBUG|TRACE|WARN|ERROR|FATAL)\|", msg)
+    if lv:
+        return {"WARN": "warn", "ERROR": "error", "FATAL": "error"}.get(lv.group(1), "info")
+    # pino (Supabase storage и др.): «"level":40» — 30 info, 40 warn, 50+ error
+    lv = re.search(r'"level"\s*:\s*(\d{2})\b', msg)
+    if lv:
+        n = int(lv.group(1))
+        return "error" if n >= 50 else "warn" if n >= 40 else "info"
     a = ACCESS_LOG.search(msg)
     if a:  # строка журнала доступа (nginx/envoy): уровень по коду ответа, а не по словам в адресе
         code = int(a.group(1))
@@ -1349,7 +1379,7 @@ def export_file(kind, arg):
         return base + ".csv", to_csv(["Время", "Проект", "Источник", "Текст"], [(fmt_t(t), p, src, m) for t, p, src, m in rows]), "text/csv"
     if kind == "logs":
         sids = [x for x in arg("src").split(",") if x]
-        d = logs_query(sids, arg("q"), arg("level"), int(arg("minutes", "60") or 0), EXPORT_MAX, tail=50000)
+        d = logs_query(sids, arg("q"), arg("level"), int(arg("minutes", "60") or 0), EXPORT_MAX, tail=20000)
         names = {x["id"]: x["name"] for x in log_sources()}
         body = "\n".join("%s  %-5s %s  %s" % (fmt_t(r["t"]), r["lv"], names.get(r["src"], r["src"]), r["msg"]) for r in d["lines"])
         return "logs-%s.log" % stamp, body + "\n", "text/plain"
