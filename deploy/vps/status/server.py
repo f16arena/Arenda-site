@@ -1134,7 +1134,10 @@ ERR_BUSY = set()
 def errors_report(hours):
     """Отчёт об ошибках. Сбор занимает 4–6 с (35 источников, journald 3,5 ГБ), поэтому:
     свежий кэш — сразу; устаревший — тоже сразу, а пересчёт уходит в фон; без кэша — ждём."""
+    ERR_WANT[hours] = time.time()
     hit = ERR_CACHE.get(hours)
+    if not hit:
+        hit = _errors_disk(hours)
     if hit and time.time() - hit[0] < 55:
         return hit[1]
     if hit:
@@ -1160,15 +1163,37 @@ def _errors_refresh_async(hours):
     threading.Thread(target=run, daemon=True).start()
 
 
+ERR_WANT = {1: 0, 24: 0}  # период -> когда его последний раз открывали
+
+
+def _errors_file(hours):
+    return os.path.join(STATE_DIR, "errors-%d.json" % hours)
+
+
+def _errors_disk(hours):
+    """Последний отчёт с диска — чтобы после рестарта панели не ждать сборку."""
+    try:
+        with open(_errors_file(hours), encoding="utf-8") as f:
+            hit = json.load(f)
+        ERR_CACHE.setdefault(hours, (hit["at"], hit["data"]))
+        return ERR_CACHE[hours]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
 def errors_warmer():
-    """Пока панель открыта — держит отчёты за 1 ч (значок в меню) и 24 ч тёплыми."""
-    for h in (1, 24):  # после рестарта сразу, чтобы первое открытие не ждало
+    """Пока панель открыта — держит тёплыми 1 ч (значок в меню) и периоды, которые смотрели за 10 минут."""
+    for h in (1, 24):  # после рестарта: сначала то, что на диске, потом свежая сборка в фоне
+        _errors_disk(h)
         _errors_refresh_async(h)
     while True:
-        if time.time() - LAST_VIEW[0] < 600:
-            for h in (1, 24):
+        now = time.time()
+        if now - LAST_VIEW[0] < 600:
+            for h, seen in list(ERR_WANT.items()):
+                if h != 1 and now - seen > 600:
+                    continue
                 hit = ERR_CACHE.get(h)
-                if not hit or time.time() - hit[0] > 45:
+                if not hit or now - hit[0] > 45:
                     _errors_refresh_async(h)
         time.sleep(15)
 
@@ -1225,6 +1250,13 @@ def _errors_collect(hours):
     data = {"hours": hours, "bucket": bucket, "buckets": buckets, "timeline": [timeline.get(b, 0) for b in buckets],
             "groups": items[:300], "total": sum(g["count"] for g in items), "sources": len(srcs)}
     ERR_CACHE[hours] = (time.time(), data)
+    try:
+        tmp = _errors_file(hours) + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"at": ERR_CACHE[hours][0], "data": data}, f, ensure_ascii=False)
+        os.replace(tmp, _errors_file(hours))
+    except OSError as e:
+        print("errors cache save:", e, flush=True)
     return data
 
 
