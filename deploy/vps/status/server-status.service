@@ -15,7 +15,7 @@ PrivateTmp=yes
 # Пароль (scrypt-хеш) и ключ сессий — /var/lib/server-status/auth.json, единственное, куда служба пишет.
 StateDirectory=server-status
 StateDirectoryMode=0700
-MemoryMax=200M
+MemoryMax=300M
 CPUQuota=50%
 
 [Install]

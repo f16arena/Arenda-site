@@ -73,6 +73,26 @@ PROJECTS = [
                  "alert": "/var/log/jiyn-alert.log"},
     },
     {
+        "id": "tour", "name": "F16 Турниры", "url": "https://tournament.f16-arena.kz",
+        "links": ["https://tournament.f16-arena.kz", "https://db.f16-arena.kz"],
+        "repo": "https://github.com/padash00/Tour",
+        "match_dirs": ["/opt/supabase/tour"], "names": ["site-tour"],  # сайты в общем compose /opt/sites/bin — по имени
+        "deploy_log": "/var/log/site-tour-deploy.log", "git_dir": "/opt/sites/tour/app",
+        "deploy_how": "сервер сам проверяет origin/main раз в минуту",
+        "backup_dir": "/opt/supabase/tour/backups", "backup_re": r"^tour-db-.*\.dump$",
+        "logs": {"deploy": "/var/log/site-tour-deploy.log", "backup": "/var/log/tour-backup.log",
+                 "access": "/var/log/caddy/tournament-access.log"},
+    },
+    {
+        "id": "f16arena", "name": "F16 Arena (лендинг)", "url": "https://www.f16-arena.kz",
+        "links": ["https://www.f16-arena.kz"],
+        "repo": "https://github.com/padash00/newf16extra-arena",
+        "match_dirs": [], "names": ["site-f16-arena"],
+        "deploy_log": "/var/log/site-f16-arena-deploy.log", "git_dir": "/opt/sites/f16-arena/app",
+        "deploy_how": "сервер сам проверяет origin/main раз в минуту",
+        "logs": {"deploy": "/var/log/site-f16-arena-deploy.log"},
+    },
+    {
         "id": "shared", "name": "Общие сервисы", "url": None,
         "links": ["https://ecp.commrent.kz", "https://pdf.commrent.kz"],
         "match_dirs": [], "names": ["ncanode", "gotenberg", "buildx_buildkit_polite0"],
@@ -96,6 +116,9 @@ CHECKS = [
     ("orda", "https://www.ordaops.kz/"),
     ("orda", "https://db.ordaops.kz/"),
     ("jiyn", "https://jiyn.commrent.kz/"),
+    ("tour", "https://tournament.f16-arena.kz/"),
+    ("tour", "https://db.f16-arena.kz/"),  # корень отдаёт 404 — это норма, база жива
+    ("f16arena", "https://www.f16-arena.kz/"),
     ("shared", "https://ecp.commrent.kz/"),
     ("shared", "https://pdf.commrent.kz/"),
 ]
@@ -1105,10 +1128,63 @@ def fingerprint(msg):
 ERR_CACHE = {}
 
 
+ERR_BUSY = set()
+
+
 def errors_report(hours):
+    """Отчёт об ошибках. Сбор занимает 4–6 с (35 источников, journald 3,5 ГБ), поэтому:
+    свежий кэш — сразу; устаревший — тоже сразу, а пересчёт уходит в фон; без кэша — ждём."""
     hit = ERR_CACHE.get(hours)
     if hit and time.time() - hit[0] < 55:
         return hit[1]
+    if hit:
+        _errors_refresh_async(hours)
+        return hit[1]
+    return _errors_build(hours)
+
+
+def _errors_refresh_async(hours):
+    with LOCK:
+        if hours in ERR_BUSY:
+            return
+        ERR_BUSY.add(hours)
+
+    def run():
+        try:
+            _errors_build(hours)
+        except Exception as e:  # noqa: BLE001
+            print("errors refresh:", e, flush=True)
+        finally:
+            with LOCK:
+                ERR_BUSY.discard(hours)
+    threading.Thread(target=run, daemon=True).start()
+
+
+def errors_warmer():
+    """Пока панель открыта — держит отчёты за 1 ч (значок в меню) и 24 ч тёплыми."""
+    for h in (1, 24):  # после рестарта сразу, чтобы первое открытие не ждало
+        _errors_refresh_async(h)
+    while True:
+        if time.time() - LAST_VIEW[0] < 600:
+            for h in (1, 24):
+                hit = ERR_CACHE.get(h)
+                if not hit or time.time() - hit[0] > 45:
+                    _errors_refresh_async(h)
+        time.sleep(15)
+
+
+ERR_BUILD = threading.Lock()  # сборки строго по одной: три параллельных съедали 200 МБ (MemoryMax)
+
+
+def _errors_build(hours):
+    with ERR_BUILD:
+        hit = ERR_CACHE.get(hours)
+        if hit and time.time() - hit[0] < 30:  # пока ждали замок, отчёт уже собрал кто-то другой
+            return hit[1]
+        return _errors_collect(hours)
+
+
+def _errors_collect(hours):
     since = int(hours * 3600)
     now = time.time()
     bucket = max(300, since // 48)
@@ -1118,12 +1194,12 @@ def errors_report(hours):
 
     def scan(src):
         try:
-            return src, read_source(src["id"], since_s=since, tail=50000)
+            return src, read_source(src["id"], since_s=since, tail=20000)
         except Exception:  # noqa: BLE001
             return src, []
 
     srcs = [s for s in log_sources() if s["kind"] in ("container", "service")]
-    with concurrent.futures.ThreadPoolExecutor(8) as ex:
+    with concurrent.futures.ThreadPoolExecutor(4) as ex:
         for src, lines in ex.map(scan, srcs):
             for t, msg in lines:
                 if not msg.strip() or level_of(msg) != "error" or (t and now - t > since):
@@ -1432,6 +1508,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             arg = lambda k, d="": q.get(k, [d])[0]  # noqa: E731
             if u.path == "/api/errors":
                 hours = max(1, min(int(arg("hours", "24") or 24), 24 * 14))
+                LAST_VIEW[0] = time.time()
                 return self.send(200, json.dumps(errors_report(hours), ensure_ascii=False))
             if u.path == "/api/log-sources":
                 return self.send(200, json.dumps(log_sources(), ensure_ascii=False))
@@ -1526,7 +1603,7 @@ if __name__ == "__main__":
         hist_preload()
     except Exception as e:  # noqa: BLE001
         print("history preload:", e, flush=True)
-    for fn in (sampler, container_sampler, checker):
+    for fn in (sampler, container_sampler, checker, errors_warmer):
         threading.Thread(target=fn, daemon=True).start()
     print(f"status: http://{LISTEN[0]}:{LISTEN[1]}", flush=True)
     Server(LISTEN, Handler).serve_forever()
