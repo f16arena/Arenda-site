@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 install -d -m 755 /opt/server-status
-install -m 644 server.py index.html login.html /opt/server-status/
+install -m 644 server.py index.html login.html views.js views.css /opt/server-status/
 install -m 644 server-status.service /etc/systemd/system/server-status.service
 install -m 644 status.caddy /etc/caddy/sites/status.caddy
 systemctl daemon-reload

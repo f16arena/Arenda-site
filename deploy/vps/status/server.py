@@ -46,7 +46,8 @@ PROJECTS = [
         "deploy_how": "GitHub Actions при push в main",
         "backup_dir": "/opt/commrent/backups/daily", "backup_re": r"^commrent-.*\.dump$",
         "logs": {"build": "/opt/commrent/build.log", "migrate": "/opt/commrent/migrate.log",
-                 "cron": "/var/log/commrent-cron.log", "deploy": "/var/log/commrent-deploy.log"},
+                 "cron": "/var/log/commrent-cron.log", "deploy": "/var/log/commrent-deploy.log",
+                 "backup": "/var/log/commrent-backup.log"},
     },
     {
         "id": "orda", "name": "Orda", "url": "https://www.ordaops.kz",
@@ -119,6 +120,38 @@ def docker_get(path, raw=False, timeout=10):
         return body if raw else json.loads(body)
     finally:
         c.close()
+
+
+def docker_exec(container, cmd, env=(), timeout=30, max_bytes=40_000_000):
+    """Запуск команды в контейнере (как docker exec): (код выхода, stdout, stderr)."""
+    c = DockerConn(timeout)
+    try:
+        c.request("POST", f"/containers/{container}/exec", body=json.dumps(
+            {"AttachStdout": True, "AttachStderr": True, "Cmd": list(cmd), "Env": list(env)}),
+            headers={"Content-Type": "application/json"})
+        r = c.getresponse()
+        body = r.read()
+        if r.status >= 400:
+            raise RuntimeError(f"docker exec {container}: {r.status} {body[:200]!r}")
+        eid = json.loads(body)["Id"]
+    finally:
+        c.close()
+    c = DockerConn(timeout)
+    try:
+        c.request("POST", f"/exec/{eid}/start", body=json.dumps({"Detach": False, "Tty": False}),
+                  headers={"Content-Type": "application/json"})
+        r = c.getresponse()
+        data = r.read(max_bytes)
+    finally:
+        c.close()
+    streams = {1: [], 2: []}
+    i = 0
+    while i + 8 <= len(data):
+        n = int.from_bytes(data[i + 4:i + 8], "big")
+        streams.get(data[i], streams[1]).append(data[i + 8:i + 8 + n])
+        i += 8 + n
+    code = docker_get(f"/exec/{eid}/json").get("ExitCode")
+    return code, b"".join(streams[1]).decode("utf-8", "replace"), b"".join(streams[2]).decode("utf-8", "replace")
 
 
 def demux_logs(data):
@@ -435,6 +468,247 @@ def build_state():
     return {"now": int(time.time()), "server": server, "projects": projects, "containers_at": c_at}
 
 
+# ── Ошибки и журналы (как Logs в Vercel/Supabase) ──────────────────────────────
+# Источники: журналы контейнеров, systemd-службы, файлы. Ошибки группируются по «отпечатку»
+# (сообщение без чисел, id, времени) — как Issues в Sentry: сколько раз, когда первый/последний.
+class LogError(Exception):
+    pass
+
+
+def log_sources():
+    with LOCK:
+        cs = list(CONTAINERS["items"])
+    if not cs:
+        cs = [{"name": c["Names"][0].lstrip("/"), "dir": c["Labels"].get("com.docker.compose.project.working_dir", "")}
+              for c in docker_get("/containers/json?all=1")]
+    src = [{"id": "c:" + c["name"], "name": c["name"], "kind": "container", "project": project_of(c)} for c in cs]
+    for p in PROJECTS:
+        for u in p.get("units", []):
+            src.append({"id": "u:" + u, "name": u, "kind": "service", "project": p["id"]})
+        for k in p.get("logs", {}):
+            src.append({"id": f"f:{p['id']}:{k}", "name": f"{p['name']} · {k}", "kind": "file", "project": p["id"]})
+    return src
+
+
+def _parse_ts(s):
+    try:
+        return calendar.timegm(time.strptime(s[:19], "%Y-%m-%dT%H:%M:%S"))
+    except (ValueError, TypeError):
+        return None
+
+
+def read_source(sid, since_s=None, tail=2000):
+    """Строки источника: [(unix_ts | None, текст)]."""
+    kind, _, rest = sid.partition(":")
+    lines = []
+    if kind == "c":
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", rest):
+            raise LogError("Плохое имя контейнера")
+        q = f"stdout=1&stderr=1&timestamps=1&tail={int(tail)}"
+        if since_s:
+            q += f"&since={int(time.time() - since_s)}"
+        text = demux_logs(docker_get(f"/containers/{rest}/logs?{q}", raw=True, timeout=20))
+        for ln in text.splitlines():
+            ts, _, msg = ln.partition(" ")
+            lines.append((_parse_ts(ts), msg))
+    elif kind == "u":
+        if rest not in {u for p in PROJECTS for u in p.get("units", [])}:
+            raise LogError("Нет такой службы")
+        args = ["journalctl", "-u", rest, "-o", "short-unix", "--no-pager", "-n", str(int(tail))]
+        if since_s:
+            args += ["--since", f"-{int(since_s)}s"]
+        out = subprocess.run(args, capture_output=True, text=True, timeout=20).stdout
+        for ln in out.splitlines():
+            ts, _, msg = ln.partition(" ")
+            try:
+                t = int(float(ts))
+            except ValueError:
+                continue  # «-- No entries --» и прочие служебные строки
+            lines.append((t, re.sub(r"^\S+ [^:]+: ", "", msg)))
+    elif kind == "f":
+        pid, _, key = rest.partition(":")
+        proj = next((p for p in PROJECTS if p["id"] == pid), None)
+        path = proj and proj.get("logs", {}).get(key)
+        if not path:
+            raise LogError("Нет такого журнала")
+        for ln in (tail_bytes(path, 2_000_000) or "").splitlines()[-int(tail):]:
+            m = re.match(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)", ln)
+            lines.append((_parse_ts(m.group(1)) if m else None, ln))
+    else:
+        raise LogError("Неизвестный источник")
+    return lines
+
+
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+# Шум, который выглядит как ошибка, но ей не является (проверено на журналах cloud-001).
+NOT_ERRORS = re.compile(r"Failed to find Server Action|aborting with incomplete response|"
+                        r"\b0 errors?\b|errors?: 0\b|error_count\W+0|\"error\":\s*(null|false)|"
+                        r"OnError|ErrorBoundary|errorPage", re.I)
+
+
+ACCESS_LOG = re.compile(r'"(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) [^"]*HTTP/[\d.]+" (\d{3}) ')
+
+
+def level_of(msg):
+    m = msg.lower()
+    a = ACCESS_LOG.search(msg)
+    if a:  # строка журнала доступа (nginx/envoy): уровень по коду ответа, а не по словам в адресе
+        code = int(a.group(1))
+        return "error" if code >= 500 else "warn" if code >= 400 else "info"
+    if re.search(r'"level"\s*:\s*"(error|fatal|panic)"|\blevel=(error|fatal)\b|\[(error|fatal)\]|^\s*(error|fatal)\b[:\s]', m):
+        return "error"
+    if re.search(r'"level"\s*:\s*"warn|\blevel=warn|\[warn', m):
+        return "warn"
+    if re.search(r'"level"\s*:\s*"(info|debug)"|\blevel=(info|debug)\b', m):
+        return "info"
+    if NOT_ERRORS.search(msg):
+        return "info"
+    if re.search(r"\b(error|fatal|panic|exception|traceback|uncaught|unhandled|econnrefused|etimedout|"
+                 r"out of memory|segfault|permission denied)\b|ошибк|упал", m):
+        return "error"
+    if re.search(r"\b(warn|warning|deprecated)\b|предупрежд", m):
+        return "warn"
+    return "info"
+
+
+def fingerprint(msg):
+    s = ANSI.sub("", msg)
+    # logfmt (docker) и JSON (caddy): группируем по самому сообщению, без адресов и портов в остальных полях
+    m = re.search(r'\bmsg="((?:[^"\\]|\\.)*)"', s) or re.search(r'"msg"\s*:\s*"((?:[^"\\]|\\.)*)"', s)
+    if m:
+        s = m.group(1)
+        s = re.sub(r"\S+:\d{2,5}(->\S+:\d{2,5})?", "<addr>", s)
+    s = re.sub(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", "<uuid>", s, flags=re.I)
+    s = re.sub(r"\d{4}-\d\d-\d\d[T ][\d:.]+Z?", "<time>", s)
+    s = re.sub(r"\b(c[a-z0-9]{20,}|[0-9a-f]{12,})\b", "<id>", s)
+    s = re.sub(r"\d+", "N", s)
+    return s.strip()[:220]
+
+
+ERR_CACHE = {}
+
+
+def errors_report(hours):
+    hit = ERR_CACHE.get(hours)
+    if hit and time.time() - hit[0] < 30:
+        return hit[1]
+    since = int(hours * 3600)
+    now = time.time()
+    bucket = max(300, since // 48)
+    start = int((now - since) // bucket * bucket)
+    buckets = list(range(start, int(now) + 1, bucket))
+    groups, timeline = {}, collections.Counter()
+
+    def scan(src):
+        try:
+            return src, read_source(src["id"], since_s=since, tail=50000)
+        except Exception:  # noqa: BLE001
+            return src, []
+
+    srcs = [s for s in log_sources() if s["kind"] in ("container", "service")]
+    with concurrent.futures.ThreadPoolExecutor(8) as ex:
+        for src, lines in ex.map(scan, srcs):
+            for t, msg in lines:
+                if not msg.strip() or level_of(msg) != "error" or (t and now - t > since):
+                    continue
+                key = src["id"] + "|" + fingerprint(msg)
+                g = groups.get(key)
+                if not g:
+                    g = groups[key] = {"source": src["name"], "sid": src["id"], "project": src["project"],
+                                       "fp": fingerprint(msg), "message": "", "count": 0, "first": t, "last": None,
+                                       "spark": collections.Counter()}
+                g["count"] += 1
+                if t:
+                    g["first"] = min(g["first"] or t, t)
+                    b = int(t // bucket * bucket)
+                    g["spark"][b] += 1
+                    timeline[b] += 1
+                if not g["last"] or (t and t >= g["last"]):
+                    g["last"] = t
+                    g["message"] = ANSI.sub("", msg).strip()[:2000]
+    items = sorted(groups.values(), key=lambda g: g["last"] or 0, reverse=True)
+    for g in items:
+        g["spark"] = [g["spark"].get(b, 0) for b in buckets]
+    data = {"hours": hours, "bucket": bucket, "buckets": buckets, "timeline": [timeline.get(b, 0) for b in buckets],
+            "groups": items[:300], "total": sum(g["count"] for g in items), "sources": len(srcs)}
+    ERR_CACHE[hours] = (time.time(), data)
+    return data
+
+
+def logs_query(sids, q, level, minutes, limit):
+    rx = None
+    if q:
+        try:
+            rx = re.compile(q, re.I)
+        except re.error:
+            rx = re.compile(re.escape(q), re.I)
+
+    def one(sid):
+        try:
+            return sid, read_source(sid, since_s=minutes * 60 if minutes else None, tail=5000)
+        except Exception as e:  # noqa: BLE001
+            return sid, [(None, f"[не удалось прочитать: {e}]")]
+
+    out = []
+    with concurrent.futures.ThreadPoolExecutor(8) as ex:
+        for sid, lines in ex.map(one, sids[:40]):
+            for t, msg in lines:
+                if rx and not rx.search(msg):
+                    continue
+                lv = level_of(msg)
+                if (level == "error" and lv != "error") or (level == "warn" and lv == "info"):
+                    continue
+                out.append({"t": t, "src": sid, "lv": lv, "msg": ANSI.sub("", msg)[:4000]})
+    out.sort(key=lambda r: r["t"] or 0)
+    return {"lines": out[-limit:], "matched": len(out)}
+
+
+def cron_report():
+    """Задачи по расписанию: что и когда запускается (из /etc/cron.d), последние запуски из журналов."""
+    jobs = []
+    for f in sorted(os.listdir("/etc/cron.d")):
+        if f.startswith(".") or f in ("e2scrub_all", "sysstat", "atop"):
+            continue
+        try:
+            text = open(os.path.join("/etc/cron.d", f)).read()
+        except OSError:
+            continue
+        for ln in text.splitlines():
+            m = re.match(r"^\s*([\d*/,-]+\s+[\d*/,-]+\s+[\d*/,-]+\s+[\d*/,-]+\s+[\d*/,-]+)\s+(\S+)\s+(.+)$", ln)
+            if not m or ln.lstrip().startswith("#"):
+                continue
+            cmd = m.group(3)
+            name = (re.search(r"/api/cron/([\w-]+)", cmd) or re.search(r"/([\w.-]+\.sh)", cmd) or re.search(r"(\S+)", cmd)).group(1)
+            jobs.append({"file": f, "schedule": m.group(1), "name": name, "cmd": cmd[:300]})
+    tails = {}
+
+    def tail_of(path):
+        if path not in tails:
+            tails[path] = (tail_bytes(path, 300_000) or "").splitlines()
+        return tails[path]
+
+    for j in jobs:
+        pid = "commrent" if j["file"].startswith("commrent") else "orda" if j["file"].startswith("orda") else \
+            "jiyn" if j["file"].startswith("jiyn") else None
+        j["project"] = pid
+        logs = next((p.get("logs", {}) for p in PROJECTS if p["id"] == pid), {})
+        # Где искать итог: файл из «>> /var/log/…» в самой строке крона, иначе журнал бэкапа или крона проекта.
+        redirect = re.search(r">>\s*(/var/log/\S+)", j["cmd"])
+        if redirect:
+            path, match = redirect.group(1), None
+        elif "backup" in j["name"] and logs.get("backup"):
+            path, match = logs["backup"], None
+        else:
+            path, match = logs.get("cron"), j["name"]
+        last = None
+        for ln in reversed(tail_of(path) if path else []):
+            if ln.strip() and (match is None or match in ln):
+                last = ANSI.sub("", ln)[:400]
+                break
+        j["last"] = last
+    return {"jobs": jobs}
+
+
 # ── Вход ───────────────────────────────────────────────────────────────────────
 # Пароль хранится только как scrypt-хеш в /var/lib/server-status/auth.json. Сессия — подписанная
 # кука (HMAC ключом из того же файла); смена пароля меняет ключ, и все остальные сессии гаснут.
@@ -625,8 +899,25 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self.send(302, "", headers=[("Location", "/login")])
             if u.path == "/":
                 return self.page("index.html")
+            if u.path in ("/views.js", "/views.css"):
+                with open(os.path.join(HERE, u.path[1:]), "rb") as f:
+                    ctype = "text/javascript" if u.path.endswith(".js") else "text/css"
+                    return self.send(200, f.read(), ctype + "; charset=utf-8")
             if u.path == "/api/me":
                 return self.send(200, json.dumps({"user": AUTH["user"], "changed": AUTH.get("changed")}))
+            arg = lambda k, d="": q.get(k, [d])[0]  # noqa: E731
+            if u.path == "/api/errors":
+                hours = max(1, min(int(arg("hours", "24") or 24), 24 * 14))
+                return self.send(200, json.dumps(errors_report(hours), ensure_ascii=False))
+            if u.path == "/api/log-sources":
+                return self.send(200, json.dumps(log_sources(), ensure_ascii=False))
+            if u.path == "/api/log-search":
+                sids = [s for s in arg("src").split(",") if s]
+                minutes = int(arg("minutes", "60") or 0)
+                limit = max(50, min(int(arg("limit", "1000") or 1000), 5000))
+                return self.send(200, json.dumps(logs_query(sids, arg("q"), arg("level"), minutes, limit), ensure_ascii=False))
+            if u.path == "/api/cron":
+                return self.send(200, json.dumps(cron_report(), ensure_ascii=False))
             if u.path == "/api/state":
                 LAST_VIEW[0] = time.time()
                 return self.send(200, json.dumps(build_state(), ensure_ascii=False))

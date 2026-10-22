@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="views.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1.5 15 14H1z' fill='%23fff'/></svg>">
 <style>
 :root{
@@ -274,6 +275,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
   <div class="brand"><svg viewBox="0 0 16 16"><path d="M8 1.5 15 14H1z" fill="currentColor"/></svg></div>
   <span class="slash">/</span>
   <div class="host"><span id="host">cloud-001</span><span class="ip">185.113.132.3</span></div>
+  <nav class="nav"><a href="#overview" data-v="overview">Обзор</a><a href="#errors" data-v="errors">Ошибки<span class="cnt" id="nav-err-cnt" hidden></span></a><a href="#logs" data-v="logs">Журналы</a><a href="#cron" data-v="cron">Крон</a><a href="#db" data-v="db">База данных</a></nav>
   <div class="hd-r"><span class="livedot" id="live"></span><span id="upd" class="num">подключение…</span>
     <button class="ibtn" id="theme" title="Светлая / тёмная тема"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
     <div class="acc"><button class="accb" id="accb"><span class="ava" id="acca">a</span><span id="accn">admin</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -284,7 +286,7 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
   </div>
 </div></header>
 
-<main class="wrap">
+<main class="wrap" id="v-overview">
   <div class="banner" id="err"></div>
   <section class="hero" id="hero"><div class="sk" style="height:56px;width:420px"></div></section>
 
@@ -310,6 +312,48 @@ pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
   <div class="sec"><h2>Деплои</h2><span class="s">все проекты, свежие сверху</span></div>
   <div class="card feed" id="feed"></div>
 </main>
+<main class="wrap" id="v-errors" hidden>
+  <div class="vh"><div><h1>Ошибки</h1><p>Все журналы сервера, одинаковые ошибки собраны в одну строку</p></div>
+    <div class="r"><div class="seg" id="err-range"><button data-h="1">1 час</button><button data-h="24">24 часа</button><button data-h="168">7 дней</button></div>
+      <button class="btn2" id="err-refresh">↻ Обновить</button></div></div>
+  <div class="kpis" id="err-kpi"></div>
+  <div class="card tlchart" id="err-chart"></div>
+  <div class="chips2"><div class="chips2" id="err-chips" style="margin:0"></div><input class="inp" id="err-q" placeholder="Поиск по тексту ошибки…" style="margin-left:auto;width:260px"></div>
+  <div class="card issues" id="err-list"></div>
+</main>
+
+<main class="wrap" id="v-logs" hidden>
+  <div class="vh"><div><h1>Журналы</h1><p>Контейнеры, службы и файлы журналов — в одной ленте</p></div></div>
+  <div class="lx">
+    <div class="card srcs" id="lg-src"></div>
+    <div>
+      <div class="lbar">
+        <input class="inp" id="lg-q" placeholder="Поиск (можно регулярное выражение)…">
+        <div class="seg" id="lg-level"><button data-l="">Все</button><button data-l="warn">Предупр.</button><button data-l="error">Ошибки</button></div>
+        <div class="seg" id="lg-range"><button data-m="15">15 мин</button><button data-m="60">1 ч</button><button data-m="360">6 ч</button><button data-m="1440">24 ч</button><button data-m="0">Всё</button></div>
+        <button class="btn2" id="lg-live">○ Live</button><button class="btn2" id="lg-refresh">↻</button>
+      </div>
+      <div class="lstat" id="lg-stat"></div>
+      <div class="lines" id="lg-lines"></div>
+    </div>
+  </div>
+</main>
+
+<main class="wrap" id="v-cron" hidden>
+  <div class="vh"><div><h1>Задачи по расписанию</h1><p>Всё, что сервер запускает сам: рассылки, счета, бэкапы, проверки</p></div>
+    <div class="r"><button class="btn2" id="cron-refresh">↻ Обновить</button></div></div>
+  <div class="card" id="cron-list"></div>
+</main>
+
+<main class="wrap" id="v-db" hidden>
+  <div class="card lock">
+    <div class="ic"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></div>
+    <h2>Таблицы баз данных</h2>
+    <p>Просмотр таблиц Commrent, Orda и Jiyn, как в Supabase: строки, фильтры, структура, SQL-редактор, активные запросы.</p>
+    <p>Раздел ждёт подтверждения владельца: панели нужен доступ на чтение ко всем данным в базах.</p>
+  </div>
+</main>
+
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
@@ -767,5 +811,6 @@ $("#crf").onsubmit = async (e) => {
   $("#c-save").disabled = false
 }
 </script>
+<script src="views.js"></script>
 </body>
 </html>
