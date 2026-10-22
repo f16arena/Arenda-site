@@ -721,7 +721,8 @@ $("#m-pass").onclick = () => {
 }
 const closeCr = () => $("#cr").classList.remove("on")
 $("#c-cancel").onclick = closeCr; $("#c-done").onclick = closeCr
-$("#cr").onclick = (e) => e.target.id === "cr" && closeCr()
+// Фигурные скобки обязательны: onclick, вернувший false, отменяет действие клика — кнопка «Сохранить» переставала отправлять форму.
+$("#cr").onclick = (e) => { if (e.target.id === "cr") closeCr() }
 addEventListener("keydown", (e) => e.key === "Escape" && closeCr())
 function score(p) {
   if (p.length < 10) return p ? 1 : 0
