@@ -71,7 +71,7 @@ class TS:
                 if e.get("id") == "524" and retries:  # флуд-защита
                     time.sleep(1.5)
                     return self.cmd(cmd, retries - 1)
-                if e.get("id") not in ("0", "1281"):  # 1281 = пустой результат
+                if e.get("id") not in ("0", "1281", "770"):  # 1281 = пустой результат, 770 = уже в этом канале
                     raise QueryError(cmd, e.get("id"), e.get("msg", ""))
                 return parse("".join(data))
             if line:
