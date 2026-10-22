@@ -12,7 +12,7 @@
 - `gotenberg` — `gotenberg/gotenberg:8`, `127.0.0.1:3000->3000`, без томов (stateless). Для `pdf.commrent.kz`.
 - `ncanode` (имя было `flamboyant_tharp`) — `malikzh/ncanode:latest`, `127.0.0.1:14579->14579`,
   том `ncanode_cache -> /app/cache` (только кеш OCSP/CRL — НЕ переносим, регенерируется),
-  env `JAVA_OPTS=-Xms128m -Xmx512m`. Для `ecp.commrent.kz`.
+  env `JAVA_TOOL_OPTIONS=-Xmx512m …` (JAVA_OPTS образ игнорирует). Для `ecp.commrent.kz`.
 
 **systemd-сервисы (нативные, User=ubuntu):**
 - `esf-sign.service` → `/opt/esf-sign/jdk8u492-b09-jre/bin/java -jar /opt/esf-sign/esf_local_server.jar`,
@@ -112,11 +112,17 @@ sudo chown -R caddy:caddy /var/lib/caddy
 # Docker-контейнеры (те же образы, порты только на localhost)
 docker pull malikzh/ncanode:latest
 docker pull gotenberg/gotenberg:8
-docker run -d --name ncanode --restart unless-stopped \
-  -p 127.0.0.1:14579:14579 -e JAVA_OPTS="-Xms128m -Xmx512m" \
+# Образ запускает `java -jar NCANode.jar` и JAVA_OPTS не читает — без JAVA_TOOL_OPTIONS
+# куча по умолчанию = 1/4 ОЗУ (на 16 ГБ держал 1,9 ГБ). JAVA_TOOL_OPTIONS Java читает сама.
+docker run -d --name ncanode --restart unless-stopped --memory 900m \
+  -p 127.0.0.1:14579:14579 \
+  -e JAVA_TOOL_OPTIONS="-Xms64m -Xmx512m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m" \
   -v ncanode_cache:/app/cache malikzh/ncanode:latest
-docker run -d --name gotenberg --restart unless-stopped \
+docker run -d --name gotenberg --restart unless-stopped --memory 1g \
   -p 127.0.0.1:3000:3000 gotenberg/gotenberg:8
+
+# /etc/docker/daemon.json — копия в deploy/vps/docker-daemon.json
+# (live-restore: перезапуск Docker не роняет контейнеры; ротация логов; автоочистка кэша сборок)
 
 # systemd-сервисы ESF
 sudo systemctl daemon-reload
