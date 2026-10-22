@@ -3,351 +3,611 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cloud-001 — состояние</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1 15 14H1z' fill='%23ededed'/></svg>">
+<title>cloud-001</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M8 1.5 15 14H1z' fill='%23fff'/></svg>">
 <style>
 :root{
-  --bg:#0a0a0a;--panel:#111;--panel2:#161616;--line:#262626;--line2:#333;
-  --fg:#ededed;--mut:#8f8f8f;--mut2:#5c5c5c;
-  --ok:#2fbf71;--warn:#f5a524;--bad:#f0444b;--run:#3b8cff;--chart:#ededed;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --bg:#000;--bg2:#0a0a0a;--card:#0d0d0d;--card2:#141414;--hover:#1a1a1a;
+  --line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.14);
+  --fg:#ededed;--mut:#a1a1a1;--mut2:#666;
+  --ok:#00c46a;--warn:#f5a623;--bad:#ff4d4f;--run:#3291ff;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 0 0 1px var(--line),0 8px 30px rgba(0,0,0,.45);
 }
 :root[data-theme="light"]{
-  --bg:#fafafa;--panel:#fff;--panel2:#f4f4f4;--line:#e6e6e6;--line2:#d4d4d4;
-  --fg:#111;--mut:#666;--mut2:#a0a0a0;--chart:#111;
+  --bg:#fafafa;--bg2:#f4f4f5;--card:#fff;--card2:#fafafa;--hover:#f4f4f5;
+  --line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.14);--fg:#0a0a0a;--mut:#666;--mut2:#a3a3a3;
+  --shadow:0 0 0 1px var(--line),0 6px 24px rgba(0,0,0,.06);
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
-    --bg:#fafafa;--panel:#fff;--panel2:#f4f4f4;--line:#e6e6e6;--line2:#d4d4d4;
-    --fg:#111;--mut:#666;--mut2:#a0a0a0;--chart:#111;
+    --bg:#fafafa;--bg2:#f4f4f5;--card:#fff;--card2:#fafafa;--hover:#f4f4f5;
+    --line:rgba(0,0,0,.08);--line2:rgba(0,0,0,.14);--fg:#0a0a0a;--mut:#666;--mut2:#a3a3a3;
+    --shadow:0 0 0 1px var(--line),0 6px 24px rgba(0,0,0,.06);
   }
 }
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{background:
+  radial-gradient(900px 420px at 15% -120px,rgba(50,145,255,.13),transparent 70%),
+  radial-gradient(800px 380px at 90% -140px,rgba(168,85,247,.11),transparent 70%),var(--bg);min-height:100vh}
 a{color:inherit;text-decoration:none}
-a:hover{text-decoration:underline}
-.wrap{max-width:1180px;margin:0 auto;padding:0 16px 48px}
-header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
-header .wrap{display:flex;align-items:center;gap:12px;height:56px;padding-bottom:0}
-.logo{width:18px;height:18px}
-h1{font-size:15px;font-weight:600;margin:0}
-.sep{color:var(--mut2)}
-.live{margin-left:auto;display:flex;align-items:center;gap:8px;color:var(--mut);font-size:13px}
-.pulse{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 color-mix(in srgb,var(--ok) 60%,transparent);animation:p 2s infinite}
-.pulse.stale{background:var(--bad);animation:none}
-@keyframes p{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
-button{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line2);border-radius:6px;padding:4px 10px;cursor:pointer}
-button:hover{background:var(--panel2)}
-h2{font-size:13px;font-weight:500;color:var(--mut);margin:28px 0 12px;text-transform:uppercase;letter-spacing:.06em}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px 8px;min-width:0}
-.tile .k{color:var(--mut);font-size:12px}
-.tile .v{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums;margin:2px 0 0;white-space:nowrap}
-.tile .s{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums}
-.bar{height:4px;border-radius:2px;background:var(--line);margin:8px 0 2px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--fg)}
-.bar i.warn{background:var(--warn)}.bar i.bad{background:var(--bad)}
-svg.spark{display:block;width:100%;height:34px;margin-top:6px}
-.meta{color:var(--mut);font-size:12px;margin-top:10px;display:flex;flex-wrap:wrap;gap:6px 16px}
-.proj{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin-bottom:14px;overflow:hidden}
-.ph{display:flex;align-items:center;gap:12px;padding:16px 18px;flex-wrap:wrap}
-.ph h3{margin:0;font-size:16px;font-weight:600}
-.dot{width:10px;height:10px;border-radius:50%;flex:none}
-.ok{color:var(--ok)}.warn{color:var(--warn)}.bad{color:var(--bad)}.run{color:var(--run)}.mut{color:var(--mut)}
-.bg-ok{background:var(--ok)}.bg-warn{background:var(--warn)}.bg-bad{background:var(--bad)}.bg-run{background:var(--run)}.bg-mut{background:var(--mut2)}
-.st{font-size:13px;color:var(--mut)}
-.links{margin-left:auto;display:flex;gap:12px;font-size:13px;color:var(--mut);flex-wrap:wrap}
-.pb{display:grid;grid-template-columns:1.2fr 1fr;border-top:1px solid var(--line)}
-@media (max-width:820px){.pb{grid-template-columns:1fr}}
-.cell{padding:14px 18px;min-width:0}
-.cell+.cell{border-left:1px solid var(--line)}
-@media (max-width:820px){.cell+.cell{border-left:0;border-top:1px solid var(--line)}}
-.lbl{font-size:12px;color:var(--mut);margin-bottom:8px;display:flex;align-items:center;gap:8px}
-.dep{display:flex;gap:10px;align-items:flex-start;min-width:0}
-.badge{font-size:12px;font-weight:500;padding:1px 8px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
-.sha{font-family:var(--mono);font-size:12px;color:var(--mut)}
-.subj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.hist{margin:10px 0 0;padding:0;list-style:none;font-size:13px}
-.hist li{display:grid;grid-template-columns:14px 1fr auto;gap:8px;padding:5px 0;border-top:1px solid var(--line);align-items:baseline}
-.hist li .subj{color:var(--fg)}
-.hist .when{color:var(--mut);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.chk{display:flex;align-items:center;gap:8px;font-size:13px;padding:3px 0;min-width:0}
-.chk .u{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
-.chk .ms{font-variant-numeric:tabular-nums;color:var(--mut);font-size:12px}
-.upt{display:flex;gap:1px;height:16px;align-items:stretch;width:120px;flex:none}
-.upt i{flex:1;border-radius:1px;background:var(--ok);opacity:.85}
-.upt i.x{background:var(--bad);opacity:1}.upt i.n{background:var(--line)}
-table{width:100%;border-collapse:collapse;font-size:13px}
-th{font-weight:500;color:var(--mut);font-size:12px;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
-td{padding:6px 8px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
-tr:last-child td{border-bottom:0}
-td.n{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;max-width:260px}
-.tw{overflow-x:auto;border-top:1px solid var(--line)}
-.tw table{min-width:640px}
-.r{text-align:right}
-.mini{display:inline-block;width:46px;height:4px;background:var(--line);border-radius:2px;vertical-align:middle;margin-left:6px;overflow:hidden}
-.mini i{display:block;height:100%;background:var(--fg)}
-.lnk{color:var(--mut);cursor:pointer;font-size:12px;background:none;border:0;padding:0}
-.lnk:hover{color:var(--fg);text-decoration:underline}
-.chips{display:flex;flex-wrap:wrap;gap:6px}
-details>summary{cursor:pointer;color:var(--mut);font-size:12px;list-style:none;padding:10px 18px;border-top:1px solid var(--line)}
-details>summary::-webkit-details-marker{display:none}
-details>summary:before{content:"▸ ";}
-details[open]>summary:before{content:"▾ ";}
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:20;padding:24px 16px}
-.modal.on{display:flex}
-.mbox{margin:auto;width:min(1100px,100%);height:min(86vh,900px);background:var(--panel);border:1px solid var(--line2);border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
-.mh{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.mh b{font-family:var(--mono);font-size:13px;font-weight:500}
-.mh .sp{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--mut);font-size:12px}
-pre{margin:0;flex:1;overflow:auto;padding:12px 14px;font:12px/1.5 var(--mono);white-space:pre-wrap;word-break:break-all;background:var(--bg)}
-input[type=search]{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--line2);border-radius:6px;padding:3px 8px;width:180px}
-.err{background:color-mix(in srgb,var(--bad) 14%,var(--panel));border:1px solid var(--bad);border-radius:10px;padding:10px 14px;margin-top:16px;display:none}
-.empty{color:var(--mut2);font-size:13px}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px 64px}
+@media (max-width:600px){.wrap{padding:0 16px 48px}}
+.num{font-variant-numeric:tabular-nums}
+
+/* ── шапка ── */
+header{position:sticky;top:0;z-index:10;backdrop-filter:saturate(180%) blur(14px);background:color-mix(in srgb,var(--bg) 70%,transparent);border-bottom:1px solid var(--line)}
+.hd{display:flex;align-items:center;gap:14px;height:60px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.brand svg{width:20px;height:20px}
+.slash{color:var(--mut2);font-weight:300;font-size:22px;margin:0 -2px}
+.host{display:flex;align-items:center;gap:8px;font-weight:500}
+.host .ip{font-family:var(--mono);font-size:12px;color:var(--mut);padding:2px 8px;border:1px solid var(--line2);border-radius:99px}
+.hd-r{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--mut);font-size:13px}
+.livedot{width:8px;height:8px;border-radius:50%;background:var(--ok);position:relative}
+.livedot:after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--ok);opacity:0;animation:ping 2s infinite}
+.livedot.stale{background:var(--bad)}.livedot.stale:after{display:none}
+@keyframes ping{0%{transform:scale(.6);opacity:.8}100%{transform:scale(1.6);opacity:0}}
+.ibtn{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;border:1px solid var(--line2);color:var(--mut)}
+.ibtn:hover{color:var(--fg);background:var(--hover)}
+@media (max-width:600px){.host .ip,#upd{display:none}.hero{padding:28px 0 20px}.hero h1{font-size:24px}.hero .facts{margin-left:0;gap:20px}}
+
+/* ── герой ── */
+.hero{display:flex;align-items:center;gap:20px;padding:40px 0 28px;flex-wrap:wrap}
+.orb{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;flex:none;position:relative}
+.orb svg{width:28px;height:28px;position:relative}
+.orb:before{content:"";position:absolute;inset:0;border-radius:16px;background:currentColor;opacity:.14}
+.orb:after{content:"";position:absolute;inset:-10px;border-radius:24px;background:currentColor;opacity:.18;filter:blur(18px)}
+.hero h1{margin:0;font-size:30px;line-height:1.15;font-weight:700;letter-spacing:-.03em}
+.hero p{margin:6px 0 0;color:var(--mut)}
+.hero .facts{margin-left:auto;display:flex;gap:28px;flex-wrap:wrap}
+.fact .k{font-size:12px;color:var(--mut)}.fact .v{font-size:18px;font-weight:600;letter-spacing:-.01em}
+
+/* ── секции ── */
+.sec{display:flex;align-items:baseline;gap:12px;margin:36px 0 14px}
+.sec h2{margin:0;font-size:18px;font-weight:600;letter-spacing:-.02em}
+.sec .s{color:var(--mut);font-size:13px}
+.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow)}
+
+/* ── ресурсы ── */
+.res{display:grid;grid-template-columns:340px 1fr;gap:16px}
+@media (max-width:960px){.res{grid-template-columns:1fr}}
+.gauges{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.gauge{padding:20px;display:flex;flex-direction:column;align-items:center;text-align:center;border-color:var(--line)}
+.gauge:nth-child(1),.gauge:nth-child(2){border-bottom:1px solid var(--line)}
+.gauge:nth-child(odd){border-right:1px solid var(--line)}
+.ring{position:relative;width:104px;height:104px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .c{position:absolute;inset:0;display:grid;place-items:center;align-content:center}
+.ring .p{font-size:22px;font-weight:700;letter-spacing:-.03em}
+.ring .u{font-size:11px;color:var(--mut);margin-top:-2px}
+.gauge .k{margin-top:10px;font-weight:500;font-size:13px}
+.gauge .s{color:var(--mut);font-size:12px}
+.ring circle{transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1),stroke .4s}
+
+.chart{padding:18px 20px 12px;display:flex;flex-direction:column;min-width:0}
+.ch-top{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.tabs{display:flex;gap:2px;padding:3px;border-radius:10px;background:var(--bg2);border:1px solid var(--line)}
+.tab{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--mut);font-weight:500}
+.tab:hover{color:var(--fg)}
+.tab.on{background:var(--card2);color:var(--fg);box-shadow:0 0 0 1px var(--line2)}
+.ch-val{margin-left:auto;text-align:right}
+.ch-val .v{font-size:26px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.ch-val .s{color:var(--mut);font-size:12px}
+.plot{position:relative;flex:1;min-height:210px;margin-top:10px}
+.plot svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.plot .tip{position:absolute;pointer-events:none;background:var(--card2);box-shadow:var(--shadow);border-radius:8px;padding:6px 10px;font-size:12px;white-space:nowrap;transform:translate(-50%,-110%);display:none;z-index:2}
+.plot .tip b{display:block;font-size:13px}
+.axis{font:11px var(--mono);fill:var(--mut2)}
+.minis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px}
+@media (max-width:700px){.minis{grid-template-columns:repeat(2,1fr)}}
+.mini{padding:14px 16px}
+.mini .k{color:var(--mut);font-size:12px;display:flex;align-items:center;gap:6px}
+.mini .v{font-size:18px;font-weight:600;letter-spacing:-.02em;margin-top:2px}
+
+/* ── проекты ── */
+.projects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:860px){.projects{grid-template-columns:1fr}}
+.pc{padding:20px;display:flex;flex-direction:column;gap:16px;cursor:pointer;transition:box-shadow .2s,transform .2s;position:relative;overflow:hidden;text-align:left}
+.pc:hover{box-shadow:0 0 0 1px var(--line2),0 12px 40px rgba(0,0,0,.5);transform:translateY(-2px)}
+.pc:before{content:"";position:absolute;inset:0 0 auto 0;height:120px;background:linear-gradient(180deg,var(--tint),transparent);opacity:.09;pointer-events:none}
+.pc-h{display:flex;align-items:center;gap:12px;position:relative}
+.av{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-weight:700;font-size:17px;color:#fff;background:var(--grad);flex:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
+.pc-h .t{min-width:0}
+.pc-h h3{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.pc-h .d{color:var(--mut);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:3px 10px 3px 8px;border-radius:99px;white-space:nowrap;flex:none}
+.pill i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.pill.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.pill.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.pill.run{color:var(--run);background:color-mix(in srgb,var(--run) 14%,transparent)}
+.pill.run i{animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.25}}
+.dep{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:var(--bg2);border:1px solid var(--line)}
+.dep .ic{margin-top:2px;flex:none}
+.dep .m{min-width:0;flex:1}
+.dep .msg{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dep .meta{color:var(--mut);font-size:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.sha{font-family:var(--mono);font-size:12px;color:var(--mut);display:inline-flex;align-items:center;gap:4px}
+.sha svg{width:12px;height:12px}
+.bars{display:flex;gap:2px;height:26px;align-items:stretch}
+.bars i{flex:1;border-radius:2px;background:var(--ok);opacity:.8}
+.bars i.x{background:var(--bad);opacity:1}.bars i.n{background:var(--line2);opacity:1}
+.bars-l{display:flex;justify-content:space-between;color:var(--mut2);font-size:11px;margin-top:4px}
+.pc-f{display:flex;align-items:center;gap:16px;color:var(--mut);font-size:12px;flex-wrap:wrap}
+.pc-f b{color:var(--fg);font-weight:500}
+.cdots{display:flex;gap:3px;flex-wrap:wrap;max-width:140px}
+.cdots i{width:8px;height:8px;border-radius:2px;background:var(--ok)}
+.cdots i.w{background:var(--warn)}.cdots i.b{background:var(--bad)}
+.issue{font-size:12px;color:var(--warn);display:flex;gap:6px;align-items:center}
+.issue.bad{color:var(--bad)}
+
+/* ── лента деплоев ── */
+.feed .row{display:grid;grid-template-columns:22px 150px 1fr auto;gap:14px;align-items:center;padding:12px 18px;border-top:1px solid var(--line)}
+.feed .row:first-child{border-top:0}
+.feed .row:hover{background:var(--hover)}
+@media (max-width:700px){.feed .row{grid-template-columns:22px 1fr;row-gap:4px;padding:12px 14px}.feed .row>.st-ic{grid-row:span 3}.feed .row .pj,.feed .row .msg,.feed .row .when{grid-column:2;text-align:left}.feed .row .msg{white-space:normal}}
+.feed .pj{display:flex;align-items:center;gap:8px;font-weight:500;font-size:13px}
+.feed .pj .av{width:20px;height:20px;border-radius:6px;font-size:10px}
+.feed .msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.feed .when{color:var(--mut);font-size:12px;text-align:right;white-space:nowrap}
+.st-ic{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;color:#fff}
+.st-ic svg{width:11px;height:11px}
+.st-ic.ok{background:var(--ok)}.st-ic.bad{background:var(--bad)}.st-ic.warn{background:var(--warn)}
+.st-ic.run{background:var(--run);animation:pulse 1.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--run) 60%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+
+/* ── боковая панель ── */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .25s;z-index:30}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(820px,100%);background:var(--bg);border-left:1px solid var(--line2);z-index:31;transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+.drawer.on{transform:none}
+.dr-h{padding:20px 24px 0;border-bottom:1px solid var(--line)}
+.dr-h .pc-h{margin-bottom:16px}
+.dr-links{display:flex;gap:16px;flex-wrap:wrap;font-size:13px;color:var(--mut);margin:-6px 0 14px}
+.dr-links a:hover{color:var(--fg)}
+.dr-tabs{display:flex;gap:22px}
+.dr-tab{padding:10px 0;color:var(--mut);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+.dr-tab:hover{color:var(--fg)}
+.dr-tab.on{color:var(--fg);border-color:var(--fg)}
+.dr-b{flex:1;overflow:auto;padding:20px 24px}
+.dr-b.logs{display:flex;flex-direction:column;padding:16px 24px}
+.x{margin-left:auto}
+.tl .row{display:grid;grid-template-columns:22px 1fr auto;gap:12px;padding:12px 0;border-top:1px solid var(--line);align-items:start}
+.tl .row:first-child{border-top:0}
+.tl .msg{font-weight:500}
+.tl .err{color:var(--bad);font-size:12px;margin-top:2px}
+.tl .when{color:var(--mut);font-size:12px;text-align:right;white-space:nowrap}
+.ct{width:100%;border-collapse:collapse;font-size:13px}
+.ct th{color:var(--mut);font-weight:500;font-size:12px;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+.ct td{padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.ct td.n{font-family:var(--mono);font-size:12px}
+.ct .r{text-align:right}
+.meter{width:70px;height:5px;border-radius:3px;background:var(--line2);display:inline-block;vertical-align:middle;margin-left:8px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--fg);border-radius:3px}
+.meter i.w{background:var(--warn)}.meter i.b{background:var(--bad)}
+.lk{color:var(--mut);font-size:12px;padding:3px 9px;border-radius:6px;border:1px solid var(--line2)}
+.lk:hover{color:var(--fg);background:var(--hover)}
+.lsrc{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+.chip{font-size:12px;padding:4px 10px;border-radius:99px;border:1px solid var(--line2);color:var(--mut);font-family:var(--mono)}
+.chip:hover{color:var(--fg)}
+.chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.ltools{display:flex;gap:10px;align-items:center;margin-bottom:10px;color:var(--mut);font-size:12px}
+.ltools input[type=search]{font:inherit;font-size:13px;flex:1;max-width:300px;background:var(--card);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:6px 10px}
+pre.log{flex:1;margin:0;overflow:auto;background:#050505;color:#d4d4d4;border:1px solid var(--line);border-radius:10px;padding:14px;font:12px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word;min-height:200px}
+pre.log .e{color:#ff7b7b}pre.log .w{color:#f5c26b}pre.log .t{color:#6b6b6b}
+.units{display:flex;gap:8px;flex-wrap:wrap}
+.unit{display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 10px;border-radius:99px;background:var(--bg2);border:1px solid var(--line);font-family:var(--mono)}
+.unit i{width:6px;height:6px;border-radius:50%;background:var(--ok)}.unit.b i{background:var(--bad)}
+.empty{color:var(--mut2);padding:20px 0;text-align:center}
+.banner{display:none;margin-top:16px;padding:12px 16px;border-radius:10px;background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid color-mix(in srgb,var(--bad) 40%,transparent);color:var(--bad)}
+.fade{animation:fade .5s both}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}}
+.sk{background:linear-gradient(90deg,var(--card) 0,var(--card2) 50%,var(--card) 100%);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:14px}
+@keyframes sk{to{background-position:-200% 0}}
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <svg class="logo" viewBox="0 0 16 16"><path d="M8 1 15 14H1z" fill="currentColor"/></svg>
-  <h1 id="host">cloud-001</h1><span class="sep">/</span><span class="st" id="sub">состояние сервера</span>
-  <div class="live"><span class="pulse" id="pulse"></span><span id="upd">подключение…</span>
-    <button id="theme" title="Тема">◐</button></div>
+<header><div class="wrap hd">
+  <div class="brand"><svg viewBox="0 0 16 16"><path d="M8 1.5 15 14H1z" fill="currentColor"/></svg></div>
+  <span class="slash">/</span>
+  <div class="host"><span id="host">cloud-001</span><span class="ip">185.113.132.3</span></div>
+  <div class="hd-r"><span class="livedot" id="live"></span><span id="upd" class="num">подключение…</span>
+    <button class="ibtn" id="theme" title="Светлая / тёмная тема"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+  </div>
 </div></header>
 
-<div class="wrap">
-  <div class="err" id="err"></div>
-  <h2>Сервер</h2>
-  <div class="grid" id="tiles"></div>
-  <div class="meta" id="smeta"></div>
+<main class="wrap">
+  <div class="banner" id="err"></div>
+  <section class="hero" id="hero"><div class="sk" style="height:56px;width:420px"></div></section>
 
-  <h2>Проекты</h2>
-  <div id="projects"></div>
-</div>
+  <div class="sec"><h2>Ресурсы</h2><span class="s">последний час, обновление каждые 5 секунд</span></div>
+  <div class="res">
+    <div class="card gauges" id="gauges"></div>
+    <div class="card chart">
+      <div class="ch-top">
+        <div class="tabs" id="tabs">
+          <button class="tab on" data-m="cpu">Процессор</button><button class="tab" data-m="mem">Память</button>
+          <button class="tab" data-m="net">Сеть</button><button class="tab" data-m="io">Диск</button>
+        </div>
+        <div class="ch-val"><div class="v num" id="chv">—</div><div class="s" id="chs"></div></div>
+      </div>
+      <div class="plot" id="plot"><svg id="psvg"></svg><div class="tip" id="tip"></div></div>
+    </div>
+  </div>
+  <div class="minis" id="minis"></div>
 
-<div class="modal" id="modal"><div class="mbox">
-  <div class="mh"><b id="mtitle"></b>
-    <div class="sp">
-      <input type="search" id="mfilter" placeholder="фильтр…">
-      <label><input type="checkbox" id="mauto" checked> обновлять</label>
-      <button id="mtop">↓ в конец</button><button id="mclose">Закрыть</button>
-    </div></div>
-  <pre id="mpre"></pre>
-</div></div>
+  <div class="sec"><h2>Проекты</h2><span class="s" id="psub"></span></div>
+  <div class="projects" id="projects"><div class="card sk" style="height:300px"></div><div class="card sk" style="height:300px"></div></div>
+
+  <div class="sec"><h2>Деплои</h2><span class="s">все проекты, свежие сверху</span></div>
+  <div class="card feed" id="feed"></div>
+</main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="dr-h">
+    <div class="pc-h" id="drh"></div>
+    <div class="dr-links" id="drl"></div>
+    <div class="dr-tabs" id="drt">
+      <button class="dr-tab on" data-t="deploys">Деплои</button>
+      <button class="dr-tab" data-t="containers">Контейнеры</button>
+      <button class="dr-tab" data-t="logs">Журналы</button>
+    </div>
+  </div>
+  <div class="dr-b" id="drb"></div>
+</aside>
 
 <script>
 const $ = (s) => document.querySelector(s)
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c])
-const gb = (b) => (b / 1024 ** 3).toFixed(b >= 10 * 1024 ** 3 ? 0 : 1) + " ГБ"
-const mb = (b) => b >= 1024 ** 3 ? gb(b) : Math.round(b / 1024 ** 2) + " МБ"
-const rate = (b) => b >= 1024 ** 2 ? (b / 1024 ** 2).toFixed(1) + " МБ/с" : Math.round(b / 1024) + " КБ/с"
+const G = 1024 ** 3
+const gb = (b) => (b / G).toFixed(b >= 10 * G ? 0 : 1) + " ГБ"
+const mb = (b) => (b >= G ? gb(b) : Math.round(b / 1024 ** 2) + " МБ")
+const rate = (b) => (b >= 1024 ** 2 ? (b / 1024 ** 2).toFixed(1) + " МБ/с" : (b / 1024).toFixed(b < 10240 ? 1 : 0) + " КБ/с")
 const pct = (a, b) => (b ? (100 * a) / b : 0)
+const plural = (n, a, b, c) => { const m = n % 10, h = n % 100; return m === 1 && h !== 11 ? a : m >= 2 && m <= 4 && (h < 12 || h > 14) ? b : c }
 function ago(t, now) {
   const s = Math.max(0, now - t)
-  if (s < 60) return s + " с назад"
-  if (s < 3600) return Math.floor(s / 60) + " мин назад"
-  if (s < 86400) return Math.floor(s / 3600) + " ч " + Math.floor((s % 3600) / 60) + " мин назад"
-  return Math.floor(s / 86400) + " дн назад"
+  if (s < 45) return "только что"
+  if (s < 3600) return Math.round(s / 60) + " мин назад"
+  if (s < 86400) return Math.floor(s / 3600) + " ч назад"
+  const d = Math.floor(s / 86400); return d + " " + plural(d, "день", "дня", "дней") + " назад"
 }
-const dur = (s) => (s == null ? "" : s < 60 ? s + " с" : Math.floor(s / 60) + " мин " + (s % 60) + " с")
-const clock = (t) => new Date(t * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-const level = (p, w = 75, b = 90) => (p >= b ? "bad" : p >= w ? "warn" : "")
+const dur = (s) => (s == null ? "" : s < 60 ? s + " с" : Math.floor(s / 60) + " мин " + String(s % 60).padStart(2, "0") + " с")
+const hm = (t) => new Date(t * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+const dt = (t) => new Date(t * 1000).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
 
-function spark(vals, max) {
-  if (vals.length < 2) return '<svg class="spark"></svg>'
-  const W = 200, H = 34, m = max || Math.max(...vals, 1)
-  const pts = vals.map((v, i) => [(i / (vals.length - 1)) * W, H - 2 - (Math.min(v, m) / m) * (H - 4)])
-  const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join("")
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-    <path d="${d}L${W} ${H}L0 ${H}Z" fill="var(--chart)" opacity=".08"/>
-    <path d="${d}" fill="none" stroke="var(--chart)" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>`
+const LOOK = {
+  commrent: { grad: "linear-gradient(135deg,#3291ff,#7c3aed)", tint: "#3291ff", letter: "C" },
+  orda: { grad: "linear-gradient(135deg,#f97316,#ec4899)", tint: "#f97316", letter: "O" },
+  jiyn: { grad: "linear-gradient(135deg,#10b981,#06b6d4)", tint: "#10b981", letter: "J" },
+  shared: { grad: "linear-gradient(135deg,#52525b,#a1a1aa)", tint: "#a1a1aa", letter: "S" },
+  other: { grad: "linear-gradient(135deg,#3f3f46,#71717a)", tint: "#71717a", letter: "·" },
 }
+const look = (id) => LOOK[id] || LOOK.other
+const av = (p, cls = "") => `<span class="av ${cls}" style="background:${look(p.id).grad}">${look(p.id).letter}</span>`
 
-function tile(k, v, s, p, series, max) {
-  const bar = p == null ? "" : `<div class="bar"><i class="${level(p)}" style="width:${Math.min(p, 100).toFixed(1)}%"></i></div>`
-  return `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div>${bar}${series ? spark(series, max) : ""}</div>`
+const ICON = {
+  ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  bad: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+  warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2"><path d="M12 6v8M12 18v.5"/></svg>',
+  run: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"/></svg>',
+  commit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.5"/><path d="M3 12h5.5M15.5 12H21"/></svg>',
 }
-
-function renderServer(sv, now) {
-  const h = sv.history, last = h[h.length - 1] || {}
-  const cpu = last.cpu ?? 0
-  const memP = pct(sv.mem_used, sv.mem_total), swP = pct(sv.swap_used, sv.swap_total), dP = pct(sv.disk_used, sv.disk_total)
-  $("#host").textContent = sv.host
-  $("#tiles").innerHTML = [
-    tile("Процессор", cpu.toFixed(0) + "%", `${sv.ncpu} ядра · за час макс ${Math.max(0, ...h.map((x) => x.cpu)).toFixed(0)}%`, cpu, h.map((x) => x.cpu), 100),
-    tile("Нагрузка (load)", sv.load[0].toFixed(2), `5 мин ${sv.load[1].toFixed(2)} · 15 мин ${sv.load[2].toFixed(2)}`, pct(sv.load[0], sv.ncpu), h.map((x) => x.load), Math.max(sv.ncpu, ...h.map((x) => x.load))),
-    tile("Память", gb(sv.mem_used), `из ${gb(sv.mem_total)} · свободно ${gb(sv.mem_total - sv.mem_used)}`, memP, h.map((x) => x.mem), sv.mem_total),
-    tile("Swap", gb(sv.swap_used), `из ${gb(sv.swap_total)}`, swP, h.map((x) => x.swap), sv.swap_total),
-    tile("Диск", gb(sv.disk_used), `из ${gb(sv.disk_total)} · ${dP.toFixed(0)}%`, dP),
-    tile("Сеть", "↓ " + rate(last.rx || 0), "↑ " + rate(last.tx || 0), null, h.map((x) => x.rx + x.tx)),
-    tile("Диск I/O", "R " + rate(last.rd || 0), "W " + rate(last.wr || 0), null, h.map((x) => x.rd + x.wr)),
-  ].join("")
-  const up = sv.uptime
-  $("#smeta").innerHTML = `<span>Работает без перезагрузки: ${Math.floor(up / 86400)} дн ${Math.floor((up % 86400) / 3600)} ч</span>
-    <span>Графики — последний час</span>${sv.reboot_required ? '<span class="warn">Нужна перезагрузка после обновлений</span>' : ""}`
-}
-
-const DEP = {
-  ok: ["Готово", "ok", "✓"], failed: ["Ошибка", "bad", "✕"], rollback: ["Откат", "bad", "↺"],
-  running: ["Сборка…", "run", "●"], unknown: ["Оборвался", "warn", "?"],
-}
+const DEP = { ok: ["ok", "Готово"], failed: ["bad", "Ошибка"], rollback: ["bad", "Откат"], running: ["run", "Сборка"], unknown: ["warn", "Оборвался"] }
+const stIcon = (st) => { const [c] = DEP[st] || DEP.unknown; return `<span class="st-ic ${c}" title="${(DEP[st] || DEP.unknown)[1]}">${ICON[c]}</span>` }
 
 function shaLink(p, d) {
   const sha = (d.sha || "").split("-")[0].slice(0, 7)
   if (!sha) return ""
-  return p.repo ? `<a class="sha" href="${p.repo}/commit/${d.sha_full || sha}" target="_blank" rel="noopener">${sha}</a>` : `<span class="sha">${sha}</span>`
+  const inner = `${ICON.commit}${sha}`
+  return p.repo ? `<a class="sha" href="${p.repo}/commit/${d.sha_full || sha}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${inner}</a>` : `<span class="sha">${inner}</span>`
 }
 
 function projectStatus(p, now) {
   const issues = []
   let lv = "ok"
-  const bump = (l, why) => { issues.push([l, why]); if (l === "bad" || (l === "warn" && lv === "ok") || (l === "run" && lv === "ok")) lv = l }
-  for (const c of p.checks) if (!(c.code > 0 && c.code < 500)) bump("bad", "сайт не отвечает: " + c.url.replace("https://", ""))
+  const rank = { ok: 0, run: 1, warn: 2, bad: 3 }
+  const bump = (l, why) => { issues.push([l, why]); if (rank[l] > rank[lv]) lv = l }
+  for (const c of p.checks) if (!(c.code > 0 && c.code < 500)) bump("bad", "не отвечает " + c.url.replace("https://", "").replace(/\/$/, ""))
   for (const c of p.containers) {
-    if (c.state !== "running") bump(c.state === "exited" ? "bad" : "warn", `${c.name}: ${c.state}`)
-    else if (c.health === "unhealthy") bump("bad", c.name + ": unhealthy")
-    else if (c.health === "starting") bump("warn", c.name + ": запускается")
+    if (c.state !== "running") bump("bad", `${c.name} — ${c.state}`)
+    else if (c.health === "unhealthy") bump("bad", c.name + " — unhealthy")
+    else if (c.health === "starting") bump("warn", c.name + " запускается")
   }
-  for (const u of p.units || []) if (u.state !== "active") bump("bad", `служба ${u.name}: ${u.state}`)
+  for (const u of p.units || []) if (u.state !== "active") bump("bad", `служба ${u.name} — ${u.state}`)
   const d = p.deploys[0]
   if (d?.status === "running") bump("run", "идёт деплой")
-  else if (d && d.status !== "ok") bump("warn", "последний деплой не прошёл — работает прежняя версия")
+  else if (d && d.status !== "ok") bump("warn", "последний деплой не прошёл, работает прежняя версия")
   if (p.backup && now - p.backup.time > 26 * 3600) bump("warn", "бэкап старше суток")
   return { lv, issues }
 }
+const PILL = { ok: "Работает", run: "Деплой", warn: "Внимание", bad: "Сбой" }
 
-function uptimeBar(hist) {
-  const n = 30, cells = hist.slice(-n)
-  const pad = Array(Math.max(0, n - cells.length)).fill('<i class="n"></i>')
-  return `<span class="upt" title="последние ${n} проверок (каждые 30 с)">${pad.join("")}${cells.map((h) => `<i class="${h.ok ? "" : "x"}" title="${clock(h.t)} ${h.ms ?? "—"} мс"></i>`).join("")}</span>`
+// ── герой ──
+function renderHero(s) {
+  const st = s.projects.map((p) => projectStatus(p, s.now))
+  const bad = st.filter((x) => x.lv === "bad").length, warn = st.filter((x) => x.lv === "warn").length, run = st.filter((x) => x.lv === "run").length
+  const [col, ic, title, sub] = bad ? ["var(--bad)", ICON.bad, "Есть сбой", `${bad} ${plural(bad, "проект требует", "проекта требуют", "проектов требуют")} внимания`]
+    : warn ? ["var(--warn)", ICON.warn, "Есть предупреждения", "Сайты работают, но что-то стоит проверить"]
+    : run ? ["var(--run)", ICON.run, "Идёт деплой", "Сайты работают, новая версия собирается"]
+    : ["var(--ok)", ICON.ok, "Все системы работают", "Сайты отвечают, контейнеры здоровы, деплои прошли"]
+  const sv = s.server, cs = s.projects.flatMap((p) => p.containers)
+  const up = sv.uptime, upTxt = up >= 86400 ? Math.floor(up / 86400) + " дн " + Math.floor((up % 86400) / 3600) + " ч" : Math.floor(up / 3600) + " ч " + Math.floor((up % 3600) / 60) + " мин"
+  $("#hero").innerHTML = `<div class="orb" style="color:${col}">${ic.replace("<svg", '<svg style="color:' + col + '"')}</div>
+    <div><h1>${title}</h1><p>${sub}</p></div>
+    <div class="facts">
+      <div class="fact"><div class="k">Проекты</div><div class="v num">${s.projects.filter((p) => p.id !== "other").length}</div></div>
+      <div class="fact"><div class="k">Контейнеры</div><div class="v num">${cs.filter((c) => c.state === "running").length}<span style="color:var(--mut);font-weight:400">/${cs.length}</span></div></div>
+      <div class="fact"><div class="k">Аптайм</div><div class="v num">${upTxt}</div></div>
+    </div>`
+  document.title = (bad ? "● " : "") + sv.host + " — " + title.toLowerCase()
 }
 
-function renderProject(p, now) {
-  const { lv, issues } = projectStatus(p, now)
-  const head = issues.length ? issues.map(([l, w]) => `<span class="${l}">${esc(w)}</span>`).join(" · ") : '<span class="ok">Всё работает</span>'
-  const d = p.deploys[0]
-  let dep = '<div class="empty">Деплоев в журнале нет</div>'
-  if (d) {
-    const [t, cls, ic] = DEP[d.status]
-    const when = d.status === "running" ? `идёт ${dur(now - d.start)}` : `${ago(d.end || d.start, now)}${d.duration ? " · " + dur(d.duration) : ""}`
-    dep = `<div class="dep"><span class="badge ${cls}">${ic} ${t}</span>
-      <div style="min-width:0;flex:1"><div class="subj">${shaLink(p, d)} ${esc(d.subject || "")}</div>
-      <div class="st">${when}${d.inferred ? " · по времени запуска контейнера" : ""}</div>
-      ${d.error ? `<div class="bad" style="font-size:12px">${esc(d.error)}</div>` : ""}</div></div>`
+// ── кольца ──
+function ring(p, label, val, sub, soft) {
+  const r = 44, C = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p))
+  const col = v >= 90 ? (soft ? "var(--warn)" : "var(--bad)") : v >= 75 ? "var(--warn)" : "var(--fg)"
+  return `<div class="gauge"><div class="ring"><svg viewBox="0 0 104 104">
+      <circle cx="52" cy="52" r="${r}" fill="none" stroke="var(--line2)" stroke-width="8"/>
+      <circle cx="52" cy="52" r="${r}" fill="none" stroke="${col}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - v / 100)}"/></svg>
+      <div class="c"><div class="p num">${Math.round(v)}<span style="font-size:13px;font-weight:500">%</span></div></div></div>
+    <div class="k">${label}</div><div class="s num">${val}</div>${sub ? `<div class="s num">${sub}</div>` : ""}</div>`
+}
+function renderGauges(sv) {
+  const h = sv.history, cpu = h.length ? h[h.length - 1].cpu : 0
+  const html = [
+    ring(cpu, "Процессор", `${sv.ncpu} ядра · load ${sv.load[0].toFixed(2)}`),
+    ring(pct(sv.mem_used, sv.mem_total), "Память", `${gb(sv.mem_used)} из ${gb(sv.mem_total)}`),
+    ring(pct(sv.disk_used, sv.disk_total), "Диск", `${gb(sv.disk_used)} из ${gb(sv.disk_total)}`),
+    ring(pct(sv.swap_used, sv.swap_total), "Swap", `${gb(sv.swap_used)} из ${gb(sv.swap_total)}`, null, true),
+  ]
+  const g = $("#gauges")
+  if (!g.children.length) { g.innerHTML = html.join(""); return }
+  // обновляем на месте — кольца плавно доезжают до нового значения
+  const tmp = document.createElement("div"); tmp.innerHTML = html.join("")
+  ;[...tmp.children].forEach((n, i) => {
+    const o = g.children[i]
+    o.querySelectorAll("circle")[1].setAttribute("stroke-dashoffset", n.querySelectorAll("circle")[1].getAttribute("stroke-dashoffset"))
+    o.querySelectorAll("circle")[1].setAttribute("stroke", n.querySelectorAll("circle")[1].getAttribute("stroke"))
+    o.querySelector(".c").innerHTML = n.querySelector(".c").innerHTML
+    o.querySelectorAll(".s").forEach((s, j) => (s.textContent = n.querySelectorAll(".s")[j].textContent))
+  })
+}
+
+// ── график ──
+let metric = safeGet("metric") || "cpu", HIST = [], SV = null
+const METRICS = {
+  cpu: { series: [["cpu", "#3291ff", "CPU"]], max: () => 100, fmt: (v) => v.toFixed(0) + "%", axis: (v) => v + "%" },
+  mem: { series: [["mem", "#a855f7", "Память"]], max: () => SV.mem_total, fmt: gb, axis: (v) => (v / G).toFixed(0) + " ГБ" },
+  net: { series: [["rx", "#10b981", "Входящий"], ["tx", "#f97316", "Исходящий"]], max: null, fmt: rate, axis: (v) => rate(v).replace("/с", "") },
+  io: { series: [["rd", "#06b6d4", "Чтение"], ["wr", "#ec4899", "Запись"]], max: null, fmt: rate, axis: (v) => rate(v).replace("/с", "") },
+}
+function niceMax(v) { if (v <= 0) return 1; const e = 10 ** Math.floor(Math.log10(v)), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e }
+function drawChart() {
+  const svg = $("#psvg"), box = $("#plot").getBoundingClientRect()
+  const W = box.width, H = box.height, L = 52, R = 8, T = 8, B = 22
+  const m = METRICS[metric], h = HIST
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("on", t.dataset.m === metric))
+  if (h.length < 2 || !W) { svg.innerHTML = ""; return }
+  const last = h[h.length - 1]
+  $("#chv").innerHTML = m.series.map(([k, c]) => `<span style="color:${m.series.length > 1 ? c : "inherit"}">${m.fmt(last[k])}</span>`).join('<span style="color:var(--mut2)"> / </span>')
+  const peak = Math.max(...h.flatMap((x) => m.series.map(([k]) => x[k])))
+  $("#chs").textContent = (m.series.length > 1 ? m.series.map((s) => s[2]).join(" / ") + " · " : "сейчас · ") + "пик за час " + m.fmt(peak)
+  const max = m.max ? m.max() : niceMax(peak * 1.15)
+  const t0 = h[0].t, t1 = last.t, x = (t) => L + ((t - t0) / Math.max(1, t1 - t0)) * (W - L - R), y = (v) => T + (1 - Math.min(v, max) / max) * (H - T - B)
+  let out = `<defs>${m.series.map(([k, c]) => `<linearGradient id="g-${k}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity=".35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient>`).join("")}</defs>`
+  for (let i = 0; i <= 4; i++) {
+    const v = (max / 4) * i, yy = y(v)
+    out += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="var(--line)" ${i ? 'stroke-dasharray="3 4"' : ""}/><text class="axis" x="${L - 8}" y="${yy + 4}" text-anchor="end">${m.axis(v)}</text>`
   }
-  const hist = p.deploys.slice(1, 10).map((x) => {
-    const [t, cls, ic] = DEP[x.status]
-    return `<li><span class="${cls}" title="${t}">${ic}</span><span class="subj">${shaLink(p, x)} ${esc(x.subject || "")}</span>
-      <span class="when">${clock(x.start)}${x.duration ? " · " + dur(x.duration) : ""}</span></li>`
-  }).join("")
-  const checks = p.checks.map((c) => {
-    const ok = c.code > 0 && c.code < 500
-    return `<div class="chk"><span class="dot ${ok ? "bg-ok" : "bg-bad"}"></span>
-      <a class="u" href="${c.url}" target="_blank" rel="noopener">${esc(c.url.replace("https://", ""))}</a>
-      <span class="ms">${c.code || esc(c.error || "нет ответа")}${c.ms != null ? " · " + c.ms + " мс" : ""}</span>${uptimeBar(c.history)}</div>`
-  }).join("")
-  const units = (p.units || []).map((u) => `<span class="badge ${u.state === "active" ? "ok" : "bad"}">${esc(u.name)}</span>`).join("")
-  const bk = p.backup ? `<div class="chk"><span class="dot ${now - p.backup.time > 26 * 3600 ? "bg-warn" : "bg-ok"}"></span>
-      <span class="u">Бэкап: ${ago(p.backup.time, now)} · ${mb(p.backup.size)}</span><span class="ms">хранится ${p.backup.count}</span></div>` : ""
-  const logs = (p.logs || []).map((l) => `<button class="lnk" data-proj="${p.id}" data-log="${l}">${l}</button>`).join(" · ")
-  const rows = p.containers.map((c) => {
-    const st = c.state !== "running" ? ["bad", c.state] : c.health === "unhealthy" ? ["bad", "unhealthy"] : c.health === "starting" ? ["warn", "запуск"] : ["ok", c.health || "работает"]
-    const mp = c.mem_limit ? pct(c.mem, c.mem_limit) : 0
-    return `<tr><td><span class="dot bg-${st[0]}" style="display:inline-block;margin-right:8px"></span>${st[1]}</td>
-      <td class="n" title="${esc(c.image)}">${esc(c.name)}</td>
-      <td class="r">${c.cpu == null ? "—" : c.cpu.toFixed(1) + "%"}</td>
-      <td class="r">${c.mem ? mb(c.mem) : "—"}${c.mem_limit && c.mem_limit < 15 * 1024 ** 3 ? ` / ${mb(c.mem_limit)}<span class="mini"><i class="${level(mp)}" style="width:${mp}%"></i></span>` : ""}</td>
-      <td class="mut">${esc(c.status.replace(/\s*\(.*\)/, ""))}</td>
-      <td class="r"><button class="lnk" data-container="${esc(c.name)}">логи</button></td></tr>`
-  }).join("")
-  const links = (p.links || []).map((l) => `<a href="${l}" target="_blank" rel="noopener">${esc(l.replace("https://", ""))}</a>`).join("")
-    + (p.repo ? `<a href="${p.repo}/commits/main" target="_blank" rel="noopener">GitHub</a>` : "")
-  const open = openDetails.has(p.id) ? " open" : ""
-  return `<section class="proj" id="p-${p.id}">
-    <div class="ph"><span class="dot bg-${lv}"></span><h3>${esc(p.name)}</h3><span class="st">${head}</span><div class="links">${links}</div></div>
-    <div class="pb">
-      <div class="cell"><div class="lbl">Последний деплой${p.deploy_how ? ` <span class="mut">· ${esc(p.deploy_how)}</span>` : ""}</div>${dep}
-        ${hist ? `<ul class="hist">${hist}</ul>` : ""}</div>
-      <div class="cell"><div class="lbl">Доступность</div>${checks || ""}${units ? `<div class="chips" style="margin:6px 0">${units}</div>` : ""}${bk}
-        ${!checks && !units && !bk ? '<div class="empty">Нет проверок</div>' : ""}
-        ${logs ? `<div class="lbl" style="margin:12px 0 0">Журналы: ${logs}</div>` : ""}</div>
-    </div>
-    <details data-id="${p.id}"${open}><summary>Контейнеры: ${p.containers.length}, работает ${p.containers.filter((c) => c.state === "running").length}</summary>
-      <div class="tw"><table><thead><tr><th>Состояние</th><th>Имя</th><th class="r">CPU</th><th class="r">Память</th><th>Запущен</th><th></th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="6" class="empty">нет</td></tr>'}</tbody></table></div></details>
-  </section>`
+  const span = t1 - t0, step = span > 2400 ? 900 : span > 1200 ? 600 : span > 300 ? 300 : 60
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) out += `<text class="axis" x="${x(t)}" y="${H - 4}" text-anchor="middle">${hm(t)}</text>`
+  for (const [k, c] of m.series) {
+    const d = h.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p[k]).toFixed(1)).join("")
+    out += `<path d="${d}L${x(t1)} ${y(0)}L${x(t0)} ${y(0)}Z" fill="url(#g-${k})"/><path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round"/>`
+  }
+  out += `<line id="cur" y1="${T}" y2="${H - B}" stroke="var(--mut2)" stroke-dasharray="3 3" style="display:none"/>`
+  out += m.series.map(([k, c]) => `<circle class="cd" data-k="${k}" r="4" fill="${c}" stroke="var(--card)" stroke-width="2" style="display:none"/>`).join("")
+  svg.innerHTML = out
+  svg.onmousemove = (e) => {
+    const r = svg.getBoundingClientRect(), mx = e.clientX - r.left
+    const t = t0 + ((mx - L) / (W - L - R)) * (t1 - t0)
+    let best = h[0]; for (const p of h) if (Math.abs(p.t - t) < Math.abs(best.t - t)) best = p
+    const cx = x(best.t), cur = svg.querySelector("#cur")
+    cur.setAttribute("x1", cx); cur.setAttribute("x2", cx); cur.style.display = ""
+    svg.querySelectorAll(".cd").forEach((c) => { c.setAttribute("cx", cx); c.setAttribute("cy", y(best[c.dataset.k])); c.style.display = "" })
+    const tip = $("#tip"); tip.style.display = "block"; tip.style.left = cx + "px"; tip.style.top = y(Math.max(...m.series.map(([k]) => best[k]))) + "px"
+    tip.innerHTML = `<span style="color:var(--mut)">${hm(best.t)}:${String(new Date(best.t * 1000).getSeconds()).padStart(2, "0")}</span>` + m.series.map(([k, c, n]) => `<b><span style="color:${c}">●</span> ${m.series.length > 1 ? n + " " : ""}${m.fmt(best[k])}</b>`).join("")
+  }
+  svg.onmouseleave = () => { $("#tip").style.display = "none"; svg.querySelector("#cur").style.display = "none"; svg.querySelectorAll(".cd").forEach((c) => (c.style.display = "none")) }
+}
+$("#tabs").onclick = (e) => { const b = e.target.closest(".tab"); if (b) { metric = b.dataset.m; safeSet("metric", metric); drawChart() } }
+addEventListener("resize", () => drawChart())
+
+function renderMinis(sv) {
+  const h = sv.history, last = h[h.length - 1] || {}
+  const avg = (k) => (h.length ? h.reduce((a, p) => a + p[k], 0) / h.length : 0)
+  const items = [
+    ["Нагрузка (load)", sv.load.map((v) => v.toFixed(2)).join(" · "), "1 / 5 / 15 мин"],
+    ["Сеть сейчас", `↓ ${rate(last.rx || 0)}`, `↑ ${rate(last.tx || 0)}`],
+    ["CPU в среднем за час", avg("cpu").toFixed(1) + "%", "пик " + Math.max(0, ...h.map((p) => p.cpu)).toFixed(0) + "%"],
+    ["Свободно памяти", gb(sv.mem_total - sv.mem_used), sv.reboot_required ? "⚠ нужна перезагрузка" : "из " + gb(sv.mem_total)],
+  ]
+  $("#minis").innerHTML = items.map(([k, v, s]) => `<div class="card mini"><div class="k">${k}</div><div class="v num">${v}</div><div class="k">${s}</div></div>`).join("")
 }
 
-const openDetails = new Set(JSON.parse(safeGet("open") || '["commrent","orda","jiyn","shared"]'))
-function safeGet(k) { try { return localStorage.getItem("st:" + k) } catch { return null } }
-function safeSet(k, v) { try { localStorage.setItem("st:" + k, v) } catch {} }
-document.addEventListener("toggle", (e) => {
-  const id = e.target?.dataset?.id
-  if (!id) return
-  e.target.open ? openDetails.add(id) : openDetails.delete(id)
-  safeSet("open", JSON.stringify([...openDetails]))
-}, true)
+// ── карточки проектов ──
+function bars(p) {
+  // общая история всех проверок проекта: ячейка = проверка, падение хоть одного сайта = красная
+  const n = 40, byT = new Map()
+  for (const c of p.checks) for (const h of c.history) byT.set(h.t, (byT.get(h.t) ?? true) && h.ok)
+  const cells = [...byT.entries()].sort((a, b) => a[0] - b[0]).slice(-n)
+  const pad = Array(Math.max(0, n - cells.length)).fill('<i class="n"></i>').join("")
+  return `<div class="bars">${pad}${cells.map(([t, ok]) => `<i class="${ok ? "" : "x"}" title="${hm(t)} ${ok ? "ок" : "сбой"}"></i>`).join("")}</div>
+    <div class="bars-l"><span>${cells.length ? Math.round((cells.length * 30) / 60) + " мин назад" : ""}</span><span>${p.checks.length} ${plural(p.checks.length, "сайт", "сайта", "сайтов")} · сейчас</span></div>`
+}
+function renderCard(p, now) {
+  const { lv, issues } = projectStatus(p, now)
+  const d = p.deploys[0]
+  const cpu = p.containers.reduce((a, c) => a + (c.cpu || 0), 0), mem = p.containers.reduce((a, c) => a + (c.mem || 0), 0)
+  const ms = p.checks.filter((c) => c.ms != null).map((c) => c.ms)
+  const domain = (p.links[0] || "").replace("https://", "")
+  const dep = d ? `<div class="dep"><span class="ic">${stIcon(d.status)}</span><div class="m">
+      <div class="msg">${esc(d.subject || "без описания")}</div>
+      <div class="meta">${shaLink(p, d)}<span>${d.status === "running" ? "собирается " + dur(now - d.start) : ago(d.end || d.start, now)}</span>${d.duration ? `<span>· ${dur(d.duration)}</span>` : ""}${d.inferred ? "<span>· по запуску контейнера</span>" : ""}</div></div></div>`
+    : `<div class="dep"><span class="ic" style="color:var(--mut)">—</span><div class="m"><div class="msg" style="color:var(--mut);font-weight:400">${p.units?.length ? p.units.length + " " + plural(p.units.length, "служба", "службы", "служб") + " и " + p.containers.length + " " + plural(p.containers.length, "контейнер", "контейнера", "контейнеров") : "Деплоев нет"}</div>
+      <div class="meta">${(p.units || []).map((u) => `<span style="color:${u.state === "active" ? "var(--ok)" : "var(--bad)"}">● ${esc(u.name)}</span>`).join(" ")}</div></div></div>`
+  const iss = issues.filter(([l]) => l === "bad" || l === "warn").slice(0, 2).map(([l, w]) => `<div class="issue ${l}">● ${esc(w)}</div>`).join("")
+  return `<div class="card pc fade" role="button" tabindex="0" data-p="${p.id}" style="--grad:${look(p.id).grad};--tint:${look(p.id).tint}">
+    <div class="pc-h">${av(p)}<div class="t"><h3>${esc(p.name)}</h3><div class="d">${esc(domain || "сервер")}</div></div>
+      <span class="pill ${lv}"><i></i>${PILL[lv]}</span></div>
+    ${dep}
+    ${p.checks.length ? `<div>${bars(p)}</div>` : ""}
+    ${iss}
+    <div class="pc-f">
+      <div class="cdots" title="контейнеры">${p.containers.map((c) => `<i class="${c.state !== "running" || c.health === "unhealthy" ? "b" : c.health === "starting" ? "w" : ""}" title="${esc(c.name)}"></i>`).join("")}</div>
+      <span><b class="num">${cpu.toFixed(1)}%</b> CPU</span><span><b class="num">${mb(mem)}</b> памяти</span>
+      ${ms.length ? `<span><b class="num">${Math.round(ms.reduce((a, b) => a + b, 0) / ms.length)} мс</b> отклик</span>` : ""}
+      ${p.backup ? `<span>бэкап <b>${ago(p.backup.time, now)}</b></span>` : ""}
+    </div>
+  </div>`
+}
 
-let lastOk = 0
+function renderFeed(s) {
+  const all = s.projects.flatMap((p) => p.deploys.filter((d) => !d.inferred).map((d) => ({ p, d }))).sort((a, b) => b.d.start - a.d.start).slice(0, 12)
+  $("#feed").innerHTML = all.length ? all.map(({ p, d }) => `<div class="row">${stIcon(d.status)}
+      <div class="pj">${av(p)}${esc(p.name)}</div>
+      <div class="msg">${esc(d.subject || "")} <span style="margin-left:6px">${shaLink(p, d)}</span>${d.error ? ` <span style="color:var(--bad);font-size:12px">· ${esc(d.error)}</span>` : ""}</div>
+      <div class="when num">${d.status === "running" ? "идёт " + dur(s.now - d.start) : dt(d.start) + (d.duration ? " · " + dur(d.duration) : "")}</div></div>`).join("")
+    : '<div class="empty">Пока нет деплоев</div>'
+}
+
+// ── боковая панель проекта ──
+let STATE = null, openId = null, drTab = "deploys", logSrc = null, logTimer = null, rawLog = ""
+function openDrawer(id) {
+  openId = id; drTab = "deploys"; logSrc = null
+  $("#drawer").classList.add("on"); $("#scrim").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false")
+  renderDrawer(true)
+}
+function closeDrawer() {
+  openId = null; clearInterval(logTimer)
+  $("#drawer").classList.remove("on"); $("#scrim").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true")
+}
+function renderDrawer(full) {
+  const p = STATE?.projects.find((x) => x.id === openId)
+  if (!p) return
+  const now = STATE.now, { lv } = projectStatus(p, now)
+  $("#drh").innerHTML = `${av(p)}<div class="t"><h3>${esc(p.name)}</h3><div class="d">${esc(p.deploy_how || "")}</div></div>
+    <span class="pill ${lv}"><i></i>${PILL[lv]}</span><button class="ibtn x" id="drx" title="Закрыть">✕</button>`
+  $("#drx").onclick = closeDrawer
+  $("#drl").innerHTML = p.links.map((l) => `<a href="${l}" target="_blank" rel="noopener">${esc(l.replace("https://", ""))} ↗</a>`).join("") + (p.repo ? `<a href="${p.repo}/commits/main" target="_blank" rel="noopener">GitHub ↗</a>` : "")
+  document.querySelectorAll(".dr-tab").forEach((t) => t.classList.toggle("on", t.dataset.t === drTab))
+  const b = $("#drb")
+  b.classList.toggle("logs", drTab === "logs")
+  if (drTab === "deploys") {
+    const checks = p.checks.map((c) => { const ok = c.code > 0 && c.code < 500; return `<div class="unit ${ok ? "" : "b"}"><i></i>${esc(c.url.replace("https://", ""))} · ${c.code || "нет ответа"}${c.ms != null ? " · " + c.ms + " мс" : ""}</div>` }).join("")
+    const units = (p.units || []).map((u) => `<div class="unit ${u.state === "active" ? "" : "b"}"><i></i>${esc(u.name)}</div>`).join("")
+    const bk = p.backup ? `<div class="unit ${now - p.backup.time > 26 * 3600 ? "b" : ""}"><i></i>бэкап ${ago(p.backup.time, now)} · ${mb(p.backup.size)} · хранится ${p.backup.count}</div>` : ""
+    b.innerHTML = `${checks || units || bk ? `<div class="units" style="margin-bottom:18px">${checks}${units}${bk}</div>` : ""}
+      <div class="tl">${p.deploys.length ? p.deploys.map((d) => `<div class="row">${stIcon(d.status)}<div style="min-width:0">
+        <div class="msg">${esc(d.subject || "без описания")}</div>
+        <div class="sha" style="margin-top:2px">${shaLink(p, d)}${d.from ? `<span style="color:var(--mut2)">← ${esc(d.from)}</span>` : ""}</div>
+        ${d.error ? `<div class="err">${esc(d.error)}</div>` : ""}</div>
+        <div class="when num">${dt(d.start)}<br>${d.status === "running" ? "идёт " + dur(now - d.start) : dur(d.duration)}</div></div>`).join("") : '<div class="empty">Журнала деплоев нет</div>'}</div>`
+  } else if (drTab === "containers") {
+    b.innerHTML = `<table class="ct"><thead><tr><th>Контейнер</th><th class="r">CPU</th><th class="r">Память</th><th>Работает</th><th></th></tr></thead><tbody>
+      ${p.containers.map((c) => {
+        const st = c.state !== "running" ? "var(--bad)" : c.health === "unhealthy" ? "var(--bad)" : c.health === "starting" ? "var(--warn)" : "var(--ok)"
+        const mp = c.mem_limit && c.mem_limit < 15 * G ? pct(c.mem, c.mem_limit) : null
+        return `<tr><td class="n"><span style="color:${st}">●</span> ${esc(c.name)}<div style="color:var(--mut2);font-size:11px">${esc(c.image)}</div></td>
+          <td class="r num">${c.cpu == null ? "—" : c.cpu.toFixed(1) + "%"}</td>
+          <td class="r num">${c.mem ? mb(c.mem) : "—"}${mp != null ? `<span class="meter"><i class="${mp > 90 ? "b" : mp > 75 ? "w" : ""}" style="width:${mp}%"></i></span>` : ""}</td>
+          <td style="color:var(--mut)">${esc(c.status.replace(/^Up /, "").replace(/\s*\(.*\)/, "").replace("About a minute", "~1 minute"))}</td>
+          <td class="r"><button class="lk" data-c="${esc(c.name)}">Логи</button></td></tr>` }).join("")}</tbody></table>`
+  } else if (full || !b.querySelector("pre.log")) {
+    const srcs = [...(p.logs || []).map((l) => ["log", l]), ...p.containers.map((c) => ["c", c.name])]
+    if (!logSrc && srcs.length) logSrc = srcs[0]
+    b.innerHTML = `<div class="lsrc">${srcs.map(([t, n]) => `<button class="chip ${logSrc && logSrc[0] === t && logSrc[1] === n ? "on" : ""}" data-s="${t}:${esc(n)}">${t === "log" ? "▤ " : "▣ "}${esc(n)}</button>`).join("")}</div>
+      <div class="ltools"><input type="search" id="lf" placeholder="Фильтр строк…"><label><input type="checkbox" id="la" checked> обновлять</label></div>
+      <pre class="log" id="lp">загрузка…</pre>`
+    $("#lf").oninput = showLog
+    loadLog(true)
+    clearInterval(logTimer); logTimer = setInterval(() => drTab === "logs" && $("#la")?.checked && loadLog(), 4000)
+  }
+}
+function showLog() {
+  const pre = $("#lp"); if (!pre) return
+  const f = $("#lf").value.toLowerCase(), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 40
+  const lines = rawLog.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "").split("\n").filter((l) => !f || l.toLowerCase().includes(f))
+  pre.innerHTML = lines.map((l) => {
+    let s = esc(l).replace(/^(\d{4}-\d\d-\d\dT[\d:.]+Z)/, '<span class="t">$1</span>')
+    return /error|fail|упал|ошибк|fatal|panic/i.test(l) ? `<span class="e">${s}</span>` : /warn/i.test(l) ? `<span class="w">${s}</span>` : s
+  }).join("\n")
+  if (atEnd) pre.scrollTop = pre.scrollHeight
+}
+async function loadLog(jump) {
+  if (!logSrc) { $("#lp").textContent = "Журналов нет"; return }
+  const q = logSrc[0] === "c" ? "container=" + encodeURIComponent(logSrc[1]) : `project=${openId}&log=${logSrc[1]}`
+  try { rawLog = await (await fetch("api/logs?" + q + "&tail=1000", { cache: "no-store" })).text() } catch (e) { rawLog = "Ошибка: " + e.message }
+  showLog(); if (jump) $("#lp").scrollTop = $("#lp").scrollHeight
+}
+$("#drt").onclick = (e) => { const t = e.target.closest(".dr-tab"); if (t) { drTab = t.dataset.t; clearInterval(logTimer); renderDrawer(true) } }
+$("#drb").onclick = (e) => {
+  const ch = e.target.closest(".chip"), lk = e.target.closest(".lk")
+  if (ch) { const [t, ...n] = ch.dataset.s.split(":"); logSrc = [t, n.join(":")]; renderDrawer(true) }
+  if (lk) { drTab = "logs"; logSrc = ["c", lk.dataset.c]; renderDrawer(true) }
+}
+$("#scrim").onclick = closeDrawer
+addEventListener("keydown", (e) => e.key === "Escape" && closeDrawer())
+$("#projects").onclick = (e) => { const c = e.target.closest(".pc"); if (c) openDrawer(c.dataset.p) }
+
+// ── цикл обновления ──
+let lastOk = 0, firstPaint = true
 async function tick() {
   try {
     const r = await fetch("api/state", { cache: "no-store" })
     if (!r.ok) throw new Error("HTTP " + r.status)
     const s = await r.json()
-    renderServer(s.server, s.now)
-    $("#projects").innerHTML = s.projects.map((p) => renderProject(p, s.now)).join("")
-    const bad = s.projects.filter((p) => projectStatus(p, s.now).lv === "bad").length
-    document.title = (bad ? `(${bad}) ` : "") + s.server.host + " — состояние"
-    lastOk = Date.now()
-    $("#err").style.display = "none"
+    STATE = s; SV = s.server; HIST = s.server.history
+    $("#host").textContent = s.server.host
+    renderHero(s); renderGauges(s.server); drawChart(); renderMinis(s.server)
+    const html = s.projects.map((p) => renderCard(p, s.now)).join("")
+    $("#projects").innerHTML = firstPaint ? html : html.replaceAll(" fade", "")
+    $("#psub").textContent = `${s.projects.length} ${plural(s.projects.length, "группа", "группы", "групп")} · нажмите на карточку — подробности и журналы`
+    renderFeed(s)
+    if (openId && drTab !== "logs") renderDrawer(false)
+    else if (openId) renderDrawerHeaderOnly()
+    firstPaint = false; lastOk = Date.now(); $("#err").style.display = "none"
   } catch (e) {
-    $("#err").style.display = "block"
-    $("#err").textContent = "Нет связи с сервером: " + e.message
+    $("#err").style.display = "block"; $("#err").textContent = "Нет связи с сервером: " + e.message
   }
   const stale = Date.now() - lastOk > 20000
-  $("#pulse").classList.toggle("stale", stale)
+  $("#live").classList.toggle("stale", stale)
   $("#upd").textContent = lastOk ? (stale ? "нет данных с " : "обновлено ") + new Date(lastOk).toLocaleTimeString("ru-RU") : "подключение…"
 }
-tick()
-setInterval(tick, 5000)
+function renderDrawerHeaderOnly() {
+  const p = STATE.projects.find((x) => x.id === openId); if (!p) return
+  const pill = $("#drh .pill"), { lv } = projectStatus(p, STATE.now)
+  if (pill) { pill.className = "pill " + lv; pill.innerHTML = `<i></i>${PILL[lv]}` }
+}
+tick(); setInterval(tick, 5000)
 
-// ── Просмотр журналов ──
-let logSrc = null, logTimer = null, rawLog = ""
-function showLog() {
-  const f = $("#mfilter").value.toLowerCase()
-  const pre = $("#mpre"), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 30
-  pre.textContent = f ? rawLog.split("\n").filter((l) => l.toLowerCase().includes(f)).join("\n") : rawLog
-  if (atEnd) pre.scrollTop = pre.scrollHeight
-}
-async function loadLog() {
-  try { rawLog = await (await fetch("api/logs?" + logSrc + "&tail=800", { cache: "no-store" })).text() } catch (e) { rawLog = "Ошибка: " + e.message }
-  showLog()
-}
-function openLog(src, title) {
-  logSrc = src; rawLog = ""
-  $("#mtitle").textContent = title; $("#mpre").textContent = "загрузка…"; $("#modal").classList.add("on")
-  loadLog().then(() => ($("#mpre").scrollTop = $("#mpre").scrollHeight))
-  clearInterval(logTimer); logTimer = setInterval(() => $("#mauto").checked && loadLog(), 4000)
-}
-function closeLog() { $("#modal").classList.remove("on"); clearInterval(logTimer) }
-document.addEventListener("click", (e) => {
-  const b = e.target.closest("button[data-container],button[data-log]")
-  if (b?.dataset.container) openLog("container=" + encodeURIComponent(b.dataset.container), "docker logs " + b.dataset.container)
-  else if (b?.dataset.log) openLog(`project=${b.dataset.proj}&log=${b.dataset.log}`, `${b.dataset.proj} / ${b.dataset.log}`)
-})
-$("#mclose").onclick = closeLog
-$("#modal").onclick = (e) => e.target.id === "modal" && closeLog()
-document.addEventListener("keydown", (e) => e.key === "Escape" && closeLog())
-$("#mfilter").oninput = showLog
-$("#mtop").onclick = () => ($("#mpre").scrollTop = $("#mpre").scrollHeight)
-
-// ── Тема ──
+// ── тема и мелочи ──
+function safeGet(k) { try { return localStorage.getItem("st:" + k) } catch { return null } }
+function safeSet(k, v) { try { localStorage.setItem("st:" + k, v) } catch {} }
 const applyTheme = (t) => (t ? document.documentElement.setAttribute("data-theme", t) : document.documentElement.removeAttribute("data-theme"))
 applyTheme(safeGet("theme"))
 $("#theme").onclick = () => {
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches
-  const cur = document.documentElement.getAttribute("data-theme") || (dark ? "dark" : "light")
-  const next = cur === "dark" ? "light" : "dark"
-  applyTheme(next); safeSet("theme", next)
+  const cur = document.documentElement.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark")
+  const next = cur === "dark" ? "light" : "dark"; applyTheme(next); safeSet("theme", next); drawChart()
 }
 </script>
 </body>
